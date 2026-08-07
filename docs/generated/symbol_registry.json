@@ -24,12 +24,12 @@
     ]
   },
   "counts": {
-    "total": 5255,
+    "total": 5256,
     "byBoundary": {
       "configuration": 91,
       "host": 897,
       "host-bridge": 61,
-      "host-webview": 525,
+      "host-webview": 526,
       "pure-core": 2931,
       "schema-types": 32,
       "webview": 718
@@ -169,7 +169,7 @@
       "guild-quest": 21,
       "guild-request": 18,
       "guild-turn-ops": 6,
-      "host-webview-protocol": 525,
+      "host-webview-protocol": 526,
       "i18n": 8,
       "image-gen-circuit": 7,
       "image-gen-config": 9,
@@ -351,7 +351,7 @@
       "enum": 2,
       "function": 1858,
       "interface": 920,
-      "messageType": 525,
+      "messageType": 526,
       "type": 422,
       "webviewFunction": 694,
       "windowApi": 24
@@ -26197,11 +26197,23 @@
       "direction": "received"
     },
     {
+      "id": "host-webview:messageType:received:webview/modules/89c1-combat-dev-tools-gate.js:localeBundle",
+      "name": "localeBundle",
+      "kind": "messageType",
+      "sourcePath": "webview/modules/89c1-combat-dev-tools-gate.js",
+      "line": 61,
+      "signature": "type: \"localeBundle\" (received)",
+      "public": "protocol",
+      "boundary": "host-webview",
+      "category": "host-webview-protocol",
+      "direction": "received"
+    },
+    {
       "id": "host-webview:messageType:received:webview/modules/89c1-combat-dev-tools-gate.js:debugCapabilities",
       "name": "debugCapabilities",
       "kind": "messageType",
       "sourcePath": "webview/modules/89c1-combat-dev-tools-gate.js",
-      "line": 61,
+      "line": 72,
       "signature": "type: \"debugCapabilities\" (received)",
       "public": "protocol",
       "boundary": "host-webview",

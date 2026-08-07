@@ -140,7 +140,7 @@ flowchart LR
 
 | 区分 | 内容 |
 |------|------|
-| **必須（コアプレイ）** | VSCode 1.85+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
+| **必須（コアプレイ）** | VS Code 1.93+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
 | **推奨** | GM Bridge（Grok / Ollama / clipboard 等）または手動コピペ運用 |
 | **任意 — 画像** | ComfyUI（API モード）— シーン背景・羊皮紙地図の生成 |
 | **任意 — 視覚記憶** | VLM（Ollama `llava` や OpenRouter 多模態）— Soulgaze |
@@ -295,7 +295,7 @@ AI_HANDOVER.md と SKILL.md を読んで、LoreRelayのGMとして進行して�
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+) — 必須
+- **VS Code** (v1.93+) — 必須
 - **Python** — 必須（ダイス・レイアウト地図・GM ブリッジ用スクリプト）
 - **TextAdventureGMSkill** — 必須（`SKILL.md` と `scripts/`。拡張リポジトリの隣に配置）
 - **ComfyUI** — *任意*（シーン画像・羊皮紙地図を生成する場合のみ。API モードで起動）

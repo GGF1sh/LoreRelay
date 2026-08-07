@@ -60,9 +60,10 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | `docs/assets/screenshot-world-map.png` | World tab Parchment map overview | Real — same capture method, uses a dedicated 10-region/14-location showcase `world_forge.json` (`docs/assets/worldmap-showcase-fixture/`) rendered to a ComfyUI parchment background (Illustrious + Canny ControlNet, no LoRA — see fixture folder for generation notes), 2026-07-06 |
 | `docs/assets/screenshot-world-map-detail.png` | World tab Parchment map, selected-location detail card | Real — same capture + fixture, with a high-danger ruin pin selected to show the type/danger/faction detail panel, 2026-07-06 |
 | `docs/assets/screenshot-logistics.png` | Logistics graph canvas (trade network), maximized lightbox view | Real — same capture method, driven by the `scripts/create_ui_showcase_scenarios.js` / `capture_living_trade_worldview.js` `05-living-trade-world` fixture (`economyLogistics` payload), 2026-07-18 |
+| `docs/assets/screenshot-battle-view.png` | Battle View with gambit + attack-move orders, roster, combat log and order receipts | Real — `webview/battle-view/` served statically; snapshot produced by the compiled cores (`initialCombatLabScenarios` → `createCombatCommandPlaytest('mixed_arms_showcase')` → advance 40 ticks → `issueCombatCommand(attack_move)` → `combatCommandPlaytestSnapshot`) and posted as `combatCommandPlaytestState`, 2026-08-07 |
 | `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
 
-The old wireframe `.svg` placeholders for these five screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
+The old wireframe `.svg` placeholders for these screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
 
 ### How the "Real" screenshots were captured (no VS Code needed)
 
@@ -94,6 +95,7 @@ Director, Lorebook, ComfyUI, World Map) now use this method:
 - **Lorebook**: post `lorebookList` with a few `entries` (mix of enabled/disabled/pinned to show the visual states).
 - **World Map**: switch to Parchment mode and post a `worldView` message with `cartographyImage`, `cartographyPins`, `cartographyRegionLabels`, `cartographyRouteEdges`, and `locationPinCatalog` built from a `world_forge.json` (see `docs/assets/worldmap-showcase-fixture/` for the 10-region/14-location showcase world and its generated `world_map.png`). A minimal per-region `fog`/`regionMapFeedback` demonstrates the fog-of-war and faction-tint overlays; selecting a pin (`selectWorldLocationPin(id)`) shows the type/danger/faction detail card for the second screenshot.
 - **ComfyUI**: push two `messageHistory` entries via `renderMessage()`, the second one carrying an `image` field pointing at a real ComfyUI-generated scene (see below).
+- **Battle View**: this panel is a separate webview (`webview/battle-view/index.html` + `battle-view.js` + `battle-view.css`) with its own placeholders (`{{i18nJson}}` must be a real bundle — the keys are listed in `BATTLE_VIEW_I18N_KEYS` in `src/extension.ts`, values from `locales/<locale>.json`). Generate a snapshot with the compiled cores, then post `{ type: 'combatLabState', state: { document: { scenarios } } }` followed by `{ type: 'combatCommandPlaytestState', state: snapshot }`. **Gotcha:** the view only accepts that first snapshot while `eligibleForHostRestore` is still true (the "adopt a running host session" path). Clicking the scenario `<select>` first clears the flag and the snapshot is silently dropped, leaving an empty battlefield. Snapshot units use numeric teams (`0` = allies), not the scenario's `'allies'` string.
 
 If a screenshot needs a *new* generated image (not just UI with fixture data), generate it directly
 against a running ComfyUI instance with the bundled `comfyui/workflow_sdxl_1024.json` template

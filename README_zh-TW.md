@@ -112,6 +112,8 @@ flowchart LR
 - 📊 **World Observatory (v1.53+，experimental):** 「守望變化中的世界」觀測面板——市場價格歷史迷你圖、編年史時間軸，watch（免費）/ advance（消耗資源）兩種模式。
 - 🕸️ **Logistics Graph Canvas (v1.84+):** 以圖論視角而非地圖可視化貿易網路——節點拖曳、區域折疊、語意縮放、小地圖、商品/路線狀態過濾，並提供帶即時流量的放大檢視。
 - 📐 **Responsive Webview Shell (v1.84.16+):** 三段式響應式版面——960px 以上為雙欄、720–959px 為覆蓋式抽屜、720px 以下為窄螢幕抽屜，即使在 VSCode 分割編輯窄視圖下聊天區也不會被擠壓。
+- ⚔️ **Tactical Combat / Battle View (v1.84.17+，experimental):** 單位依 gambit（自動行動規則）作戰，玩家可隨時以 RTS 慣例的命令介入——移動、攻擊、攻擊移動、停止、恢復 gambit。專用面板 **Battle View**（`LoreRelay: Open Battle View`）以真實資料呈現戰況、HP、輸出/受傷、閃避與擊殺。戰鬥結果會作為**回執**僅一次寫入 `game_state.json`，並作為 `combatConsequence` 區塊交給下一個 GM 回合——AI 只能描述既成事實，無法改寫勝負。詳見[下文](#combat)。
+- 🌱 **Genre World Presets (v1.84.31+):** 題材世界生成預設已正式化為**凍結且具版本管理的註冊表**（`fantasy-dungeon` / `fantasy-dark` / `fantasy-oriental` / `cyberpunk-sprawl` / `scifi-frontier` / `postapoc-wasteland` / `steampunk-industrial` / `horror-cosmic` / `zombie-suburban` 等）。區域構成、biome、災害規則與地名詞條移入預設並附帶生成 provenance，**相同種子 + 相同預設版本即可重現同一個世界**。既有生成行為維持不變。
 
 </details>
 
@@ -121,7 +123,7 @@ flowchart LR
 
 | 層級 | 內容 |
 |------|------|
-| **必需（核心遊玩）** | VSCode 1.85+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
+| **必需（核心遊玩）** | VS Code 1.93+、Python、`TextAdventureGMSkill`（`SKILL.md`） |
 | **推薦** | GM Bridge（Grok / Ollama / 剪貼簿等）或手動複製貼上 |
 | **可選 — 圖像** | ComfyUI（API 模式）— 場景背景與羊皮紙地圖 |
 | **可選 — 視覺記憶** | VLM（Ollama `llava` 或 OpenRouter 多模態）— Soulgaze |
@@ -185,7 +187,32 @@ flowchart LR
 </p>
 <p align="center"><sub>據點、市場、設施、移動基地以節點呈現，貿易路線依暢通/緊張/封鎖著色為邊。可拖曳節點重新排列區域、依商品或路線狀態過濾、語意縮放並透過小地圖導覽——與地圖互補，一眼看清貨物當下的流向。</sub></p>
 
-所有截圖皆來自真實 Webview（`webview/index.html` + `script.js` + `style.css`）的實機截圖，替換步驟見 [`DEMO.md`](DEMO.md)。
+<a id="combat"></a>
+
+### ⚔️ Battle View — 戰鬥是「真相引擎」（experimental）
+
+<p align="center">
+  <img src="docs/assets/screenshot-battle-view.png" width="820" alt="Battle View: 我方與敵方單位標記及 HP 條、gambit(GMBT) 與攻擊移動(A-MV) 命令徽章、我方部隊行動一覽、傷害與治療的戰鬥日誌，以及命令回執" />
+</p>
+<p align="center"><sub>紫色 <code>GMBT</code> 表示 gambit（單位依自身規則自動作戰），紅色 <code>A-MV</code> 表示玩家介入下達的攻擊移動命令。右側為我方部隊當前判斷與 HP，下方是傷害、治療與擊殺的戰鬥日誌，以及所發出命令的受理回執。</sub></p>
+
+設計上的根本約束是：**玩家透過 GM 的文字體驗戰鬥，而不是盯著一整螢幕移動的圓點**（[`docs/COMBAT_SYSTEM_DESIGN.md`](docs/COMBAT_SYSTEM_DESIGN.md)）。模擬器的價值不在於被觀看，而在於產出可供 GM 演繹的確定性事實。
+
+```mermaid
+flowchart LR
+    Story["故事（GM 回合）"] --> Start["戰鬥工作階段開始"]
+    Start --> Sim["確定性模擬<br/>gambit + 玩家命令"]
+    Sim --> Receipt["戰鬥結果回執<br/>（PENDING）"]
+    Receipt --> Apply["僅一次寫入<br/>HP / combatBattleHistory"]
+    Apply --> Fact["combatConsequence<br/>GM 提示區塊"]
+    Fact --> Story
+```
+
+- **命令遵循 RTS 慣例** — 左鍵點選、拖曳框選、右鍵移動或攻擊。未下達命令的單位繼續依 gambit 作戰，隨時可用 `恢復 gambit` 交還自動控制。
+- **結果不可竄改** — 回執經驗證後僅一次寫入 `game_state.json`，並以持久化標記防止重複套用。AI 可以演繹事實，但無法變更勝負、HP 或終止代碼。
+- **目前可用與尚未實作** — 目前入口為命令（`Open Battle View` / `Start Campaign Combat (Debug)`）。**GM 尚無法在故事推進中自動發起戰鬥**；單體角色的直接操作（閃避／耐力）已有經測試的邏輯但沒有 UI。
+
+所有截圖皆來自真實 Webview（`webview/index.html` + `script.js` + `style.css`；Battle View 位於 `webview/battle-view/`）的實機截圖，替換步驟見 [`DEMO.md`](DEMO.md)。
 
 ---
 
@@ -227,7 +254,7 @@ flowchart LR
 ## 🛠️ Setup & Installation
 
 ### 1. Prerequisites
-- **VSCode** (v1.85+) — 必需
+- **VS Code** (v1.93+) — 必需
 - **Python** — 必需（擲骰、版面地圖、GM 橋接腳本）
 - **TextAdventureGMSkill** — 必需（`SKILL.md` 與 `scripts/`，放在本儲存庫旁）
 - **ComfyUI** — *可選*（僅場景圖與羊皮紙地圖；需 API 模式啟動）
@@ -289,12 +316,22 @@ chmod +x scripts/setup.sh
 | `LoreRelay: Load Scenario Pack` | 載入含 `scenario.json` 的資料夾 |
 | `LoreRelay: Generate World Forge` | 程序化產生 `world_forge.json` |
 | `LoreRelay: Generate World Map Image` | 透過 ComfyUI 產生羊皮紙地圖（可選） |
+| `LoreRelay: Open Battle View` | 開啟戰鬥面板（會接手進行中的工作階段） |
+| `LoreRelay: Start Campaign Combat (Debug)` | 從戰役開始戰鬥工作階段（目前的入口） |
+| `LoreRelay: Apply Pending Combat Outcomes` | 將待處理的戰鬥回執寫入 `game_state.json` |
+| `LoreRelay: Abort Campaign Combat` | 中止進行中的戰役戰鬥 |
+| `LoreRelay: Start an adventure with this character` | 把 Parlor 對話升級為 Campaign |
 | `LoreRelay: Start Remote Play (LAN)` | 發布區域網路加入 URL |
+| `LoreRelay: Export Replay (Markdown/HTML)` | 將冒險日誌匯出為可閱讀文件 |
+| `LoreRelay: Run Workspace Sanity Check` | 檢查工作區狀態檔案 |
+| `LoreRelay: Check for Updates` | 檢查更新的 VSIX 版本 |
 | `LoreRelay: List Image Models` | 列出 ComfyUI checkpoint |
 | `LoreRelay: Import SillyTavern Character Card` | 匯入 ST 角色卡 |
 | `LoreRelay: Import SillyTavern Lorebook` | 匯入 ST lorebook |
 | `LoreRelay: Export Scenario Pack (Workshop ZIP)` | 匯出分發用 ZIP |
 | `LoreRelay: Validate Scenario Pack` | 驗證包結構 |
+
+在命令面板輸入 `LoreRelay:` 可查看全部 34 條命令。
 
 ### 6. 工作區主要檔案
 
@@ -309,17 +346,21 @@ chmod +x scripts/setup.sh
 | `game_history.json` | 冒險日誌（重啟後恢復） |
 | `world_map.layout.png` / `world_map.png` | Cartography 版面 / 羊皮紙圖 |
 | `npc_registry.json` | NPC 認知與關係 |
+| `.text-adventure/combat/` | 戰鬥回執（`pending/` 未套用 · `applied/` 已套用標記 · `injected/` 已交給 GM 的紀錄）|
 
 ### 7. Scenario Packs
 從命令面板執行 `LoreRelay: Load Scenario Pack` 並選擇包含 `scenario.json` 的資料夾。
 
-**同捆範例（3 本）** — `sample-scenarios/`：
+**同捆範例（6 本）** — `sample-scenarios/`：
 
 | 資料夾 | 類型 | 主題 | 備註 |
 |--------|------|------|------|
-| `lost-catacombs` | 經典地牢探索 | fantasy | **Cartography 示範**（`world_forge.json` + `world_map.layout.png`） |
-| `neon-rain` | 賽博龐克黑色電影 | cyberpunk | |
-| `harbor-mist` | 港口懸疑 | modern | |
+| `harbor-mist` | 港口懸疑 | modern | Start Hub **🎮 試玩示範**——無需設定，約 15 分鐘 |
+| `lost-catacombs` | 經典地牢探索 | fantasy | Start Hub **🗺️ 地圖示範**——**Cartography 示範**（`world_forge.json` + `world_map.layout.png`） |
+| `scrapbound-settlement` | 末日拾荒 | postapoc | Start Hub **🧰 拾荒者示範**——Campaign Kit + Commerce 主線循環 |
+| `debug-sandbox` | 開發者工具 | — | Start Hub **🔧 除錯沙盒**——用自然語言即時操作好感度、迷霧與世界回合（無需 GM） |
+| `neon-rain` | 賽博龐克黑色電影 | cyberpunk | 手動載入 |
+| `trade-routes` | Living World 貿易示範 | fantasy | 手動載入——Commerce / NPC Agency 展示 |
 
 GM 技能端：`TextAdventureGMSkill/scenarios/`。
 
@@ -370,12 +411,17 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 | **v1.69–1.75** | Settlement Mode（等角/立體模型檢視）· Vehicle & Mobile Base（車隊管理 · 移動基地） |
 | **v1.77–1.78** | Debug Trace / Inspector Phase B · MEDIA-M1 相容性關卡 · ComfyUI 任務生命週期修復 |
 | **v1.79–1.83** | NOAI Play（確定性旅行/經濟處理）· 依資源分級的 5 檔經濟難度（abundant→barren） |
-| **v1.84** | Logistics Graph Canvas（交易網路互動式可視化）· 響應式三段式 Webview 外殼 |
+| **v1.84.0–1.84.16** | Logistics Graph Canvas（交易網路互動式可視化）· 響應式三段式 Webview 外殼 |
+| **v1.84.17–1.84.30** | **戰鬥系統** — Battle View · gambit + RTS 命令主幹（移動 / 攻擊 / 攻擊移動 / 停止 / 恢復）· 確定性重播雜湊 · 戰鬥分析 · Story⇄Combat Bridge V1-A/B/C（回執 → `game_state` → `combatConsequence` 提示） |
+| **v1.84.31–1.84.32** | Genre World Presets（凍結且具版本管理的題材世界生成註冊表，附 provenance 重現檢查） |
 
 詳見 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) 與 `sample-scenarios/trade-routes`。
 
 **計畫中**
 
+- 戰鬥：讓 GM 在故事推進中自然發起戰鬥（目前僅能由命令啟動）
+- 戰鬥：單體角色直接操作 UI（邏輯已完成，UI 尚未開始）
+- 世界：biome / 水系地圖基盤（設計關卡已通過，實作待啟動）
 - Overmap 圖像圖塊、hazard 單行 GM 注入
 - Prompt budget 優先度滑動（長會話）
 - Workshop / 市集發布調研

@@ -63,7 +63,7 @@ Optional: `npx @vscode/vsce package` to confirm VSIX builds.
 | `docs/assets/screenshot-battle-view.png` | Battle View with gambit + attack-move orders, roster, combat log and order receipts | Real — `webview/battle-view/` served statically; snapshot produced by the compiled cores (`initialCombatLabScenarios` → `createCombatCommandPlaytest('mixed_arms_showcase')` → advance 40 ticks → `issueCombatCommand(attack_move)` → `combatCommandPlaytestSnapshot`) and posted as `combatCommandPlaytestState`, 2026-08-07 |
 | `sample-scenarios/lost-catacombs/world_map.layout.png` | Real layout preview (cartography demo) | Real |
 
-The old wireframe `.svg` placeholders for these five screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
+The old wireframe `.svg` placeholders for these screenshots have been removed now that all `docs/assets/screenshot-*.png` files are real Webview captures.
 
 ### How the "Real" screenshots were captured (no VS Code needed)
 

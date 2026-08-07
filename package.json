@@ -154,7 +154,7 @@
       },
       {
         "command": "textadventure.listLmModels",
-        "title": "LoreRelay: List Available VS Code LM Models"
+        "title": "%command.listLmModels%"
       },
       {
         "command": "textadventure.generateWorldMapImage",
@@ -190,13 +190,57 @@
       },
       {
         "command": "textadventure.upgradeVehicleStateForGameplaySpine",
-        "title": "LoreRelay: Upgrade Vehicle State for Gameplay Spine"
+        "title": "%command.upgradeVehicleStateForGameplaySpine%"
       },
       {
         "command": "textadventure.gameplaySpineRepairVehicle",
-        "title": "LoreRelay: Repair Vehicle with Gameplay Spine"
+        "title": "%command.gameplaySpineRepairVehicle%"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "textadventure.startCampaignCombatDebug",
+          "when": "config.textAdventure.debug.combatDevTools"
+        },
+        {
+          "command": "textadventure.abortCampaignCombat",
+          "when": "config.textAdventure.debug.combatDevTools"
+        },
+        {
+          "command": "textadventure.applyPendingCombatOutcomes",
+          "when": "config.textAdventure.debug.combatDevTools"
+        },
+        {
+          "command": "textadventure.listLmModels",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.previewGmTurnTransactionPlan",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.previewWorkspaceMigrations",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.applyVehicleStateMigration",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.restoreVehicleStateMigrationBackup",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.upgradeVehicleStateForGameplaySpine",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.gameplaySpineRepairVehicle",
+          "when": "config.textAdventure.debug.developerCommands"
+        }
+      ]
+    },
     "configuration": {
       "title": "LoreRelay",
       "properties": {
@@ -376,6 +420,11 @@
           "type": "boolean",
           "default": false,
           "description": "%config.textAdventure.debug.combatDevTools.description%"
+        },
+        "textAdventure.debug.developerCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.debug.developerCommands.description%"
         },
         "textAdventure.modelScan.roots": {
           "type": "array",

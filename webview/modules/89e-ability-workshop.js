@@ -9,21 +9,23 @@ function workshopDefaultDraft() {
 }
 function renderAbilityWorkshop() {
   const state = window.LR_abilityWorkshop;
-  let root = document.getElementById('ability-workshop-panel');
-  if (!root) { root = document.createElement('section'); root.id = 'ability-workshop-panel'; root.className = 'card'; document.querySelector('#pane-status')?.append(root); }
+  const root = mountCombatDevToolPanel('ability-workshop-panel');
+  if (!root) return;
   const validation = state.validation;
   const issues = validation ? [...(validation.errors || []), ...(validation.warnings || [])] : [];
   const budget = validation?.powerBudget;
-  const status = validation ? (validation.valid ? 'Valid' : 'Invalid') : 'Edit an ability to validate it.';
-  root.innerHTML = `<h4>Ability Workshop V1</h4>
-    <div class="inline-help">Built-in abilities are read-only. Duplicate one before editing. Invalid abilities cannot be saved or added to a loadout.</div>
-    <p><button data-aw="new">New</button> <button data-aw="duplicate">Duplicate selected built-in</button> <button data-aw="save" ${validation && !validation.valid ? 'disabled' : ''}>Save custom</button> <button data-aw="delete">Delete custom</button> <button data-aw="loadout" ${validation && !validation.valid ? 'disabled' : ''}>Add to loadout</button></p>
-    <textarea data-aw="draft" aria-label="Ability definition JSON" rows="18" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)">${workshopEscape(state.draft || workshopDefaultDraft())}</textarea>
-    <p><button data-aw="import">Import JSON</button> <button data-aw="export">Export JSON</button> <button data-aw="reset">Reset custom abilities</button> <button data-aw="shot">Test shot</button></p>
-    <div class="inline-help"><b>${status}</b>${budget ? ` · power ${budget.cost}/${budget.budget} (tolerance ${budget.toleratedBudget})` : ''}</div>
+  const status = validation
+    ? (validation.valid ? T('webview.abilityWorkshop.statusValid') : T('webview.abilityWorkshop.statusInvalid'))
+    : T('webview.abilityWorkshop.statusIdle');
+  root.innerHTML = `<h4>${workshopEscape(T('webview.abilityWorkshop.title'))}</h4>
+    <div class="inline-help">${workshopEscape(T('webview.abilityWorkshop.help'))}</div>
+    <p><button data-aw="new">${workshopEscape(T('webview.abilityWorkshop.new'))}</button> <button data-aw="duplicate">${workshopEscape(T('webview.abilityWorkshop.duplicate'))}</button> <button data-aw="save" ${validation && !validation.valid ? 'disabled' : ''}>${workshopEscape(T('webview.abilityWorkshop.save'))}</button> <button data-aw="delete">${workshopEscape(T('webview.abilityWorkshop.delete'))}</button> <button data-aw="loadout" ${validation && !validation.valid ? 'disabled' : ''}>${workshopEscape(T('webview.abilityWorkshop.addToLoadout'))}</button></p>
+    <textarea data-aw="draft" aria-label="${workshopEscape(T('webview.abilityWorkshop.draftAriaLabel'))}" rows="18" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)">${workshopEscape(state.draft || workshopDefaultDraft())}</textarea>
+    <p><button data-aw="import">${workshopEscape(T('webview.abilityWorkshop.import'))}</button> <button data-aw="export">${workshopEscape(T('webview.abilityWorkshop.export'))}</button> <button data-aw="reset">${workshopEscape(T('webview.abilityWorkshop.reset'))}</button> <button data-aw="shot">${workshopEscape(T('webview.abilityWorkshop.testShot'))}</button></p>
+    <div class="inline-help"><b>${workshopEscape(status)}</b>${budget ? ` · ${workshopEscape(T('webview.abilityWorkshop.power'))} ${budget.cost}/${budget.budget} (${workshopEscape(T('webview.abilityWorkshop.tolerance'))} ${budget.toleratedBudget})` : ''}</div>
     <ul>${issues.map(issue => `<li>${workshopEscape(issue.code)}: ${workshopEscape(issue.message)}</li>`).join('')}</ul>
-    <div data-aw="shot-result">${state.shot ? `Damage ${state.shot.damageDealt || 0}; Heal ${state.shot.healingDone || 0}; Barrier Δ ${state.shot.barrierChange || 0}; ${state.shot.deterministic ? 'deterministic match' : 'determinism mismatch'}` : 'Test shot uses the configured attacker/target defaults in the host.'}</div>
-    <details><summary>Built-in (${state.builtin.length}) / custom (${state.custom.length})</summary>${[...state.builtin, ...state.custom].map(ability => `<button data-aw-select="${workshopEscape(ability.id)}">${workshopEscape(ability.name)} (${state.builtin.some(item => item.id === ability.id) ? 'built-in' : 'custom'})</button>`).join(' ') || 'No abilities loaded.'}</details>`;
+    <div data-aw="shot-result">${state.shot ? `${workshopEscape(T('webview.abilityWorkshop.shotDamage'))} ${state.shot.damageDealt || 0}; ${workshopEscape(T('webview.abilityWorkshop.shotHeal'))} ${state.shot.healingDone || 0}; ${workshopEscape(T('webview.abilityWorkshop.shotBarrier'))} ${state.shot.barrierChange || 0}; ${workshopEscape(state.shot.deterministic ? T('webview.abilityWorkshop.shotDeterministic') : T('webview.abilityWorkshop.shotNonDeterministic'))}` : workshopEscape(T('webview.abilityWorkshop.shotIdle'))}</div>
+    <details><summary>${workshopEscape(T('webview.abilityWorkshop.catalogSummary', { builtin: state.builtin.length, custom: state.custom.length }))}</summary>${[...state.builtin, ...state.custom].map(ability => `<button data-aw-select="${workshopEscape(ability.id)}">${workshopEscape(ability.name)} (${workshopEscape(state.builtin.some(item => item.id === ability.id) ? T('webview.abilityWorkshop.kindBuiltin') : T('webview.abilityWorkshop.kindCustom'))})</button>`).join(' ') || workshopEscape(T('webview.abilityWorkshop.noAbilities'))}</details>`;
   const readDraft = () => { state.draft = root.querySelector('[data-aw="draft"]').value; return state.draft; };
   const sendValidation = () => vscode.postMessage({ type: 'validateCombatAbilityWorkshopDraft', json: readDraft() });
   root.querySelector('[data-aw="draft"]').addEventListener('input', sendValidation);
@@ -48,4 +50,13 @@ window.addEventListener('message', event => {
   if (message.type === 'combatAbilityWorkshopShot') { state.shot = message.shot || null; renderAbilityWorkshop(); }
   if (message.type === 'combatAbilityWorkshopExport' && typeof message.json === 'string') { state.draft = message.json; renderAbilityWorkshop(); }
 });
-document.addEventListener('DOMContentLoaded', () => { renderAbilityWorkshop(); vscode.postMessage({ type: 'requestCombatAbilityWorkshop' }); });
+let abilityWorkshopRequested = false;
+registerCombatDevToolRenderer(() => {
+  renderAbilityWorkshop();
+  // Only ask the host for the catalog once the tools are actually visible, so a
+  // player who never opts in never triggers workshop work in the extension.
+  if (!abilityWorkshopRequested && combatDevToolsEnabled()) {
+    abilityWorkshopRequested = true;
+    vscode.postMessage({ type: 'requestCombatAbilityWorkshop' });
+  }
+});

@@ -614,6 +614,14 @@
           <h4 data-i18n="webview.inspector.qa.title">QA Runner</h4>
           <p class="empty-text" data-i18n="webview.inspector.qa.comingSoon">QA Runner UI is not implemented yet. This lane is a placeholder.</p>
         </div>
+        <!-- Combat authoring sandboxes mount here, and only when
+             textAdventure.debug.combatDevTools is on. They are developer tools,
+             so they must never appear in the player's Adventure Status pane. -->
+        <div class="inspector-section hidden" id="combat-dev-tools-section">
+          <h4 data-i18n="webview.combatDevTools.title">Combat authoring tools</h4>
+          <p class="img-gen-hint" data-i18n="webview.combatDevTools.hint">Developer sandboxes for building and balancing combat. They do not affect your campaign.</p>
+          <div id="combat-dev-tools"></div>
+        </div>
         </div> <!-- /inspector-lane-qa -->
       </div> <!-- /pane-inspector -->
 

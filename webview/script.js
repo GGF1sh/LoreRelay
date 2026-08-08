@@ -21977,6 +21977,13 @@ window.LR_combatLab = window.LR_combatLab || {
   // Set when host retires a session with sessionEvent:'replaced' so this peer
   // adopts the next authoritative replacement snapshot (scenarioId + startId).
   pendingPeerAdopt: false,
+  // Live edit of the scenario JSON textarea, kept in sync on 'input' (mirrors
+  // Ability Workshop's state.draft). jsonDraftFor pins it to the scenario it was
+  // typed against, so any change to state.selected -- from the dropdown, a host
+  // push, or an external re-render trigger such as a locale switch -- naturally
+  // invalidates it instead of leaking edited text onto an unrelated scenario.
+  jsonDraft: undefined,
+  jsonDraftFor: undefined,
 };
 
 function labEsc(value) { const n = document.createElement('span'); n.textContent = String(value || ''); return n.innerHTML; }
@@ -22327,16 +22334,34 @@ function renderCombatLab() {
   if (!root) return;
   const scenarios = state.document?.scenarios || []; const selected = scenarios.find(s => s.id === state.selected) || scenarios[0]; if (selected && !state.selected) state.selected = selected.id;
   const result = state.result?.summary; const timeline = state.result?.timeline || [];
+  // Re-renders can be triggered by events unrelated to this textarea (a locale
+  // switch, another subscriber's snapshot, ...). Only the canonical scenario
+  // JSON is safe to discard silently; an unsaved edit against the currently
+  // selected scenario must survive the rebuild.
+  const hasLiveDraft = state.jsonDraft !== undefined && state.jsonDraftFor === state.selected;
+  const jsonTextareaValue = hasLiveDraft ? state.jsonDraft : (selected ? JSON.stringify(selected, null, 2) : '');
   root.innerHTML = `<h4>${labEsc(T('webview.combatLab.title'))}</h4><div class="inline-help">${labEsc(T('webview.combatLab.help'))}</div>
     <p><select data-lab="scenario">${scenarios.map(s => `<option value="${labEsc(s.id)}" ${s.id === state.selected ? 'selected' : ''}>${labEsc(s.name)} (${s.mode})</option>`).join('')}</select> <button data-lab="run">${labEsc(T('webview.combatLab.run'))}</button> <button data-lab="repeat">${labEsc(T('webview.combatLab.repeat'))}</button> <button data-lab="swap">${labEsc(T('webview.combatLab.swapSides'))}</button> <button data-lab="compare">${labEsc(T('webview.combatLab.compare'))}</button></p>
     <p><button data-lab="tick">${labEsc(T('webview.combatLab.oneTick'))}</button> <button data-lab="pause">${labEsc(T('webview.combatLab.pause'))}</button> <button data-lab="speed" data-speed="1">1×</button> <button data-lab="speed" data-speed="2">2×</button> <button data-lab="speed" data-speed="4">4×</button> <button data-lab="export">${labEsc(T('webview.combatLab.export'))}</button> <button data-lab="import">${labEsc(T('webview.combatLab.importClipboard'))}</button> <button data-lab="save">${labEsc(T('webview.combatLab.saveSettings'))}</button></p>
-    <textarea data-lab="json" rows="12" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)" aria-label="${labEsc(T('webview.combatLab.jsonAriaLabel'))}">${labEsc(selected ? JSON.stringify(selected, null, 2) : '')}</textarea>
+    <textarea data-lab="json" rows="12" style="width:100%;font-family:var(--vscode-editor-font-family,monospace)" aria-label="${labEsc(T('webview.combatLab.jsonAriaLabel'))}">${labEsc(jsonTextareaValue)}</textarea>
     <p><button data-lab="apply">${labEsc(T('webview.combatLab.applyJson'))}</button> <button data-lab="clone">${labEsc(T('webview.combatLab.cloneScenario'))}</button></p>
     <div class="inline-help">${result ? `<b>${labEsc(result.outcome)}</b> · ${labEsc(T('webview.combatLab.summary', { ticks: result.ticks, seconds: result.durationSeconds.toFixed(2), damage: result.totalDamage, heal: result.totalHealing, barrier: result.barrierAbsorbed, status: result.statusApplications }))}` : labEsc(T('webview.combatLab.chooseScenario'))}</div>
     <div>${state.compare ? labEsc(T('webview.combatLab.comparison', { winner: state.compare.winnerChanged ? T('webview.combatLab.winnerChanged') : T('webview.combatLab.winnerSame'), duration: state.compare.durationDelta.toFixed(2), damage: state.compare.damageDelta, inputs: state.compare.changedInputs.length })) : ''}</div>
     <details><summary>${labEsc(T('webview.combatLab.timeline', { count: timeline.length }))}</summary><ol>${timeline.slice(0, 250).map(line => `<li>${labEsc(line)}</li>`).join('')}</ol></details>${renderCombatCommandPlaytest(state)}`;
   const json = () => root.querySelector('[data-lab="json"]').value;
+  // Keep the live draft in sync as the user types (mirrors Ability Workshop's
+  // state.draft), so an external re-render never overwrites an unsaved edit.
+  root.querySelector('[data-lab="json"]').oninput = () => {
+    state.jsonDraft = json();
+    state.jsonDraftFor = state.selected;
+  };
   root.querySelector('[data-lab="scenario"]').onchange = event => {
+    // Switching scenario intentionally shows that scenario's canonical JSON;
+    // selectCombatLabScenarioForPlaytest already updates state.selected, which
+    // on its own invalidates a draft keyed to the previous scenario, but clear
+    // explicitly so this does not silently depend on that ordering.
+    state.jsonDraft = undefined;
+    state.jsonDraftFor = undefined;
     const restartMessage = selectCombatLabScenarioForPlaytest(state, event.target.value);
     renderCombatLab(); if (restartMessage) vscode.postMessage(restartMessage);
   };

@@ -33,6 +33,7 @@ type DomNode = {
     style: { cssText: string; display?: string; left?: string; top?: string; width?: string; height?: string; filter?: string; background?: string };
     dataset: Record<string, string>;
     attributes: Record<string, string>;
+    classList: { toggle: (name: string, force?: boolean) => void; contains: (name: string) => boolean };
     children: DomNode[];
     parent: DomNode | null;
     onclick?: ((event?: unknown) => void) | null;
@@ -93,6 +94,16 @@ function createMinimalDom() {
             style: { cssText: '' },
             dataset: {} as Record<string, string>,
             attributes: {} as Record<string, string>,
+            classList: (() => {
+                const classes = new Set<string>();
+                return {
+                    toggle(name: string, force?: boolean) {
+                        const on = force === undefined ? !classes.has(name) : force;
+                        if (on) classes.add(name); else classes.delete(name);
+                    },
+                    contains(name: string) { return classes.has(name); },
+                };
+            })(),
             children: [] as DomNode[],
             parent: null as DomNode | null,
             append(...kids: DomNode[]) {
@@ -216,6 +227,20 @@ function createMinimalDom() {
         }
     }
 
+    // Real HTML parsing decodes entities in text nodes (e.g. inside a
+    // <textarea>...&quot;...</textarea> produced by labEsc()); without this the
+    // fake DOM's .textContent would return escaped markup instead of the value
+    // a real browser -- and this file's own production code reading
+    // .value -- would see.
+    function decodeHtmlEntities(text: string): string {
+        return text
+            .replace(/&quot;/g, '"')
+            .replace(/&#039;/g, "'")
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&');
+    }
+
     function parseHtml(html: string, parent: DomNode): void {
         const tokenRe = /<!--[\s\S]*?-->|<([A-Za-z0-9-]+)([^>]*)\/>|<([A-Za-z0-9-]+)([^>]*)>|<\/([A-Za-z0-9-]+)>|([^<]+)/g;
         const stack: DomNode[] = [parent];
@@ -245,7 +270,7 @@ function createMinimalDom() {
                 const text = match[6];
                 if (!text.trim() && text.includes('\n')) continue;
                 const top = stack[stack.length - 1];
-                top.textContent += text;
+                top.textContent += decodeHtmlEntities(text);
             }
         }
     }
@@ -375,6 +400,10 @@ function loadWebviewHelpers(): {
             return 1;
         },
         clearInterval(value: unknown) { clearedTimers.push(value); },
+        // vm's sandbox context does not inherit ambient Node.js globals; a real
+        // webview (Chromium) always has queueMicrotask, so this only backfills
+        // the test environment, not production behavior.
+        queueMicrotask,
         __onRenderCombatLab() {
             renderCount += 1;
         },
@@ -455,6 +484,11 @@ function loadWebviewLiveDom(): {
         T: testT,
         setInterval() { return 1; },
         clearInterval() { /* no-op */ },
+        // vm's sandbox context does not inherit ambient Node.js globals; a real
+        // webview (Chromium) always has queueMicrotask, so this only backfills
+        // the test environment, not production behavior.
+        queueMicrotask,
+        console,
     };
     vm.runInNewContext(source, context);
     // Wrap the live renderCombatLab to count full structural rebuilds only.
@@ -1783,6 +1817,49 @@ describe('Combat Lab command pointer translation', () => {
         });
         assert.equal(live.renderCount, rendersAfterAdopt, 'later same-session snapshots stay incremental');
         assert.equal((live.state.playtest as { tick?: number }).tick, 2);
+    });
+
+    test('an unsaved JSON draft survives a locale-triggered redraw, but switching scenario still resets it', async () => {
+        const live = loadWebviewLiveDom();
+        const documentState = {
+            scenarios: [
+                { id: 'scenarioA', name: 'Alpha', mode: 'mechanics_v1', allies: [], enemies: [], deltaSeconds: 1 / 30 },
+                { id: 'scenarioB', name: 'Bravo', mode: 'mechanics_v1', allies: [], enemies: [], deltaSeconds: 1 / 30 },
+            ],
+        };
+        live.dispatchMessage({ type: 'combatLabState', state: { document: documentState, selected: 'scenarioA' } });
+
+        const jsonBefore = live.query('[data-lab="json"]') as { value?: string; oninput?: () => void } | null;
+        assert.ok(jsonBefore, 'JSON textarea present after lab state');
+        const edited = '{"id":"scenarioA","name":"unsaved edit in progress"}';
+        jsonBefore!.value = edited;
+        jsonBefore!.oninput?.();
+
+        // Mirrors extension.ts sendLocaleBundle() on a textAdventure.locale change:
+        // the gate module reacts on the microtask queue (see 89c1's localeBundle
+        // handler), not synchronously, so the redraw must be awaited here too.
+        live.dispatchMessage({ type: 'localeBundle', locale: 'ja', strings: {} });
+        await new Promise(resolve => setImmediate(resolve));
+
+        const jsonAfterLocale = live.query('[data-lab="json"]') as { textContent?: string; value?: string } | null;
+        const textAfterLocale = String(jsonAfterLocale?.textContent || jsonAfterLocale?.value || '');
+        assert.equal(textAfterLocale, edited, 'a locale-triggered redraw must not discard an unsaved scenario JSON edit');
+
+        // Explicitly switching scenario is a deliberate action and must still
+        // show that scenario's canonical JSON, not the stale draft.
+        const scenarioSelect = live.query('[data-lab="scenario"]') as {
+            value?: string;
+            onchange?: (event: { target: { value: string } }) => void;
+        } | null;
+        scenarioSelect!.onchange?.({ target: { value: 'scenarioB' } });
+
+        const jsonAfterSwitch = live.query('[data-lab="json"]') as { textContent?: string; value?: string } | null;
+        const textAfterSwitch = String(jsonAfterSwitch?.textContent || jsonAfterSwitch?.value || '');
+        assert.ok(!textAfterSwitch.includes('unsaved edit in progress'), "switching scenario must discard the previous scenario's draft");
+        assert.ok(
+            textAfterSwitch.includes('scenarioB') || textAfterSwitch.includes('Bravo'),
+            "switching scenario shows the new scenario's canonical JSON",
+        );
     });
 
     test('C: Production Webview adoption after clear', () => {

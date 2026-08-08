@@ -49,6 +49,11 @@ export interface GameRules {
     economyResourceModifiers?: Record<string, number>;
     enableCommerce?: boolean;
     enableCommerceUi?: boolean;
+    /**
+     * Story-declared combat (`turn_result.encounterOps`). When off, encounter ops
+     * are ignored entirely, so a GM that emits them cannot start a battle.
+     */
+    enableStoryCombat?: boolean;
     /** Missing or invalid values preserve legacy zero-time, zero-cost market travel. */
     merchantTravelMode?: MerchantTravelMode;
     playerRole?: 'merchant' | 'adventurer' | 'retainer' | 'smith' | 'ruler';
@@ -102,6 +107,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     economyProfile: 'normal',
     enableCommerce: false,
     enableCommerceUi: false,
+    enableStoryCombat: false,
     merchantTravelMode: 'instant_free',
     playerRole: 'merchant',
     enableNpcAgency: false,
@@ -308,6 +314,7 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         economyResourceModifiers,
         enableCommerce: asOptionalBool(src.enableCommerce, base.enableCommerce),
         enableCommerceUi: asOptionalBool(src.enableCommerceUi, base.enableCommerceUi),
+        enableStoryCombat: asOptionalBool(src.enableStoryCombat, base.enableStoryCombat),
         merchantTravelMode,
         playerRole,
         enableNpcAgency: asOptionalBool(src.enableNpcAgency, base.enableNpcAgency),

@@ -19,6 +19,7 @@ export interface CompiledCombatRosterEntry {
     entityId: string;
     unitId: string;
     team: 0 | 1;
+    role?: 'protagonist';
     hp: number;
     maxHp: number;
     x: number;
@@ -72,8 +73,10 @@ export function compileCampaignCombatRequest(
         };
         const entityToUnitId: Record<string, string> = {};
         request.allies.forEach((ally, index) => {
-            const unitId = battleSpec.participantOrder.find(id => id === ally.entityId)
-                || battleSpec.initialState.units.allies[index]?.name
+            // Ally requests are seated positionally. An entity id may itself be
+            // a fixture-looking value such as `ally_2`; exact-id matching would
+            // otherwise move that real character into the wrong authored slot.
+            const unitId = battleSpec.initialState.units.allies[index]?.name
                 || ally.entityId;
             entityToUnitId[ally.entityId] = String(unitId);
         });
@@ -93,16 +96,23 @@ export function compileCampaignCombatRequest(
         for (const [entityId, unitId] of Object.entries(entityToUnitId)) {
             unitToEntity.set(unitId, entityId);
         }
+        const roleByEntity = new Map(
+            request.allies
+                .filter(ally => ally.role === 'protagonist')
+                .map(ally => [ally.entityId, ally.role] as const),
+        );
         const rosterSnapshot: CompiledCombatRosterEntry[] = [];
         for (const side of ['allies', 'enemies'] as const) {
             const team = side === 'allies' ? 0 : 1;
             for (const unit of battleSpec.initialState.units[side] || []) {
                 if (!unit?.name) continue;
                 const unitId = String(unit.name);
+                const entityId = unitToEntity.get(unitId) || unitId;
                 rosterSnapshot.push({
-                    entityId: unitToEntity.get(unitId) || unitId,
+                    entityId,
                     unitId,
                     team: team as 0 | 1,
+                    ...(roleByEntity.get(entityId) ? { role: roleByEntity.get(entityId) } : {}),
                     hp: Number(unit.hp) || 0,
                     maxHp: Number(unit.max_hp) || Number(unit.hp) || 0,
                     x: Number(unit.pos_x) || 0,

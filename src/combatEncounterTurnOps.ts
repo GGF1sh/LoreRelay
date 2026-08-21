@@ -22,6 +22,8 @@ export interface EncounterTurnOpsDeps {
     identity: () => EncounterCampaignIdentity | undefined;
     /** Real party character ids; empty falls back to the fixture's own roster. */
     partyEntityIds?: () => readonly string[];
+    /** Canonical active character id (`active_character.txt`), not party order. */
+    protagonistEntityId?: () => string | undefined;
     /** Coordinator entry. Already validates and compiles the request. */
     startFromRequest: (request: unknown) => { ok: boolean; error?: string; detail?: string; combatSessionId?: string };
     warn?: (message: string, detail?: unknown) => void;
@@ -90,6 +92,7 @@ export function applyEncounterTurnOps(
         identity,
         encounterRequestId(identity.acceptedTurnId, op.encounterId),
         party,
+        deps.protagonistEntityId?.(),
     );
     if (!built.ok) {
         deps.warn?.('[encounterOps] could not build combat request', { error: built.error, detail: built.detail });
@@ -130,6 +133,7 @@ export function tryApplyEncounterTurnOps(
     identity: EncounterCampaignIdentity | undefined,
     /** Supplied by the caller so this module stays free of vscode-bound imports. */
     partyEntityIds?: readonly string[],
+    protagonistEntityId?: string,
 ): EncounterTurnOpsOutcome {
     try {
         if (!registeredStarter) {
@@ -139,6 +143,7 @@ export function tryApplyEncounterTurnOps(
             storyCombatEnabled: () => storyCombatEnabled,
             identity: () => identity,
             partyEntityIds: () => partyEntityIds ?? [],
+            protagonistEntityId: () => protagonistEntityId,
             startFromRequest: registeredStarter,
             warn: (message, detail) => console.warn(message, detail),
         });

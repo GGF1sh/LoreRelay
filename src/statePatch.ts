@@ -56,7 +56,7 @@ import {
 import { buildGuildDriftConfig, guildModeEnabled, readGuildFromGameState } from './guildTurnOps';
 import { tryApplyDiscoveryTurnOps } from './discoveryTurnOps';
 import { tryApplyEncounterTurnOps } from './combatEncounterTurnOps';
-import { getPartyMemberIds } from './characterManager';
+import { getActiveCharacterId, getPartyMemberIds } from './characterManager';
 
 /** A missing or unreadable party file must not block a declared encounter. */
 function safePartyMemberIds(): string[] {
@@ -64,6 +64,15 @@ function safePartyMemberIds(): string[] {
         return getPartyMemberIds();
     } catch {
         return [];
+    }
+}
+
+/** Canonical protagonist identity is the active character, never party order. */
+function safeProtagonistEntityId(): string | undefined {
+    try {
+        return getActiveCharacterId();
+    } catch {
+        return undefined;
     }
 }
 import { tryApplyCampaignResourceTurnOps } from './campaignResourceTurnOps';
@@ -876,6 +885,7 @@ export function processTurnResult(
                 loadGameRules().enableStoryCombat === true,
                 identity,
                 safePartyMemberIds(),
+                safeProtagonistEntityId(),
             );
         }
 

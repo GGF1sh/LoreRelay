@@ -18,6 +18,7 @@ import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
 import { parseDomainOps } from './domainCore';
 import { parseDiscoveryOps } from './discoveryTurnOpsCore';
 import { isValidEventId } from './worldEventLogCore';
+import { parseEncounterTurnOps } from './combatEncounterTurnOpsCore';
 
 export type AgenticStage = 'referee' | 'narrator';
 
@@ -58,6 +59,7 @@ export interface RefereeResultCandidate {
     npcAgencyOps?: TurnResult['npcAgencyOps'];
     domainOps?: TurnResult['domainOps'];
     discoveryOps?: TurnResult['discoveryOps'];
+    encounterOps?: TurnResult['encounterOps'];
 }
 
 export interface NarratorResultCandidate {
@@ -480,6 +482,10 @@ export function parseRefereeResultJson(text: string): RefereeResultCandidate | n
     if (discoveryOps.length > 0) {
         candidate.discoveryOps = discoveryOps;
     }
+    const encounterOps = parseEncounterTurnOps(doc.encounterOps);
+    if (encounterOps.ok && encounterOps.ops.length > 0) {
+        candidate.encounterOps = encounterOps.ops;
+    }
     return candidate;
 }
 
@@ -613,6 +619,9 @@ export function mergeAgenticTurnResult(input: {
     }
     if (referee.discoveryOps?.length) {
         result.discoveryOps = referee.discoveryOps;
+    }
+    if (referee.encounterOps?.length) {
+        result.encounterOps = referee.encounterOps;
     }
     const media = mergeAgenticMedia(referee.media, narrator?.media);
     if (media) {

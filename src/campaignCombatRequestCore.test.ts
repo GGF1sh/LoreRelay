@@ -18,4 +18,15 @@ test('validateCampaignCombatRequest rejects AI result fields and bad modes', () 
     assert.equal(validateCampaignCombatRequest({ ...base, winner: 'ally' }).ok, false);
     assert.equal(validateCampaignCombatRequest({ ...base, requestedMode: 'direct_action' }).ok, false);
     assert.equal(validateCampaignCombatRequest({ ...base, schemaVersion: 'nope' }).ok, false);
+    assert.equal(validateCampaignCombatRequest({
+        ...base,
+        allies: [{ ...base.allies[0], role: 'narrator' }],
+    }).ok, false);
+    assert.equal(validateCampaignCombatRequest({
+        ...base,
+        allies: [
+            { ...base.allies[0], role: 'protagonist' },
+            { ...base.allies[1], role: 'protagonist' },
+        ],
+    }).ok, false);
 });

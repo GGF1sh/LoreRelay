@@ -13,6 +13,7 @@ export interface CombatOutcomeParticipant {
     entityId: string;
     unitId: string;
     team: 0 | 1;
+    role?: 'protagonist';
     finalHp: number;
     maxHp: number;
     alive: boolean;
@@ -118,14 +119,21 @@ export function buildCombatOutcomeReceipt(input: {
     for (const [entityId, unitId] of Object.entries(input.entityToUnitId)) {
         unitToEntity.set(unitId, entityId);
     }
+    const roleByEntity = new Map(
+        input.request.allies
+            .filter(ally => ally.role === 'protagonist')
+            .map(ally => [ally.entityId, ally.role] as const),
+    );
 
     const participants: CombatOutcomeParticipant[] = input.battleSpec.participantOrder.map(unitId => {
         const u = input.state.units[unitId];
         const dead = !!(u._dead || u.hp <= 0);
+        const entityId = unitToEntity.get(unitId) || unitId;
         return {
-            entityId: unitToEntity.get(unitId) || unitId,
+            entityId,
             unitId,
             team: u.team as 0 | 1,
+            ...(roleByEntity.get(entityId) ? { role: roleByEntity.get(entityId) } : {}),
             finalHp: u.hp,
             maxHp: u.max_hp,
             alive: !dead,

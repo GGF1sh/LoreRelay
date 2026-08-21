@@ -90,9 +90,14 @@ export function resolveEncounterAllyEntityIds(
     if (party.length === 0) {
         return [...slots];
     }
-    // Any slot the party does not fill keeps the fixture's own unit so the
-    // encounter still fields the roster the fixture was balanced around.
-    return [...party, ...slots.slice(party.length)];
+    // Any slot the party does not fill keeps a non-colliding fixture identity.
+    // A real character can legitimately be named `ally_2`; do not append a
+    // second `ally_2` placeholder or change the authored fixture size.
+    const positionalFallbacks = [
+        ...slots.slice(party.length),
+        ...slots.slice(0, party.length),
+    ].filter(id => !seen.has(id));
+    return [...party, ...positionalFallbacks].slice(0, slots.length);
 }
 
 /**
@@ -225,6 +230,8 @@ export function buildCampaignCombatRequestFromEncounterOp(
     requestId: string,
     /** Real party character ids; omitted or empty falls back to the fixture roster. */
     partyEntityIds?: readonly string[],
+    /** Canonical active character id; never inferred from party order. */
+    protagonistEntityId?: string,
 ): BuildEncounterRequestResult {
     if (!isBoundedString(identity.campaignInstanceId) || !isBoundedString(identity.timelineEpochId)) {
         return { ok: false, error: 'INVALID_CAMPAIGN_IDENTITY' };
@@ -251,7 +258,13 @@ export function buildCampaignCombatRequestFromEncounterOp(
             requestedMode: op.mode,
             debugFixtureId: op.fixtureId,
             allies: resolveEncounterAllyEntityIds(op.fixtureId, partyEntityIds)
-                .map(entityId => ({ entityId, team: 0 as const })),
+                .map(entityId => ({
+                    entityId,
+                    team: 0 as const,
+                    ...(isBoundedString(protagonistEntityId) && entityId === protagonistEntityId.trim()
+                        ? { role: 'protagonist' as const }
+                        : {}),
+                })),
             enemies: { kind: 'fixture', fixtureId: op.fixtureId },
             presentation: { openBattleView: true },
             objective: { type: 'annihilate' },

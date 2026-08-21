@@ -20,6 +20,10 @@ const host = require(path.join(root, 'out', 'combatEncounterTurnOps.js'));
 const { validateCampaignCombatRequest } = require(path.join(root, 'out', 'campaignCombatRequestCore.js'));
 const { initialCombatLabScenarios } = require(path.join(root, 'out', 'combatLabCore.js'));
 const { compileCampaignCombatRequest } = require(path.join(root, 'out', 'campaignCombatCompileCore.js'));
+const { buildCombatOutcomeReceipt } = require(path.join(root, 'out', 'campaignCombatReceiptCore.js'));
+const { buildCombatConsequencePlan } = require(path.join(root, 'out', 'campaignCombatApplyCore.js'));
+const { createCombatState } = require(path.join(root, 'out', 'gambitCombatCore.js'));
+const { emptyCommandInputLog } = require(path.join(root, 'out', 'combatRtsCommandInputCore.js'));
 const { normalizeGameRules } = require(path.join(root, 'out', 'gameRulesCore.js'));
 
 let failed = 0;
@@ -158,6 +162,27 @@ check('duplicate party ids are collapsed', () => {
     assert.strictEqual(new Set(ids).size, ids.length, 'no duplicate entity ids may reach the request');
 });
 
+check('a real party id matching ally_2 cannot collide with a fixture placeholder', () => {
+    const op = core.parseEncounterTurnOps([startOp]).ops[0];
+    const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', ['ally_2'], 'ally_2');
+    assert.ok(built.ok);
+    const ids = built.request.allies.map(a => a.entityId);
+    assert.strictEqual(ids.length, core.fixtureAllySlotCount('standard_5v5'));
+    assert.strictEqual(new Set(ids).size, ids.length, 'request entity ids must stay unique');
+    assert.strictEqual(ids[0], 'ally_2', 'real party order must be preserved');
+    const catalog = JSON.parse(fs.readFileSync(
+        path.join(root, 'resources', 'combat-abilities', 'v1-reference-abilities.json'), 'utf8',
+    ));
+    const compiled = compileCampaignCombatRequest(
+        built.request,
+        { abilities: catalog.abilities, statuses: catalog.statuses },
+        initialCombatLabScenarios(),
+    );
+    assert.ok(compiled.ok, JSON.stringify(compiled));
+    assert.strictEqual(compiled.compiled.entityToUnitId.ally_2, 'ally_1', 'real character keeps the first authored seat');
+    assert.strictEqual(new Set(compiled.compiled.rosterSnapshot.map(r => r.entityId)).size, ids.length + 5);
+});
+
 check('a party-seated request still validates and compiles, and the roster names the party', () => {
     const op = core.parseEncounterTurnOps([startOp]).ops[0];
     const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'r', ['elda', 'garrick']);
@@ -177,6 +202,53 @@ check('a party-seated request still validates and compiles, and the roster names
     assert.strictEqual(compiled.compiled.entityToUnitId.garrick, 'ally_2');
     const rosterEntities = compiled.compiled.rosterSnapshot.map(r => r.entityId);
     assert.ok(rosterEntities.includes('elda'), 'roster snapshot must name the party member');
+});
+
+check('real protagonist identity survives request, compile and receipt, then updates canonical HP exactly once', () => {
+    const op = core.parseEncounterTurnOps([startOp]).ops[0];
+    const built = core.buildCampaignCombatRequestFromEncounterOp(op, identity, 'real-protagonist', ['elda'], 'elda');
+    assert.ok(built.ok, JSON.stringify(built));
+    assert.strictEqual(built.request.allies[0].role, 'protagonist');
+    const catalog = JSON.parse(fs.readFileSync(
+        path.join(root, 'resources', 'combat-abilities', 'v1-reference-abilities.json'), 'utf8',
+    ));
+    const compiled = compileCampaignCombatRequest(
+        built.request,
+        { abilities: catalog.abilities, statuses: catalog.statuses },
+        initialCombatLabScenarios(),
+    );
+    assert.ok(compiled.ok, JSON.stringify(compiled));
+    assert.strictEqual(
+        compiled.compiled.rosterSnapshot.find(r => r.entityId === 'elda').role,
+        'protagonist',
+    );
+
+    const state = createCombatState(compiled.compiled.battleSpec);
+    const protagonistUnitId = compiled.compiled.entityToUnitId.elda;
+    state.units[protagonistUnitId].hp = 0;
+    state.units[protagonistUnitId]._dead = true;
+    const receipt = buildCombatOutcomeReceipt({
+        combatSessionId: 'session-real-protagonist',
+        request: built.request,
+        effectiveMode: 'command',
+        outcomeLabel: 'ENEMY_WIN',
+        state,
+        battleSpec: compiled.compiled.battleSpec,
+        commandLog: emptyCommandInputLog(30),
+        entityToUnitId: compiled.compiled.entityToUnitId,
+        compiledSnapshotHash: compiled.compiled.compiledSnapshotHash,
+    });
+    assert.ok(!('ok' in receipt && receipt.ok === false), JSON.stringify(receipt));
+    assert.strictEqual(receipt.participants.find(p => p.entityId === 'elda').role, 'protagonist');
+
+    const campaignState = { status: { hp: { current: 18, max: 20 }, condition: [] } };
+    const once = buildCombatConsequencePlan(campaignState, receipt);
+    assert.strictEqual(once.playerHpUpdated, true);
+    assert.strictEqual(once.playerHpAfter, 0);
+    assert.deepStrictEqual(once.nextState.status.condition, ['incapacitated']);
+    const twice = buildCombatConsequencePlan(once.nextState, receipt);
+    assert.strictEqual(twice.alreadyPresent, true);
+    assert.strictEqual(twice.historyAppended, false);
 });
 
 // ---------------------------------------------------------------------------

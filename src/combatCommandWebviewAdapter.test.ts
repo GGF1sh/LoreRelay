@@ -400,9 +400,7 @@ function loadWebviewHelpers(): {
             return 1;
         },
         clearInterval(value: unknown) { clearedTimers.push(value); },
-        // vm's sandbox context does not inherit ambient Node.js globals; a real
-        // webview (Chromium) always has queueMicrotask, so this only backfills
-        // the test environment, not production behavior.
+        setTimeout,
         queueMicrotask,
         __onRenderCombatLab() {
             renderCount += 1;
@@ -453,14 +451,17 @@ function loadWebviewLiveDom(): {
     getPanel: () => DomNode | null;
     query: (sel: string) => DomNode | null;
     queryAll: (sel: string) => DomNode[];
+    panelText: (id: string) => string;
     scrollIntoViewCalls: DomNode[];
 } {
     // The Lab module mounts through the shared combat dev-tools gate, so the
     // gate module is part of the unit under test rather than a stub.
     const gateSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89c1-combat-dev-tools-gate.js'), 'utf8');
-    const source = `${gateSource}\n${fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8')}`;
+    const loadoutSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89d-combat-loadout.js'), 'utf8');
+    const source = `${gateSource}\n${loadoutSource}\n${fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8')}`;
     const posted: unknown[] = [];
     let renderCount = 0;
+    let localeStrings = enLocale;
     const messageListeners: Array<(event: { data: unknown }) => void> = [];
     const { document, scrollIntoViewCalls } = createMinimalDom();
     const context: Record<string, unknown> = {
@@ -478,16 +479,17 @@ function loadWebviewLiveDom(): {
                 posted.push(message);
             },
         },
-        // Real T() (00-core.js) resolves i18n keys against the loaded locale bundle;
-        // this module is evaluated in isolation, so back it with the real en.json
-        // strings (see testT above) rather than an identity stub.
-        T: testT,
+        // Real T() (00-core.js) resolves against a bundle installed by the later
+        // 90-bootstrap message listener. Keep this mutable so the harness can
+        // reproduce the ordering seen in the real Extension Development Host.
+        T: (key: string) => localeStrings[key] ?? key,
         setInterval() { return 1; },
         clearInterval() { /* no-op */ },
-        // vm's sandbox context does not inherit ambient Node.js globals; a real
-        // webview (Chromium) always has queueMicrotask, so this only backfills
-        // the test environment, not production behavior.
-        queueMicrotask,
+        setTimeout,
+        // Model Chromium's observed microtask checkpoint between the gate's
+        // listener and 90-bootstrap's later localeBundle listener. The repaired
+        // production path uses a timer and therefore cannot run in this gap.
+        queueMicrotask(callback: () => void) { callback(); },
         console,
     };
     vm.runInNewContext(source, context);
@@ -512,6 +514,11 @@ function loadWebviewLiveDom(): {
         },
         dispatchMessage(data: unknown) {
             for (const listener of messageListeners) listener({ data });
+            const message = data && typeof data === 'object' ? data as { type?: unknown; strings?: unknown } : {};
+            if (message.type === 'localeBundle' && message.strings && typeof message.strings === 'object') {
+                // Mirrors 90-bootstrap's later listener after the gate listener.
+                localeStrings = message.strings as Record<string, string>;
+            }
         },
         state: (context.window as { LR_combatLab: Record<string, unknown> }).LR_combatLab,
         getPanel,
@@ -520,6 +527,9 @@ function loadWebviewLiveDom(): {
         },
         queryAll(sel: string) {
             return getPanel()?.querySelectorAll(sel) ?? [];
+        },
+        panelText(id: string) {
+            return document.getElementById(id)?.textContent ?? '';
         },
         scrollIntoViewCalls,
     };
@@ -1819,6 +1829,26 @@ describe('Combat Lab command pointer translation', () => {
         assert.equal((live.state.playtest as { tick?: number }).tick, 2);
     });
 
+    test('locale-triggered redraw waits for the new bundle before translating dynamic combat panels', async () => {
+        const live = loadWebviewLiveDom();
+        live.dispatchMessage({
+            type: 'localeBundle',
+            locale: 'ja',
+            strings: {
+                'webview.combatLoadout.title': '戦闘モード',
+                'webview.combatLoadout.modeLegacy': 'レガシー戦闘',
+                'webview.combatLoadout.modeExtended': '拡張戦闘',
+                'webview.combatLoadout.helpLegacy': 'レガシー戦闘の説明',
+            },
+        });
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const loadoutText = live.panelText('combat-loadout-panel');
+        assert.match(loadoutText, /戦闘モード/);
+        assert.match(loadoutText, /レガシー戦闘/);
+        assert.doesNotMatch(loadoutText, /webview\.combatLoadout/);
+    });
+
     test('an unsaved JSON draft survives a locale-triggered redraw, but switching scenario still resets it', async () => {
         const live = loadWebviewLiveDom();
         const documentState = {
@@ -1836,10 +1866,10 @@ describe('Combat Lab command pointer translation', () => {
         jsonBefore!.oninput?.();
 
         // Mirrors extension.ts sendLocaleBundle() on a textAdventure.locale change:
-        // the gate module reacts on the microtask queue (see 89c1's localeBundle
+        // the gate module reacts on the next task (see 89c1's localeBundle
         // handler), not synchronously, so the redraw must be awaited here too.
         live.dispatchMessage({ type: 'localeBundle', locale: 'ja', strings: {} });
-        await new Promise(resolve => setImmediate(resolve));
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         const jsonAfterLocale = live.query('[data-lab="json"]') as { textContent?: string; value?: string } | null;
         const textAfterLocale = String(jsonAfterLocale?.textContent || jsonAfterLocale?.value || '');

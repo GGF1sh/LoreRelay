@@ -21852,10 +21852,13 @@ window.addEventListener('message', event => {
     // -- which only rewrites [data-i18n] nodes in the static DOM -- cannot
     // retranslate them. Redraw so switching language reaches them too.
     //
-    // Deferred: this module is concatenated before 90-bootstrap, so its message
-    // listener runs first and the bundle's strings are not stored yet. Redrawing
-    // synchronously here would re-render with the previous locale still loaded.
-    if (combatDevToolsEnabled()) queueMicrotask(applyCombatDevToolsVisibility);
+    // Deferred to the next task: this module is concatenated before 90-bootstrap,
+    // so its listener runs before the bundle's strings are stored. Chromium may
+    // run a microtask checkpoint between event-listener callbacks, which made a
+    // queueMicrotask redraw observe the previous (or empty) locale bundle in the
+    // real Extension Development Host. A timer runs after the complete message
+    // dispatch, when 90-bootstrap has installed the new strings.
+    if (combatDevToolsEnabled()) setTimeout(applyCombatDevToolsVisibility, 0);
     return;
   }
   if (message.type !== 'debugCapabilities') return;

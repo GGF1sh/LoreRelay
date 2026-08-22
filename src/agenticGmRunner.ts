@@ -41,6 +41,7 @@ import {
     runGrokPromptFile,
     runLocalAgenticStage,
     runVscodeLmAgenticStage,
+    isGmBridgeCancellationRequested,
     setAgenticBridgeBusy,
 } from './gmBridgeRunner';
 import { notifyRemoteGmBusy } from './remotePlayServer';
@@ -55,6 +56,23 @@ export interface AgenticBridgeResult {
     success: boolean;
     fallbackToSingleStage: boolean;
     fallbackReason?: string;
+}
+
+function finishCanceledAgenticRun(
+    prevGmState: ReturnType<typeof beginGmRun>,
+    playerAction: string,
+    channel: vscode.OutputChannel
+): AgenticBridgeResult {
+    finishGmRun(prevGmState, playerAction, false);
+    notifyRemoteGmBusy(false);
+    setAgenticBridgeBusy(false);
+    vscode.window.setStatusBarMessage('');
+    channel.appendLine('[Agentic GM] Canceled before canonical turn commit.');
+    return {
+        handled: true,
+        success: false,
+        fallbackToSingleStage: false,
+    };
 }
 
 function getAgenticDir(cwd: string): string {
@@ -320,6 +338,10 @@ export async function maybeInvokeAgenticBridge(
             getOpenRouterApiKey,
         });
 
+        if (isGmBridgeCancellationRequested()) {
+            return finishCanceledAgenticRun(prevGmState, playerAction, channel);
+        }
+
         if (refereeRun.timedOut || refereeRun.exitCode !== 0) {
             finishGmRun(prevGmState, playerAction, false);
             notifyRemoteGmBusy(false);
@@ -382,6 +404,12 @@ export async function maybeInvokeAgenticBridge(
 
         safeUnlinkPlayerActionFile(narratorPromptFile);
 
+        // A canceled Narrator must never be reinterpreted as an ordinary
+        // failure with fallback narration, otherwise it can advance canon.
+        if (isGmBridgeCancellationRequested()) {
+            return finishCanceledAgenticRun(prevGmState, playerAction, channel);
+        }
+
         let narrator = null;
         if (!narratorRun.timedOut && narratorRun.exitCode === 0) {
             narrator = readStageCandidate(
@@ -423,6 +451,11 @@ export async function maybeInvokeAgenticBridge(
                 fallbackToSingleStage: agenticCfg.fallbackToSingleStage,
                 fallbackReason: merged.reason ?? 'merge failed',
             };
+        }
+
+        // Keep the canonical write boundary independently guarded as well.
+        if (isGmBridgeCancellationRequested()) {
+            return finishCanceledAgenticRun(prevGmState, playerAction, channel);
         }
 
         writeJsonAtomic(path.join(agenticDir, 'final_turn_result.json'), merged.result);

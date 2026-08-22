@@ -41,6 +41,7 @@ import {
     isParlorBridgeBusy,
     fallbackToClipboardParlor,
     countParlorVscodeLmModels,
+    consumeGmBridgeCancellationRequest,
 } from './gmBridgeRunner';
 import {
     getActiveParlorConnectionProfile,
@@ -594,6 +595,9 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
     const connProfile = getActiveParlorConnectionProfile();
     if (connProfile.provider === 'vscode-lm') {
         const modelCount = await countParlorVscodeLmModels(connProfile.vscodeLm);
+        if (consumeGmBridgeCancellationRequest()) {
+            return;
+        }
         const preflight = evaluateParlorVscodeLmPreflight({
             provider: connProfile.provider,
             availableModelCount: modelCount,

@@ -113,6 +113,10 @@ export function isGmBridgeBusy(): boolean {
     return Boolean(grokProcess || gmProcess || agenticBridgeBusy || parlorLmBusy || activeGmCancellationSources.size > 0);
 }
 
+export function isGmBridgeCancellationRequested(): boolean {
+    return gmCancellationRequested;
+}
+
 export function isParlorBridgeBusy(): boolean {
     return parlorLmBusy;
 }
@@ -179,14 +183,18 @@ function requestActiveGmCancellation(): void {
     }
 }
 
-export function cancelGmBridgeRun(): boolean {
-    if (!isGmBridgeBusy()) {
-        return false;
+export function cancelGmBridgeRun(requestPending = false): boolean {
+    const wasBusy = isGmBridgeBusy();
+    const accepted = wasBusy || requestPending;
+    if (accepted) {
+        gmCancellationRequested = true;
+        requestActiveGmCancellation();
     }
-    gmCancellationRequested = true;
-    requestActiveGmCancellation();
+    // The webview has already disabled the button and input controls. Always
+    // terminate that optimistic state, even if provider dispatch has not yet
+    // registered a worker (or there is no worker for clipboard mode).
     deps?.getPanel()?.webview.postMessage({ type: 'gmEnd', success: false, canceled: true });
-    return true;
+    return accepted;
 }
 
 export function consumeGmBridgeCancellationRequest(): boolean {
@@ -316,6 +324,9 @@ export async function runVscodeLmAgenticStage(options: {
     if (modelId) { selector.id = modelId; }
 
     const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (gmCancellationRequested) {
+        return { exitCode: 1, timedOut: false, stdout: '' };
+    }
     if (!models.length) {
         channel.appendLine(`[${options.stageLabel}] vscode-lm: no model available`);
         return { exitCode: 1, timedOut: false, stdout: '' };
@@ -397,6 +408,9 @@ export async function runLocalAgenticStage(options: {
     let openRouterApiKey = '';
     if (options.provider === 'openrouter') {
         openRouterApiKey = await options.getOpenRouterApiKey();
+        if (gmCancellationRequested) {
+            return { exitCode: 1, timedOut: false, stdout: '' };
+        }
         const apiKey = openRouterApiKey;
         if (!apiKey) {
             return { exitCode: 1, timedOut: false, stdout: '' };
@@ -1033,6 +1047,14 @@ export async function invokeParlorVscodeLm(
 
     const selector = buildParlorVscodeLmSelector(lmOptions);
     const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (consumeGmBridgeCancellationRequest()) {
+        // Model discovery can yield before the request CTS exists. A cancel in
+        // that window already sent the terminal webview message, so stop here
+        // without starting a request or replacing it with a generic failure.
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+        return { ok: false, text: '' };
+    }
     if (!models.length) {
         vscode.window.showErrorMessage(
             'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code 等の拡張機能をインストールしてサインインしてください。'
@@ -1076,6 +1098,9 @@ export async function invokeParlorVscodeLm(
     } finally {
         parlorLmBusy = false;
         disposeTrackedCancellationSource(cts);
+        // Parlor does not return through invokeGmBridge/extension dispatch, so
+        // it owns consumption of its cancellation state before the next turn.
+        consumeGmBridgeCancellationRequest();
     }
 }
 
@@ -1195,7 +1220,11 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
         return false;
     }
-    gmCancellationRequested = false;
+    // A cancel can arrive after the webview starts loading but before a
+    // provider process/token is registered. Preserve that pre-dispatch latch.
+    if (gmCancellationRequested) {
+        return false;
+    }
     const workspacePath = getWorkspacePath();
     if (!workspacePath) {
         vscode.window.showErrorMessage('LoreRelay: Workspace not found.');

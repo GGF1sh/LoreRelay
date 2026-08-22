@@ -279,6 +279,7 @@ import {
 } from './deterministicWorkspaceMutationGate';
 
 let panel: vscode.WebviewPanel | undefined;
+let activeGameplayRequestCount = 0;
 let combatWorkshopStatuses: StatusDefinition[] = [];
 let combatWorkshopBuiltins: AbilityDefinition[] = [];
 let combatWorkshopLibrary: CustomAbilityLibrary | undefined;
@@ -1121,6 +1122,7 @@ async function handlePlayerInput(
     }
 
     let retainedForRelay = false;
+    activeGameplayRequestCount += 1;
     try {
         const result = await handleAcceptedPlayerInput(trimmed, authorsNote, entryId, source, presentationText);
         if (result?.relayRequestId) {
@@ -1132,6 +1134,10 @@ async function handlePlayerInput(
         vscode.window.showErrorMessage(`LoreRelay: ${reason}`);
         panel?.webview.postMessage({ type: 'gmEnd', success: false });
     } finally {
+        // Dispatch normally consumes cancellation before deciding whether to
+        // fall back. This is the final guard for pre-dispatch/debug exits.
+        consumeGmBridgeCancellationRequest();
+        activeGameplayRequestCount = Math.max(0, activeGameplayRequestCount - 1);
         if (!retainedForRelay) {
             acquired.lease.release();
         }
@@ -1239,8 +1245,14 @@ async function handleAcceptedPlayerInput(
                 return requestId;
             },
             dispatchGm: async (playerAction) => {
+                if (consumeGmBridgeCancellationRequest()) {
+                    return;
+                }
                 let actionForGm = formatPlayerActionWithNote(playerAction, processedAuthorsNote);
                 actionForGm = await interceptPlayerAction(actionForGm);
+                if (consumeGmBridgeCancellationRequest()) {
+                    return;
+                }
                 const provider = getGmProvider();
                 if (provider === 'clipboard') {
                     await fallbackToClipboard(actionForGm);
@@ -2262,7 +2274,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
         handlePlayerInput,
         cancelGmTurn: () => {
-            cancelGmBridgeRun();
+            cancelGmBridgeRun(activeGameplayRequestCount > 0);
         },
         runImageGeneration,
         handleLocaleChange,

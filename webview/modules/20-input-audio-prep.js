@@ -300,7 +300,8 @@ function saveState() {
   const draftText = freeInput ? freeInput.value : '';
   const noteEl = document.getElementById('authors-note-input');
   const authorsNoteText = noteEl ? noteEl.value : '';
-  vscode.setState({ messageHistory, galleryImages, currentTheme, ttsEnabled, ttsSpeed, ttsVolume, draftText, authorsNoteText });
+  const storySummary = document.getElementById('story-summary')?.value || '';
+  vscode.setState({ messageHistory, galleryImages, currentTheme, ttsEnabled, ttsSpeed, ttsVolume, draftText, authorsNoteText, storySummary });
 }
 
 // ===== 画像生成ローディング =====
@@ -402,9 +403,20 @@ function showGmLoading() {
   for (let i = 0; i < 3; i++) { dots.appendChild(document.createElement('span')); }
   const elapsedEl = document.createElement('span');
   elapsedEl.className = 'gm-loading-elapsed';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'gm-loading-cancel glass-btn';
+  cancelBtn.textContent = T('webview.gm.cancel');
+  cancelBtn.addEventListener('click', () => {
+    if (cancelBtn.disabled) return;
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = T('webview.gm.canceling');
+    vscode.postMessage({ type: 'cancelGmTurn' });
+  });
   body.appendChild(label);
   body.appendChild(dots);
   body.appendChild(elapsedEl);
+  body.appendChild(cancelBtn);
   div.appendChild(sender);
   div.appendChild(body);
   chatLog.appendChild(div);
@@ -414,6 +426,11 @@ function showGmLoading() {
   if (gmLoadingTimer) { clearInterval(gmLoadingTimer); }
   gmLoadingTimer = setInterval(() => {
     const sec = Math.floor((Date.now() - startedAt) / 1000);
+    if (sec >= 60) {
+      label.textContent = T('webview.gm.loadingLong');
+    } else if (sec >= 15) {
+      label.textContent = T('webview.gm.loadingWorld');
+    }
     if (sec >= 3) { elapsedEl.textContent = `${sec}s`; }
   }, 1000);
   // 入力をロック（二重送信防止）

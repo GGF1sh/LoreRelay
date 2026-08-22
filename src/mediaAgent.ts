@@ -57,7 +57,7 @@ function isMediaAgentEnabled(): boolean {
 }
 
 function isAutoImageEnabled(): boolean {
-    return vscode.workspace.getConfiguration('textAdventure').get<boolean>('mediaAgent.autoImage', true);
+    return vscode.workspace.getConfiguration('textAdventure').get<boolean>('mediaAgent.autoImage', false);
 }
 
 function log(line: string): void {

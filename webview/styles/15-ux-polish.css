@@ -34,6 +34,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.gm-loading-cancel {
+  margin-left: 10px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 .relay-trigger-command {
   display: inline-block;
   margin: 8px 0 6px;

@@ -9,6 +9,7 @@
 
     const inputs = {
         enableRpgMechanics: document.getElementById('gr-enable-rpg'),
+        enableStoryCombat: document.getElementById('gr-story-combat'),
         defaultMaxHp: document.getElementById('gr-default-hp'),
         defaultMaxMp: document.getElementById('gr-default-mp'),
         diceDifficulty: document.getElementById('gr-dice-diff'),
@@ -70,6 +71,7 @@
     function triggerSave() {
         const rules = {
             enableRpgMechanics: inputs.enableRpgMechanics.checked,
+            enableStoryCombat: inputs.enableStoryCombat ? inputs.enableStoryCombat.checked : false,
             defaultMaxHp: parseInt(inputs.defaultMaxHp.value, 10) || 100,
             defaultMaxMp: parseInt(inputs.defaultMaxMp.value, 10) || 50,
             diceDifficulty: inputs.diceDifficulty.value || 'Normal',
@@ -122,6 +124,7 @@
         if (message.type === 'gameRules' && message.rules) {
             const rules = message.rules;
             if (rules.enableRpgMechanics !== undefined) inputs.enableRpgMechanics.checked = rules.enableRpgMechanics;
+            if (rules.enableStoryCombat !== undefined && inputs.enableStoryCombat) inputs.enableStoryCombat.checked = rules.enableStoryCombat;
             if (rules.defaultMaxHp !== undefined) inputs.defaultMaxHp.value = rules.defaultMaxHp;
             if (rules.defaultMaxMp !== undefined) inputs.defaultMaxMp.value = rules.defaultMaxMp;
             if (rules.diceDifficulty !== undefined) inputs.diceDifficulty.value = rules.diceDifficulty;

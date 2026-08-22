@@ -1988,7 +1988,8 @@ function saveState() {
   const draftText = freeInput ? freeInput.value : '';
   const noteEl = document.getElementById('authors-note-input');
   const authorsNoteText = noteEl ? noteEl.value : '';
-  vscode.setState({ messageHistory, galleryImages, currentTheme, ttsEnabled, ttsSpeed, ttsVolume, draftText, authorsNoteText });
+  const storySummary = document.getElementById('story-summary')?.value || '';
+  vscode.setState({ messageHistory, galleryImages, currentTheme, ttsEnabled, ttsSpeed, ttsVolume, draftText, authorsNoteText, storySummary });
 }
 
 // ===== 画像生成ローディング =====
@@ -2090,9 +2091,20 @@ function showGmLoading() {
   for (let i = 0; i < 3; i++) { dots.appendChild(document.createElement('span')); }
   const elapsedEl = document.createElement('span');
   elapsedEl.className = 'gm-loading-elapsed';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'gm-loading-cancel glass-btn';
+  cancelBtn.textContent = T('webview.gm.cancel');
+  cancelBtn.addEventListener('click', () => {
+    if (cancelBtn.disabled) return;
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = T('webview.gm.canceling');
+    vscode.postMessage({ type: 'cancelGmTurn' });
+  });
   body.appendChild(label);
   body.appendChild(dots);
   body.appendChild(elapsedEl);
+  body.appendChild(cancelBtn);
   div.appendChild(sender);
   div.appendChild(body);
   chatLog.appendChild(div);
@@ -2102,6 +2114,11 @@ function showGmLoading() {
   if (gmLoadingTimer) { clearInterval(gmLoadingTimer); }
   gmLoadingTimer = setInterval(() => {
     const sec = Math.floor((Date.now() - startedAt) / 1000);
+    if (sec >= 60) {
+      label.textContent = T('webview.gm.loadingLong');
+    } else if (sec >= 15) {
+      label.textContent = T('webview.gm.loadingWorld');
+    }
     if (sec >= 3) { elapsedEl.textContent = `${sec}s`; }
   }, 1000);
   // 入力をロック（二重送信防止）
@@ -3008,8 +3025,9 @@ document.getElementById('archive-suggest-dismiss')?.addEventListener('click', ()
   hideArchiveSuggest();
 });
 
-document.getElementById('story-summary').addEventListener('blur', (e) => {
+document.getElementById('story-summary').addEventListener('input', (e) => {
   vscode.postMessage({ type: 'updateSummary', summary: e.target.value });
+  saveState();
 });
 
 document.getElementById('char-import-st-btn').addEventListener('click', () => {
@@ -4303,6 +4321,7 @@ window.addEventListener('message', (event) => {
 
     const inputs = {
         enableRpgMechanics: document.getElementById('gr-enable-rpg'),
+        enableStoryCombat: document.getElementById('gr-story-combat'),
         defaultMaxHp: document.getElementById('gr-default-hp'),
         defaultMaxMp: document.getElementById('gr-default-mp'),
         diceDifficulty: document.getElementById('gr-dice-diff'),
@@ -4364,6 +4383,7 @@ window.addEventListener('message', (event) => {
     function triggerSave() {
         const rules = {
             enableRpgMechanics: inputs.enableRpgMechanics.checked,
+            enableStoryCombat: inputs.enableStoryCombat ? inputs.enableStoryCombat.checked : false,
             defaultMaxHp: parseInt(inputs.defaultMaxHp.value, 10) || 100,
             defaultMaxMp: parseInt(inputs.defaultMaxMp.value, 10) || 50,
             diceDifficulty: inputs.diceDifficulty.value || 'Normal',
@@ -4416,6 +4436,7 @@ window.addEventListener('message', (event) => {
         if (message.type === 'gameRules' && message.rules) {
             const rules = message.rules;
             if (rules.enableRpgMechanics !== undefined) inputs.enableRpgMechanics.checked = rules.enableRpgMechanics;
+            if (rules.enableStoryCombat !== undefined && inputs.enableStoryCombat) inputs.enableStoryCombat.checked = rules.enableStoryCombat;
             if (rules.defaultMaxHp !== undefined) inputs.defaultMaxHp.value = rules.defaultMaxHp;
             if (rules.defaultMaxMp !== undefined) inputs.defaultMaxMp.value = rules.defaultMaxMp;
             if (rules.diceDifficulty !== undefined) inputs.diceDifficulty.value = rules.diceDifficulty;
@@ -22728,6 +22749,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (savedState.authorsNoteText && noteEl) {
       noteEl.value = savedState.authorsNoteText;
     }
+    const summaryEl = document.getElementById('story-summary');
+    if (typeof savedState.storySummary === 'string' && summaryEl) {
+      summaryEl.value = savedState.storySummary;
+    }
   }
 
   // extension に状態リクエスト
@@ -23039,20 +23064,29 @@ function initStartHub() {
 
   if (interviewBtn) {
     interviewBtn.addEventListener('click', () => {
+      if (isInputLocked()) return;
       resumeCurrentSession();
       const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
       const template = presetText
         ? T('webview.startHub.interviewTemplateWithPreset', { preset: presetText })
         : T('webview.startHub.interviewTemplate');
-      if (freeInput) {
-        freeInput.value = template;
-        autoGrowFreeInput();
-        freeInput.focus();
-        if (typeof freeInput.setSelectionRange === 'function') {
-          const end = freeInput.value.length;
-          freeInput.setSelectionRange(end, end);
-        }
-      }
+      const selectedChip = presetsWrap?.querySelector('.start-hub-preset-chip.active');
+      const presetLabel = selectedChip?.textContent?.trim() || '';
+      const presentationText = presetLabel
+        ? T('webview.startHub.interviewRequestWithPreset', { preset: presetLabel })
+        : T('webview.startHub.interviewRequest');
+      const entryId = `user-${Date.now()}`;
+      vscode.postMessage({ type: 'freeInput', text: template, presentationText, entryId });
+      messageHistory.push({
+        id: entryId,
+        role: 'user',
+        content: presentationText,
+        sender: T('webview.sender.player')
+      });
+      renderMessage(messageHistory[messageHistory.length - 1]);
+      scrollToBottom();
+      saveState();
+      showGmLoading();
     });
   }
 
@@ -23102,7 +23136,12 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'gmStart' || msg.type === 'grokStart') {
     showGmLoading();
   } else if (msg.type === 'gmEnd' || msg.type === 'grokEnd') {
-    hideGmLoading(msg.success);
+    // Cancellation is an intentional player action, not a bridge failure.
+    // Unlock the controls without adding the generic failure row.
+    hideGmLoading(msg.canceled ? true : msg.success);
+    if (msg.canceled) {
+      addSystemMessage(T('webview.gm.canceled'));
+    }
   } else if (msg.type === 'playerInputBusy') {
     // A duplicate gameplay message must not unlock the accepted request.
     // A competing non-gameplay mutation rejection clears this attempt's row.

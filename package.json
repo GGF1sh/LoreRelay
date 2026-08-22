@@ -491,7 +491,7 @@
         },
         "textAdventure.mediaAgent.autoImage": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%config.textAdventure.mediaAgent.autoImage.description%"
         },
         "textAdventure.mediaAgent.maxImageQueue": {

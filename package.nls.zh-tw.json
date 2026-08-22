@@ -67,7 +67,7 @@
   "config.textAdventure.sfx.manifestPath.description": "SFX 清單 JSON 的路徑。",
   "config.textAdventure.sfx.volume.description": "預設音效音量 (0-100)。",
   "config.textAdventure.mediaAgent.enabled.description": "啟用後台 MediaAgent 管道（包含非同步 ComfyUI 生成）。",
-  "config.textAdventure.mediaAgent.autoImage.description": "當 GM 條目包含 imagePrompt 且無圖像時，在後台非同步佇列中生成 ComfyUI 圖像。",
+  "config.textAdventure.mediaAgent.autoImage.description": "選擇啟用後，當 GM 條目包含 imagePrompt 且無圖像時自動排程生成 ComfyUI 圖像。預設關閉。",
   "config.textAdventure.mediaAgent.maxImageQueue.description": "圖像生成作業的最大佇列數。",
   "config.textAdventure.remotePlay.port.description": "遠端聯機 HTTP/WebSocket 伺服器連接埠。",
   "config.textAdventure.remotePlay.bindAddress.description": "遠端聯機綁定的 IP 地址。允許 LAN 存取請設為 0.0.0.0（警告：將暴露給網路），本機限制設為 127.0.0.1。",

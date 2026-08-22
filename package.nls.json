@@ -74,7 +74,7 @@
   "config.textAdventure.sfx.manifestPath.description": "Path to the SFX manifest JSON. Leave empty to use 'sfx.json' in the workspace, falling back to the bundled skill sfx.json. Audio files resolve relative to the manifest folder (and its 'sfx/' subfolder).",
   "config.textAdventure.sfx.volume.description": "Default sound-effect volume (0-100).",
   "config.textAdventure.mediaAgent.enabled.description": "Enable the background MediaAgent pipeline (early BGM/SFX from GM stream, queued ComfyUI image generation).",
-  "config.textAdventure.mediaAgent.autoImage.description": "When a GM entry has imagePrompt but no image, queue ComfyUI generation in the background without blocking the next turn.",
+  "config.textAdventure.mediaAgent.autoImage.description": "Opt in to automatically queue ComfyUI generation when a GM entry has imagePrompt but no image. Off by default.",
   "config.textAdventure.mediaAgent.maxImageQueue.description": "Maximum queued ComfyUI image jobs. Oldest jobs are dropped when full.",
   "config.textAdventure.remotePlay.port.description": "TCP port for the LAN remote player HTTP/WebSocket server.",
   "config.textAdventure.remotePlay.bindAddress.description": "Bind address for remote play. Use 0.0.0.0 for LAN/Tailscale access (warning: exposes server to network), or 127.0.0.1 for local-only.",

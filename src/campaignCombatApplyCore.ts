@@ -98,6 +98,7 @@ export function isApplyEligibleReceipt(raw: unknown): raw is CombatOutcomeReceip
         return typeof p.entityId === 'string'
             && typeof p.unitId === 'string'
             && (p.team === 0 || p.team === 1)
+            && (p.role === undefined || p.role === 'protagonist')
             && typeof p.finalHp === 'number'
             && Number.isFinite(p.finalHp)
             && typeof p.maxHp === 'number'
@@ -149,8 +150,11 @@ export function buildCombatConsequencePlan(
 
     const next: Record<string, unknown> = { ...state };
 
-    const playerParticipant = receipt.participants.find(p =>
-        p.team === 0 && (p.entityId === 'player' || p.entityId === 'protagonist' || p.entityId === 'ally_1'));
+    const playerParticipant = receipt.participants.find(p => p.team === 0 && p.role === 'protagonist')
+        // Backward compatibility for receipts created before the explicit role
+        // marker existed, including the long-standing debug fixture contract.
+        ?? receipt.participants.find(p =>
+            p.team === 0 && (p.entityId === 'player' || p.entityId === 'protagonist' || p.entityId === 'ally_1'));
 
     if (playerParticipant) {
         // Snapshot combat-end facts for V1-C prompt injection (never re-read live HP later as combat-end).

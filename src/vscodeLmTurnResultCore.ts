@@ -2,6 +2,7 @@
 
 import { buildStatePatchFromDiff } from './statePatch';
 import { attachTurnResultPromptReceipt } from './promptReceiptCore';
+import { parseEncounterTurnOps } from './combatEncounterTurnOpsCore';
 import type { DiceLedgerEntry, TurnResult, TurnResultPromptReceiptMeta } from './types/TurnResult';
 
 export interface VscodeLmGmJson {
@@ -17,6 +18,7 @@ export interface VscodeLmGmJson {
     sprite?: string;
     profileUpdates?: Array<{ characterId: string; dynamicProfile: string }>;
     gameOver?: { active: boolean; message?: string; victory?: boolean };
+    encounterOps?: unknown;
 }
 
 const DEFAULT_OPTIONS: Record<string, string[]> = {
@@ -101,7 +103,7 @@ export function mergeVscodeLmGameState(
     const merged: Record<string, unknown> = {};
 
     if (llmJson) {
-        const { entries: _e, profileUpdates: _p, ...rest } = llmJson;
+        const { entries: _e, profileUpdates: _p, encounterOps: _encounterOps, ...rest } = llmJson;
         Object.assign(merged, rest);
     }
 
@@ -196,6 +198,13 @@ export function buildVscodeLmTurnResult(params: {
         ...(Object.keys(media).length > 0 ? { media } : {}),
         ...(params.triggeredLore && params.triggeredLore.length > 0 ? { triggeredLore: params.triggeredLore } : {}),
     };
+
+    // encounterOps is a turn command, never projected into game_state. Only
+    // parser-approved start declarations may cross the provider boundary.
+    const encounterOps = parseEncounterTurnOps(params.llmJson?.encounterOps);
+    if (encounterOps.ok && encounterOps.ops.length > 0) {
+        turnResult.encounterOps = encounterOps.ops;
+    }
 
     return attachTurnResultPromptReceipt(turnResult, params.promptReceipt);
 }

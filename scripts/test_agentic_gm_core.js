@@ -47,6 +47,7 @@ const refereeJson = {
     npcAgencyOps: [
         { npcId: 'npc_elda', locationId: 'south_port', arrivesTurn: 12 },
     ],
+    encounterOps: [{ op: 'start_combat', encounterId: 'ruins_ambush' }],
 };
 
 const narratorJson = {
@@ -134,10 +135,28 @@ const narratorJson = {
         ok('npcAgencyOps comes from referee');
     }
 
+    if (result.encounterOps?.[0]?.encounterId !== 'ruins_ambush') {
+        fail('encounterOps survives referee parse and agentic merge');
+    } else {
+        ok('encounterOps survives referee parse and agentic merge');
+    }
+
     if (result.promptReceipt?.receiptId !== 'receipt-agentic-test' || result.promptReceipt?.provider !== 'agentic') {
         fail('mergeAgenticTurnResult preserves trusted prompt receipt metadata');
     } else {
         ok('mergeAgenticTurnResult preserves trusted prompt receipt metadata');
+    }
+}
+
+{
+    const referee = parseRefereeResultJson(JSON.stringify({
+        turnId: 'turn-10',
+        encounterOps: [{ op: 'start_combat', encounterId: 'bad', finalHp: 0 }],
+    }));
+    if (!referee || referee.encounterOps !== undefined) {
+        fail('agentic referee rejects outcome-authoritative encounterOps');
+    } else {
+        ok('agentic referee rejects outcome-authoritative encounterOps');
     }
 }
 

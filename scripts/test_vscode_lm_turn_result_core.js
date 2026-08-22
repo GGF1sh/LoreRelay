@@ -44,6 +44,7 @@ try {
             options: ['go deeper', 'turn back'],
             mood: 'tense',
             entries: [{ content: 'You enter the cave.', imagePrompt: 'dark cave mouth' }],
+            encounterOps: [{ op: 'start_combat', encounterId: 'cave_ambush' }],
         }),
         '```',
     ].join('\n');
@@ -92,6 +93,27 @@ try {
         fail('statePatch must not include /entries');
     } else {
         ok('statePatch excludes /entries');
+    }
+    const hasEncounterOpsPatch = turnResult.statePatch.some((p) => p.path === '/encounterOps');
+    if (turnResult.encounterOps?.[0]?.encounterId !== 'cave_ambush' || hasEncounterOpsPatch) {
+        fail('vscode-lm preserves validated encounterOps outside game_state projection');
+    } else {
+        ok('vscode-lm preserves validated encounterOps outside game_state projection');
+    }
+
+    const rejectedOutcome = buildVscodeLmTurnResult({
+        prev,
+        llmJson: {
+            encounterOps: [{ op: 'start_combat', encounterId: 'bad', winner: 'player' }],
+        },
+        narrative: 'A fight threatens to begin.',
+        turnId: 'turn-3',
+        locale: 'en',
+    });
+    if (rejectedOutcome.encounterOps !== undefined) {
+        fail('vscode-lm rejects outcome-authoritative encounterOps');
+    } else {
+        ok('vscode-lm rejects outcome-authoritative encounterOps');
     }
 
     let state = JSON.parse(JSON.stringify(prev));

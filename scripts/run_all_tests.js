@@ -125,6 +125,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_gameplay_spine_vehicle_repair_plan.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_gameplay_spine_vehicle_repair_commit.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_gameplay_spine_vehicle_repair_ingress.js' },
+    { category: 'unit', file: 'test_combat_encounter_turn_ops.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_command_palette_gating.js' },
     { category: 'unit', file: 'test_vehicle_state_document_v2_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_vehicle_state_document_owner.js', consumesCompiledOutput: true },

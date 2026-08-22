@@ -145,6 +145,13 @@ test('isApplyEligibleReceipt validates the complete receipt and participant shap
         }),
         false,
     );
+    assert.equal(
+        isApplyEligibleReceipt({
+            ...valid,
+            participants: [{ ...valid.participants[0], role: 'narrator' }],
+        }),
+        false,
+    );
 });
 
 test('buildCombatConsequencePlan appends history and updates player HP for ally_1', () => {
@@ -161,6 +168,31 @@ test('buildCombatConsequencePlan appends history and updates player HP for ally_
     assert.equal(hist.length, 1);
     assert.equal(hist[0].receiptHash, receipt.receiptHash);
     assert.equal(stateHasReceiptApplied(plan.nextState, receipt.receiptHash), true);
+});
+
+test('buildCombatConsequencePlan uses explicit protagonist role with a real entity id', () => {
+    const receipt = makeReceipt({
+        participants: [{
+            entityId: 'elda',
+            unitId: 'ally_1',
+            team: 0,
+            role: 'protagonist',
+            finalHp: 0,
+            maxHp: 20,
+            alive: false,
+            dead: true,
+        }],
+    });
+    const plan = buildCombatConsequencePlan(
+        { status: { hp: { current: 18, max: 20 }, condition: ['healthy'] } },
+        receipt,
+    );
+    assert.equal(plan.playerHpUpdated, true);
+    assert.equal(plan.playerHpAfter, 0);
+    assert.deepEqual(
+        (plan.nextState.status as { condition: string[] }).condition,
+        ['healthy', 'incapacitated'],
+    );
 });
 
 test('buildCombatConsequencePlan is idempotent for same receiptHash', () => {

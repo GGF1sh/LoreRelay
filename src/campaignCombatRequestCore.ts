@@ -10,6 +10,8 @@ export type CampaignCombatRequestMode = 'command' | 'spectator';
 export interface CampaignCombatParticipantRef {
     entityId: string;
     team: 0 | 1;
+    /** Stable campaign identity; optional for pre-story-combat/debug requests. */
+    role?: 'protagonist';
 }
 
 export interface CampaignCombatRequest {
@@ -53,7 +55,9 @@ function isNonEmptyString(value: unknown, max = 128): value is string {
 function isParticipant(value: unknown): value is CampaignCombatParticipantRef {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const o = value as Record<string, unknown>;
-    return isNonEmptyString(o.entityId, 128) && (o.team === 0 || o.team === 1);
+    return isNonEmptyString(o.entityId, 128)
+        && (o.team === 0 || o.team === 1)
+        && (o.role === undefined || o.role === 'protagonist');
 }
 
 /** Reject AI/result fields and unknown modes. */
@@ -87,9 +91,13 @@ export function validateCampaignCombatRequest(raw: unknown): CampaignCombatReque
     if (!Array.isArray(o.allies) || o.allies.length === 0 || !o.allies.every(isParticipant)) {
         return { ok: false, error: 'INVALID_ALLIES' };
     }
+    if (o.allies.filter(ally => (ally as CampaignCombatParticipantRef).role === 'protagonist').length > 1) {
+        return { ok: false, error: 'INVALID_ALLIES', detail: 'multiple protagonists' };
+    }
     let enemies: CampaignCombatRequest['enemies'];
     if (Array.isArray(o.enemies)) {
-        if (o.enemies.length === 0 || !o.enemies.every(isParticipant)) {
+        if (o.enemies.length === 0 || !o.enemies.every(isParticipant)
+            || o.enemies.some(enemy => (enemy as CampaignCombatParticipantRef).role !== undefined)) {
             return { ok: false, error: 'INVALID_ENEMIES' };
         }
         enemies = o.enemies as CampaignCombatParticipantRef[];

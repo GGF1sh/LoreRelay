@@ -179,6 +179,7 @@ import {
     readCombatConsequenceInjectedMarker,
 } from './campaignCombatPendingStore';
 import type { TurnResult } from './types/TurnResult';
+import { buildStoryCombatPromptInstruction } from './combatEncounterTurnOpsCore';
 
 interface PromptContextCandidateSpec extends PromptContextChunkSpec {
     ackToken?: PromptConsumableAckToken;
@@ -931,6 +932,9 @@ function buildGameRulesPromptContext(): string {
             ? rules.campaignKitId.trim()
             : '(theme auto-detect or campaign_kit.json)';
         lines.push(`CAMPAIGN KIT ENABLED (${kitId}): Frame play as hub → jobs/rumors → expedition site → findings → appraisal/services → world reaction. Use discoveryOps for ledger updates.`);
+    }
+    if (rules.enableStoryCombat) {
+        lines.push(buildStoryCombatPromptInstruction());
     }
 
     return lines.join('\n');

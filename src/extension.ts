@@ -27,6 +27,7 @@ import { CombatLabDocument, CombatLabPlayback, CombatLabRun, compareCombatLabRun
 import { loadCombatLabDocument, writeCombatLabDocument } from './combatLabStore';
 import { CombatCommandPlaytestHost } from './combatCommandPlaytestHost';
 import { CampaignCombatSessionCoordinator } from './campaignCombatSessionCoordinator';
+import { registerStoryCombatStarter } from './combatEncounterTurnOps';
 import { applyAllPendingCombatOutcomes } from './campaignCombatApplyHost';
 import { buildRulesProfileApplication } from './rulesProfileApplyCore';
 import { resolveRulesProfile } from './rulesProfileCore';
@@ -652,6 +653,10 @@ export function activate(context: vscode.ExtensionContext) {
         context.extensionPath,
         () => openBattleView(context),
     );
+    // Lets the post-commit boundary in statePatch start a story-declared
+    // encounter without importing the extension entry point.
+    registerStoryCombatStarter(request => campaignCombatCoordinator?.startFromRequest(request)
+        ?? { ok: false, error: 'NO_COMBAT_COORDINATOR' });
     combatCommandPlaytestHost.setSessionObserver(() => {
         campaignCombatCoordinator?.observeHostSession();
         // V1-B: exactly-once apply when a campaign session reaches durable PENDING

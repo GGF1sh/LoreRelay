@@ -33,6 +33,7 @@ type DomNode = {
     style: { cssText: string; display?: string; left?: string; top?: string; width?: string; height?: string; filter?: string; background?: string };
     dataset: Record<string, string>;
     attributes: Record<string, string>;
+    classList: { toggle: (name: string, force?: boolean) => void; contains: (name: string) => boolean };
     children: DomNode[];
     parent: DomNode | null;
     onclick?: ((event?: unknown) => void) | null;
@@ -74,7 +75,7 @@ function createMinimalDom() {
         if (sel === '[data-unit-id][data-unit-team="0"]:not(:disabled)') {
             return node.dataset.unitId != null && node.dataset.unitTeam === '0' && !node.disabled;
         }
-        if (sel === '#pane-status') return node.id === 'pane-status';
+        if (sel === '#combat-dev-tools') return node.id === 'combat-dev-tools';
         if (sel === '#combat-lab-panel') return node.id === 'combat-lab-panel';
         if (sel.startsWith('#')) return node.id === sel.slice(1);
         return false;
@@ -93,6 +94,16 @@ function createMinimalDom() {
             style: { cssText: '' },
             dataset: {} as Record<string, string>,
             attributes: {} as Record<string, string>,
+            classList: (() => {
+                const classes = new Set<string>();
+                return {
+                    toggle(name: string, force?: boolean) {
+                        const on = force === undefined ? !classes.has(name) : force;
+                        if (on) classes.add(name); else classes.delete(name);
+                    },
+                    contains(name: string) { return classes.has(name); },
+                };
+            })(),
             children: [] as DomNode[],
             parent: null as DomNode | null,
             append(...kids: DomNode[]) {
@@ -216,6 +227,20 @@ function createMinimalDom() {
         }
     }
 
+    // Real HTML parsing decodes entities in text nodes (e.g. inside a
+    // <textarea>...&quot;...</textarea> produced by labEsc()); without this the
+    // fake DOM's .textContent would return escaped markup instead of the value
+    // a real browser -- and this file's own production code reading
+    // .value -- would see.
+    function decodeHtmlEntities(text: string): string {
+        return text
+            .replace(/&quot;/g, '"')
+            .replace(/&#039;/g, "'")
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&');
+    }
+
     function parseHtml(html: string, parent: DomNode): void {
         const tokenRe = /<!--[\s\S]*?-->|<([A-Za-z0-9-]+)([^>]*)\/>|<([A-Za-z0-9-]+)([^>]*)>|<\/([A-Za-z0-9-]+)>|([^<]+)/g;
         const stack: DomNode[] = [parent];
@@ -245,16 +270,22 @@ function createMinimalDom() {
                 const text = match[6];
                 if (!text.trim() && text.includes('\n')) continue;
                 const top = stack[stack.length - 1];
-                top.textContent += text;
+                top.textContent += decodeHtmlEntities(text);
             }
         }
     }
 
     const documentElement = createNode('document');
+    // Combat authoring panels mount into the Inspector QA lane, never the
+    // player's Adventure Status pane. Mirror that host container here.
+    const section = createNode('div');
+    section.id = 'combat-dev-tools-section';
+    nodesById.set('combat-dev-tools-section', section);
     const pane = createNode('div');
-    pane.id = 'pane-status';
-    nodesById.set('pane-status', pane);
-    documentElement.appendChild(pane);
+    pane.id = 'combat-dev-tools';
+    nodesById.set('combat-dev-tools', pane);
+    section.appendChild(pane);
+    documentElement.appendChild(section);
 
     const document = {
         addEventListener() { /* registration only */ },
@@ -326,7 +357,10 @@ function loadWebviewHelpers(): {
     dispatchMessage: (data: unknown) => void;
     state: Record<string, unknown>;
 } {
-    const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
+    // The Lab module mounts through the shared combat dev-tools gate, so the
+    // gate module is part of the unit under test rather than a stub.
+    const gateSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89c1-combat-dev-tools-gate.js'), 'utf8');
+    const source = `${gateSource}\n${fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8')}`;
     const clearedTimers: unknown[] = [];
     const posted: unknown[] = [];
     let intervalCreates = 0;
@@ -337,6 +371,9 @@ function loadWebviewHelpers(): {
             addEventListener(type: string, fn: (event: { data: unknown }) => void) {
                 if (type === 'message') messageListeners.push(fn);
             },
+            // Pre-seed the gate as opted in; these hooks are exercised without a
+            // real panel, and the gate's own on/off behaviour is covered separately.
+            LR_combatDevTools: { enabled: true, ready: true, renderers: [] },
         },
         document: {
             addEventListener() { /* registration only */ },
@@ -363,6 +400,8 @@ function loadWebviewHelpers(): {
             return 1;
         },
         clearInterval(value: unknown) { clearedTimers.push(value); },
+        setTimeout,
+        queueMicrotask,
         __onRenderCombatLab() {
             renderCount += 1;
         },
@@ -412,11 +451,17 @@ function loadWebviewLiveDom(): {
     getPanel: () => DomNode | null;
     query: (sel: string) => DomNode | null;
     queryAll: (sel: string) => DomNode[];
+    panelText: (id: string) => string;
     scrollIntoViewCalls: DomNode[];
 } {
-    const source = fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8');
+    // The Lab module mounts through the shared combat dev-tools gate, so the
+    // gate module is part of the unit under test rather than a stub.
+    const gateSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89c1-combat-dev-tools-gate.js'), 'utf8');
+    const loadoutSource = fs.readFileSync(path.join(__dirname, '../webview/modules/89d-combat-loadout.js'), 'utf8');
+    const source = `${gateSource}\n${loadoutSource}\n${fs.readFileSync(path.join(__dirname, '../webview/modules/89f-combat-lab.js'), 'utf8')}`;
     const posted: unknown[] = [];
     let renderCount = 0;
+    let localeStrings = enLocale;
     const messageListeners: Array<(event: { data: unknown }) => void> = [];
     const { document, scrollIntoViewCalls } = createMinimalDom();
     const context: Record<string, unknown> = {
@@ -424,6 +469,8 @@ function loadWebviewLiveDom(): {
             addEventListener(type: string, fn: (event: { data: unknown }) => void) {
                 if (type === 'message') messageListeners.push(fn);
             },
+            // Opted in, so the Lab mounts into the QA-lane host below.
+            LR_combatDevTools: { enabled: true, ready: true, renderers: [] },
         },
         document,
         navigator: {},
@@ -432,12 +479,18 @@ function loadWebviewLiveDom(): {
                 posted.push(message);
             },
         },
-        // Real T() (00-core.js) resolves i18n keys against the loaded locale bundle;
-        // this module is evaluated in isolation, so back it with the real en.json
-        // strings (see testT above) rather than an identity stub.
-        T: testT,
+        // Real T() (00-core.js) resolves against a bundle installed by the later
+        // 90-bootstrap message listener. Keep this mutable so the harness can
+        // reproduce the ordering seen in the real Extension Development Host.
+        T: (key: string) => localeStrings[key] ?? key,
         setInterval() { return 1; },
         clearInterval() { /* no-op */ },
+        setTimeout,
+        // Model Chromium's observed microtask checkpoint between the gate's
+        // listener and 90-bootstrap's later localeBundle listener. The repaired
+        // production path uses a timer and therefore cannot run in this gap.
+        queueMicrotask(callback: () => void) { callback(); },
+        console,
     };
     vm.runInNewContext(source, context);
     // Wrap the live renderCombatLab to count full structural rebuilds only.
@@ -461,6 +514,11 @@ function loadWebviewLiveDom(): {
         },
         dispatchMessage(data: unknown) {
             for (const listener of messageListeners) listener({ data });
+            const message = data && typeof data === 'object' ? data as { type?: unknown; strings?: unknown } : {};
+            if (message.type === 'localeBundle' && message.strings && typeof message.strings === 'object') {
+                // Mirrors 90-bootstrap's later listener after the gate listener.
+                localeStrings = message.strings as Record<string, string>;
+            }
         },
         state: (context.window as { LR_combatLab: Record<string, unknown> }).LR_combatLab,
         getPanel,
@@ -469,6 +527,9 @@ function loadWebviewLiveDom(): {
         },
         queryAll(sel: string) {
             return getPanel()?.querySelectorAll(sel) ?? [];
+        },
+        panelText(id: string) {
+            return document.getElementById(id)?.textContent ?? '';
         },
         scrollIntoViewCalls,
     };
@@ -1766,6 +1827,69 @@ describe('Combat Lab command pointer translation', () => {
         });
         assert.equal(live.renderCount, rendersAfterAdopt, 'later same-session snapshots stay incremental');
         assert.equal((live.state.playtest as { tick?: number }).tick, 2);
+    });
+
+    test('locale-triggered redraw waits for the new bundle before translating dynamic combat panels', async () => {
+        const live = loadWebviewLiveDom();
+        live.dispatchMessage({
+            type: 'localeBundle',
+            locale: 'ja',
+            strings: {
+                'webview.combatLoadout.title': '戦闘モード',
+                'webview.combatLoadout.modeLegacy': 'レガシー戦闘',
+                'webview.combatLoadout.modeExtended': '拡張戦闘',
+                'webview.combatLoadout.helpLegacy': 'レガシー戦闘の説明',
+            },
+        });
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const loadoutText = live.panelText('combat-loadout-panel');
+        assert.match(loadoutText, /戦闘モード/);
+        assert.match(loadoutText, /レガシー戦闘/);
+        assert.doesNotMatch(loadoutText, /webview\.combatLoadout/);
+    });
+
+    test('an unsaved JSON draft survives a locale-triggered redraw, but switching scenario still resets it', async () => {
+        const live = loadWebviewLiveDom();
+        const documentState = {
+            scenarios: [
+                { id: 'scenarioA', name: 'Alpha', mode: 'mechanics_v1', allies: [], enemies: [], deltaSeconds: 1 / 30 },
+                { id: 'scenarioB', name: 'Bravo', mode: 'mechanics_v1', allies: [], enemies: [], deltaSeconds: 1 / 30 },
+            ],
+        };
+        live.dispatchMessage({ type: 'combatLabState', state: { document: documentState, selected: 'scenarioA' } });
+
+        const jsonBefore = live.query('[data-lab="json"]') as { value?: string; oninput?: () => void } | null;
+        assert.ok(jsonBefore, 'JSON textarea present after lab state');
+        const edited = '{"id":"scenarioA","name":"unsaved edit in progress"}';
+        jsonBefore!.value = edited;
+        jsonBefore!.oninput?.();
+
+        // Mirrors extension.ts sendLocaleBundle() on a textAdventure.locale change:
+        // the gate module reacts on the next task (see 89c1's localeBundle
+        // handler), not synchronously, so the redraw must be awaited here too.
+        live.dispatchMessage({ type: 'localeBundle', locale: 'ja', strings: {} });
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const jsonAfterLocale = live.query('[data-lab="json"]') as { textContent?: string; value?: string } | null;
+        const textAfterLocale = String(jsonAfterLocale?.textContent || jsonAfterLocale?.value || '');
+        assert.equal(textAfterLocale, edited, 'a locale-triggered redraw must not discard an unsaved scenario JSON edit');
+
+        // Explicitly switching scenario is a deliberate action and must still
+        // show that scenario's canonical JSON, not the stale draft.
+        const scenarioSelect = live.query('[data-lab="scenario"]') as {
+            value?: string;
+            onchange?: (event: { target: { value: string } }) => void;
+        } | null;
+        scenarioSelect!.onchange?.({ target: { value: 'scenarioB' } });
+
+        const jsonAfterSwitch = live.query('[data-lab="json"]') as { textContent?: string; value?: string } | null;
+        const textAfterSwitch = String(jsonAfterSwitch?.textContent || jsonAfterSwitch?.value || '');
+        assert.ok(!textAfterSwitch.includes('unsaved edit in progress'), "switching scenario must discard the previous scenario's draft");
+        assert.ok(
+            textAfterSwitch.includes('scenarioB') || textAfterSwitch.includes('Bravo'),
+            "switching scenario shows the new scenario's canonical JSON",
+        );
     });
 
     test('C: Production Webview adoption after clear', () => {

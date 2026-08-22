@@ -136,6 +136,8 @@ function runStartHubBehaviorTest() {
     const homeBtn = ensureElement('start-hub-home-btn', ['hidden']);
     const resumeRow = ensureElement('start-hub-resume-row', ['hidden']);
     const resumeBtn = ensureElement('start-hub-resume-btn');
+    const interviewBtn = ensureElement('start-hub-interview-btn');
+    ensureElement('start-hub-presets');
     ensureElement('story-summary');
     ensureElement('status-content');
     ensureElement('options-bar');
@@ -157,8 +159,11 @@ function runStartHubBehaviorTest() {
         },
     };
     const documentStub = {
-        body: { classList: createClassList(), style: {} },
+        body: { classList: createClassList(), style: {}, setAttribute() {} },
         getElementById(id) {
+            if (id === 'gm-loading' && !elements.has(id)) {
+                return null;
+            }
             return ensureElement(id);
         },
         createElement(tag) {
@@ -173,13 +178,19 @@ function runStartHubBehaviorTest() {
         addEventListener() {},
     };
 
+    const postedMessages = [];
     const context = vm.createContext({
         console,
         window: windowStub,
         document: documentStub,
         vscode: {
-            getState() { return null; },
-            postMessage() {},
+            getState() {
+                return {
+                    messageHistory: [{ id: 'gm-1', role: 'gm', sender: 'GM', content: 'Existing session' }],
+                    storySummary: 'Reload-safe summary',
+                };
+            },
+            postMessage(message) { postedMessages.push(message); },
         },
         navigator: { clipboard: { writeText: async () => undefined } },
         localStorage: { getItem() { return null; }, setItem() {} },
@@ -198,6 +209,7 @@ function runStartHubBehaviorTest() {
         undoBtn: ensureElement('undo-btn'),
         optionsBar: ensureElement('options-bar'),
         chatLog,
+        bgLayer: ensureElement('bg-layer'),
         seenHiddenDiceIds: new Set(),
         lastDiceRequestId: '',
         gameOverActive: false,
@@ -214,6 +226,7 @@ function runStartHubBehaviorTest() {
         activeCharId: '',
         currentPartyIds: [],
         saveState() {},
+        isInputLocked() { return false; },
         autoGrowFreeInput() {},
         renderGallery() {},
         updateCharacterList() {},
@@ -232,6 +245,8 @@ function runStartHubBehaviorTest() {
         setSceneBackground() {},
         setSceneSprite() {},
         scrollToBottom() {},
+        renderMessage() {},
+        addSystemMessage() {},
         speakEntryText() {},
         handleDiceRequest() {},
         getCharacterColor() { return '#fff'; },
@@ -249,6 +264,11 @@ function runStartHubBehaviorTest() {
 
     for (const handler of windowListeners.get('DOMContentLoaded') || []) {
         handler();
+    }
+
+    if (ensureElement('story-summary').value !== 'Reload-safe summary') {
+        fail('saved story summary should restore before the host state refresh arrives');
+        return;
     }
 
     if (!startHub.classList.contains('hidden')) {
@@ -310,7 +330,31 @@ function runStartHubBehaviorTest() {
         return;
     }
 
-    ok('Start Hub stays open across incremental sync and Resume restores the active session');
+    homeBtn.click();
+    interviewBtn.click();
+    const interviewPosts = postedMessages.filter((message) => message.type === 'freeInput');
+    if (interviewPosts.length !== 1) {
+        fail('world interview should submit exactly once from the Start Hub button');
+        return;
+    }
+    if (
+        interviewPosts[0].text !== 'webview.startHub.interviewTemplate'
+        || interviewPosts[0].presentationText !== 'webview.startHub.interviewRequest'
+    ) {
+        fail('world interview should separate the internal GM instruction from the player-facing request');
+        return;
+    }
+    if (ensureElement('free-input').value !== '') {
+        fail('world interview should never expose its technical template in the player input box');
+        return;
+    }
+    const lastMessage = context.messageHistory[context.messageHistory.length - 1];
+    if (!lastMessage || lastMessage.content !== 'webview.startHub.interviewRequest') {
+        fail('world interview should optimistically render only the friendly player-facing request');
+        return;
+    }
+
+    ok('Start Hub sync, one-click world interview, and summary restoration stay player-facing');
 }
 
 function readJson(filePath) {
@@ -400,12 +444,6 @@ async function runScenarioBootstrapIntegrationTests() {
         },
         ConfigurationTarget: { Workspace: 1 },
         Uri: { file: (filePath) => ({ fsPath: filePath }) },
-    });
-
-    const originalSetTimeout = global.setTimeout;
-    global.setTimeout = ((fn) => {
-        fn();
-        return 0;
     });
 
     try {
@@ -573,7 +611,6 @@ async function runScenarioBootstrapIntegrationTests() {
             ok('whitespace-only-name player no longer blocks starter creation');
         }
     } finally {
-        global.setTimeout = originalSetTimeout;
         restore();
         for (const workspace of workspaceRoots) {
             try {

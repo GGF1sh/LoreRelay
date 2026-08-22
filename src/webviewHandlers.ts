@@ -34,8 +34,10 @@ export interface WebviewHandlerDeps {
         text: unknown,
         authorsNote?: string,
         entryId?: string,
-        source?: { kind: 'quick_option'; optionIndex: number }
+        source?: { kind: 'quick_option'; optionIndex: number },
+        presentationText?: string
     ): Promise<void>;
+    cancelGmTurn(): void;
     runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void>;
     handleLocaleChange(rawLocale: unknown): Promise<void>;
     sendLocaleBundle(): void;
@@ -191,8 +193,14 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
                     && Number(message.optionIndex) >= 0
                     && Number(message.optionIndex) < 12
                     ? { kind: 'quick_option', optionIndex: Number(message.optionIndex) }
+                    : undefined,
+                typeof message.presentationText === 'string'
+                    ? clampString(message.presentationText, 2000)
                     : undefined
             );
+            break;
+        case 'cancelGmTurn':
+            deps.cancelGmTurn();
             break;
         case 'previewGmTurnTransactionPlan':
             await deps.handlePreviewGmTurnTransactionPlan();

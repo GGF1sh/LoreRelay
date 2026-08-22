@@ -244,8 +244,9 @@ document.getElementById('archive-suggest-dismiss')?.addEventListener('click', ()
   hideArchiveSuggest();
 });
 
-document.getElementById('story-summary').addEventListener('blur', (e) => {
+document.getElementById('story-summary').addEventListener('input', (e) => {
   vscode.postMessage({ type: 'updateSummary', summary: e.target.value });
+  saveState();
 });
 
 document.getElementById('char-import-st-btn').addEventListener('click', () => {

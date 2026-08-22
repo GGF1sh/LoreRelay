@@ -110,6 +110,8 @@ import {
     initGmBridgeRunner,
     invokeGmBridge,
     fallbackToClipboard,
+    cancelGmBridgeRun,
+    consumeGmBridgeCancellationRequest,
     killGmBridgeProcesses,
     resetGmBridgeSessions,
     getGmBridgeOutputChannel,
@@ -277,6 +279,7 @@ import {
 } from './deterministicWorkspaceMutationGate';
 
 let panel: vscode.WebviewPanel | undefined;
+let activeGameplayRequestCount = 0;
 let combatWorkshopStatuses: StatusDefinition[] = [];
 let combatWorkshopBuiltins: AbilityDefinition[] = [];
 let combatWorkshopLibrary: CustomAbilityLibrary | undefined;
@@ -1081,7 +1084,8 @@ async function handlePlayerInput(
     text: unknown,
     authorsNote?: string,
     entryId?: string,
-    source?: { kind: 'quick_option'; optionIndex: number }
+    source?: { kind: 'quick_option'; optionIndex: number },
+    presentationText?: string
 ): Promise<void> {
     if (typeof text !== 'string') {
         vscode.window.showErrorMessage(t('extension.error.invalidInput'));
@@ -1118,8 +1122,9 @@ async function handlePlayerInput(
     }
 
     let retainedForRelay = false;
+    activeGameplayRequestCount += 1;
     try {
-        const result = await handleAcceptedPlayerInput(trimmed, authorsNote, entryId, source);
+        const result = await handleAcceptedPlayerInput(trimmed, authorsNote, entryId, source, presentationText);
         if (result?.relayRequestId) {
             retainRelayGameplayLease(workspaceKey, result.relayRequestId, acquired.lease);
             retainedForRelay = true;
@@ -1129,6 +1134,10 @@ async function handlePlayerInput(
         vscode.window.showErrorMessage(`LoreRelay: ${reason}`);
         panel?.webview.postMessage({ type: 'gmEnd', success: false });
     } finally {
+        // Dispatch normally consumes cancellation before deciding whether to
+        // fall back. This is the final guard for pre-dispatch/debug exits.
+        consumeGmBridgeCancellationRequest();
+        activeGameplayRequestCount = Math.max(0, activeGameplayRequestCount - 1);
         if (!retainedForRelay) {
             acquired.lease.release();
         }
@@ -1139,7 +1148,8 @@ async function handleAcceptedPlayerInput(
     initialText: string,
     authorsNote?: string,
     entryId?: string,
-    source?: { kind: 'quick_option'; optionIndex: number }
+    source?: { kind: 'quick_option'; optionIndex: number },
+    presentationText?: string
 ): Promise<{ relayRequestId?: string } | undefined> {
     let trimmed = initialText;
 
@@ -1180,7 +1190,8 @@ async function handleAcceptedPlayerInput(
         && availableOptions[source.optionIndex] === trimmed
         ? `${source.optionIndex + 1}. ${trimmed}`
         : trimmed;
-    persistPlayerInputEntry(persistedPlayerText, entryId);
+    const visiblePlayerText = presentationText?.trim() || persistedPlayerText;
+    persistPlayerInputEntry(visiblePlayerText, entryId);
     const config = vscode.workspace.getConfiguration('textAdventure');
     const relayMode = config.get<boolean>('antigravityRelay.enabled', false);
     const route = await routeGameplayInput(
@@ -1234,8 +1245,14 @@ async function handleAcceptedPlayerInput(
                 return requestId;
             },
             dispatchGm: async (playerAction) => {
+                if (consumeGmBridgeCancellationRequest()) {
+                    return;
+                }
                 let actionForGm = formatPlayerActionWithNote(playerAction, processedAuthorsNote);
                 actionForGm = await interceptPlayerAction(actionForGm);
+                if (consumeGmBridgeCancellationRequest()) {
+                    return;
+                }
                 const provider = getGmProvider();
                 if (provider === 'clipboard') {
                     await fallbackToClipboard(actionForGm);
@@ -1244,6 +1261,9 @@ async function handleAcceptedPlayerInput(
 
                 const ok = await invokeGmBridge(actionForGm, diceResult.ledger);
                 if (!ok) {
+                    if (consumeGmBridgeCancellationRequest()) {
+                        return;
+                    }
                     await fallbackToClipboard(actionForGm);
                     return;
                 }
@@ -1789,6 +1809,13 @@ async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
 
     const ok = saveGameRules(application.mergedRules);
     if (ok) {
+        if (answers && typeof answers.imageGenerationWanted === 'boolean') {
+            await vscode.workspace.getConfiguration('textAdventure').update(
+                'mediaAgent.autoImage',
+                answers.imageGenerationWanted,
+                vscode.ConfigurationTarget.Workspace
+            );
+        }
         clearCampaignKitCache();
         clearDiscoveryLedgerCache();
         sendGameRules();
@@ -2246,6 +2273,9 @@ function openBattleView(context: vscode.ExtensionContext): void {
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
         handlePlayerInput,
+        cancelGmTurn: () => {
+            cancelGmBridgeRun(activeGameplayRequestCount > 0);
+        },
         runImageGeneration,
         handleLocaleChange,
         sendLocaleBundle,

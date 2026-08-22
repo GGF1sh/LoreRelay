@@ -71,7 +71,7 @@
   "config.textAdventure.sfx.manifestPath.description": "SFXマニフェストJSONへのパス。",
   "config.textAdventure.sfx.volume.description": "デフォルトの効果音音量 (0-100)。",
   "config.textAdventure.mediaAgent.enabled.description": "バックグラウンドの MediaAgent パイプラインを有効にします。",
-  "config.textAdventure.mediaAgent.autoImage.description": "GMの応答に imagePrompt が含まれ画像が未生成の場合、バックグラウンドで非同期に画像を生成します。",
+  "config.textAdventure.mediaAgent.autoImage.description": "GMの応答に imagePrompt が含まれ画像が未生成の場合、自動画像生成を行う設定です。既定ではオフです。",
   "config.textAdventure.mediaAgent.maxImageQueue.description": "画像生成ジョブの最大キュー数。",
   "config.textAdventure.remotePlay.port.description": "リモートプレイ用の HTTP/WebSocket サーバーのポート番号。",
   "config.textAdventure.remotePlay.bindAddress.description": "リモートプレイサーバーのバインドIPアドレス。LAN接続を許可するには 0.0.0.0 を指定します（警告: ネットワーク全体に公開されます）。",

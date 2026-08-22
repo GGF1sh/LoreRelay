@@ -143,7 +143,7 @@ export function enqueueImageGeneration(prompt: string, mode: string, entryId?: s
             path.join(path.dirname(scriptPath), 'workflow_api.json')
         );
         if (!preflight.ok) {
-            reportMediaCompatibilityFailure(preflight);
+            reportMediaCompatibilityFailure(preflight, { revealOutput: false });
             return false;
         }
     }
@@ -268,9 +268,14 @@ export function buildImageGenEnv(wsPath?: string, requestedMode?: string): NodeJ
     return env;
 }
 
-export function reportMediaCompatibilityFailure(preflight: MediaPreflightResult): void {
+export function reportMediaCompatibilityFailure(
+    preflight: MediaPreflightResult,
+    options?: { revealOutput?: boolean }
+): void {
     const channel = getImageOutputChannel();
-    channel.show(true);
+    if (options?.revealOutput !== false) {
+        channel.show(true);
+    }
     channel.appendLine('[Compatibility] Media generation rejected before ComfyUI queue/spawn.');
     channel.appendLine(`[Compatibility] profile=${preflight.profileId || '(unresolved)'} model=${preflight.modelFamily} graph=${preflight.graphFamily} kind=${preflight.mediaKind}`);
     channel.appendLine(`[Compatibility] workflow=${preflight.workflowPath}`);

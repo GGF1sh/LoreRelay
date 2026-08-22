@@ -176,6 +176,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_discovery_ledger_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_scrapbound_sample_integrity.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_playtest_unblock_001.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_latest_main_play_fixes.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_discovery_turn_ops_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_agentic_discovery_ops.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_prompt_context_budget.js', consumesCompiledOutput: true },

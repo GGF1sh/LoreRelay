@@ -67,7 +67,7 @@
   "config.textAdventure.sfx.manifestPath.description": "SFX 清单 JSON 的路径。",
   "config.textAdventure.sfx.volume.description": "默认音效音量 (0-100)。",
   "config.textAdventure.mediaAgent.enabled.description": "启用后台 MediaAgent 管道（包含异步 ComfyUI 生成）。",
-  "config.textAdventure.mediaAgent.autoImage.description": "当 GM 条目包含 imagePrompt 且无图像时，在后台异步队列中生成 ComfyUI 图像。",
+  "config.textAdventure.mediaAgent.autoImage.description": "选择启用后，当 GM 条目包含 imagePrompt 且无图像时自动排队生成 ComfyUI 图像。默认关闭。",
   "config.textAdventure.mediaAgent.maxImageQueue.description": "图像生成作业的最大队列数。",
   "config.textAdventure.remotePlay.port.description": "本地远程联机联机 HTTP/WebSocket 服务器端口。",
   "config.textAdventure.remotePlay.bindAddress.description": "远程联机绑定的 IP 地址。允许 LAN 访问请设为 0.0.0.0（警告：将暴露给网络），本地限制设为 127.0.0.1。",

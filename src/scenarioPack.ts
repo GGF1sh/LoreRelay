@@ -246,7 +246,8 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         }],
         status: openingStatus,
         options: Array.isArray(opening.options) ? opening.options : [],
-        theme: setup.theme || 'fantasy'
+        theme: setup.theme || 'fantasy',
+        summary: typeof opening.summary === 'string' ? opening.summary.slice(0, 20000) : '',
     };
     const openingCommerce = normalizeOpeningCommerce(opening.commerce);
     if (openingCommerce) { state.commerce = openingCommerce; }
@@ -281,7 +282,10 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     resetGmBridgeSessions();
 
     try {
-        commitGameState(state, { mergeProfile: 'replace' });
+        commitGameState(state, {
+            mergeProfile: 'replace',
+            runtimeAcceptedTurnWitnessMode: 'clear',
+        });
         ensureScenarioStarterProtagonist(localizedScenario);
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
@@ -335,14 +339,12 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     }
 
     await vscode.commands.executeCommand('textadventure.openGame');
-    setTimeout(() => {
-        sendCurrentState(0, true);
-        // Starter creation can happen before the panel exists, so re-send once the game view is open.
-        sendCharacterList();
-        sendBgmManifest();
-        sendSfxManifest();
-        pushScenarioDirectorToWebview();
-    }, 400);
+    await sendCurrentState(0, true);
+    // Starter creation can happen before the panel exists, so re-send once the game view is open.
+    sendCharacterList();
+    sendBgmManifest();
+    sendSfxManifest();
+    pushScenarioDirectorToWebview();
 
     const extra = notes.length
         ? t('extension.info.scenarioExtra', { notes: notes.join(' / ') })

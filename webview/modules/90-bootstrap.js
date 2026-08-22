@@ -212,6 +212,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (savedState.authorsNoteText && noteEl) {
       noteEl.value = savedState.authorsNoteText;
     }
+    const summaryEl = document.getElementById('story-summary');
+    if (typeof savedState.storySummary === 'string' && summaryEl) {
+      summaryEl.value = savedState.storySummary;
+    }
   }
 
   // extension に状態リクエスト
@@ -523,20 +527,29 @@ function initStartHub() {
 
   if (interviewBtn) {
     interviewBtn.addEventListener('click', () => {
+      if (isInputLocked()) return;
       resumeCurrentSession();
       const presetText = START_HUB_PRESETS[selectedStartHubPreset] || '';
       const template = presetText
         ? T('webview.startHub.interviewTemplateWithPreset', { preset: presetText })
         : T('webview.startHub.interviewTemplate');
-      if (freeInput) {
-        freeInput.value = template;
-        autoGrowFreeInput();
-        freeInput.focus();
-        if (typeof freeInput.setSelectionRange === 'function') {
-          const end = freeInput.value.length;
-          freeInput.setSelectionRange(end, end);
-        }
-      }
+      const selectedChip = presetsWrap?.querySelector('.start-hub-preset-chip.active');
+      const presetLabel = selectedChip?.textContent?.trim() || '';
+      const presentationText = presetLabel
+        ? T('webview.startHub.interviewRequestWithPreset', { preset: presetLabel })
+        : T('webview.startHub.interviewRequest');
+      const entryId = `user-${Date.now()}`;
+      vscode.postMessage({ type: 'freeInput', text: template, presentationText, entryId });
+      messageHistory.push({
+        id: entryId,
+        role: 'user',
+        content: presentationText,
+        sender: T('webview.sender.player')
+      });
+      renderMessage(messageHistory[messageHistory.length - 1]);
+      scrollToBottom();
+      saveState();
+      showGmLoading();
     });
   }
 
@@ -586,7 +599,12 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'gmStart' || msg.type === 'grokStart') {
     showGmLoading();
   } else if (msg.type === 'gmEnd' || msg.type === 'grokEnd') {
-    hideGmLoading(msg.success);
+    // Cancellation is an intentional player action, not a bridge failure.
+    // Unlock the controls without adding the generic failure row.
+    hideGmLoading(msg.canceled ? true : msg.success);
+    if (msg.canceled) {
+      addSystemMessage(T('webview.gm.canceled'));
+    }
   } else if (msg.type === 'playerInputBusy') {
     // A duplicate gameplay message must not unlock the accepted request.
     // A competing non-gameplay mutation rejection clears this attempt's row.

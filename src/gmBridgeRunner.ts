@@ -64,6 +64,8 @@ let localGmSessionActive = false;
 let agenticBridgeBusy = false;
 let parlorLmBusy = false;
 let pendingDiceLedgerWritten = false;
+let gmCancellationRequested = false;
+const activeGmCancellationSources = new Set<vscode.CancellationTokenSource>();
 
 export interface GmBridgeRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -108,7 +110,11 @@ function resolveGrokCommand(configured: string): string {
 }
 
 export function isGmBridgeBusy(): boolean {
-    return Boolean(grokProcess || gmProcess || agenticBridgeBusy || parlorLmBusy);
+    return Boolean(grokProcess || gmProcess || agenticBridgeBusy || parlorLmBusy || activeGmCancellationSources.size > 0);
+}
+
+export function isGmBridgeCancellationRequested(): boolean {
+    return gmCancellationRequested;
 }
 
 export function isParlorBridgeBusy(): boolean {
@@ -154,10 +160,58 @@ export function killGmBridgeProcesses(): void {
         gmProcess.kill();
         gmProcess = undefined;
     }
+    for (const source of activeGmCancellationSources) {
+        source.cancel();
+    }
     agenticBridgeBusy = false;
     if (wasBusy) {
         handleGmBridgeFailure();
     }
+}
+
+function requestActiveGmCancellation(): void {
+    const wasBusy = isGmBridgeBusy();
+    // Keep process handles registered until their close handlers run. This keeps
+    // the gameplay input lease locked and prevents a canceled turn racing the next one.
+    grokProcess?.kill();
+    gmProcess?.kill();
+    for (const source of activeGmCancellationSources) {
+        source.cancel();
+    }
+    if (wasBusy) {
+        handleGmBridgeFailure();
+    }
+}
+
+export function cancelGmBridgeRun(requestPending = false): boolean {
+    const wasBusy = isGmBridgeBusy();
+    const accepted = wasBusy || requestPending;
+    if (accepted) {
+        gmCancellationRequested = true;
+        requestActiveGmCancellation();
+    }
+    // The webview has already disabled the button and input controls. Always
+    // terminate that optimistic state, even if provider dispatch has not yet
+    // registered a worker (or there is no worker for clipboard mode).
+    deps?.getPanel()?.webview.postMessage({ type: 'gmEnd', success: false, canceled: true });
+    return accepted;
+}
+
+export function consumeGmBridgeCancellationRequest(): boolean {
+    const canceled = gmCancellationRequested;
+    gmCancellationRequested = false;
+    return canceled;
+}
+
+function createTrackedCancellationSource(): vscode.CancellationTokenSource {
+    const source = new vscode.CancellationTokenSource();
+    activeGmCancellationSources.add(source);
+    return source;
+}
+
+function disposeTrackedCancellationSource(source: vscode.CancellationTokenSource): void {
+    activeGmCancellationSources.delete(source);
+    source.dispose();
 }
 
 export function resetGmBridgeSessions(): void {
@@ -270,6 +324,9 @@ export async function runVscodeLmAgenticStage(options: {
     if (modelId) { selector.id = modelId; }
 
     const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (gmCancellationRequested) {
+        return { exitCode: 1, timedOut: false, stdout: '' };
+    }
     if (!models.length) {
         channel.appendLine(`[${options.stageLabel}] vscode-lm: no model available`);
         return { exitCode: 1, timedOut: false, stdout: '' };
@@ -280,7 +337,7 @@ export async function runVscodeLmAgenticStage(options: {
         channel.appendLine(`Player action: ${formatRedactedAction(options.playerAction)}\n`);
     }
 
-    const cts = new vscode.CancellationTokenSource();
+    const cts = createTrackedCancellationSource();
     const timer = setTimeout(() => cts.cancel(), options.timeoutMs);
     let stdout = '';
     let timedOut = false;
@@ -309,7 +366,7 @@ export async function runVscodeLmAgenticStage(options: {
         return { exitCode: 1, timedOut, stdout };
     } finally {
         clearTimeout(timer);
-        cts.dispose();
+        disposeTrackedCancellationSource(cts);
     }
 }
 
@@ -351,6 +408,9 @@ export async function runLocalAgenticStage(options: {
     let openRouterApiKey = '';
     if (options.provider === 'openrouter') {
         openRouterApiKey = await options.getOpenRouterApiKey();
+        if (gmCancellationRequested) {
+            return { exitCode: 1, timedOut: false, stdout: '' };
+        }
         const apiKey = openRouterApiKey;
         if (!apiKey) {
             return { exitCode: 1, timedOut: false, stdout: '' };
@@ -507,7 +567,6 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
     channel.clear();
     channel.appendLine(`> ${grokCmd} --prompt-file <redacted-file> --cwd ${cwd}${autoApprove ? ' --always-approve' : ''}${isContinuation ? ' --continue' : ''}`);
     channel.appendLine(`Player action: ${formatRedactedAction(playerAction)}\n`);
-    channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
     postPromptContextToWebview(playerAction);
@@ -533,7 +592,9 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
             safeUnlinkPlayerActionFile(promptFile);
             vscode.window.setStatusBarMessage('');
             notifyRemoteGmBusy(false);
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+            if (!gmCancellationRequested) {
+                getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+            }
             resolve(success);
         };
 
@@ -573,9 +634,11 @@ async function invokeGrokBridge(playerAction: string): Promise<boolean> {
             } else {
                 finishGmRun(prevGmState, playerAction, false);
                 handleGmBridgeFailure();
-                vscode.window.showWarningMessage(
-                    t('extension.warning.grokExit', { code: String(code ?? 'unknown') })
-                );
+                if (!gmCancellationRequested) {
+                    vscode.window.showWarningMessage(
+                        t('extension.warning.grokExit', { code: String(code ?? 'unknown') })
+                    );
+                }
                 finishGrok(false);
             }
         });
@@ -638,7 +701,6 @@ async function invokeLocalLlmBridge(
     channel.appendLine(`> ${python} ${maskSensitiveFileInArgs(args, actionFile).join(' ')}`);
     channel.appendLine(`Provider: ${provider}`);
     channel.appendLine(`Player action: ${formatRedactedAction(playerAction)}\n`);
-    channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
     postPromptContextToWebview(playerAction);
@@ -677,7 +739,9 @@ async function invokeLocalLlmBridge(
             gmProcess = undefined;
             vscode.window.setStatusBarMessage('');
             notifyRemoteGmBusy(false);
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success: code === 0 });
+            if (!gmCancellationRequested) {
+                getPanel()?.webview.postMessage({ type: 'gmEnd', success: code === 0 });
+            }
             channel.appendLine(`\n[${provider} exited with code ${code ?? 'unknown'}]`);
 
             if (code === 0) {
@@ -691,9 +755,11 @@ async function invokeLocalLlmBridge(
             } else {
                 finishGmRun(prevGmState, playerAction, false);
                 handleGmBridgeFailure();
-                vscode.window.showWarningMessage(
-                    t('extension.warning.localExit', { provider, code: String(code ?? 'unknown') })
-                );
+                if (!gmCancellationRequested) {
+                    vscode.window.showWarningMessage(
+                        t('extension.warning.localExit', { provider, code: String(code ?? 'unknown') })
+                    );
+                }
                 resolve(false);
             }
         };
@@ -743,7 +809,6 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
     channel.clear();
     channel.appendLine(`> ${executable} ${maskSensitiveFileInArgs(args, actionFile ?? '').join(' ')}`);
     channel.appendLine(`Player action: ${formatRedactedAction(playerAction)}\n`);
-    channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
     postPromptContextToWebview(playerAction);
@@ -763,7 +828,9 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
             safeUnlinkPlayerActionFile(actionFile);
             vscode.window.setStatusBarMessage('');
             notifyRemoteGmBusy(false);
-            getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+            if (!gmCancellationRequested) {
+                getPanel()?.webview.postMessage({ type: 'gmEnd', success });
+            }
             resolve(success);
         };
 
@@ -799,7 +866,9 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
             } else {
                 finishGmRun(prevGmState, playerAction, false);
                 handleGmBridgeFailure();
-                vscode.window.showWarningMessage(t('extension.warning.gmCommandExit', { code: String(code ?? 'unknown') }));
+                if (!gmCancellationRequested) {
+                    vscode.window.showWarningMessage(t('extension.warning.gmCommandExit', { code: String(code ?? 'unknown') }));
+                }
                 finishGm(false);
             }
         });
@@ -978,6 +1047,14 @@ export async function invokeParlorVscodeLm(
 
     const selector = buildParlorVscodeLmSelector(lmOptions);
     const models = await vscode.lm.selectChatModels(Object.keys(selector).length ? selector : {});
+    if (consumeGmBridgeCancellationRequest()) {
+        // Model discovery can yield before the request CTS exists. A cancel in
+        // that window already sent the terminal webview message, so stop here
+        // without starting a request or replacing it with a generic failure.
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+        return { ok: false, text: '' };
+    }
     if (!models.length) {
         vscode.window.showErrorMessage(
             'vscode-lm: AI モデルが見つかりません。GitHub Copilot / Claude Code 等の拡張機能をインストールしてサインインしてください。'
@@ -990,10 +1067,9 @@ export async function invokeParlorVscodeLm(
     const channel = getGmBridgeOutputChannel();
     channel.clear();
     channel.appendLine(`[parlor vscode-lm] model=${model.name} (${model.vendor}/${model.family})`);
-    channel.show(true);
 
     parlorLmBusy = true;
-    const cts = new vscode.CancellationTokenSource();
+    const cts = createTrackedCancellationSource();
     let fullText = '';
 
     try {
@@ -1014,12 +1090,17 @@ export async function invokeParlorVscodeLm(
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         channel.appendLine(`\n[parlor vscode-lm error: ${msg}]`);
-        endParlorLmSpinner(false);
-        vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
+        if (!gmCancellationRequested) {
+            endParlorLmSpinner(false);
+            vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
+        }
         return { ok: false, text: '' };
     } finally {
         parlorLmBusy = false;
-        cts.dispose();
+        disposeTrackedCancellationSource(cts);
+        // Parlor does not return through invokeGmBridge/extension dispatch, so
+        // it owns consumption of its cancellation state before the next turn.
+        consumeGmBridgeCancellationRequest();
     }
 }
 
@@ -1078,7 +1159,6 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
     channel.clear();
     channel.appendLine(`[vscode-lm] model=${model.name} (${model.vendor}/${model.family})`);
     channel.appendLine(`Player action: ${playerAction.slice(0, 80)}`);
-    channel.show(true);
 
     getPanel()?.webview.postMessage({ type: 'gmStart' });
     postPromptContextToWebview(playerAction);
@@ -1090,7 +1170,7 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
     const prevGmState = beginGmRun(createPromptAcceptedCallbackForTests(receipt, channel, () => {
         localGmSessionActive = true;
     }));
-    const cts = new vscode.CancellationTokenSource();
+    const cts = createTrackedCancellationSource();
     let fullText = '';
 
     try {
@@ -1125,17 +1205,24 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
         finishGmRun(prevGmState, playerAction, false);
         vscode.window.setStatusBarMessage('');
         notifyRemoteGmBusy(false);
-        getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
-        vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
+        if (!gmCancellationRequested) {
+            getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
+            vscode.window.showErrorMessage(`vscode-lm error: ${msg}`);
+        }
         return false;
     } finally {
-        cts.dispose();
+        disposeTrackedCancellationSource(cts);
     }
 }
 
 export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedgerEntry[]): Promise<boolean> {
     if (isGmBridgeBusy()) {
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
+        return false;
+    }
+    // A cancel can arrive after the webview starts loading but before a
+    // provider process/token is registered. Preserve that pre-dispatch latch.
+    if (gmCancellationRequested) {
         return false;
     }
     const workspacePath = getWorkspacePath();
@@ -1191,6 +1278,10 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
         requireDeps().getPanel,
         requireDeps().getOpenRouterApiKey
     );
+    if (gmCancellationRequested) {
+        handleGmBridgeFailure();
+        return false;
+    }
     if (agentic.handled) {
         if (agentic.success) {
             pendingDiceLedgerWritten = false;

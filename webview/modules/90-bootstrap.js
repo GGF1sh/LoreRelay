@@ -332,6 +332,207 @@ const START_HUB_PRESETS = {
 
 let selectedStartHubPreset = '';
 let startHubForcedVisible = false;
+let worldGenesisSetupData = null;
+let worldGenesisPreviewSummary = null;
+let worldGenesisPreviewAccepted = false;
+let worldGenesisApplying = false;
+
+function worldGenesisPresetOption(presetId, presetVersion) {
+  return worldGenesisSetupData?.presets?.find((preset) => (
+    preset.presetId === presetId && Number(preset.presetVersion) === Number(presetVersion)
+  ));
+}
+
+function worldGenesisPresetLabel(presetId, presetVersion) {
+  const preset = worldGenesisPresetOption(presetId, presetVersion);
+  if (!preset) return T('webview.worldGenesis.unknownPreset');
+  const translated = T(preset.labelKey);
+  return translated === preset.labelKey ? preset.fallbackLabel : translated;
+}
+
+function updateWorldGenesisPresetDescription() {
+  const select = document.getElementById('world-genesis-preset');
+  const description = document.getElementById('world-genesis-preset-description');
+  if (!select || !description) return;
+  const option = select.selectedOptions?.[0];
+  const preset = worldGenesisPresetOption(option?.dataset?.presetId, Number(option?.dataset?.presetVersion));
+  if (!preset) {
+    description.textContent = T('webview.worldGenesis.chooseAvailablePreset');
+    return;
+  }
+  const translated = T(preset.descriptionKey);
+  description.textContent = translated === preset.descriptionKey
+    ? T('webview.worldGenesis.presetFallbackDescription')
+    : translated;
+}
+
+function renderWorldGenesisPresetOptions(selectedId, selectedVersion) {
+  const select = document.getElementById('world-genesis-preset');
+  if (!select || !worldGenesisSetupData) return;
+  const current = select.selectedOptions?.[0];
+  const keepId = selectedId ?? current?.dataset?.presetId;
+  const keepVersion = selectedVersion ?? Number(current?.dataset?.presetVersion);
+  select.innerHTML = '';
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = T('webview.worldGenesis.choosePreset');
+  select.appendChild(empty);
+  worldGenesisSetupData.presets.forEach((preset) => {
+    const option = document.createElement('option');
+    option.value = `${preset.presetId}@${preset.presetVersion}`;
+    option.dataset.presetId = preset.presetId;
+    option.dataset.presetVersion = String(preset.presetVersion);
+    option.textContent = worldGenesisPresetLabel(preset.presetId, preset.presetVersion);
+    option.selected = preset.presetId === keepId && Number(preset.presetVersion) === Number(keepVersion);
+    select.appendChild(option);
+  });
+  updateWorldGenesisPresetDescription();
+}
+
+function setWorldGenesisWarning(warning) {
+  const el = document.getElementById('world-genesis-warning');
+  if (!el) return;
+  if (!warning) {
+    el.textContent = '';
+    el.classList.add('hidden');
+    return;
+  }
+  const key = `webview.worldGenesis.prefill.${warning}`;
+  const translated = T(key);
+  el.textContent = translated === key ? T('webview.worldGenesis.prefill.fallback') : translated;
+  el.classList.remove('hidden');
+}
+
+function setWorldGenesisStatus(key, vars) {
+  const el = document.getElementById('world-genesis-status');
+  if (el) el.textContent = key ? T(key, vars) : '';
+}
+
+function invalidateWorldGenesisPreview() {
+  worldGenesisPreviewAccepted = false;
+  worldGenesisPreviewSummary = null;
+  const preview = document.getElementById('world-genesis-preview');
+  const apply = document.getElementById('world-genesis-apply-btn');
+  if (preview) preview.classList.add('hidden');
+  if (apply) apply.disabled = true;
+  if (!worldGenesisApplying) setWorldGenesisStatus('webview.worldGenesis.previewRequired');
+}
+
+function collectWorldGenesisDraft() {
+  const preset = document.getElementById('world-genesis-preset')?.selectedOptions?.[0];
+  return {
+    presetId: preset?.dataset?.presetId || '',
+    presetVersion: Number(preset?.dataset?.presetVersion),
+    seed: document.getElementById('world-genesis-seed')?.value || '',
+    regionCount: Number(document.getElementById('world-genesis-region-count')?.value),
+    factionCount: Number(document.getElementById('world-genesis-faction-count')?.value),
+    npcCount: Number(document.getElementById('world-genesis-npc-count')?.value),
+  };
+}
+
+function applyWorldGenesisInput(input) {
+  if (!input) return;
+  renderWorldGenesisPresetOptions(input.presetId, input.presetVersion);
+  const values = {
+    'world-genesis-seed': input.seed,
+    'world-genesis-region-count': input.regionCount,
+    'world-genesis-faction-count': input.factionCount,
+    'world-genesis-npc-count': input.npcCount,
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el && value !== undefined) el.value = String(value);
+  });
+}
+
+function applyWorldGenesisSetupMessage(msg) {
+  worldGenesisSetupData = {
+    presets: Array.isArray(msg.presets) ? msg.presets : [],
+    prefill: msg.prefill || {},
+  };
+  applyWorldGenesisInput(msg.prefill);
+  setWorldGenesisWarning(msg.prefill?.warning);
+  invalidateWorldGenesisPreview();
+}
+
+function addWorldGenesisFact(container, value, labelKey) {
+  const fact = document.createElement('div');
+  fact.className = 'world-genesis-preview-fact';
+  const strong = document.createElement('strong');
+  strong.textContent = String(value);
+  const label = document.createElement('span');
+  label.textContent = T(labelKey);
+  fact.append(strong, label);
+  container.appendChild(fact);
+}
+
+function renderWorldGenesisPreview(summary) {
+  if (!summary) return;
+  const preview = document.getElementById('world-genesis-preview');
+  const title = document.getElementById('world-genesis-preview-title');
+  const preset = document.getElementById('world-genesis-preview-preset');
+  const facts = document.getElementById('world-genesis-preview-facts');
+  const composition = document.getElementById('world-genesis-preview-composition');
+  const regions = document.getElementById('world-genesis-preview-regions');
+  const warnings = document.getElementById('world-genesis-preview-warnings');
+  const apply = document.getElementById('world-genesis-apply-btn');
+  if (!preview || !title || !preset || !facts || !composition || !regions || !warnings || !apply) return;
+
+  title.textContent = summary.worldName || T('webview.worldGenesis.unnamedWorld');
+  preset.textContent = `${worldGenesisPresetLabel(summary.presetId, summary.presetVersion)} · v${summary.presetVersion}`;
+  facts.innerHTML = '';
+  addWorldGenesisFact(facts, summary.regionCount, 'webview.worldGenesis.regionCount');
+  addWorldGenesisFact(facts, summary.locationCount, 'webview.worldGenesis.locationCount');
+  addWorldGenesisFact(facts, summary.factionCount, 'webview.worldGenesis.factionCount');
+  addWorldGenesisFact(facts, summary.npcCount, 'webview.worldGenesis.npcCount');
+
+  composition.innerHTML = '';
+  (summary.regionComposition || []).forEach((entry) => {
+    const chip = document.createElement('span');
+    chip.textContent = `${T(`webview.worldGenesis.regionType.${entry.type}`)} × ${entry.count}`;
+    composition.appendChild(chip);
+  });
+  regions.textContent = (summary.sampleRegionNames || []).join(' · ');
+  if (Array.isArray(summary.warnings) && summary.warnings.length > 0) {
+    warnings.textContent = `${T('webview.worldGenesis.validationWarnings')} ${summary.warnings.join(' / ')}`;
+    warnings.classList.remove('hidden');
+  } else {
+    warnings.textContent = '';
+    warnings.classList.add('hidden');
+  }
+  preview.classList.remove('hidden');
+  apply.disabled = !worldGenesisPreviewAccepted || worldGenesisApplying;
+}
+
+function setWorldGenesisApplying(applying) {
+  worldGenesisApplying = applying;
+  [
+    'world-genesis-preset', 'world-genesis-seed', 'world-genesis-region-count',
+    'world-genesis-faction-count', 'world-genesis-npc-count', 'world-genesis-preview-btn',
+    'world-genesis-reroll-btn', 'world-genesis-back-btn'
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = applying;
+  });
+  const apply = document.getElementById('world-genesis-apply-btn');
+  if (apply) apply.disabled = applying || !worldGenesisPreviewAccepted;
+}
+
+function openWorldGenesisSetup() {
+  const hub = document.getElementById('start-hub');
+  const setup = document.getElementById('world-genesis-setup');
+  if (!hub || !setup) return;
+  hub.classList.add('world-genesis-open');
+  setup.classList.remove('hidden');
+  setWorldGenesisStatus('webview.worldGenesis.loading');
+  vscode.postMessage({ type: 'requestWorldGenesisSetup' });
+}
+
+function closeWorldGenesisSetup() {
+  document.getElementById('start-hub')?.classList.remove('world-genesis-open');
+  document.getElementById('world-genesis-setup')?.classList.add('hidden');
+  setWorldGenesisApplying(false);
+}
 
 function openStartHubHome() {
   if (messageHistory.length === 0) return;
@@ -409,11 +610,17 @@ function initStartHub() {
   const scavengerDemoBtn = document.getElementById('start-hub-scavenger-demo-btn');
   const quickBtn = document.getElementById('start-hub-quick-btn');
   const interviewBtn = document.getElementById('start-hub-interview-btn');
+  const worldGenesisBtn = document.getElementById('start-hub-world-genesis-btn');
   const presetsWrap = document.getElementById('start-hub-presets');
   const charNewBtn = document.getElementById('start-hub-char-new-btn');
   const charImportBtn = document.getElementById('start-hub-char-import-btn');
   const homeBtn = document.getElementById('start-hub-home-btn');
   const resumeBtn = document.getElementById('start-hub-resume-btn');
+  const worldGenesisBackBtn = document.getElementById('world-genesis-back-btn');
+  const worldGenesisPreset = document.getElementById('world-genesis-preset');
+  const worldGenesisPreviewBtn = document.getElementById('world-genesis-preview-btn');
+  const worldGenesisRerollBtn = document.getElementById('world-genesis-reroll-btn');
+  const worldGenesisApplyBtn = document.getElementById('world-genesis-apply-btn');
 
   if (homeBtn) {
     homeBtn.addEventListener('click', () => {
@@ -424,6 +631,44 @@ function initStartHub() {
   if (resumeBtn) {
     resumeBtn.addEventListener('click', () => {
       resumeCurrentSession();
+    });
+  }
+
+  if (worldGenesisBtn) {
+    worldGenesisBtn.addEventListener('click', openWorldGenesisSetup);
+  }
+  if (worldGenesisBackBtn) {
+    worldGenesisBackBtn.addEventListener('click', closeWorldGenesisSetup);
+  }
+  if (worldGenesisPreset) {
+    worldGenesisPreset.addEventListener('change', () => {
+      updateWorldGenesisPresetDescription();
+      invalidateWorldGenesisPreview();
+    });
+  }
+  ['world-genesis-seed', 'world-genesis-region-count', 'world-genesis-faction-count', 'world-genesis-npc-count']
+    .forEach((id) => document.getElementById(id)?.addEventListener('input', invalidateWorldGenesisPreview));
+  if (worldGenesisPreviewBtn) {
+    worldGenesisPreviewBtn.addEventListener('click', () => {
+      invalidateWorldGenesisPreview();
+      setWorldGenesisStatus('webview.worldGenesis.previewing');
+      setWorldGenesisApplying(true);
+      vscode.postMessage({ type: 'previewWorldGenesis', ...collectWorldGenesisDraft() });
+    });
+  }
+  if (worldGenesisRerollBtn) {
+    worldGenesisRerollBtn.addEventListener('click', () => {
+      invalidateWorldGenesisPreview();
+      setWorldGenesisStatus('webview.worldGenesis.rerolling');
+      setWorldGenesisApplying(true);
+      vscode.postMessage({ type: 'rerollWorldGenesis', ...collectWorldGenesisDraft() });
+    });
+  }
+  if (worldGenesisApplyBtn) {
+    worldGenesisApplyBtn.addEventListener('click', () => {
+      if (!worldGenesisPreviewAccepted || worldGenesisApplying) return;
+      setWorldGenesisApplying(true);
+      vscode.postMessage({ type: 'applyWorldGenesis', ...collectWorldGenesisDraft() });
     });
   }
 
@@ -856,6 +1101,36 @@ window.addEventListener('message', (event) => {
   } else if (msg.type === 'parlorSessionUpdate') {
     applyExperienceProfile(msg.profile || 'parlor');
     applyParlorSession(msg);
+  } else if (msg.type === 'worldGenesisSetup') {
+    applyWorldGenesisSetupMessage(msg);
+  } else if (msg.type === 'worldGenesisPreview') {
+    applyWorldGenesisInput(msg.input);
+    worldGenesisPreviewSummary = msg.summary || null;
+    worldGenesisPreviewAccepted = !!worldGenesisPreviewSummary;
+    setWorldGenesisApplying(false);
+    renderWorldGenesisPreview(worldGenesisPreviewSummary);
+    setWorldGenesisStatus('webview.worldGenesis.previewReady');
+  } else if (msg.type === 'worldGenesisError') {
+    setWorldGenesisApplying(false);
+    invalidateWorldGenesisPreview();
+    const key = `webview.worldGenesis.error.${msg.reason || 'unknown'}`;
+    const translated = T(key);
+    setWorldGenesisStatus(translated === key ? 'webview.worldGenesis.error.unknown' : key);
+  } else if (msg.type === 'worldGenesisApplyStart') {
+    setWorldGenesisApplying(true);
+    setWorldGenesisStatus('webview.worldGenesis.applying');
+  } else if (msg.type === 'worldGenesisApplyEnd') {
+    setWorldGenesisApplying(false);
+    if (msg.status === 'applied') {
+      worldGenesisPreviewAccepted = false;
+      const apply = document.getElementById('world-genesis-apply-btn');
+      if (apply) apply.disabled = true;
+      setWorldGenesisStatus('webview.worldGenesis.applied', { worldName: msg.worldName || '' });
+    } else if (msg.status === 'canceled') {
+      setWorldGenesisStatus('webview.worldGenesis.canceled');
+    } else {
+      setWorldGenesisStatus('webview.worldGenesis.error.applyFailed');
+    }
   } else if (msg.type === 'localeBundle') {
     i18nStrings = msg.strings || {};
     currentLocale = msg.locale || 'en';
@@ -880,6 +1155,9 @@ window.addEventListener('message', (event) => {
       sBtnLocale.textContent = window.antigravityRelayMode ? T('webview.relay.button.prepare') : T('webview.button.send');
     }
     updateRelayBannerI18n();
+    renderWorldGenesisPresetOptions();
+    updateWorldGenesisPresetDescription();
+    renderWorldGenesisPreview(worldGenesisPreviewSummary);
     if (!welcomeShown && messageHistory.length === 0) {
       welcomeShown = true;
     }

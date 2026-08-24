@@ -140,6 +140,11 @@
         </div>
         <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
         <div class="start-hub-options">
+          <button type="button" id="start-hub-world-genesis-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon">🌍</span>
+            <span class="start-hub-btn-label" data-i18n="webview.worldGenesis.openTitle">世界を生成する</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.worldGenesis.openDescription">世界の種類・シード・規模を選び、実際の生成結果を確認してから始めます。</span>
+          </button>
           <button type="button" id="start-hub-quick-btn" class="start-hub-btn">
             <span class="start-hub-btn-icon">🚀</span>
             <span class="start-hub-btn-label" data-i18n="webview.startHub.quickTitle">ざっと作る</span>
@@ -172,6 +177,67 @@
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterImportDesc">SillyTavernカード（PNG/JSON）や既存のcharacter.jsonを読み込む。</span>
           </button>
         </div>
+        <section id="world-genesis-setup" class="world-genesis-setup hidden" aria-labelledby="world-genesis-title">
+          <div class="world-genesis-header">
+            <button type="button" id="world-genesis-back-btn" class="glass-btn" data-i18n="webview.worldGenesis.back">戻る</button>
+            <div>
+              <h2 id="world-genesis-title" data-i18n="webview.worldGenesis.title">世界生成セットアップ</h2>
+              <p data-i18n="webview.worldGenesis.description">作りたい世界を選び、生成される内容をプレビューしてから使用します。</p>
+            </div>
+          </div>
+          <div id="world-genesis-warning" class="world-genesis-notice hidden" role="status"></div>
+          <div class="world-genesis-form-grid">
+            <label class="world-genesis-field world-genesis-field-wide">
+              <span data-i18n="webview.worldGenesis.worldType">世界の種類</span>
+              <select id="world-genesis-preset"></select>
+              <small id="world-genesis-preset-description"></small>
+            </label>
+            <label class="world-genesis-field world-genesis-field-wide">
+              <span data-i18n="webview.worldGenesis.seed">シード</span>
+              <div class="world-genesis-seed-row">
+                <input id="world-genesis-seed" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="webview.worldGenesis.seedPlaceholder" placeholder="例: my-new-world" />
+                <button type="button" id="world-genesis-reroll-btn" class="glass-btn" data-i18n="webview.worldGenesis.reroll">新しいシード</button>
+              </div>
+              <small data-i18n="webview.worldGenesis.seedHelp">同じ設定とシードなら、同じ世界を再現できます。</small>
+            </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.regionCount">地域</span>
+              <input id="world-genesis-region-count" type="number" min="3" max="12" step="1" />
+            </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.factionCount">勢力</span>
+              <input id="world-genesis-faction-count" type="number" min="2" max="6" step="1" />
+            </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.npcCount">登場人物</span>
+              <input id="world-genesis-npc-count" type="number" min="2" max="20" step="1" />
+            </label>
+          </div>
+          <div class="world-genesis-actions">
+            <button type="button" id="world-genesis-preview-btn" class="glass-btn" data-i18n="webview.worldGenesis.preview">プレビュー</button>
+          </div>
+          <div id="world-genesis-status" class="world-genesis-status" aria-live="polite"></div>
+          <section id="world-genesis-preview" class="world-genesis-preview hidden" aria-labelledby="world-genesis-preview-title">
+            <div class="world-genesis-preview-heading">
+              <div>
+                <span data-i18n="webview.worldGenesis.previewLabel">生成プレビュー</span>
+                <h3 id="world-genesis-preview-title"></h3>
+              </div>
+              <span id="world-genesis-preview-preset" class="world-genesis-pill"></span>
+            </div>
+            <div id="world-genesis-preview-facts" class="world-genesis-preview-facts"></div>
+            <div class="world-genesis-preview-block">
+              <strong data-i18n="webview.worldGenesis.composition">地域構成</strong>
+              <div id="world-genesis-preview-composition" class="world-genesis-composition"></div>
+            </div>
+            <div class="world-genesis-preview-block">
+              <strong data-i18n="webview.worldGenesis.sampleRegions">生成される地域名の例</strong>
+              <div id="world-genesis-preview-regions"></div>
+            </div>
+            <div id="world-genesis-preview-warnings" class="world-genesis-notice hidden"></div>
+            <button type="button" id="world-genesis-apply-btn" class="world-genesis-apply" disabled data-i18n="webview.worldGenesis.useWorld">この世界を使う</button>
+          </section>
+        </section>
       </div>
       <div id="game-over-overlay" class="game-over-overlay hidden">
         <div class="game-over-card">

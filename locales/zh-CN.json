@@ -1248,6 +1248,7 @@
   "webview.worldGenesis.prefill.missing-reproduction-input": "该世界缺少部分复现信息，现改为显示安全默认值。",
   "webview.worldGenesis.prefill.preset-not-published": "记录的世界类型不可供玩家选择。请选择可用类型。",
   "webview.worldGenesis.prefill.preset-version-unavailable": "记录的世界类型版本不可用。系统没有替换为新版本，请明确重新选择。",
+  "webview.worldGenesis.prefill.recorded-theme-unavailable": "记录的生成风格与当前世界类型不兼容，无法精确重现此世界。现已显示安全的默认设置。",
   "webview.worldGenesis.presetFallbackDescription": "一种可确定复现的世界配方，拥有独特的地区、危险和命名风格。",
   "webview.worldGenesis.preview": "预览",
   "webview.worldGenesis.previewLabel": "生成预览",

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { installVscodeStub } = require('./test_helpers/vscode_stub');
 
 const root = path.join(__dirname, '..');
 const genesis = require(path.join(root, 'out', 'worldGenesisSetupCore.js'));
@@ -175,6 +176,59 @@ async function main() {
         assert.strictEqual(unavailablePrefill.warning, 'preset-version-unavailable');
         assert.strictEqual(unavailablePrefill.presetId, undefined, 'unavailable explicit versions must not silently substitute another version');
         assert.strictEqual(unavailablePrefill.presetVersion, undefined);
+
+        const incompatibleTheme = JSON.parse(JSON.stringify(applied.forge));
+        incompatibleTheme.meta.theme = 'Cyberpunk';
+        const incompatibleThemePrefill = genesis.buildWorldGenesisPrefill(incompatibleTheme, defaults, 'fallback-seed');
+        assert.strictEqual(
+            incompatibleThemePrefill.warning,
+            'recorded-theme-unavailable',
+            'a recorded theme incompatible with the resolved preset must not claim exact reproduction'
+        );
+
+        const registryPath = path.join(tempDir, 'npc_registry.json');
+        const oldRegistry = {
+            format: 'lorerelay-npc-registry/1.0',
+            npcs: {
+                npc_from_old_world: {
+                    name: 'Old World Survivor',
+                    disposition: { trust: 0, fear: 0, respect: 0, affection: 0 },
+                    needs: [],
+                    memories: [],
+                    personalityTraits: [],
+                    dialogueHints: {},
+                },
+            },
+        };
+        fs.writeFileSync(registryPath, `${JSON.stringify(oldRegistry, null, 2)}\n`, 'utf8');
+        const restoreVscode = installVscodeStub({
+            workspace: {
+                workspaceFolders: [{ name: 'world-genesis-test', uri: { fsPath: tempDir } }],
+                getConfiguration: () => ({ get: (_key, fallback) => fallback }),
+            },
+        });
+        try {
+            for (const moduleName of ['worldForge.js', 'workspacePaths.js', 'npcRegistry.js', 'gameRules.js']) {
+                delete require.cache[path.join(root, 'out', moduleName)];
+            }
+            const worldForgeRuntime = require(path.join(root, 'out', 'worldForge.js'));
+            const bootstrapResult = worldForgeRuntime.bootstrapNpcRegistryFromForge(applied.forge, {
+                createBackup: true,
+                overwrite: true,
+            });
+            const replacedRegistry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+            const expectedNpcIds = applied.forge.initialNpcs.map(npc => npc.id).sort();
+            assert.deepStrictEqual(Object.keys(replacedRegistry.npcs).sort(), expectedNpcIds);
+            assert(!replacedRegistry.npcs.npc_from_old_world, 'confirmed world replacement must remove old-world NPCs');
+            assert.strictEqual(bootstrapResult.skipped.length, 0);
+            assert.deepStrictEqual(
+                JSON.parse(fs.readFileSync(`${registryPath}.bak`, 'utf8')),
+                oldRegistry,
+                'world replacement must preserve the complete previous NPC registry backup'
+            );
+        } finally {
+            restoreVscode();
+        }
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
     }

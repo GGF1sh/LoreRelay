@@ -58000,12 +58000,12 @@
       "name": "bootstrapNpcRegistryFromForge",
       "kind": "function",
       "sourcePath": "src/worldForge.ts",
-      "line": 131,
+      "line": 132,
       "signature": "export function bootstrapNpcRegistryFromForge( forge: WorldForge, options: { createBackup?: boolean;",
       "public": "exported",
       "boundary": "host",
       "category": "world-forge",
-      "description": "`world_forge.json` の `initialNpcs` から `npc_registry.json` を生成する。 既存ファイルがある場合は createBackup=true のとき .bak に退避する。 既存 NPC と ID が衝突する場合は上書きしない（スキップ）。"
+      "description": "`world_forge.json` の `initialNpcs` から `npc_registry.json` を生成する。 既存ファイルがある場合は createBackup=true のとき .bak に退避する。 overwrite=true は世界置換用で、古い世界の NPC を残さず新規レジストリを構築する。 通常時は既存 NPC と ID が衝突する場合に上書きしない（スキップ）。"
     },
     {
       "id": "pure-core:constant:src/worldForgeCore.ts:VALID_REGION_HAZARDS",
@@ -58391,7 +58391,7 @@
       "name": "applyWorldGenesisPreview",
       "kind": "function",
       "sourcePath": "src/worldGenesisSetupCore.ts",
-      "line": 268,
+      "line": 275,
       "signature": "export async function applyWorldGenesisPreview( input: NormalizedWorldGenesisInput, preview: WorldGenesisPreviewSession | undefined, deps: ApplyWorldGenesisDeps ): Promise<ApplyWorldGenesisResult>",
       "public": "exported",
       "boundary": "pure-core",

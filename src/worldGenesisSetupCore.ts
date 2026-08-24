@@ -73,7 +73,7 @@ export interface WorldGenesisPrefill {
     regionCount: number;
     factionCount: number;
     npcCount: number;
-    warning?: WorldReproductionUnavailableReason | 'legacy-defaults';
+    warning?: WorldReproductionUnavailableReason | 'legacy-defaults' | 'recorded-theme-unavailable';
 }
 
 export interface ApplyWorldGenesisDeps {
@@ -250,6 +250,13 @@ export function buildWorldGenesisPrefill(
             return fallback('legacy-defaults');
         }
         return fallback(availability.reason);
+    }
+    const generatorTheme = resolveGeneratorThemeForPreset(
+        availability.preset.presetId,
+        availability.preset.presetVersion
+    );
+    if (!generatorTheme || forge.meta.theme !== generatorTheme) {
+        return fallback('recorded-theme-unavailable');
     }
     return {
         presetId: availability.preset.presetId,

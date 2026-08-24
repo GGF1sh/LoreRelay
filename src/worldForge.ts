@@ -126,7 +126,8 @@ function inferTraitsFromRole(role?: string): string[] {
 /**
  * `world_forge.json` の `initialNpcs` から `npc_registry.json` を生成する。
  * 既存ファイルがある場合は createBackup=true のとき .bak に退避する。
- * 既存 NPC と ID が衝突する場合は上書きしない（スキップ）。
+ * overwrite=true は世界置換用で、古い世界の NPC を残さず新規レジストリを構築する。
+ * 通常時は既存 NPC と ID が衝突する場合に上書きしない（スキップ）。
  */
 export function bootstrapNpcRegistryFromForge(
     forge: WorldForge,
@@ -147,6 +148,9 @@ export function bootstrapNpcRegistryFromForge(
         } catch {
             // corrupt file — start fresh
         }
+    }
+    if (options.overwrite) {
+        existing = { format: 'lorerelay-npc-registry/1.0', npcs: {} };
     }
 
     const created: string[] = [];

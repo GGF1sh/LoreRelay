@@ -1251,6 +1251,7 @@
   "webview.worldGenesis.prefill.missing-reproduction-input": "This world is missing part of its reproduction record. Safe defaults are shown instead.",
   "webview.worldGenesis.prefill.preset-not-published": "The recorded world type is not player-selectable. Choose an available type to continue.",
   "webview.worldGenesis.prefill.preset-version-unavailable": "The recorded world-type version is unavailable. No newer version was substituted; choose explicitly to continue.",
+  "webview.worldGenesis.prefill.recorded-theme-unavailable": "This world's recorded generator style is not compatible with its current world type. Exact reproduction is unavailable, so safe defaults are shown.",
   "webview.worldGenesis.presetFallbackDescription": "A deterministic world recipe with its own regions, hazards, and naming style.",
   "webview.worldGenesis.preview": "Preview",
   "webview.worldGenesis.previewLabel": "Generated preview",

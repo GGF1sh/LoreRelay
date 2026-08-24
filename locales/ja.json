@@ -1239,6 +1239,7 @@
   "webview.worldGenesis.prefill.missing-reproduction-input": "世界の再現情報が不足しています。代わりに安全な既定値を表示しています。",
   "webview.worldGenesis.prefill.preset-not-published": "記録された世界タイプは選択できません。利用できる種類を選んでください。",
   "webview.worldGenesis.prefill.preset-version-unavailable": "記録された世界タイプの版は利用できません。新しい版へ自動置換していないため、明示的に選び直してください。",
+  "webview.worldGenesis.prefill.recorded-theme-unavailable": "記録された生成スタイルと現在の世界タイプに互換性がないため、この世界は正確に再現できません。安全な既定値を表示しています。",
   "webview.worldGenesis.presetFallbackDescription": "地域・危険・名前付けに固有の傾向を持つ、再現可能な世界レシピです。",
   "webview.worldGenesis.preview": "プレビュー",
   "webview.worldGenesis.previewLabel": "生成プレビュー",

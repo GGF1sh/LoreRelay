@@ -65,6 +65,16 @@ import {
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
 import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument } from './worldForge';
+import {
+    applyWorldGenesisPreview,
+    buildWorldGenesisPrefill,
+    createWorldGenesisSeed,
+    getPublishedWorldGenesisPresets,
+    normalizeWorldGenesisInput,
+    previewWorldGenesis,
+    type WorldGenesisDraft,
+    type WorldGenesisPreviewSession,
+} from './worldGenesisSetupCore';
 import { resolveCommerceForge } from './livingWorldBridge';
 import { resetWorldStateFromForge } from './worldState';
 import { buildLocationImagePrompt } from './locationImageBuilder';
@@ -279,6 +289,8 @@ import {
 } from './deterministicWorkspaceMutationGate';
 
 let panel: vscode.WebviewPanel | undefined;
+let worldGenesisPreviewSession: WorldGenesisPreviewSession | undefined;
+let worldGenesisApplyInProgress = false;
 let activeGameplayRequestCount = 0;
 let combatWorkshopStatuses: StatusDefinition[] = [];
 let combatWorkshopBuiltins: AbilityDefinition[] = [];
@@ -483,6 +495,7 @@ export function activate(context: vscode.ExtensionContext) {
             combatCommandPlaytestHost.unsubscribe(COMBAT_COMMAND_PLAYTEST_MAIN_SUBSCRIBER);
             setDebugTraceHostUpdateListener(undefined);
             panel = undefined;
+            worldGenesisPreviewSession = undefined;
             shopkeeperRequestGate.dispose();
             endDayRequestGate.dispose();
             marketTravelRequestGate.dispose();
@@ -1552,6 +1565,154 @@ async function handleGenerateWorldForge(
     );
 }
 
+function createFreshWorldGenesisSeed(): string {
+    return createWorldGenesisSeed(Date.now(), randomBytes(6).toString('hex'));
+}
+
+function sendWorldGenesisSetup(): void {
+    if (!panel) { return; }
+    worldGenesisPreviewSession = undefined;
+    const prefill = buildWorldGenesisPrefill(
+        loadWorldForge(),
+        getDefaultGeneratorInput(),
+        createFreshWorldGenesisSeed()
+    );
+    panel.webview.postMessage({
+        type: 'worldGenesisSetup',
+        presets: getPublishedWorldGenesisPresets().map(preset => ({
+            presetId: preset.presetId,
+            presetVersion: preset.presetVersion,
+            labelKey: `webview.worldGenesis.preset.${preset.presetId}.label`,
+            descriptionKey: `webview.worldGenesis.preset.${preset.presetId}.description`,
+            fallbackLabel: preset.label,
+        })),
+        prefill,
+    });
+}
+
+async function handlePreviewWorldGenesis(raw: Record<string, unknown>, reroll: boolean): Promise<void> {
+    if (!panel) { return; }
+    if (worldGenesisApplyInProgress) {
+        panel.webview.postMessage({ type: 'worldGenesisError', reason: 'apply-in-progress' });
+        return;
+    }
+    const draft: WorldGenesisDraft = reroll
+        ? { ...raw, seed: createFreshWorldGenesisSeed() }
+        : raw;
+    const normalized = normalizeWorldGenesisInput(draft, getDefaultGeneratorInput());
+    if (!normalized.ok) {
+        worldGenesisPreviewSession = undefined;
+        panel.webview.postMessage({ type: 'worldGenesisError', reason: normalized.reason });
+        return;
+    }
+    try {
+        worldGenesisPreviewSession = previewWorldGenesis(normalized.input);
+        panel.webview.postMessage({
+            type: 'worldGenesisPreview',
+            input: {
+                presetId: normalized.input.presetId,
+                presetVersion: normalized.input.presetVersion,
+                seed: normalized.input.worldSeed,
+                regionCount: normalized.input.regionCount,
+                factionCount: normalized.input.factionCount,
+                npcCount: normalized.input.npcCount,
+            },
+            summary: worldGenesisPreviewSession.summary,
+        });
+    } catch (error) {
+        console.error('[worldGenesis] preview failed', error);
+        worldGenesisPreviewSession = undefined;
+        panel.webview.postMessage({ type: 'worldGenesisError', reason: 'preview-failed' });
+    }
+}
+
+async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<void> {
+    if (!panel) { return; }
+    if (worldGenesisApplyInProgress) {
+        panel.webview.postMessage({ type: 'worldGenesisError', reason: 'apply-in-progress' });
+        return;
+    }
+    const normalized = normalizeWorldGenesisInput(raw, getDefaultGeneratorInput());
+    if (!normalized.ok) {
+        panel.webview.postMessage({ type: 'worldGenesisError', reason: normalized.reason });
+        return;
+    }
+
+    worldGenesisApplyInProgress = true;
+    panel.webview.postMessage({ type: 'worldGenesisApplyStart' });
+    try {
+        const result = await applyWorldGenesisPreview(
+            normalized.input,
+            worldGenesisPreviewSession,
+            {
+                hasExistingCampaign: () => {
+                    const gameStatePath = getGameStatePath();
+                    const workspacePath = getWorkspacePath();
+                    const worldStatePath = workspacePath ? path.join(workspacePath, 'world_state.json') : undefined;
+                    return worldForgeFileExists()
+                        || Boolean(gameStatePath && fs.existsSync(gameStatePath))
+                        || Boolean(worldStatePath && fs.existsSync(worldStatePath));
+                },
+                confirmOverwrite: async () => {
+                    const confirmLabel = t('extension.worldGenesis.overwriteConfirmAction');
+                    const answer = await vscode.window.showWarningMessage(
+                        t('extension.worldGenesis.overwriteConfirm'),
+                        { modal: true },
+                        confirmLabel
+                    );
+                    return answer === confirmLabel;
+                },
+                save: (input, expectedCanonicalContent) => generateAndSaveWorldForge(
+                    input,
+                    { createBackup: true, expectedCanonicalContent }
+                ),
+                loadSavedForge: () => loadWorldForge(),
+                onApplied: async (forge, isOverwrite) => {
+                    bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: isOverwrite });
+                    resetWorldStateFromForge(forge, isOverwrite);
+                    saveGameRules({ enableWorldForge: true, enableNpcRegistry: true });
+                    sendGameRules();
+                    await sendUiState(0, true);
+                    pushWorldViewToWebview();
+                },
+            }
+        );
+
+        if (result.status === 'canceled') {
+            panel.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'canceled' });
+            return;
+        }
+        if (result.status === 'failed') {
+            console.error('[worldGenesis] apply failed:', result.error);
+            panel.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'failed', reason: result.error });
+            vscode.window.showErrorMessage(t('extension.worldGenesis.applyFailed'));
+            return;
+        }
+
+        if (result.warnings.length > 0) {
+            console.warn('[worldGenesis] generation warnings:', result.warnings);
+        }
+        worldGenesisPreviewSession = undefined;
+        panel.webview.postMessage({
+            type: 'worldGenesisApplyEnd',
+            status: 'applied',
+            worldName: result.forge.meta.worldName,
+        });
+        vscode.window.showInformationMessage(t('extension.worldGenesis.applied', {
+            worldName: result.forge.meta.worldName,
+            regionCount: result.forge.geography.regions.length,
+            factionCount: result.forge.factions.length,
+            npcCount: result.forge.initialNpcs.length,
+        }));
+    } catch (error) {
+        console.error('[worldGenesis] apply failed', error);
+        panel?.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'failed' });
+        vscode.window.showErrorMessage(t('extension.worldGenesis.applyFailed'));
+    } finally {
+        worldGenesisApplyInProgress = false;
+    }
+}
+
 async function handleGenerateWorldMapImage(): Promise<void> {
     if (!isWorldForgeEnabled()) {
         vscode.window.showErrorMessage('World Forge not enabled or missing world_forge.json.');
@@ -2369,6 +2530,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         handleClearWorldSettlementFocus,
         handleObserverWorldTick,
         handleGenerateWorldForge,
+        sendWorldGenesisSetup,
+        handlePreviewWorldGenesis,
+        handleApplyWorldGenesis,
         handleGenerateWorldMapImage,
         handleGenerateLocationImage,
         handleSavePartyDirector,
@@ -2937,6 +3101,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
 export function deactivate() {
     combatCommandPlaytestHost.dispose();
     panel = undefined;
+    worldGenesisPreviewSession = undefined;
     battleViewPanel = undefined;
     flushScheduledCommercePersist();
     disposeGameStateWatcher();

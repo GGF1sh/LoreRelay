@@ -8,6 +8,8 @@ import {
     type WorldForgeGeneratorInput,
 } from './worldForgeGeneratorCore';
 import { clearWorldForgeCache } from './worldForge';
+import { canonicalContentOf } from './genreWorldPresetCore';
+import type { WorldForge } from './worldForgeCore';
 
 export type { WorldForgeGeneratorInput };
 
@@ -38,7 +40,7 @@ export function getDefaultGeneratorInput(): Omit<WorldForgeGeneratorInput, 'worl
  */
 export async function generateAndSaveWorldForge(
     input: WorldForgeGeneratorInput,
-    options: { createBackup?: boolean } = {}
+    options: { createBackup?: boolean; expectedCanonicalContent?: WorldForge } = {}
 ): Promise<GenerateWorldForgeResult> {
     const ws = getWorkspacePath();
     if (!ws) {
@@ -54,6 +56,15 @@ export async function generateAndSaveWorldForge(
         const msg = `Generated world has validation errors: ${warnings.join('; ')}`;
         console.warn('[worldForgeGenerator]', msg);
         // Still save — caller can inspect warnings
+    }
+
+    if (options.expectedCanonicalContent
+        && JSON.stringify(canonicalContentOf(forge)) !== JSON.stringify(options.expectedCanonicalContent)) {
+        return {
+            success: false,
+            warnings,
+            error: 'Generated canonical content did not match the accepted preview.',
+        };
     }
 
     try {

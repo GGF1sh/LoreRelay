@@ -91,6 +91,9 @@ export interface WebviewHandlerDeps {
     handleClearWorldSettlementFocus(): void;
     handleObserverWorldTick(mode: 'watch' | 'advance'): void;
     handleGenerateWorldForge(seed: string, theme: string, regionCount: number, factionCount: number, npcCount: number): Promise<void>;
+    sendWorldGenesisSetup(): void;
+    handlePreviewWorldGenesis(raw: Record<string, unknown>, reroll: boolean): Promise<void>;
+    handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<void>;
     handleGenerateWorldMapImage(): Promise<void>;
     handleGenerateLocationImage(locationId: string): Promise<void>;
     handleSavePartyDirector(director: unknown): Promise<void>;
@@ -234,6 +237,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             deps.sendScenarioDirector();
             deps.sendPartyDirector();
             deps.sendWorldView();
+            deps.sendWorldGenesisSetup();
             deps.pushTtsCapabilities();
             deps.sendGameRules();
             deps.sendDebugCapabilities();
@@ -343,6 +347,18 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             }
             break;
         }
+        case 'requestWorldGenesisSetup':
+            deps.sendWorldGenesisSetup();
+            break;
+        case 'previewWorldGenesis':
+            await deps.handlePreviewWorldGenesis(message, false);
+            break;
+        case 'rerollWorldGenesis':
+            await deps.handlePreviewWorldGenesis(message, true);
+            break;
+        case 'applyWorldGenesis':
+            await deps.handleApplyWorldGenesis(message);
+            break;
         case 'generateWorldMapImage':
             await deps.handleGenerateWorldMapImage();
             break;

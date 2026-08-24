@@ -347,6 +347,13 @@ export function getPreset(presetId: string, presetVersion: number): GenreWorldPr
     return GENRE_WORLD_PRESET_REGISTRY[presetId]?.[presetVersion];
 }
 
+/** Player-selectable presets, derived directly from the frozen core registry. */
+export function listPublishedGenreWorldPresets(): readonly GenreWorldPreset[] {
+    return Object.values(GENRE_WORLD_PRESET_REGISTRY)
+        .flatMap(versions => Object.values(versions))
+        .filter(preset => preset.status === 'published');
+}
+
 /**
  * Exact legacy generator theme keys only — same semantics as the old
  * `TABLE[theme] ?? TABLE.default` lookups. No trim, lowercase, normalization,
@@ -367,6 +374,21 @@ const LEGACY_THEME_TO_PRESET_ID: Readonly<Record<string, string>> = Object.freez
 function resolveLegacyThemePresetId(theme?: string): string | undefined {
     if (theme === undefined) { return undefined; }
     return LEGACY_THEME_TO_PRESET_ID[theme];
+}
+
+/**
+ * Resolve the legacy generator theme required by faction/NPC/lore tables.
+ * This is the sole preset -> generator-theme authority; Webviews must not map it.
+ */
+export function resolveGeneratorThemeForPreset(
+    presetId: string,
+    presetVersion: number
+): string | undefined {
+    const preset = getPreset(presetId, presetVersion);
+    if (!preset || preset.status !== 'published') { return undefined; }
+    if (presetId === DEFAULT_PRESET_ID) { return 'default'; }
+    return Object.entries(LEGACY_THEME_TO_PRESET_ID)
+        .find(([, mappedPresetId]) => mappedPresetId === presetId)?.[0];
 }
 
 /**

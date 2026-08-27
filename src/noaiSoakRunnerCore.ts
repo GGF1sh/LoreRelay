@@ -51,11 +51,21 @@ export const DEFAULT_NOAI_SOAK_TEMP_ROOT = '.tmp/noai_soak';
 export const NOAI_SOAK_RUN_MODES = ['quick', 'full', 'benchmark'] as const;
 export type NoaiSoakRunMode = (typeof NOAI_SOAK_RUN_MODES)[number];
 
-export const NOAI_SOAK_POLICIES = ['observe_only', 'merchant_balanced', 'merchant_stress'] as const;
+export const NOAI_SOAK_POLICIES = ['observe_only', 'merchant_balanced', 'merchant_stress', 'merchant_route'] as const;
 export type NoaiSoakPolicyId = (typeof NOAI_SOAK_POLICIES)[number];
 
-export const NOAI_SOAK_ACTION_TYPES = ['observe', 'buy', 'sell'] as const;
+export const NOAI_SOAK_ACTION_TYPES = ['observe', 'buy', 'sell', 'travel', 'end_day'] as const;
 export type NoaiSoakActionType = (typeof NOAI_SOAK_ACTION_TYPES)[number];
+
+/** Player-facing soak intents. buy/sell still go through production applyTradeOp. */
+export type SoakPlayerIntent =
+    | { kind: 'observe' }
+    | { kind: 'buy'; marketLocationId: string; commodityId: string; qty: number }
+    | { kind: 'sell'; marketLocationId: string; commodityId: string; qty: number }
+    | { kind: 'travel'; destinationLocationId: string }
+    | { kind: 'end_day' };
+
+export type SoakTravelFailureCode = 'NO_LOCATION' | 'SAME_LOCATION' | 'UNKNOWN_DESTINATION';
 
 /** Allowlisted machine invariants. No AI prose decides any of these. */
 export const NOAI_SOAK_INVARIANTS = [
@@ -103,6 +113,12 @@ export interface NoaiSoakWorldSimConfig {
     stepsPerCadence: number;
     /** Opt in to the NPC registry tick (default false to keep runs bounded/deterministic). */
     enableNpcRegistry: boolean;
+    /**
+     * When true, world simulation advances only on an `end_day` player intent
+     * (Player Action Hub cadence). Default false keeps the legacy auto-cadence.
+     * `merchant_route` always uses this mode in the host even if omitted.
+     */
+    playerOwnsWorldTick?: boolean;
     /** Deterministic market recovery per world tick when commerce is active. */
     recoveryPerTick?: number;
     /**
@@ -383,6 +399,13 @@ export function parseNoaiSoakScenarioDocument(raw: unknown): ParseNoaiSoakScenar
         const enableNpcRegistry = raw.worldSim.enableNpcRegistry === true;
         if (cadenceTurns !== undefined && stepsPerCadence !== undefined) {
             worldSim = { cadenceTurns, stepsPerCadence, enableNpcRegistry };
+            if (raw.worldSim.playerOwnsWorldTick !== undefined) {
+                if (typeof raw.worldSim.playerOwnsWorldTick !== 'boolean') {
+                    errors.push('worldSim.playerOwnsWorldTick must be a boolean');
+                } else {
+                    worldSim.playerOwnsWorldTick = raw.worldSim.playerOwnsWorldTick;
+                }
+            }
             if (raw.worldSim.recoveryPerTick !== undefined) {
                 if (typeof raw.worldSim.recoveryPerTick !== 'number' || raw.worldSim.recoveryPerTick < 0) {
                     errors.push('worldSim.recoveryPerTick must be a non-negative number');
@@ -630,6 +653,10 @@ export interface PolicyDecisionContext {
     turnIndex: number;
     rng: SoakRng;
     maxOpsPerTurn: number;
+    /** Current player location. Required for merchant_route (no teleport trades). */
+    currentLocationId?: string;
+    /** Last accepted player intent kind, used by merchant_route to rest after acting. */
+    lastAcceptedKind?: SoakPlayerIntent['kind'];
 }
 
 /** Deterministic per-policy tuning. No values are read from scenario JSON. */
@@ -683,7 +710,7 @@ function maxBuyableByCapacity(forge: CommerceForge, commerce: PlayerCommerceStat
  * sole authority that mutates state and rejects infeasible ops.
  */
 export function decideTradeIntents(policyId: NoaiSoakPolicyId, ctx: PolicyDecisionContext): TradeOp[] {
-    if (policyId === 'observe_only') {
+    if (policyId === 'observe_only' || policyId === 'merchant_route') {
         return [];
     }
     const tuning = POLICY_TUNING[policyId];
@@ -770,6 +797,174 @@ export function decideTradeIntents(policyId: NoaiSoakPolicyId, ctx: PolicyDecisi
     return ops.slice(0, ctx.maxOpsPerTurn);
 }
 
+const ROUTE_TUNING = { buyStep: 3, sellStep: 3, sellPriceIndexFloor: 1.0, cargoFillTarget: 0.5 } as const;
+
+/** Unique market location ids in forge document order (first listed is the default start). */
+export function listedMarketLocationIds(forge: CommerceForge): string[] {
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (const market of forge.markets) {
+        if (!seen.has(market.locationId)) {
+            seen.add(market.locationId);
+            ids.push(market.locationId);
+        }
+    }
+    return ids;
+}
+
+export function defaultSoakLocationId(forge: CommerceForge): string | undefined {
+    return listedMarketLocationIds(forge)[0];
+}
+
+/**
+ * Same reachability rule as production market travel V1:
+ * destination must be a listed market other than the current location.
+ */
+export function resolveSoakTravel(
+    forge: CommerceForge,
+    currentLocationId: string | undefined,
+    destinationLocationId: string
+): { ok: true; destinationLocationId: string } | { ok: false; code: SoakTravelFailureCode } {
+    if (!currentLocationId) {
+        return { ok: false, code: 'NO_LOCATION' };
+    }
+    if (destinationLocationId === currentLocationId) {
+        return { ok: false, code: 'SAME_LOCATION' };
+    }
+    if (!listedMarketLocationIds(forge).includes(destinationLocationId)) {
+        return { ok: false, code: 'UNKNOWN_DESTINATION' };
+    }
+    return { ok: true, destinationLocationId };
+}
+
+interface RouteTradeTarget {
+    locationId: string;
+    commodityId: string;
+    qty: number;
+    unitPrice: number;
+}
+
+function cheapestBuyTarget(ctx: PolicyDecisionContext): RouteTradeTarget | undefined {
+    let best: RouteTradeTarget | undefined;
+    for (const pair of tradeablePairs(ctx.forge)) {
+        const quote = quoteMarketPrice(ctx.forge, ctx.markets, pair.marketLocationId, pair.commodityId);
+        if (!quote || quote.stock < 1 || quote.unitPrice < MIN_PRICE) {
+            continue;
+        }
+        if (ctx.commerce.credits < quote.unitPrice) {
+            continue;
+        }
+        const qty = Math.max(0, Math.min(
+            ROUTE_TUNING.buyStep,
+            Math.floor(ctx.commerce.credits / quote.unitPrice),
+            maxBuyableByCapacity(ctx.forge, ctx.commerce, pair.commodityId),
+            quote.stock,
+            MAX_TRADE_QTY
+        ));
+        if (qty < 1) {
+            continue;
+        }
+        if (!best || quote.unitPrice < best.unitPrice
+            || (quote.unitPrice === best.unitPrice && pair.marketLocationId.localeCompare(best.locationId) < 0)) {
+            best = { locationId: pair.marketLocationId, commodityId: pair.commodityId, qty, unitPrice: quote.unitPrice };
+        }
+    }
+    return best;
+}
+
+function highestSellTarget(ctx: PolicyDecisionContext): RouteTradeTarget | undefined {
+    const heldCommodities = ctx.commerce.cargo
+        .filter((c) => c.qty > 0)
+        .map((c) => c.commodityId)
+        .sort((a, b) => a.localeCompare(b));
+    let best: RouteTradeTarget | undefined;
+    for (const commodityId of heldCommodities) {
+        const held = cargoQty(ctx.commerce.cargo, commodityId);
+        const qty = Math.max(0, Math.min(ROUTE_TUNING.sellStep, held, MAX_TRADE_QTY));
+        if (qty < 1) {
+            continue;
+        }
+        for (const pair of tradeablePairs(ctx.forge)) {
+            if (pair.commodityId !== commodityId) {
+                continue;
+            }
+            const quote = quoteMarketPrice(ctx.forge, ctx.markets, pair.marketLocationId, pair.commodityId);
+            if (!quote || quote.priceIndex < ROUTE_TUNING.sellPriceIndexFloor) {
+                continue;
+            }
+            if (!best || quote.unitPrice > best.unitPrice
+                || (quote.unitPrice === best.unitPrice && pair.marketLocationId.localeCompare(best.locationId) < 0)) {
+                best = { locationId: pair.marketLocationId, commodityId, qty, unitPrice: quote.unitPrice };
+            }
+        }
+    }
+    return best;
+}
+
+function intentForTradeTarget(
+    currentLocationId: string,
+    target: RouteTradeTarget,
+    kind: 'buy' | 'sell'
+): SoakPlayerIntent {
+    if (target.locationId === currentLocationId) {
+        return { kind, marketLocationId: currentLocationId, commodityId: target.commodityId, qty: target.qty };
+    }
+    return { kind: 'travel', destinationLocationId: target.locationId };
+}
+
+/**
+ * Location-bound merchant: go to the cheapest market to buy, the dearest
+ * market to sell, rest after each act. Never teleports a buy/sell.
+ */
+export function decideRouteIntents(ctx: PolicyDecisionContext): SoakPlayerIntent[] {
+    const locationId = ctx.currentLocationId;
+    if (!locationId) {
+        return [{ kind: 'end_day' }];
+    }
+    if (ctx.lastAcceptedKind === 'buy' || ctx.lastAcceptedKind === 'sell' || ctx.lastAcceptedKind === 'travel') {
+        return [{ kind: 'end_day' }];
+    }
+    const cap = transportCapacity(ctx.forge, ctx.commerce.transportId);
+    const fillRatio = cap > 0 ? cargoWeight(ctx.forge, ctx.commerce.cargo) / cap : 1;
+    if (fillRatio < ROUTE_TUNING.cargoFillTarget) {
+        const target = cheapestBuyTarget(ctx);
+        return target ? [intentForTradeTarget(locationId, target, 'buy')] : [{ kind: 'end_day' }];
+    }
+    const target = highestSellTarget(ctx);
+    return target ? [intentForTradeTarget(locationId, target, 'sell')] : [{ kind: 'end_day' }];
+}
+
+/** Dispatch every soak policy to a single player-intent list for the host. */
+export function decidePlayerIntents(policyId: NoaiSoakPolicyId, ctx: PolicyDecisionContext): SoakPlayerIntent[] {
+    if (policyId === 'observe_only') {
+        return [{ kind: 'observe' }];
+    }
+    if (policyId === 'merchant_route') {
+        return decideRouteIntents(ctx).slice(0, Math.max(1, ctx.maxOpsPerTurn));
+    }
+    const ops = decideTradeIntents(policyId, ctx);
+    if (ops.length === 0) {
+        return [{ kind: 'observe' }];
+    }
+    const intents: SoakPlayerIntent[] = [];
+    for (const op of ops) {
+        if (op.op === 'buy' || op.op === 'sell') {
+            intents.push({
+                kind: op.op,
+                marketLocationId: op.marketLocationId,
+                commodityId: op.commodityId,
+                qty: op.qty,
+            });
+        }
+    }
+    return intents.length > 0 ? intents : [{ kind: 'observe' }];
+}
+
+/** True when this policy advances the world only through end_day intents. */
+export function soakPolicyOwnsWorldTick(policyId: NoaiSoakPolicyId, worldSim: NoaiSoakWorldSimConfig): boolean {
+    return policyId === 'merchant_route' || worldSim.playerOwnsWorldTick === true;
+}
+
 // ---------------------------------------------------------------------------
 // Player-sourced trade event identity (reuses production event log)
 // ---------------------------------------------------------------------------
@@ -841,6 +1036,7 @@ export interface NoaiSoakActionRecord {
     rejectCode?: string;
     commodityId?: string;
     marketLocationId?: string;
+    destinationLocationId?: string;
     qty?: number;
     eventId?: string;
 }
@@ -928,7 +1124,7 @@ export function createTelemetryAccumulator(
     return {
         config,
         turnsCompleted: 0,
-        actionCounts: { observe: 0, buy: 0, sell: 0 },
+        actionCounts: { observe: 0, buy: 0, sell: 0, travel: 0, end_day: 0 },
         acceptedActions: 0,
         rejectedActions: 0,
         rejectCounts: {},
@@ -1151,6 +1347,8 @@ export function buildNoaiSoakAggregateDigest(telemetry: NoaiSoakTelemetry | Noai
             observe: telemetry.actionCounts.observe || 0,
             buy: telemetry.actionCounts.buy || 0,
             sell: telemetry.actionCounts.sell || 0,
+            travel: telemetry.actionCounts.travel || 0,
+            end_day: telemetry.actionCounts.end_day || 0,
         },
         acceptedActions: telemetry.acceptedActions,
         rejectedActions: telemetry.rejectedActions,
@@ -1457,6 +1655,7 @@ export function serializeActionStream(records: NoaiSoakActionRecord[]): string {
         rejectCode: r.rejectCode,
         commodityId: r.commodityId,
         marketLocationId: r.marketLocationId,
+        destinationLocationId: r.destinationLocationId,
         qty: r.qty,
         eventId: r.eventId,
     }));
@@ -1654,7 +1853,7 @@ export function formatNoaiSoakReportMarkdown(report: NoaiSoakReport): string {
     if (t) {
         lines.push('## Telemetry');
         lines.push('');
-        lines.push(`- Actions: observe=${t.actionCounts.observe} buy=${t.actionCounts.buy} sell=${t.actionCounts.sell}`);
+        lines.push(`- Actions: observe=${t.actionCounts.observe} buy=${t.actionCounts.buy} sell=${t.actionCounts.sell} travel=${t.actionCounts.travel || 0} end_day=${t.actionCounts.end_day || 0}`);
         lines.push(`- Accepted/Rejected: ${t.acceptedActions}/${t.rejectedActions}`);
         if (Object.keys(t.rejectCounts).length > 0) {
             lines.push(`- Reject reasons: ${Object.entries(t.rejectCounts).map(([k, v]) => `${k}=${v}`).join(', ')}`);

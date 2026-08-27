@@ -111,6 +111,16 @@ check('parser rejects a non-allowlisted policy', () => {
     const parsed = core.parseNoaiSoakScenarioDocument(baseScenario({ policyId: 'hack_the_world' }));
     assert.ok(!parsed.ok && parsed.errors.some((e) => e.includes('policyId')), 'expected policy rejection');
 });
+check('parser accepts merchant_route and playerOwnsWorldTick', () => {
+    const parsed = core.parseNoaiSoakScenarioDocument(baseScenario({
+        policyId: 'merchant_route',
+        worldSim: { cadenceTurns: 1, stepsPerCadence: 1, enableNpcRegistry: false, playerOwnsWorldTick: true },
+    }));
+    assert.ok(parsed.ok, `expected ok, got ${JSON.stringify(parsed.errors)}`);
+    assert.strictEqual(parsed.scenario.policyId, 'merchant_route');
+    assert.strictEqual(parsed.scenario.worldSim.playerOwnsWorldTick, true);
+    assert.strictEqual(core.soakPolicyOwnsWorldTick('merchant_route', parsed.scenario.worldSim), true);
+});
 check('parser rejects a non-allowlisted invariant', () => {
     const parsed = core.parseNoaiSoakScenarioDocument(baseScenario({ invariants: ['no_nan_or_infinity', 'delete_everything'] }));
     assert.ok(!parsed.ok && parsed.errors.some((e) => e.includes('invariant')), 'expected invariant rejection');
@@ -149,6 +159,61 @@ check('same seed/policy/state yields identical decided ops (stress uses rng)', (
 // ---------------------------------------------------------------------------
 // 3. Policy never buys without sufficient money
 // ---------------------------------------------------------------------------
+function routeCtx(overrides = {}) {
+    return {
+        forge, markets: freshMarkets(),
+        commerce: { credits: 500, cargo: [], transportId: 'wagon' },
+        worldTurn: 1, turnIndex: 1, rng: core.createSoakRng('route'), maxOpsPerTurn: 1,
+        currentLocationId: 'north_farm',
+        ...overrides,
+    };
+}
+
+check('merchant_route never teleports a buy or sell away from current location', () => {
+    const intents = core.decideRouteIntents(routeCtx());
+    for (const intent of intents) {
+        if (intent.kind === 'buy' || intent.kind === 'sell') {
+            assert.strictEqual(intent.marketLocationId, 'north_farm', `teleport trade: ${JSON.stringify(intent)}`);
+        }
+        if (intent.kind === 'travel') {
+            assert.notStrictEqual(intent.destinationLocationId, 'north_farm', 'must not travel to current location');
+            const resolved = core.resolveSoakTravel(forge, 'north_farm', intent.destinationLocationId);
+            assert.ok(resolved.ok, `travel must resolve: ${JSON.stringify(resolved)}`);
+        }
+    }
+});
+check('merchant_route travels to a cheaper market instead of buying at a worse local price', () => {
+    const intents = core.decideRouteIntents(routeCtx({ currentLocationId: 'elda_shop' }));
+    assert.strictEqual(intents[0].kind, 'travel', `expected travel, got ${JSON.stringify(intents)}`);
+    assert.strictEqual(intents[0].destinationLocationId, 'north_farm');
+});
+check('merchant_route travels to a dearer market to sell instead of dumping cargo locally', () => {
+    const intents = core.decideRouteIntents(routeCtx({
+        currentLocationId: 'north_farm',
+        lastAcceptedKind: 'end_day',
+        commerce: { credits: 100, cargo: [{ commodityId: 'wheat', qty: 12 }], transportId: 'wagon' },
+    }));
+    assert.strictEqual(intents[0].kind, 'travel', `expected travel to sell, got ${JSON.stringify(intents)}`);
+    assert.strictEqual(intents[0].destinationLocationId, 'south_port');
+});
+check('merchant_route rests with end_day after a trade or travel', () => {
+    const afterBuy = core.decideRouteIntents(routeCtx({ lastAcceptedKind: 'buy' }));
+    const afterTravel = core.decideRouteIntents(routeCtx({ lastAcceptedKind: 'travel' }));
+    assert.deepStrictEqual(afterBuy, [{ kind: 'end_day' }]);
+    assert.deepStrictEqual(afterTravel, [{ kind: 'end_day' }]);
+});
+check('resolveSoakTravel rejects same location and unknown markets', () => {
+    assert.deepStrictEqual(core.resolveSoakTravel(forge, 'north_farm', 'north_farm'), { ok: false, code: 'SAME_LOCATION' });
+    assert.deepStrictEqual(core.resolveSoakTravel(forge, 'north_farm', 'no_such_market'), { ok: false, code: 'UNKNOWN_DESTINATION' });
+    assert.deepStrictEqual(core.resolveSoakTravel(forge, undefined, 'south_port'), { ok: false, code: 'NO_LOCATION' });
+    assert.deepStrictEqual(core.resolveSoakTravel(forge, 'elda_shop', 'south_port'), { ok: true, destinationLocationId: 'south_port' });
+});
+check('decideTradeIntents leaves merchant_route empty (host uses decidePlayerIntents)', () => {
+    assert.deepStrictEqual(core.decideTradeIntents('merchant_route', routeCtx()), []);
+    const intents = core.decidePlayerIntents('merchant_route', routeCtx());
+    assert.ok(intents.length >= 1, 'merchant_route must emit at least one intent');
+    assert.ok(!intents.some((i) => (i.kind === 'buy' || i.kind === 'sell') && i.marketLocationId !== 'north_farm'));
+});
 check('policy proposes no buy when credits cannot afford one unit', () => {
     for (const credits of [0, 5]) {
         const ops = core.decideTradeIntents('merchant_balanced', {
@@ -358,7 +423,7 @@ function makeInvariantCtx(canonicalDocs) {
 const tempScenarioDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noai-soak-unit-'));
 const tempRoots = [];
 try {
-    for (const id of ['noai_unit_pass', 'noai_unit_fail', 'noai_unit_parity_fail', 'noai_unit_parity_normalize_fail']) {
+    for (const id of ['noai_unit_pass', 'noai_unit_fail', 'noai_unit_parity_fail', 'noai_unit_parity_normalize_fail', 'noai_unit_route']) {
         fs.rmSync(path.join(root, '.tmp', 'noai_soak', id), { recursive: true, force: true });
     }
     const passScenario = baseScenario({ id: 'noai_unit_pass', horizon: { turns: 3 }, invariants: ['no_nan_or_infinity', 'json_parseable', 'world_turn_monotonic', 'output_files_bounded', 'save_reload_digest_parity'] });
@@ -448,6 +513,37 @@ try {
         const report = JSON.parse(fs.readFileSync(path.join(runDir, 'report.json'), 'utf-8'));
         assert.strictEqual(report.firstFailure.invariantId, 'save_reload_digest_parity', 'normalizer mismatch must own the failure');
         assert.strictEqual(report.saveReloadParity.firstMismatchPath, 'game_rules.json', 'normalizer mismatch must name game_rules.json');
+    });
+    check('merchant_route host run travels or trades locally, ends the day, and never teleports', () => {
+        const routeScenario = baseScenario({
+            id: 'noai_unit_route',
+            policyId: 'merchant_route',
+            horizon: { turns: 12 },
+            limits: { maxTurns: 12, maxStepsPerChunk: 5, maxOpsPerTurn: 1, maxFileBytes: 1000000, maxRecentChanges: 20, timeoutMs: 30000 },
+            worldSim: { cadenceTurns: 1, stepsPerCadence: 1, enableNpcRegistry: false, playerOwnsWorldTick: true, recoveryPerTick: 2 },
+            invariants: ['no_nan_or_infinity', 'json_parseable', 'world_turn_monotonic', 'nonnegative_resources', 'output_files_bounded'],
+        });
+        fs.writeFileSync(path.join(tempScenarioDir, 'noai_unit_route.json'), JSON.stringify(routeScenario));
+        const res = spawnSync(process.execPath, [
+            path.join(root, 'scripts', 'run_noai_soak.js'), '--scenario', 'noai_unit_route', '--keep-temp',
+        ], {
+            cwd: root,
+            env: { ...process.env, NOAI_SOAK_SCENARIO_DIR: tempScenarioDir },
+            encoding: 'utf-8',
+        });
+        assert.strictEqual(res.status, 0, `route scenario should exit 0:\n${res.stdout}\n${res.stderr}`);
+        const scenarioTemp = path.join(root, '.tmp', 'noai_soak', 'noai_unit_route');
+        tempRoots.push(scenarioTemp);
+        const runDir = path.join(scenarioTemp, fs.readdirSync(scenarioTemp)[0]);
+        const report = JSON.parse(fs.readFileSync(path.join(runDir, 'report.json'), 'utf-8'));
+        assert.ok(report.ok, `route report failed: ${JSON.stringify(report.firstFailure)}`);
+        const counts = report.telemetry.actionCounts;
+        assert.ok((counts.buy || 0) + (counts.sell || 0) > 0, 'must trade');
+        assert.ok((counts.travel || 0) > 0, 'must travel between markets');
+        assert.ok((counts.end_day || 0) > 0, 'must end the day to advance the world');
+        assert.ok(!report.telemetry.rejectCounts || !report.telemetry.rejectCounts.WRONG_LOCATION, 'must not teleport-trade');
+        const game = JSON.parse(fs.readFileSync(path.join(runDir, 'workspace', 'game_state.json'), 'utf-8'));
+        assert.ok(game.world && typeof game.world.currentLocationId === 'string' && game.world.currentLocationId, 'must persist currentLocationId');
     });
 } finally {
     fs.rmSync(tempScenarioDir, { recursive: true, force: true });

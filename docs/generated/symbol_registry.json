@@ -24,13 +24,13 @@
     ]
   },
   "counts": {
-    "total": 5343,
+    "total": 5364,
     "byBoundary": {
       "configuration": 91,
       "host": 905,
       "host-bridge": 61,
       "host-webview": 548,
-      "pure-core": 2973,
+      "pure-core": 2994,
       "schema-types": 32,
       "webview": 733
     },
@@ -52,6 +52,7 @@
       "campaign-combat-receipt": 9,
       "campaign-combat-request": 7,
       "campaign-combat-session-coordinator": 3,
+      "campaign-combat-soak": 21,
       "campaign-job-accept": 1,
       "campaign-job-board": 9,
       "campaign-job-quest": 6,
@@ -349,12 +350,12 @@
     "byKind": {
       "class": 2,
       "configurationKey": 91,
-      "constant": 721,
+      "constant": 727,
       "enum": 2,
-      "function": 1885,
-      "interface": 931,
+      "function": 1890,
+      "interface": 938,
       "messageType": 548,
-      "type": 430,
+      "type": 433,
       "webviewFunction": 709,
       "windowApi": 24
     }
@@ -2510,6 +2511,237 @@
       "public": "exported",
       "boundary": "host",
       "category": "campaign-combat-session-coordinator"
+    },
+    {
+      "id": "pure-core:constant:src/campaignCombatSoakCore.ts:CAMPAIGN_COMBAT_SOAK_SCENARIO_VERSION",
+      "name": "CAMPAIGN_COMBAT_SOAK_SCENARIO_VERSION",
+      "kind": "constant",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 9,
+      "signature": "export const CAMPAIGN_COMBAT_SOAK_SCENARIO_VERSION",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:constant:src/campaignCombatSoakCore.ts:CAMPAIGN_COMBAT_SOAK_REPORT_SCHEMA_VERSION",
+      "name": "CAMPAIGN_COMBAT_SOAK_REPORT_SCHEMA_VERSION",
+      "kind": "constant",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 10,
+      "signature": "export const CAMPAIGN_COMBAT_SOAK_REPORT_SCHEMA_VERSION",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:constant:src/campaignCombatSoakCore.ts:DEFAULT_CAMPAIGN_COMBAT_SOAK_TEMP_ROOT",
+      "name": "DEFAULT_CAMPAIGN_COMBAT_SOAK_TEMP_ROOT",
+      "kind": "constant",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 11,
+      "signature": "export const DEFAULT_CAMPAIGN_COMBAT_SOAK_TEMP_ROOT",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:constant:src/campaignCombatSoakCore.ts:CCS_RUN_MODES",
+      "name": "CCS_RUN_MODES",
+      "kind": "constant",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 13,
+      "signature": "export const CCS_RUN_MODES",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:constant:src/campaignCombatSoakCore.ts:CCS_INVARIANTS",
+      "name": "CCS_INVARIANTS",
+      "kind": "constant",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 16,
+      "signature": "export const CCS_INVARIANTS",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:constant:src/campaignCombatSoakCore.ts:CCS_FORBIDDEN_KEYS",
+      "name": "CCS_FORBIDDEN_KEYS",
+      "kind": "constant",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 28,
+      "signature": "export const CCS_FORBIDDEN_KEYS",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:function:src/campaignCombatSoakCore.ts:parseCampaignCombatSoakScenario",
+      "name": "parseCampaignCombatSoakScenario",
+      "kind": "function",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 165,
+      "signature": "export function parseCampaignCombatSoakScenario(raw: unknown): ParseCcsScenarioResult",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:function:src/campaignCombatSoakCore.ts:filterCcsScenariosByRunMode",
+      "name": "filterCcsScenariosByRunMode",
+      "kind": "function",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 249,
+      "signature": "export function filterCcsScenariosByRunMode( scenarios: CcsScenarioDefinition[], mode: CcsRunMode ): CcsScenarioDefinition[]",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:function:src/campaignCombatSoakCore.ts:evaluateCcsInvariants",
+      "name": "evaluateCcsInvariants",
+      "kind": "function",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 286,
+      "signature": "export function evaluateCcsInvariants( ids: CcsInvariantId[], obs: CcsBattleObservation ): CcsInvariantResult[]",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:function:src/campaignCombatSoakCore.ts:summarizeCcsReport",
+      "name": "summarizeCcsReport",
+      "kind": "function",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 366,
+      "signature": "export function summarizeCcsReport(report: CcsSoakReport): string",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:function:src/campaignCombatSoakCore.ts:formatCcsRunId",
+      "name": "formatCcsRunId",
+      "kind": "function",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 388,
+      "signature": "export function formatCcsRunId(startedAt: Date, suffix: string): string",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsBattleCase",
+      "name": "CcsBattleCase",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 33,
+      "signature": "export interface CcsBattleCase",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsLimits",
+      "name": "CcsLimits",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 44,
+      "signature": "export interface CcsLimits",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsScenarioDefinition",
+      "name": "CcsScenarioDefinition",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 50,
+      "signature": "export interface CcsScenarioDefinition",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsBattleObservation",
+      "name": "CcsBattleObservation",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 256,
+      "signature": "export interface CcsBattleObservation",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsInvariantResult",
+      "name": "CcsInvariantResult",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 280,
+      "signature": "export interface CcsInvariantResult",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsBattleReport",
+      "name": "CcsBattleReport",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 350,
+      "signature": "export interface CcsBattleReport",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:interface:src/campaignCombatSoakCore.ts:CcsSoakReport",
+      "name": "CcsSoakReport",
+      "kind": "interface",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 356,
+      "signature": "export interface CcsSoakReport",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:type:src/campaignCombatSoakCore.ts:CcsRunMode",
+      "name": "CcsRunMode",
+      "kind": "type",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 14,
+      "signature": "export type CcsRunMode = (typeof CCS_RUN_MODES)[number];",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:type:src/campaignCombatSoakCore.ts:CcsInvariantId",
+      "name": "CcsInvariantId",
+      "kind": "type",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 26,
+      "signature": "export type CcsInvariantId = (typeof CCS_INVARIANTS)[number];",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
+    },
+    {
+      "id": "pure-core:type:src/campaignCombatSoakCore.ts:ParseCcsScenarioResult",
+      "name": "ParseCcsScenarioResult",
+      "kind": "type",
+      "sourcePath": "src/campaignCombatSoakCore.ts",
+      "line": 61,
+      "signature": "export type ParseCcsScenarioResult = | { ok: true;",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "campaign-combat-soak"
     },
     {
       "id": "host:function:src/campaignJobAccept.ts:acceptCampaignJobBoardEntry",

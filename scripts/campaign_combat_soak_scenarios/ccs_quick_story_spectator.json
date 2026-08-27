@@ -1,0 +1,54 @@
+{
+  "id": "ccs_quick_story_spectator",
+  "version": 1,
+  "description": "Story encounterOps → spectator combat → PENDING → exactly-once apply → consequence ACK. One isolated battle per allowlisted fixture.",
+  "mode": "quick",
+  "modes": ["quick", "full"],
+  "battles": [
+    {
+      "id": "armor_vs_normal_a",
+      "fixtureId": "armor_vs_normal",
+      "seed": "ccs-armor-a",
+      "protagonistEntityId": "hero",
+      "partyEntityIds": ["hero"],
+      "startingHp": 20,
+      "maxHp": 20,
+      "sourceCampaignRevision": 0
+    },
+    {
+      "id": "armor_vs_ap_a",
+      "fixtureId": "armor_vs_ap",
+      "seed": "ccs-ap-a",
+      "protagonistEntityId": "hero",
+      "partyEntityIds": ["hero"],
+      "startingHp": 20,
+      "maxHp": 20,
+      "sourceCampaignRevision": 0
+    },
+    {
+      "id": "standard_5v5_a",
+      "fixtureId": "standard_5v5",
+      "seed": "ccs-s5v5-a",
+      "protagonistEntityId": "hero",
+      "partyEntityIds": ["hero"],
+      "startingHp": 20,
+      "maxHp": 20,
+      "sourceCampaignRevision": 0
+    }
+  ],
+  "limits": {
+    "timeoutMs": 60000,
+    "maxTicks": 3600,
+    "stepBatch": 120
+  },
+  "invariants": [
+    "terminal_reached",
+    "spectator_no_commands",
+    "pending_then_applied",
+    "no_duplicate_receipt",
+    "hp_in_range",
+    "history_one_per_battle",
+    "consequence_once",
+    "reload_no_double_apply"
+  ]
+}

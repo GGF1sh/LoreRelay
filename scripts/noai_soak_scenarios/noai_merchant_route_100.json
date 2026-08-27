@@ -1,0 +1,38 @@
+{
+  "id": "noai_merchant_route_100",
+  "version": 1,
+  "description": "100 turns, merchant_route over the three-market fixture — buy/sell only at the current market, travel to another listed market, then end the day. No teleport trades.",
+  "mode": "quick",
+  "modes": ["quick", "full"],
+  "seed": "noai-merchant-route-100-seed",
+  "policyId": "merchant_route",
+  "workspace": { "source": "fixture", "fixturePath": "scripts/noai_soak_scenarios/fixtures/merchant_three_market" },
+  "horizon": { "turns": 100 },
+  "worldSim": {
+    "cadenceTurns": 1,
+    "stepsPerCadence": 1,
+    "enableNpcRegistry": false,
+    "recoveryPerTick": 2,
+    "playerOwnsWorldTick": true
+  },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxTurns": 100,
+    "maxStepsPerChunk": 5,
+    "maxOpsPerTurn": 1,
+    "maxFileBytes": 1000000,
+    "maxRecentChanges": 20
+  },
+  "invariants": [
+    "no_nan_or_infinity",
+    "json_parseable",
+    "world_turn_monotonic",
+    "nonnegative_resources",
+    "market_ranges_valid",
+    "caps_bounded",
+    "no_duplicate_event_ids",
+    "no_duplicate_one_shot_events",
+    "output_files_bounded"
+  ],
+  "telemetry": { "sampleEveryTurns": 10, "maxSamples": 20, "recentWindow": 40, "maxAnomalyWindows": 10 }
+}

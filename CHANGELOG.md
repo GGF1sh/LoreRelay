@@ -9,6 +9,9 @@
 
 ## [Unreleased]
 
+### Added
+- NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
+
 ## [1.84.32] - 2026-08-02
 
 ### Fixed

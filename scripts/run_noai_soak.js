@@ -46,7 +46,8 @@ const {
     createEmptyNoaiSoakReport,
     createSoakRng,
     createTelemetryAccumulator,
-    decideTradeIntents,
+    decidePlayerIntents,
+    defaultSoakLocationId,
     evaluateInvariants,
     filterNoaiSoakScenariosByRunMode,
     finalizeTelemetry,
@@ -62,6 +63,8 @@ const {
     recordPlayerEventCategories,
     recordSimEvents,
     resolveRepoFixturePath,
+    resolveSoakTravel,
+    soakPolicyOwnsWorldTick,
 } = core;
 
 const {
@@ -544,6 +547,10 @@ function runScenario(scenario, mode, options) {
                 playerRole: gameStateDoc.commerce.playerRole,
             }
             : undefined;
+        let currentLocationId = gameStateDoc && gameStateDoc.world && typeof gameStateDoc.world.currentLocationId === 'string'
+            ? gameStateDoc.world.currentLocationId
+            : (commerceForge ? defaultSoakLocationId(commerceForge) : undefined);
+        let lastAcceptedKind;
 
         const registryRead = scenario.worldSim.enableNpcRegistry ? readJsonRaw(path.join(ws, 'npc_registry.json')) : { exists: false };
         let registry = registryRead.exists && !registryRead.parseError ? mods.parseNpcRegistry(registryRead.data) : undefined;
@@ -565,6 +572,12 @@ function runScenario(scenario, mode, options) {
                         ...(commerce.food !== undefined ? { food: commerce.food } : {}),
                         ...(commerce.playerRole !== undefined ? { playerRole: commerce.playerRole } : {}),
                     };
+                }
+                if (currentLocationId) {
+                    if (!gameStateDoc.world || typeof gameStateDoc.world !== 'object' || Array.isArray(gameStateDoc.world)) {
+                        gameStateDoc.world = {};
+                    }
+                    gameStateDoc.world.currentLocationId = currentLocationId;
                 }
                 writeJson(path.join(ws, 'game_state.json'), gameStateDoc);
             }
@@ -592,9 +605,11 @@ function runScenario(scenario, mode, options) {
         const updateActionHash = (rec) => {
             actionHasher.update(JSON.stringify([
                 rec.turn, rec.worldTurn, rec.type, rec.accepted,
-                rec.rejectCode || '', rec.commodityId || '', rec.marketLocationId || '', rec.qty || 0, rec.eventId || '',
+                rec.rejectCode || '', rec.commodityId || '', rec.marketLocationId || '',
+                rec.destinationLocationId || '', rec.qty || 0, rec.eventId || '',
             ]));
         };
+        const playerOwnsWorldTick = soakPolicyOwnsWorldTick(scenario.policyId, scenario.worldSim);
 
         for (let t = 1; t <= scenario.horizon.turns; t++) {
             if (deadline && Date.now() > deadline) {
@@ -605,10 +620,12 @@ function runScenario(scenario, mode, options) {
             }
 
             // --- Player action phase ---
+            let requestedEndDay = false;
             if (scenario.policyId === 'observe_only' || !commerce) {
                 const rec = { turn: t, worldTurn: worldState.worldTurn || 0, type: 'observe', accepted: true };
                 recordAction(acc, rec);
                 updateActionHash(rec);
+                lastAcceptedKind = 'observe';
             } else {
                 const ctx = {
                     forge: commerceForge,
@@ -618,50 +635,107 @@ function runScenario(scenario, mode, options) {
                     turnIndex: t,
                     rng,
                     maxOpsPerTurn: limits.maxOpsPerTurn,
+                    currentLocationId,
+                    lastAcceptedKind,
                 };
-                const ops = decideTradeIntents(scenario.policyId, ctx);
+                const intents = decidePlayerIntents(scenario.policyId, ctx);
                 const playerEvents = [];
-                if (ops.length === 0) {
-                    const rec = { turn: t, worldTurn: worldState.worldTurn || 0, type: 'observe', accepted: true };
-                    recordAction(acc, rec);
-                    updateActionHash(rec);
-                } else {
-                    for (const op of ops) {
+                for (const intent of intents) {
+                    if (intent.kind === 'observe') {
+                        const rec = { turn: t, worldTurn: worldState.worldTurn || 0, type: 'observe', accepted: true };
+                        recordAction(acc, rec);
+                        updateActionHash(rec);
+                        lastAcceptedKind = 'observe';
+                        continue;
+                    }
+                    if (intent.kind === 'travel') {
+                        const resolved = resolveSoakTravel(commerceForge, currentLocationId, intent.destinationLocationId);
+                        if (resolved.ok) {
+                            currentLocationId = resolved.destinationLocationId;
+                            lastAcceptedKind = 'travel';
+                            const rec = {
+                                turn: t, worldTurn: worldState.worldTurn || 0, type: 'travel', accepted: true,
+                                marketLocationId: currentLocationId, destinationLocationId: currentLocationId,
+                            };
+                            recordAction(acc, rec);
+                            updateActionHash(rec);
+                        } else {
+                            const rec = {
+                                turn: t, worldTurn: worldState.worldTurn || 0, type: 'travel', accepted: false,
+                                rejectCode: resolved.code, destinationLocationId: intent.destinationLocationId,
+                            };
+                            recordAction(acc, rec);
+                            updateActionHash(rec);
+                        }
+                        continue;
+                    }
+                    if (intent.kind === 'end_day') {
+                        requestedEndDay = true;
+                        lastAcceptedKind = 'end_day';
+                        const rec = { turn: t, worldTurn: worldState.worldTurn || 0, type: 'end_day', accepted: true };
+                        recordAction(acc, rec);
+                        updateActionHash(rec);
+                        continue;
+                    }
+                    if (intent.kind === 'buy' || intent.kind === 'sell') {
+                        if (scenario.policyId === 'merchant_route' && intent.marketLocationId !== currentLocationId) {
+                            const rec = {
+                                turn: t, worldTurn: worldState.worldTurn || 0, type: intent.kind, accepted: false,
+                                rejectCode: 'WRONG_LOCATION', commodityId: intent.commodityId,
+                                marketLocationId: intent.marketLocationId, qty: intent.qty,
+                            };
+                            recordAction(acc, rec);
+                            updateActionHash(rec);
+                            continue;
+                        }
+                        const op = {
+                            op: intent.kind,
+                            marketLocationId: intent.marketLocationId,
+                            commodityId: intent.commodityId,
+                            qty: intent.qty,
+                        };
                         const res = mods.applyTradeOp(commerceForge, marketHolder.markets, commerce, op);
                         if (res.ok) {
                             marketHolder.markets = res.markets;
                             commerce = res.commerce;
                             acceptedSeq++;
+                            lastAcceptedKind = intent.kind;
                             const built = buildPlayerTradeEvent(worldState.worldTurn || 0, acceptedSeq, op, { accepted: true });
                             if (built.event) {
                                 playerEvents.push(built.event);
                             }
                             const rec = {
-                                turn: t, worldTurn: worldState.worldTurn || 0, type: op.op, accepted: true,
-                                commodityId: op.commodityId, marketLocationId: op.marketLocationId, qty: op.qty,
+                                turn: t, worldTurn: worldState.worldTurn || 0, type: intent.kind, accepted: true,
+                                commodityId: intent.commodityId, marketLocationId: intent.marketLocationId, qty: intent.qty,
                                 eventId: built.event ? built.event.id : undefined,
                             };
                             recordAction(acc, rec);
                             updateActionHash(rec);
                         } else {
                             const rec = {
-                                turn: t, worldTurn: worldState.worldTurn || 0, type: op.op, accepted: false,
-                                rejectCode: res.error.code, commodityId: op.commodityId, marketLocationId: op.marketLocationId, qty: op.qty,
+                                turn: t, worldTurn: worldState.worldTurn || 0, type: intent.kind, accepted: false,
+                                rejectCode: res.error.code, commodityId: intent.commodityId,
+                                marketLocationId: intent.marketLocationId, qty: intent.qty,
                             };
                             recordAction(acc, rec);
                             updateActionHash(rec);
                         }
                     }
-                    if (playerEvents.length > 0) {
-                        worldState.recentChanges = mergePlayerEventsIntoRecentChanges(
-                            worldState.recentChanges || [], playerEvents, limits.maxRecentChanges);
-                        recordPlayerEventCategories(acc, playerEvents);
-                    }
+                }
+                if (playerEvents.length > 0) {
+                    worldState.recentChanges = mergePlayerEventsIntoRecentChanges(
+                        worldState.recentChanges || [], playerEvents, limits.maxRecentChanges);
+                    recordPlayerEventCategories(acc, playerEvents);
                 }
             }
 
             // --- World cadence phase ---
-            if (t % scenario.worldSim.cadenceTurns === 0) {
+            // merchant_route (and playerOwnsWorldTick) only ticks on end_day, matching the
+            // Player Action Hub. Legacy policies keep auto-cadence every N turns.
+            const shouldTickWorld = playerOwnsWorldTick
+                ? requestedEndDay
+                : (t % scenario.worldSim.cadenceTurns === 0);
+            if (shouldTickWorld) {
                 let chunkEvents = 0;
                 const stepsPerCadence = scenario.worldSim.stepsPerCadence;
                 const result = mods.runBulkWorldSimulation(forge, worldState, registry, {

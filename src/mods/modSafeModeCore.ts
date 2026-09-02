@@ -127,7 +127,8 @@ export function decideSafeModeHistoryPresentation(input: {
     modContext: unknown;
     adultVisibilityAllowed: boolean;
     campaignMayHaveAdultModHistory: boolean;
-    knownLockFingerprints?: readonly string[];
+    /** Contexts reconstructed from independently verified locks, never from the history entry being rendered. */
+    knownLockContexts?: readonly unknown[];
 }): ModHistoryPresentationDecision {
     if (input.author === 'user') return { presentation: 'show', reason: 'USER_AUTHORED' };
     if (input.adultVisibilityAllowed) return { presentation: 'show', reason: 'ADULT_VISIBILITY_ALLOWED' };
@@ -139,10 +140,21 @@ export function decideSafeModeHistoryPresentation(input: {
             placeholder: SAFE_MODE_HISTORY_PLACEHOLDER,
         };
     }
+    const matchingKnownContexts = context
+        ? (input.knownLockContexts ?? [])
+            .map(parseModContext)
+            .filter((known): known is ModContext => known?.lockFingerprint === context.lockFingerprint)
+        : [];
+    if (matchingKnownContexts.some(known => known.adultActive)
+        || matchingKnownContexts.some(known => known.adultActive !== context?.adultActive)) {
+        return {
+            presentation: 'placeholder',
+            reason: 'MISSING_OR_INVALID_CONTEXT',
+            placeholder: SAFE_MODE_HISTORY_PLACEHOLDER,
+        };
+    }
     if (input.campaignMayHaveAdultModHistory) {
-        const contextIsKnown = context && input.knownLockFingerprints !== undefined
-            && input.knownLockFingerprints.includes(context.lockFingerprint);
-        if (contextIsKnown) return { presentation: 'show', reason: 'NO_ADULT_CONTEXT' };
+        if (context && matchingKnownContexts.length > 0) return { presentation: 'show', reason: 'NO_ADULT_CONTEXT' };
         return {
             presentation: 'placeholder',
             reason: 'MISSING_OR_INVALID_CONTEXT',

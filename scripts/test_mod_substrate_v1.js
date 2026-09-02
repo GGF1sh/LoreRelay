@@ -122,6 +122,13 @@ async function main() {
     check(hashCore.hashNormalizedModPackage(packageA).contentHash !== hashCore.hashNormalizedModPackage(docChange).contentHash, 'documentation change changes content hash');
     assert.throws(() => hashCore.parseStrictJson('{"é":1,"e\\u0301":2}'), error => error.code === 'JSON_NORMALIZED_KEY_COLLISION');
     assertions += 1;
+    equal(hashCore.parseStrictJson('9007199254740991'), Number.MAX_SAFE_INTEGER, 'largest safe JSON integer is accepted exactly');
+    for (const unsafeInteger of ['9007199254740992', '9007199254740993', '-9007199254740992', '1e20']) {
+        assert.throws(() => hashCore.parseStrictJson(unsafeInteger), error => error.code === 'JSON_UNSAFE_INTEGER');
+        assertions += 1;
+    }
+    assert.throws(() => hashCore.canonicalizeModJson({ value: Number.MAX_SAFE_INTEGER + 1 }), error => error.code === 'JSON_UNSAFE_INTEGER');
+    assertions += 1;
     assert.throws(() => hashCore.hashNormalizedModPackage([
         { path: 'A.json', kind: 'json', bytes: Buffer.from('{}') },
         { path: 'a.json', kind: 'json', bytes: Buffer.from('{}') },
@@ -322,6 +329,14 @@ async function main() {
     equal(safeModeCore.decideSafeModeHistoryPresentation({ author: 'machine', modContext: undefined, adultVisibilityAllowed: false, campaignMayHaveAdultModHistory: true }).reason, 'MISSING_OR_INVALID_CONTEXT', 'missing marker conservatively hides potentially adult history');
     equal(safeModeCore.decideSafeModeHistoryPresentation({ author: 'machine', modContext: undefined, adultVisibilityAllowed: false, campaignMayHaveAdultModHistory: false }).presentation, 'show', 'ordinary unmodded history is unchanged');
     equal(safeModeCore.decideSafeModeHistoryPresentation({ author: 'user', modContext, adultVisibilityAllowed: false, campaignMayHaveAdultModHistory: true }).presentation, 'show', 'user-authored history is not classified by MOD marker');
+    const forgedNonAdultContext = { ...modContext, adultActive: false };
+    equal(safeModeCore.decideSafeModeHistoryPresentation({
+        author: 'machine',
+        modContext: forgedNonAdultContext,
+        adultVisibilityAllowed: false,
+        campaignMayHaveAdultModHistory: true,
+        knownLockContexts: [modContext],
+    }).presentation, 'placeholder', 'verified adult lock classification overrides a forged non-adult history marker');
     const unknownContext = { ...modContext, adultActive: false, lockFingerprint: hashCore.sha256ModBytes(Buffer.from('unknown-lock')) };
     equal(safeModeCore.decideSafeModeHistoryPresentation({
         author: 'machine',
@@ -334,8 +349,22 @@ async function main() {
         modContext: unknownContext,
         adultVisibilityAllowed: false,
         campaignMayHaveAdultModHistory: true,
-        knownLockFingerprints: [modContext.lockFingerprint],
+        knownLockContexts: [modContext],
     }).reason, 'MISSING_OR_INVALID_CONTEXT', 'unknown lock fingerprint is conservatively treated as invalid provenance');
+    const nonAdultOpen = safeModeCore.assessModCampaignOpen({
+        lock: backtracked.lock,
+        installedCandidates: [a1, b1, c1],
+        currentLoreRelayVersion: '1.84.32',
+        adultSessionAllowed: false,
+    });
+    equal(nonAdultOpen.mode, 'normal', 'verified non-adult lock opens normally');
+    equal(safeModeCore.decideSafeModeHistoryPresentation({
+        author: 'machine',
+        modContext: nonAdultOpen.modContext,
+        adultVisibilityAllowed: false,
+        campaignMayHaveAdultModHistory: true,
+        knownLockContexts: [nonAdultOpen.modContext],
+    }).presentation, 'show', 'matching verified non-adult lock context permits history display');
     equal(safeModeCore.assessModCampaignOpen({ installedCandidates: [], currentLoreRelayVersion: '1.84.32', adultSessionAllowed: false, modProfilePresent: true }).mode, 'safe-required', 'missing lock with a profile is never treated as unmodded');
     equal(safeModeCore.assessModCampaignOpen({ installedCandidates: [], currentLoreRelayVersion: '1.84.32', adultSessionAllowed: false, checkpointLockFingerprints: [adultResolved.lock.aggregateHash] }).mode, 'safe-required', 'missing lock with checkpoint provenance is never treated as unmodded');
     equal(safeModeCore.assessModCampaignOpen({ installedCandidates: [], currentLoreRelayVersion: '1.84.32', adultSessionAllowed: false }).mode, 'unmodded', 'missing lock without any MOD evidence is genuinely unmodded');
@@ -453,6 +482,55 @@ async function main() {
             },
         });
         check(growth.diagnostics.some(item => item.code === 'PACKAGE_CHANGED_DURING_READ'), 'file growth after stat rejects without an unbounded allocation');
+
+        const additionRoot = path.join(globalRoot, 'tree-add.mod', '1.0.0');
+        const additionManifest = manifest('tree-add.mod', '1.0.0');
+        writeManifest(additionRoot, additionManifest);
+        fs.writeFileSync(path.join(additionRoot, 'README.md'), 'enumerated before addition', 'utf8');
+        let injectedAddition = false;
+        const addition = await hashPackage('tree-add.mod', '1.0.0', hashCore.hashCanonicalModJson(additionManifest), {
+            afterFileStatForTest: async relativePath => {
+                if (relativePath === 'README.md' && !injectedAddition) {
+                    injectedAddition = true;
+                    fs.writeFileSync(path.join(additionRoot, 'payload.js'), 'added after package enumeration', 'utf8');
+                }
+            },
+        });
+        equal(addition.diagnostics.map(item => item.code), ['PACKAGE_TREE_CHANGED_DURING_HASH'], 'final package tree revalidation rejects an added file');
+
+        const deletionRoot = path.join(globalRoot, 'tree-delete.mod', '1.0.0');
+        const deletionManifest = manifest('tree-delete.mod', '1.0.0');
+        writeManifest(deletionRoot, deletionManifest);
+        const deletionTarget = path.join(deletionRoot, 'LICENSE');
+        fs.writeFileSync(deletionTarget, 'read before deletion', 'utf8');
+        fs.writeFileSync(path.join(deletionRoot, 'README.md'), 'trigger deletion', 'utf8');
+        let injectedDeletion = false;
+        const deletion = await hashPackage('tree-delete.mod', '1.0.0', hashCore.hashCanonicalModJson(deletionManifest), {
+            afterFileStatForTest: async relativePath => {
+                if (relativePath === 'README.md' && !injectedDeletion) {
+                    injectedDeletion = true;
+                    fs.unlinkSync(deletionTarget);
+                }
+            },
+        });
+        equal(deletion.diagnostics.map(item => item.code), ['PACKAGE_TREE_CHANGED_DURING_HASH'], 'final package tree revalidation rejects a deleted file');
+
+        const renameRoot = path.join(globalRoot, 'tree-rename.mod', '1.0.0');
+        const renameManifest = manifest('tree-rename.mod', '1.0.0');
+        writeManifest(renameRoot, renameManifest);
+        const renameSource = path.join(renameRoot, 'LICENSE');
+        fs.writeFileSync(renameSource, 'read before rename', 'utf8');
+        fs.writeFileSync(path.join(renameRoot, 'README.md'), 'trigger rename', 'utf8');
+        let injectedRename = false;
+        const rename = await hashPackage('tree-rename.mod', '1.0.0', hashCore.hashCanonicalModJson(renameManifest), {
+            afterFileStatForTest: async relativePath => {
+                if (relativePath === 'README.md' && !injectedRename) {
+                    injectedRename = true;
+                    fs.renameSync(renameSource, path.join(renameRoot, 'LICENSE.txt'));
+                }
+            },
+        });
+        equal(rename.diagnostics.map(item => item.code), ['PACKAGE_TREE_CHANGED_DURING_HASH'], 'final package tree revalidation rejects a renamed file');
 
         const magicRoot = path.join(globalRoot, 'magic.mod', '1.0.0');
         const magicManifest = manifest('magic.mod', '1.0.0');

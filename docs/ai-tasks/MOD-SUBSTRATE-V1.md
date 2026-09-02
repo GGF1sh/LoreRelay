@@ -143,7 +143,7 @@ Dependency/profile ranges use deterministic SemVer comparator ranges only. URLs,
 
 V1 rejects `loadAfter` and `loadBefore`; dependency edges are the only ordering edges. It also rejects manifest checksums; authoritative hashes are calculated by the loader and stored in the lockfile.
 
-The manifest is limited to 64 KiB before parsing, must be strict UTF-8 without BOM, must contain no duplicate JSON keys, and must be a plain JSON object. Unknown fields are rejected at every manifest control-object level. Malformed or partially understood manifests are never accepted with defaults.
+The manifest is limited to 64 KiB before parsing, must be strict UTF-8 without BOM, must contain no duplicate JSON keys, and must be a plain JSON object. JSON integer values outside the exact IEEE-754 safe range `[-(2^53 - 1), 2^53 - 1]` are rejected before canonicalization rather than rounded. Unknown fields are rejected at every manifest control-object level. Malformed or partially understood manifests are never accepted with defaults.
 
 ### 5.2 Entrypoint keys
 
@@ -292,6 +292,7 @@ All hashes use SHA-256 and the `sha256:<lowercase-hex>` representation.
 5. Hash binary assets byte-for-byte.
 6. Frame every file as `uint32be(pathByteLength) || pathBytes || uint64be(contentByteLength) || normalizedContentBytes`; concatenate frames in sorted path order and hash them. The package hash covers every permitted file, including canonical manifest and documentation.
 7. `manifestHash` is SHA-256 of the canonical manifest alone. `contentHash` is the framed whole-package hash.
+8. After computing the hash, perform one final bounded metadata re-enumeration of the exact package root and compare canonical path, type, size, identity, link count, and modification metadata with the tree observed while reading. Any addition, deletion, rename, replacement, or metadata drift fails with `PACKAGE_TREE_CHANGED_DURING_HASH`; an old walk is never returned as a successful candidate.
 
 Prompt files are normal text entrypoints and therefore included in `contentHash`. Raw prompt text is not copied into the lock. The same normalized package produces the same hash on every supported OS; a changed semantic JSON value, text, undeclared file, or binary changes it.
 
@@ -388,6 +389,7 @@ Safe Mode is a campaign recovery mode with these rules:
 - Before any V1 adult MOD can activate, every machine-authored history entry created from a scenario opening or accepted GM turn must persist `modContext: { format: "lorerelay-mod-context/1", lockFingerprint, adultActive }`. `lockFingerprint` is the active lock `aggregateHash`; `adultActive` is `true` when any adult-rated package was active for that whole entry. Checkpoint/history copying preserves this marker byte-for-byte.
 - Safe Mode never attempts sentence-level or per-MOD causal attribution. When adult visibility/session permission is off, it replaces the presentation of an entire machine-authored entry whose marker has `adultActive: true` with a generic placeholder; the stored entry is not modified. User-authored entries are not classified by this MOD marker.
 - If a campaign has MOD lock/checkpoint evidence that adult content may have been active but a machine-authored entry lacks valid `modContext`, Safe Mode conservatively placeholders that whole machine-authored entry. A campaign with no MOD profile/lock history remains ordinary unmodded history and is not redacted merely because it lacks markers.
+- A stored fingerprint is not an allowlist by itself. Before a non-adult marker can authorize display in a campaign that may have adult history, Safe Mode must match both its fingerprint and `adultActive` value against a `modContext` independently reconstructed from the fully manifest-bound lock. A missing match, conflicting classification, or forged `adultActive: false` for a known adult lock placeholders the whole machine-authored entry.
 - Marked or conservatively hidden history is never sent to a provider because Safe Mode cannot advance turns. The marker proves only coarse active-loadout context, not which package influenced any sentence.
 - Unresolved canonical IDs render as inert attributed placeholders. Raw unknown fields remain on disk; there is no base-ID substitution and no silent pruning.
 - MOD assets render placeholders. Existing world/scenario state remains inspectable but its missing definition is not recreated.
@@ -461,10 +463,10 @@ Inspector must attribute every active contribution by package/version/canonical 
 | Load nondeterminism | Dependency-only DAG and stable byte ordering | Lock/order recomputation | Fail on mismatch | Shuffled enumeration/property tests | Locale library ordering must not be used |
 | Lockfile drift | Canonical profile/package hashes | Startup recomputation | Block normal activation | Mutate each locked field/file | Manual disk rollback remains detectable only by hashes |
 | Missing MOD | Exact lock lookup, no version fallback | Startup resolver | Block; Safe Mode | Remove locked package | Package acquisition is user responsibility |
-| Changed content under same version | Whole-package content hash | Expected/actual comparison | Tamper error; no lock rewrite | One-byte and JSON-semantic changes | SHA-256 collision is negligible |
+| Changed content under same version | Whole-package content hash plus final bounded tree snapshot | Expected/actual and pre/post tree comparison | Tamper error; no lock rewrite | One-byte, JSON-semantic, add/delete/rename, and mid-hash changes | Mutation after the final verification instant remains an ordinary filesystem race and is rechecked before activation |
 | Incompatible LoreRelay version | Inclusive/exclusive manifest bounds | Startup compatibility check | Block; Safe Mode | Below/at/above range tests | Authors may choose overly broad ranges |
 | Prompt injection against authority | Fixed advisory slots and canonical post-model validation | Attribution plus operation-validation errors | Ignore/reject invalid model operation | Fragments demanding HP/winner/schema override | Narrative influence cannot be eliminated |
-| Adult leakage while disabled | Four-value consent binding; pre-composition filter; coarse per-entry lock/adult marker | Leakage assertions across messages/search/assets/history | No activation; whole-entry Safe Mode placeholder, never selective prose inference | Snapshot all manager/webview/provider payloads and missing/invalid-marker cases | Misclassified author metadata; marker is intentionally coarse |
+| Adult leakage while disabled | Four-value consent binding; pre-composition filter; coarse per-entry lock/adult marker bound back to verified lock classification | Leakage assertions across messages/search/assets/history | No activation; whole-entry Safe Mode placeholder, never selective prose inference | Snapshot all manager/webview/provider payloads and missing/invalid/forged-marker cases | Misclassified author metadata; marker is intentionally coarse |
 | Inactive MOD leakage | Build registries solely from locked active graph | Contribution provenance audit | Drop package and fail on stray provenance | Disabled package sentinel test | Caches must be invalidated on reload |
 | Malicious external asset URL | Relative local assets only; schemes forbidden | Catalog validator | Reject package | `http`, `file`, `data`, UNC tests | None in V1 |
 | Direct save editing | No MOD callbacks/handles; data adapters return definitions | Canonical write audit and path tests | Reject unsupported entrypoint; canonical validators remain | Sentinel save/receipt files unchanged | Users can manually edit their own files outside LoreRelay |
@@ -568,6 +570,9 @@ Deferred with no architectural entitlement from V1. It requires a separate threa
 - **AC-36** A maximum 512-package, 64-dependencies-per-package graph produces a lock that stays within the 8 MiB lock limit and round-trips through the same parser used at startup; the resolver never returns an unreadable success lock.
 - **AC-37** Safe Mode derives history `modContext` only after binding redundant lock rating/tag/capability/dependency/order fields back to the exact installed manifests. A self-consistent aggregate hash cannot downgrade adult classification, and missing lock data with profile/checkpoint/history evidence is not treated as unmodded.
 - **AC-38** Package hashing rejects Unicode invariant-case path collisions, files that grow or change after status validation, hard links, mismatched media magic, and every file outside the manifest plus trusted adapter-supplied transitive closure.
+- **AC-39** A machine-authored history entry with a known adult lock fingerprint and forged `adultActive: false` is placeholdered by comparison with the independently verified lock context; a bare fingerprint list can never authorize display.
+- **AC-40** Adding, deleting, or renaming a package entry after initial enumeration is rejected by final bounded tree revalidation with `PACKAGE_TREE_CHANGED_DURING_HASH` and produces no candidate.
+- **AC-41** Strict JSON parsing and programmatic canonicalization accept `2^53 - 1` but reject integer values outside the exact IEEE-754 safe range with `JSON_UNSAFE_INTEGER`; distinct oversized integer spellings can never collapse to one content hash.
 
 ## 23. Unresolved implementation blockers and explicit non-goals
 

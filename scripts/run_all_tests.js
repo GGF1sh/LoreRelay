@@ -80,6 +80,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_gm_prompt_builder_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_campaign_kit_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_mod_system_core.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_mod_substrate_v1.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_campaign_resources_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_location_path_core.js', consumesCompiledOutput: true },

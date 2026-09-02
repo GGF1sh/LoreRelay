@@ -1,8 +1,8 @@
 # MOD-SUBSTRATE-V1 — Safe Declarative MOD Substrate
 
-Status: Revision 2 awaiting integrator confirmation; production implementation is not authorized
+Status: Revision 2 accepted and merged; Slice 1 production implementation is authorized
 
-Base: `origin/main` at `8c96ccca76a8aee12fef310b4652f0acdaa73c1f`
+Design merge: `origin/main` at `a2ed867e668b6272da78bdedf0791c90f1e12e95`
 
 Date: 2026-09-02 JST
 
@@ -203,6 +203,8 @@ Resolution is offline over installed candidates from the two configured roots.
 6. Optional dependencies do not add candidates or influence backtracking. After the required solution exists, add an optional edge only when that ID is already selected and its version matches; otherwise emit an attributed optional-dependency diagnostic.
 7. Build directed edges dependency → dependent from the complete assignment and perform Kahn topological sort. Whenever several nodes have zero indegree, choose MOD ID in ascending Unicode code-point order. Filesystem order and profile array order are never tie-breakers.
 8. Emit the exact assignment, resolved dependency edges, canonical source, and load order into the lockfile.
+
+Resolver version 1 admits at most 512 physical installed candidates across the two configured roots and at most 10,000 attempted candidate assignments in the canonical search. The next candidate or search step beyond either limit fails with `RESOLUTION_COMPLEXITY_LIMIT` and emits no partial lock. These counters are deterministic inputs to resolver semantics; a wall-clock timeout may protect a caller operationally but must never choose a version, change traversal, or become an authoritative resolution result.
 
 Two installed versions of one ID are allowed. A campaign lock requesting an unavailable exact version never falls forward or backward automatically. Given the same normalized candidate set and profile, all implementations must traverse the same branches and produce the same solution or failure.
 
@@ -558,6 +560,7 @@ Deferred with no architectural entitlement from V1. It requires a separate threa
 - **AC-31** Scenario MOD import cannot copy undeclared optional files or directly write canonical files outside the explicit new-campaign adapter.
 - **AC-32** Global installs stage beside global packages and workspace installs stage beside workspace mods; a different-volume/device fixture fails with `CROSS_DEVICE_STAGING`, never falls back to copy/delete, leaves no partial installed version, and removes only the validated staging directory.
 - **AC-33** Scenario-opening and accepted GM entries created under a MOD lock persist exact `{ lockFingerprint, adultActive }` evidence; missing/invalid evidence in a campaign that may have used adult MODs causes conservative whole-entry placeholders, while unmodded history is unchanged.
+- **AC-34** Resolver version 1 passes at 512 physical candidates and 10,000 attempted assignments, fails the next candidate/assignment with `RESOLUTION_COMPLEXITY_LIMIT`, emits no partial lock, and produces the same result regardless of wall-clock timing.
 
 ## 23. Unresolved implementation blockers and explicit non-goals
 

@@ -1,6 +1,6 @@
 # MOD-SUBSTRATE-V1 — Safe Declarative MOD Substrate
 
-Status: design gate confirmed; production implementation is not authorized by this document alone
+Status: Revision 2 awaiting integrator confirmation; production implementation is not authorized
 
 Base: `origin/main` at `8c96ccca76a8aee12fef310b4652f0acdaa73c1f`
 
@@ -66,6 +66,8 @@ The implementation must use these roots:
 
 <workspace>/.text-adventure/
   mods/<mod-id>/<version>/
+  mod-staging/<uuid>/
+  mod-validation-reports/<uuid>.json
   mod-profile.json
   mod-lock.json
   checkpoints/
@@ -74,9 +76,11 @@ The implementation must use these roots:
 - `packages/` contains globally installed packages.
 - Workspace `mods/` contains campaign-local packages and is never copied into canonical state files.
 - `mod-profile.json` is user intent; `mod-lock.json` is resolved machine truth.
-- Imports are copied/extracted into a fresh `staging/<uuid>` directory, validated there, then installed by atomic rename. Source folders/ZIPs are never modified.
-- V1 has no quarantine payload store. On failure it removes only the bounded staging copy and writes a non-sensitive validation report. The original selected folder/ZIP remains untouched. This avoids silently deleting local adult content while also avoiding durable retention of hostile payloads.
+- The user chooses `global` or `workspace` as the install destination before extraction. Global imports use `<globalStorage>/mods/staging/<uuid>`; workspace imports use `<workspace>/.text-adventure/mod-staging/<uuid>`. Each staging root is adjacent to its destination root and must resolve to the same filesystem/volume as that destination.
+- Imports are copied/extracted into a fresh destination-local staging directory, validated there, then installed by same-filesystem atomic rename. Source folders/ZIPs are never modified. A cross-device rename fallback, copy-then-delete fallback, or overwrite fallback is forbidden.
+- V1 has no quarantine payload store. On failure it removes only the bounded destination-local staging copy and writes a non-sensitive report in that scope's validation-report directory. The original selected folder/ZIP remains untouched. This avoids silently deleting local adult content while also avoiding durable retention of hostile payloads.
 - Discovery enumerates only the two exact package roots at `<id>/<version>/`. It never scans parent directories, the full workspace, home directories, drives, PATH, or arbitrary locations.
+- During discovery, both path segments must pass canonical MOD ID/SemVer validation, and the directory `<id>/<version>` strings must exactly equal manifest `id` and `version`. Case folding, normalization, aliases, and redirects do not repair a mismatch; the package is rejected with an attributed path/manifest mismatch.
 - Installed means a valid package directory exists. Enabled means the profile requests it. Locked means the resolver selected its exact version and hashes. Campaign-required means the active lock names it. These terms are not interchangeable.
 
 No production code may build these paths from unsanitized manifest strings. Parsed IDs/versions must pass validation before joining, and the final real path must remain under its configured root.
@@ -186,17 +190,21 @@ Deferred from V1: external Genre World Presets, runtime quest definitions, runti
 
 Resolution is offline over installed candidates from the two configured roots.
 
-1. Start from enabled profile requests, not directory enumeration.
-2. Select one package version per MOD ID. Choose the highest installed SemVer satisfying the profile and every required dependency range. No download occurs.
-3. `source: "global"` or `"workspace"` restricts candidates. `source: "any"` is valid only when it does not leave two different candidates for the same `id@version`; an ambiguous duplicate fails. Identical names never hide different hashes.
-4. Expand required dependencies transitively. A missing/incompatible dependency fails resolution.
-5. Include an optional dependency edge only when a compatible package is already selected. Missing/incompatible optional dependencies produce an attributed diagnostic and no edge.
-6. Evaluate declared conflicts against the final set. Any matching conflict fails the entire proposed profile.
-7. Build directed edges dependency → dependent. A cycle fails with the exact cycle path.
-8. Perform Kahn topological sort. Whenever several nodes have zero indegree, choose by MOD ID in ascending Unicode code-point order, then exact SemVer, then source enum `workspace` before `global`. Filesystem order and profile array order are never tie-breakers.
-9. Emit exact load order and resolved dependency edges into the lockfile.
+1. Start from enabled profile requests, not directory enumeration. Canonically validate every installed `<id>/<version>` path against its manifest before it can become a candidate.
+2. Apply explicit profile source restrictions. `source: "global"` or `"workspace"` excludes the other root. With `source: "any"`, global and workspace candidates having the same `id@version`, `manifestHash`, and `contentHash` are one logical candidate; record `workspace` as its canonical source. If either hash differs, resolution fails with `DUPLICATE_VARIANT`. A same-source duplicate is invalid.
+3. Sort every MOD ID's logical candidates by SemVer descending, then canonical source `workspace` before `global`. Compare SemVer precedence first and the full exact version string second; build metadata is already forbidden.
+4. Run the canonical depth-first constraint search below. This search, not a greedy single pass, decides exact versions:
+   1. Seed constraints from all enabled profile entries. Keep currently constrained but unassigned MOD IDs in ascending Unicode code-point order.
+   2. Pick the smallest unassigned ID. Try its still-compatible candidates in the order from step 3.
+   3. Tentatively assign one candidate; add its required dependency ranges, expand newly discovered IDs, and intersect all ranges for each ID. Apply matching conflict constraints immediately.
+   4. If any constrained ID has no candidate, an assigned version leaves its intersected range, a declared conflict matches, or the selected dependency graph contains a cycle, undo that assignment and try the next candidate.
+   5. Recurse until every constrained ID is assigned. The first complete valid assignment is the canonical solution. Record failed branches in visitation order. If all branches fail, emit no partial lock; select the failure at greatest assignment depth, break equal-depth ties by earliest visitation, then sort that failure's diagnostics by code, MOD ID, and dependency path before returning them.
+5. Required dependencies participate in backtracking. Thus a higher version whose transitive graph conflicts may be replaced by the next candidate version. The resolver never silently stops after the first highest-version failure.
+6. Optional dependencies do not add candidates or influence backtracking. After the required solution exists, add an optional edge only when that ID is already selected and its version matches; otherwise emit an attributed optional-dependency diagnostic.
+7. Build directed edges dependency → dependent from the complete assignment and perform Kahn topological sort. Whenever several nodes have zero indegree, choose MOD ID in ascending Unicode code-point order. Filesystem order and profile array order are never tie-breakers.
+8. Emit the exact assignment, resolved dependency edges, canonical source, and load order into the lockfile.
 
-Two installed versions of one ID are allowed. Two packages claiming the same `id@version` in the same source are invalid. A campaign lock requesting an unavailable exact version never falls forward or backward automatically.
+Two installed versions of one ID are allowed. A campaign lock requesting an unavailable exact version never falls forward or backward automatically. Given the same normalized candidate set and profile, all implementations must traverse the same branches and produce the same solution or failure.
 
 ## 9. Campaign profile and lockfile
 
@@ -218,7 +226,7 @@ Two installed versions of one ID are allowed. Two packages claiming the same `id
 }
 ```
 
-Adult approvals have exact shape `{ id, version, manifestHash }`. Profile array order has no load-order meaning. Unknown fields, duplicate IDs, invalid ranges, and selections outside enabled packages are errors.
+Adult approvals have exact shape `{ id, version, manifestHash, contentHash }`. Hashes are calculated before consent is checked. Profile array order has no load-order meaning. Unknown fields, duplicate IDs, invalid ranges, and selections outside enabled packages are errors.
 
 ### 9.2 `mod-lock.json` — resolved truth
 
@@ -286,7 +294,7 @@ Prompt files are normal text entrypoints and therefore included in `contentHash`
 
 - `contentRating` is author-supplied classification: `general`, `mature`, or `adult`.
 - Adult packages are hidden in the MOD Manager by default. A global/user UI preference may reveal adult package metadata; this preference is separate from campaign enablement and is not a lock capability.
-- Enabling each adult package requires a modal confirmation bound to exact `id`, `version`, and `manifestHash`. An update or changed manifest invalidates the approval.
+- Enabling each adult package requires a modal confirmation bound to exact `id`, `version`, `manifestHash`, and `contentHash`. Any manifest or normalized package-content change invalidates the approval, including a same-version change whose manifest bytes are unchanged. Resolve/fork cannot reuse an approval unless all four values match; otherwise it returns `ADULT_REAPPROVAL_REQUIRED` before writing a lock.
 - The campaign profile must also set `adultContent.allow: true`. Revealing packages does not enable them, and allowing adult content does not approve every package.
 - Inactive or unapproved adult packages contribute no definitions, localization, assets, prompts, previews, search terms, or webview messages. Discovery may read only the bounded root manifest needed to classify the package.
 - Turning off adult visibility/session permission does not delete, rewrite, downgrade, or uninstall local content. A locked campaign then opens only after explicit session permission or in Safe Mode.
@@ -362,7 +370,7 @@ V1 limits are:
 
 The importer must preflight the central directory before extraction, reject ZIP Slip/absolute/backslash/device paths, reject symlink/hardlink/special type bits, reject duplicate normalized paths and case collisions, and reserve the expanded-byte budget before writing an entry. The root manifest must be at `lorerelay.mod.json` exactly. Invalid UTF-8 filenames, partial/multi-root packages, data descriptors that exceed declared limits, and extraction count/size drift fail the import.
 
-Extraction writes only to a fresh staging directory opened with no-follow semantics where available. Any failure closes handles and removes only that exact resolved staging directory after verifying it is under the configured staging root. Installation is an atomic rename to `<id>/<version>`; an existing target is never overwritten. A same `id@version` with another hash is an explicit conflict.
+Extraction writes only to a fresh destination-local staging directory opened with no-follow semantics where available. Before installation, the implementation proves staging and destination are on the same filesystem (`stat.dev` where meaningful and Windows volume identity on Windows); inability to prove this fails with `CROSS_DEVICE_STAGING`. Any failure closes handles and removes only that exact resolved staging directory after verifying it is under the selected scope's staging root. Installation is one same-filesystem atomic rename to the target derived from validated manifest `<id>/<version>`; the installed path segments are rechecked for exact manifest equality. An existing target is never overwritten. A same `id@version` with another hash is an explicit conflict.
 
 ## 15. Failure policy and Safe Mode
 
@@ -372,7 +380,10 @@ Safe Mode is a campaign recovery mode with these rules:
 
 - Canonical `game_state.json`, `world_state.json`, history, receipts, and checkpoints remain untouched and can be inspected through sanitized existing views.
 - No MOD definitions, assets, prompt fragments, localization, scenario templates, campaign kits, or combat fixtures activate.
-- MOD-derived historical text already stored as canonical history is not deleted. It is display-redacted when adult visibility is off and never sent to a provider because Safe Mode cannot advance turns.
+- Before any V1 adult MOD can activate, every machine-authored history entry created from a scenario opening or accepted GM turn must persist `modContext: { format: "lorerelay-mod-context/1", lockFingerprint, adultActive }`. `lockFingerprint` is the active lock `aggregateHash`; `adultActive` is `true` when any adult-rated package was active for that whole entry. Checkpoint/history copying preserves this marker byte-for-byte.
+- Safe Mode never attempts sentence-level or per-MOD causal attribution. When adult visibility/session permission is off, it replaces the presentation of an entire machine-authored entry whose marker has `adultActive: true` with a generic placeholder; the stored entry is not modified. User-authored entries are not classified by this MOD marker.
+- If a campaign has MOD lock/checkpoint evidence that adult content may have been active but a machine-authored entry lacks valid `modContext`, Safe Mode conservatively placeholders that whole machine-authored entry. A campaign with no MOD profile/lock history remains ordinary unmodded history and is not redacted merely because it lacks markers.
+- Marked or conservatively hidden history is never sent to a provider because Safe Mode cannot advance turns. The marker proves only coarse active-loadout context, not which package influenced any sentence.
 - Unresolved canonical IDs render as inert attributed placeholders. Raw unknown fields remain on disk; there is no base-ID substitution and no silent pruning.
 - MOD assets render placeholders. Existing world/scenario state remains inspectable but its missing definition is not recreated.
 - Combat, economy, travel, world generation, model turns, normal save/checkpoint writes, and canonical mutation commands are disabled while required definitions or lock evidence are unavailable.
@@ -396,13 +407,13 @@ After campaign creation:
 
 ## 17. Save, checkpoint, export, clone, and replay compatibility
 
-Current `CheckpointFile` formats `1.0`/`1.1` do not record MOD state and checkpoint restore does not claim whole-ledger rollback. MOD activation therefore requires a future `text-adventure-checkpoint/1.2` containing an optional canonical `modLockSnapshot` (the complete path-free lock object) and `modLockFingerprint` (`aggregateHash`). Unmodded checkpoints omit both and preserve current behavior.
+Current `CheckpointFile` formats `1.0`/`1.1` do not record MOD state and checkpoint restore does not claim whole-ledger rollback. MOD activation therefore requires a future `text-adventure-checkpoint/1.2` containing an optional canonical `modLockSnapshot` (the complete path-free lock object) and `modLockFingerprint` (`aggregateHash`). Its copied history retains each entry's coarse `modContext` marker. Unmodded checkpoints omit MOD fields and preserve current behavior.
 
 - Save/open compares the active lock and installed hashes before any MOD contribution or canonical write.
 - Restore requires the checkpoint fingerprint to equal the active lock. A mismatch blocks normal restore and offers Safe Mode or a new recovery fork; it never activates another loadout.
 - Campaign export includes profile, lock, and checkpoint lock snapshots but not installed package payloads or absolute paths. Import reports exact missing packages and enters Safe Mode until they are installed.
 - Campaign clone copies profile/lock unchanged and starts with the same campaign lineage parent. A changed profile produces a new lineage child.
-- Replay/reproduction evidence records lock aggregate hash, ordered package `id@version` plus content hashes, resolver version, and actual LoreRelay version.
+- Every scenario-opening or accepted GM history entry created with an active MOD lock records the lock fingerprint and adult-active boolean described in Section 15 before the entry is committed. Replay/reproduction evidence records the same lock aggregate hash, ordered package `id@version` plus content hashes, resolver version, and actual LoreRelay version.
 - Existing checkpoints without MOD metadata may be restored only into an unmodded profile, or inspected in Safe Mode. They are not guessed compatible with a modded campaign.
 
 No V1 claim implies atomic rollback across every existing ledger. Lifecycle UI must state this limitation before a fork/update.
@@ -423,7 +434,7 @@ It must show installed packages, campaign-enabled/required state, exact version,
 
 Controls: Install Folder, Install ZIP, Rescan, Enable/Disable, View Details, Resolve Profile, Launch Safe Mode, and Reveal Package Folder. Reveal requires an explicit click and a revalidated installed root; it cannot accept a package-provided path. Update means choose another already installed local version. There is no marketplace.
 
-Adult visibility is a separate control from enabling. Details/previews for hidden adult packages cannot leak through search, errors, thumbnails, localization, or accessibility text. Enabling each adult package shows the exact package/version/hash confirmation.
+Adult visibility is a separate control from enabling. Details/previews for hidden adult packages cannot leak through search, errors, thumbnails, localization, or accessibility text. Enabling each adult package shows and records the exact package ID, version, manifest hash, and whole-package content hash.
 
 Inspector must attribute every active contribution by package/version/canonical resource ID, show why it is active, and expose deterministic order. It must not expose absolute filesystem paths or adult fragment text without visibility permission.
 
@@ -440,7 +451,7 @@ Inspector must attribute every active contribution by package/version/canonical 
 | Malformed manifest | Strict UTF-8, size, duplicate-key, schema validation | Stable validation codes | Reject package | Fuzz/property tests | New parser vulnerabilities |
 | Unknown manifest version | Exact `lorerelay-mod/1` | Format check | Reject | Future/empty format cases | None in V1 |
 | Dependency cycle | Directed graph validation | Cycle path report | Resolution fails | Multi-node/self cycle tests | None |
-| Duplicate MOD ID/version | Unique candidate and content checks | Candidate index diagnostics | Fail ambiguity/no overwrite | Same/different hash duplicates | User must remove ambiguity |
+| Duplicate MOD ID/version | Exact path/manifest invariant; same-hash cross-scope coalescing; different-hash rejection | Candidate index diagnostics | Canonically select workspace source for identical `source:any`; otherwise fail/no overwrite | Same/different hash and source-restricted duplicates | User must remove different-content ambiguity |
 | Namespace collision | Automatic package prefix and global uniqueness | Registry insertion check | Fail affected resolution | Same local IDs across/within packages | Legacy base IDs need adapter care |
 | Load nondeterminism | Dependency-only DAG and stable byte ordering | Lock/order recomputation | Fail on mismatch | Shuffled enumeration/property tests | Locale library ordering must not be used |
 | Lockfile drift | Canonical profile/package hashes | Startup recomputation | Block normal activation | Mutate each locked field/file | Manual disk rollback remains detectable only by hashes |
@@ -448,7 +459,7 @@ Inspector must attribute every active contribution by package/version/canonical 
 | Changed content under same version | Whole-package content hash | Expected/actual comparison | Tamper error; no lock rewrite | One-byte and JSON-semantic changes | SHA-256 collision is negligible |
 | Incompatible LoreRelay version | Inclusive/exclusive manifest bounds | Startup compatibility check | Block; Safe Mode | Below/at/above range tests | Authors may choose overly broad ranges |
 | Prompt injection against authority | Fixed advisory slots and canonical post-model validation | Attribution plus operation-validation errors | Ignore/reject invalid model operation | Fragments demanding HP/winner/schema override | Narrative influence cannot be eliminated |
-| Adult leakage while disabled | Manifest-only discovery; two opt-ins; pre-composition filter | Leakage assertions across messages/search/assets | No activation; redact diagnostics | Snapshot all manager/webview/provider payloads | Misclassified author metadata |
+| Adult leakage while disabled | Four-value consent binding; pre-composition filter; coarse per-entry lock/adult marker | Leakage assertions across messages/search/assets/history | No activation; whole-entry Safe Mode placeholder, never selective prose inference | Snapshot all manager/webview/provider payloads and missing/invalid-marker cases | Misclassified author metadata; marker is intentionally coarse |
 | Inactive MOD leakage | Build registries solely from locked active graph | Contribution provenance audit | Drop package and fail on stray provenance | Disabled package sentinel test | Caches must be invalidated on reload |
 | Malicious external asset URL | Relative local assets only; schemes forbidden | Catalog validator | Reject package | `http`, `file`, `data`, UNC tests | None in V1 |
 | Direct save editing | No MOD callbacks/handles; data adapters return definitions | Canonical write audit and path tests | Reject unsupported entrypoint; canonical validators remain | Sentinel save/receipt files unchanged | Users can manually edit their own files outside LoreRelay |
@@ -456,7 +467,7 @@ Inspector must attribute every active contribution by package/version/canonical 
 | Prompt/asset denial of service | Per-item/package/aggregate budgets | Preflight/token/media counters | Reject or omit before activation; visible error | Limit ±1 and adversarial Unicode tests | Valid complex media decoder CPU |
 | Update/uninstall corrupts campaign | Exact pins, backup/fork, atomic install, uninstall lock guard | Lock-reference check and post-action verification | Abort without campaign writes | Fault injection at every staging/rename step | Other unopened workspaces may later miss a global package |
 | Case/reserved-name collision | NFC + invariant case-fold duplicate detection; Windows name rules | Cross-platform normalized index | Reject package | Case, trailing dot/space, `CON.txt` tests | Differences on exotic filesystems |
-| Partial extraction/install | Fresh staging and atomic final rename; never overwrite | Completion marker is valid manifest/hash, not a script | Clean staging; retain original source | Process/fault interruption tests | Orphan staging cleanup needs bounded startup maintenance |
+| Partial/cross-device extraction/install | Destination-local staging, filesystem identity proof, atomic final rename, never overwrite | Completion marker plus source/destination device check | Reject cross-device; clean exact staging; retain original source | Different-volume Windows fixture and process/fault interruption tests | Orphan staging cleanup needs bounded startup maintenance |
 
 ## 21. Implementation slices
 
@@ -516,10 +527,10 @@ Deferred with no architectural entitlement from V1. It requires a separate threa
 
 - **AC-01** Malformed JSON, duplicate keys, BOM, oversize manifest, unknown field, and missing required field each produce a stable rejection code.
 - **AC-02** Any manifest format except exact `lorerelay-mod/1` is rejected.
-- **AC-03** Duplicate MOD IDs/candidates and ambiguous `id@version` variants reject; no winner is chosen.
+- **AC-03** Directory ID/version must exactly equal validated manifest ID/version; same-hash `source:any` global/workspace duplicates coalesce and record workspace, while different-hash or same-source duplicates reject.
 - **AC-04** Invalid MOD/local/canonical namespace syntax rejects before path construction.
-- **AC-05** Required dependency and ordering cycles reject with the deterministic cycle path.
-- **AC-06** Shuffling filesystem enumeration, profile entries, and object-key insertion produces byte-identical load order and lock.
+- **AC-05** Canonical backtracking selects a lower package version when its higher version has an unsatisfiable transitive graph; required dependency cycles reject only after every canonical candidate branch is evaluated.
+- **AC-06** Shuffling filesystem enumeration, profile entries, and object-key insertion produces byte-identical candidate traversal, chosen versions, load order, diagnostics, and lock.
 - **AC-07** JSON whitespace/key order and CRLF/LF equivalents produce the same normalized content hash.
 - **AC-08** A changed semantic JSON value, normalized text, binary, or permitted documentation file under the same version produces a lock mismatch.
 - **AC-09** A missing required package/exact version is detected before any contribution or canonical write.
@@ -531,12 +542,12 @@ Deferred with no architectural entitlement from V1. It requires a separate threa
 - **AC-15** Executables/scripts/modules/WASM/nested archives and renamed/disguised payloads reject by declaration and magic bytes.
 - **AC-16** An installed but inactive package contributes zero registry entries, prompt bytes, strings, asset URIs, or webview messages.
 - **AC-17** A disabled/unapproved adult package contributes zero content and no hidden text/preview/search/accessibility leakage.
-- **AC-18** Adult visibility and exact-package enable approval are independent explicit actions; neither action implies the other.
-- **AC-19** Reclassifying a package as adult gives it byte-identical capability/authority limits; changing version/manifest hash invalidates approval.
+- **AC-18** Adult visibility and exact-package enable approval are independent explicit actions; neither action implies the other, and approval stores exact ID/version/manifest/content hashes.
+- **AC-19** Reclassifying a package as adult gives it byte-identical capability/authority limits; changing version, manifest hash, or content hash invalidates approval and blocks Resolve with `ADULT_REAPPROVAL_REQUIRED`.
 - **AC-20** Adversarial prompt fragments cannot change accepted mechanic facts without a normal valid operation passing existing validation/commit paths.
 - **AC-21** Any matching conflict is visible and resolution fails; install order cannot choose a silent winner.
 - **AC-22** Serialized profile/lock/checkpoint evidence contains no absolute path, username, drive letter, URI, environment value, or secret.
-- **AC-23** Safe Mode leaves canonical files byte-identical, retains unknown fields/IDs, sends no provider request, and permits no normal save/mutation command.
+- **AC-23** Safe Mode leaves canonical files byte-identical, retains unknown fields/IDs, sends no provider request, permits no normal save/mutation command, and placeholders the whole marked adult machine entry without claiming sentence-level attribution.
 - **AC-24** Static/runtime harnesses show V1 executes no package code, process, Node module, VS Code command, WASM, network request, or install/update hook.
 - **AC-25** With no profile/lock and no enabled packages, existing unmodded scenario, prompt, checkpoint, localization, asset, and campaign behavior is byte/behavior compatible.
 - **AC-26** A lock expecting one loadout blocks restore of a checkpoint with another fingerprint; it never activates either loadout silently.
@@ -545,7 +556,8 @@ Deferred with no architectural entitlement from V1. It requires a separate threa
 - **AC-29** Prompt composition obeys slot/load/ID order and all fragment/package/aggregate byte and token limits at boundary ±1.
 - **AC-30** Combat Lab fixture imports cannot change the campaign runtime ability/status catalog or canonical combat output path.
 - **AC-31** Scenario MOD import cannot copy undeclared optional files or directly write canonical files outside the explicit new-campaign adapter.
-- **AC-32** Faults before/during final install leave no partial installed version, never overwrite an existing version, and remove only the validated staging directory.
+- **AC-32** Global installs stage beside global packages and workspace installs stage beside workspace mods; a different-volume/device fixture fails with `CROSS_DEVICE_STAGING`, never falls back to copy/delete, leaves no partial installed version, and removes only the validated staging directory.
+- **AC-33** Scenario-opening and accepted GM entries created under a MOD lock persist exact `{ lockFingerprint, adultActive }` evidence; missing/invalid evidence in a campaign that may have used adult MODs causes conservative whole-entry placeholders, while unmodded history is unchanged.
 
 ## 23. Unresolved implementation blockers and explicit non-goals
 

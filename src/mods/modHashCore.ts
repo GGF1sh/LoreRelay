@@ -263,19 +263,45 @@ function canonicalizeJsonValue(value: unknown): string {
         return JSON.stringify(value.normalize('NFC'));
     }
     if (Array.isArray(value)) {
-        return `[${value.map(item => canonicalizeJsonValue(item)).join(',')}]`;
+        if (Object.getPrototypeOf(value) !== Array.prototype || Object.getOwnPropertySymbols(value).length > 0) {
+            throw new ModDataError('JSON_NON_PLAIN_ARRAY', 'Canonical JSON accepts only plain arrays');
+        }
+        const names = Object.getOwnPropertyNames(value);
+        if (names.length !== value.length + 1 || names[names.length - 1] !== 'length') {
+            throw new ModDataError('JSON_NON_PLAIN_ARRAY', 'Canonical JSON arrays cannot contain holes or extra properties');
+        }
+        const items: unknown[] = [];
+        for (let index = 0; index < value.length; index += 1) {
+            if (names[index] !== String(index)) {
+                throw new ModDataError('JSON_NON_PLAIN_ARRAY', 'Canonical JSON arrays cannot contain holes or extra properties');
+            }
+            const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+            if (!descriptor || !descriptor.enumerable || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+                throw new ModDataError('JSON_ACCESSOR_FORBIDDEN', 'Canonical JSON arrays cannot contain accessors');
+            }
+            items.push(descriptor.value);
+        }
+        return `[${items.map(item => canonicalizeJsonValue(item)).join(',')}]`;
     }
     if (typeof value !== 'object' || value === undefined) {
         throw new ModDataError('JSON_UNSUPPORTED_VALUE', 'Canonical JSON accepts only JSON values');
     }
     const record = value as Record<string, unknown>;
+    const prototype = Object.getPrototypeOf(record);
+    if ((prototype !== null && prototype !== Object.prototype) || Object.getOwnPropertySymbols(record).length > 0) {
+        throw new ModDataError('JSON_NON_PLAIN_OBJECT', 'Canonical JSON accepts only plain string-keyed objects');
+    }
     const normalizedEntries = new Map<string, unknown>();
-    for (const key of Object.keys(record)) {
+    for (const key of Object.getOwnPropertyNames(record)) {
+        const descriptor = Object.getOwnPropertyDescriptor(record, key);
+        if (!descriptor || !descriptor.enumerable || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+            throw new ModDataError('JSON_ACCESSOR_FORBIDDEN', 'Canonical JSON objects cannot contain accessors');
+        }
         const normalizedKey = key.normalize('NFC');
         if (normalizedEntries.has(normalizedKey)) {
             throw new ModDataError('JSON_NORMALIZED_KEY_COLLISION', `JSON keys collide after NFC normalization: ${key}`);
         }
-        normalizedEntries.set(normalizedKey, record[key]);
+        normalizedEntries.set(normalizedKey, descriptor.value);
     }
     const keys = [...normalizedEntries.keys()].sort();
     return `{${keys.map(key => `${JSON.stringify(key)}:${canonicalizeJsonValue(normalizedEntries.get(key))}`).join(',')}}`;

@@ -1,6 +1,6 @@
 # MOD-SUBSTRATE-V1 — Safe Declarative MOD Substrate
 
-Status: Revision 2 accepted and merged; Slice 1 production implementation is authorized
+Status: Revision 2 accepted and merged; Slice 1 implemented as a dormant validation substrate
 
 Design merge: `origin/main` at `a2ed867e668b6272da78bdedf0791c90f1e12e95`
 
@@ -80,6 +80,7 @@ The implementation must use these roots:
 - Imports are copied/extracted into a fresh destination-local staging directory, validated there, then installed by same-filesystem atomic rename. Source folders/ZIPs are never modified. A cross-device rename fallback, copy-then-delete fallback, or overwrite fallback is forbidden.
 - V1 has no quarantine payload store. On failure it removes only the bounded destination-local staging copy and writes a non-sensitive report in that scope's validation-report directory. The original selected folder/ZIP remains untouched. This avoids silently deleting local adult content while also avoiding durable retention of hostile payloads.
 - Discovery enumerates only the two exact package roots at `<id>/<version>/`. It never scans parent directories, the full workspace, home directories, drives, PATH, or arbitrary locations.
+- Enumeration is metadata-only: it reads each bounded root `lorerelay.mod.json` but does not open payload files. Whole-package validation/hashing requires a separate request bound to exact source, ID, version, and discovered manifest hash. An adult package payload is not opened unless that exact hashing request also carries explicit adult-content read authorization.
 - During discovery, both path segments must pass canonical MOD ID/SemVer validation, and the directory `<id>/<version>` strings must exactly equal manifest `id` and `version`. Case folding, normalization, aliases, and redirects do not repair a mismatch; the package is rejected with an attributed path/manifest mismatch.
 - Installed means a valid package directory exists. Enabled means the profile requests it. Locked means the resolver selected its exact version and hashes. Campaign-required means the active lock names it. These terms are not interchangeable.
 
@@ -260,6 +261,8 @@ Adult approvals have exact shape `{ id, version, manifestHash, contentHash }`. H
   "aggregateHash": "sha256:..."
 }
 ```
+
+The profile parser accepts at most 256 KiB. Because one valid 512-package graph can exceed that size, the lock parser has a separate 8 MiB canonical JSON limit. The resolver must serialize and parse its own result within that same limit before returning success; it returns an explicit lock-size/schema error instead of emitting a lock that startup cannot read.
 
 The lock contains no timestamp, secret, URI, drive letter, username, or absolute path. `source` is only `global` or `workspace`. Package and dependency arrays are canonical-order arrays. `aggregateHash` is the hash of the canonical lock with that field omitted.
 
@@ -561,6 +564,10 @@ Deferred with no architectural entitlement from V1. It requires a separate threa
 - **AC-32** Global installs stage beside global packages and workspace installs stage beside workspace mods; a different-volume/device fixture fails with `CROSS_DEVICE_STAGING`, never falls back to copy/delete, leaves no partial installed version, and removes only the validated staging directory.
 - **AC-33** Scenario-opening and accepted GM entries created under a MOD lock persist exact `{ lockFingerprint, adultActive }` evidence; missing/invalid evidence in a campaign that may have used adult MODs causes conservative whole-entry placeholders, while unmodded history is unchanged.
 - **AC-34** Resolver version 1 passes at 512 physical candidates and 10,000 attempted assignments, fails the next candidate/assignment with `RESOLUTION_COMPLEXITY_LIMIT`, emits no partial lock, and produces the same result regardless of wall-clock timing.
+- **AC-35** Discovery opens only bounded root manifests. Payload validation/hashing occurs only for one exact source/ID/version/manifest-hash request, and an adult payload is not read before explicit authorization.
+- **AC-36** A maximum 512-package, 64-dependencies-per-package graph produces a lock that stays within the 8 MiB lock limit and round-trips through the same parser used at startup; the resolver never returns an unreadable success lock.
+- **AC-37** Safe Mode derives history `modContext` only after binding redundant lock rating/tag/capability/dependency/order fields back to the exact installed manifests. A self-consistent aggregate hash cannot downgrade adult classification, and missing lock data with profile/checkpoint/history evidence is not treated as unmodded.
+- **AC-38** Package hashing rejects Unicode invariant-case path collisions, files that grow or change after status validation, hard links, mismatched media magic, and every file outside the manifest plus trusted adapter-supplied transitive closure.
 
 ## 23. Unresolved implementation blockers and explicit non-goals
 

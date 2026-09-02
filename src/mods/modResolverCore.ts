@@ -11,6 +11,7 @@ import { hashCanonicalModJson, isModSha256 } from './modHashCore';
 import {
     MOD_LOCK_FORMAT,
     MOD_RESOLVER_VERSION,
+    MAX_MOD_LOCK_BYTES,
     ModLock,
     ModLockedDependency,
     ModLockedPackage,
@@ -19,6 +20,8 @@ import {
     ModSourcePreference,
     computeModLockAggregateHash,
     computeModProfileHash,
+    parseModLockText,
+    serializeModLock,
     validateModProfile,
 } from './modProfileCore';
 import {
@@ -128,7 +131,7 @@ function groupCandidates(candidates: readonly ModPackageCandidate[]):
     const seenSourceKeys = new Set<string>();
     for (const candidate of candidates) {
         if (candidate.source !== 'global' && candidate.source !== 'workspace') {
-            diagnostics.push(diagnostic('CANDIDATE_SOURCE_INVALID', String(candidate.manifest?.id ?? ''), '', 'Candidate source must be global or workspace'));
+            diagnostics.push(diagnostic('CANDIDATE_SOURCE_INVALID', typeof candidate.manifest?.id === 'string' ? candidate.manifest.id : '', '', 'Candidate source must be global or workspace'));
             continue;
         }
         const identity = validateInstalledDirectoryIdentity({
@@ -138,8 +141,12 @@ function groupCandidates(candidates: readonly ModPackageCandidate[]):
             manifestVersion: candidate.manifest?.version,
             isValidVersion: value => parseSemVer(value) !== undefined,
         });
-        const candidateId = typeof candidate.manifest?.id === 'string' ? candidate.manifest.id : String(candidate.directoryId);
-        const path = `${candidate.directoryId}@${candidate.directoryVersion}`;
+        const candidateId = typeof candidate.manifest?.id === 'string'
+            ? candidate.manifest.id
+            : typeof candidate.directoryId === 'string' ? candidate.directoryId : '';
+        const path = typeof candidate.directoryId === 'string' && typeof candidate.directoryVersion === 'string'
+            ? `${candidate.directoryId}@${candidate.directoryVersion}`
+            : '';
         if (!identity.ok) {
             diagnostics.push(diagnostic(identity.code, candidateId, path, 'Installed directory identity does not exactly match the manifest'));
             continue;
@@ -633,5 +640,21 @@ export function resolveModProfile(
         return { ok: false, diagnostics: sortDiagnostics(postResolutionDiagnostics), metrics };
     }
     const built = buildLock(profile, solution.assignments, loreRelayVersion);
+    const serializedLock = serializeModLock(built.lock);
+    if (Buffer.byteLength(serializedLock, 'utf8') > MAX_MOD_LOCK_BYTES) {
+        return {
+            ok: false,
+            diagnostics: [diagnostic('LOCK_SIZE_LIMIT', '', 'lock', `Resolved lock exceeds deterministic limit ${MAX_MOD_LOCK_BYTES} bytes`)],
+            metrics,
+        };
+    }
+    const lockSelfCheck = parseModLockText(serializedLock);
+    if (!lockSelfCheck.ok) {
+        return {
+            ok: false,
+            diagnostics: [diagnostic('LOCK_SCHEMA_SELF_CHECK_FAILED', '', 'lock', lockSelfCheck.issues.map(issue => issue.code).join(','))],
+            metrics,
+        };
+    }
     return { ok: true, lock: built.lock, warnings: built.warnings, metrics };
 }

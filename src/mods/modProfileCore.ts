@@ -28,8 +28,10 @@ export const MOD_PROFILE_FORMAT = 'lorerelay-mod-profile/1' as const;
 export const MOD_LOCK_FORMAT = 'lorerelay-mod-lock/1' as const;
 export const MOD_RESOLVER_VERSION = 1 as const;
 export const MAX_MOD_PROFILE_BYTES = 256 * 1024;
-export const MAX_MOD_PROFILE_ENABLED = 128;
-export const MAX_MOD_ADULT_APPROVALS = 128;
+export const MAX_MOD_LOCK_BYTES = 8 * 1024 * 1024;
+export const MAX_MOD_PROFILE_ENABLED = 512;
+export const MAX_MOD_ADULT_APPROVALS = 512;
+export const MAX_MOD_LOCK_PACKAGES = 512;
 
 export type ModSourcePreference = 'any' | 'global' | 'workspace';
 export type ModResolvedSource = Exclude<ModSourcePreference, 'any'>;
@@ -93,7 +95,9 @@ export interface ModLock {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === null || prototype === Object.prototype;
 }
 
 function addIssue(issues: ModValidationIssue[], code: string, path: string, message: string): void {
@@ -117,6 +121,11 @@ export function validateModProfile(value: unknown): ModValidationResult<ModProfi
     if (!isRecord(value)) {
         return { ok: false, issues: [{ code: 'OBJECT_REQUIRED', path: '$', message: 'Profile must be a plain JSON object' }] };
     }
+    try {
+        if (Buffer.byteLength(canonicalizeModJson(value), 'utf8') > MAX_MOD_PROFILE_BYTES) addIssue(issues, 'DOCUMENT_TOO_LARGE', '$', `Profile exceeds ${MAX_MOD_PROFILE_BYTES} bytes`);
+    } catch {
+        return { ok: false, issues: [{ code: 'PROFILE_NOT_CANONICAL_JSON', path: '$', message: 'Profile must contain only plain canonical JSON values' }] };
+    }
     checkAllowedKeys(value, ['format', 'enabled', 'selected', 'adultContent'], '$', issues);
     if (value.format !== MOD_PROFILE_FORMAT) addIssue(issues, 'FORMAT_UNSUPPORTED', '$.format', `Expected ${MOD_PROFILE_FORMAT}`);
 
@@ -136,7 +145,7 @@ export function validateModProfile(value: unknown): ModValidationResult<ModProfi
             if (typeof entry.id === 'string' && enabledIds.has(entry.id)) addIssue(issues, 'DUPLICATE_ENABLED_ID', `${path}.id`, 'Enabled MOD IDs must be unique');
             if (typeof entry.id === 'string') enabledIds.add(entry.id);
             if (!parseSemVerRange(entry.version)) addIssue(issues, 'SEMVER_RANGE_INVALID', `${path}.version`, 'Invalid deterministic SemVer range');
-            if (!['any', 'global', 'workspace'].includes(String(entry.source))) addIssue(issues, 'SOURCE_INVALID', `${path}.source`, 'Unsupported MOD source');
+            if (typeof entry.source !== 'string' || !['any', 'global', 'workspace'].includes(entry.source)) addIssue(issues, 'SOURCE_INVALID', `${path}.source`, 'Unsupported MOD source');
         });
     }
 
@@ -177,9 +186,11 @@ export function validateModProfile(value: unknown): ModValidationResult<ModProfi
                 if (!parseSemVer(approval.version)) addIssue(issues, 'SEMVER_INVALID', `${path}.version`, 'Approval version must be exact SemVer');
                 if (!isModSha256(approval.manifestHash)) addIssue(issues, 'HASH_INVALID', `${path}.manifestHash`, 'Invalid manifest SHA-256');
                 if (!isModSha256(approval.contentHash)) addIssue(issues, 'HASH_INVALID', `${path}.contentHash`, 'Invalid content SHA-256');
-                const key = `${String(approval.id)}\0${String(approval.version)}`;
-                if (approvalKeys.has(key)) addIssue(issues, 'DUPLICATE_ADULT_APPROVAL', path, 'Adult approvals for one id@version must be unique');
-                approvalKeys.add(key);
+                if (typeof approval.id === 'string' && typeof approval.version === 'string') {
+                    const key = `${approval.id}\0${approval.version}`;
+                    if (approvalKeys.has(key)) addIssue(issues, 'DUPLICATE_ADULT_APPROVAL', path, 'Adult approvals for one id@version must be unique');
+                    approvalKeys.add(key);
+                }
             });
         }
     }
@@ -191,10 +202,11 @@ export function validateModProfile(value: unknown): ModValidationResult<ModProfi
 function parseBoundedJson<T>(
     input: string | Uint8Array,
     validator: (value: unknown) => ModValidationResult<T>,
+    maximumBytes: number,
 ): ModValidationResult<T> {
     const byteLength = typeof input === 'string' ? Buffer.byteLength(input, 'utf8') : input.byteLength;
-    if (byteLength > MAX_MOD_PROFILE_BYTES) {
-        return { ok: false, issues: [{ code: 'DOCUMENT_TOO_LARGE', path: '$', message: `Document exceeds ${MAX_MOD_PROFILE_BYTES} bytes` }] };
+    if (byteLength > maximumBytes) {
+        return { ok: false, issues: [{ code: 'DOCUMENT_TOO_LARGE', path: '$', message: `Document exceeds ${maximumBytes} bytes` }] };
     }
     try {
         const value = typeof input === 'string' ? parseStrictJson(input) : parseStrictJsonBytes(input);
@@ -212,11 +224,11 @@ function parseBoundedJson<T>(
 }
 
 export function parseModProfileText(text: string): ModValidationResult<ModProfile> {
-    return parseBoundedJson(text, validateModProfile);
+    return parseBoundedJson(text, validateModProfile, MAX_MOD_PROFILE_BYTES);
 }
 
 export function parseModProfileBytes(bytes: Uint8Array): ModValidationResult<ModProfile> {
-    return parseBoundedJson(bytes, validateModProfile);
+    return parseBoundedJson(bytes, validateModProfile, MAX_MOD_PROFILE_BYTES);
 }
 
 export function normalizeModProfile(profile: ModProfile): ModProfile {
@@ -269,6 +281,11 @@ export function validateModLock(value: unknown): ModValidationResult<ModLock> {
     if (!isRecord(value)) {
         return { ok: false, issues: [{ code: 'OBJECT_REQUIRED', path: '$', message: 'Lock must be a plain JSON object' }] };
     }
+    try {
+        if (Buffer.byteLength(canonicalizeModJson(value), 'utf8') > MAX_MOD_LOCK_BYTES) addIssue(issues, 'DOCUMENT_TOO_LARGE', '$', `Lock exceeds ${MAX_MOD_LOCK_BYTES} bytes`);
+    } catch {
+        return { ok: false, issues: [{ code: 'LOCK_NOT_CANONICAL_JSON', path: '$', message: 'Lock must contain only plain canonical JSON values' }] };
+    }
     checkAllowedKeys(value, [
         'format', 'resolverVersion', 'resolvedWithLoreRelay', 'profileHash', 'adultContentAllowed',
         'packages', 'loadOrder', 'selected', 'aggregateHash',
@@ -284,6 +301,7 @@ export function validateModLock(value: unknown): ModValidationResult<ModLock> {
     if (!Array.isArray(value.packages)) {
         addIssue(issues, 'ARRAY_REQUIRED', '$.packages', 'Expected an array');
     } else {
+        if (value.packages.length > MAX_MOD_LOCK_PACKAGES) addIssue(issues, 'LOCK_PACKAGE_LIMIT', '$.packages', `At most ${MAX_MOD_LOCK_PACKAGES} locked packages are allowed`);
         value.packages.forEach((item, index) => {
             const path = `$.packages[${index}]`;
             if (!isRecord(item)) {
@@ -298,10 +316,10 @@ export function validateModLock(value: unknown): ModValidationResult<ModLock> {
             if (typeof item.id === 'string' && packageIds.has(item.id)) addIssue(issues, 'DUPLICATE_LOCKED_ID', `${path}.id`, 'Locked package IDs must be unique');
             if (typeof item.id === 'string') packageIds.add(item.id);
             if (!parseSemVer(item.version)) addIssue(issues, 'SEMVER_INVALID', `${path}.version`, 'Expected exact SemVer');
-            if (!['global', 'workspace'].includes(String(item.source))) addIssue(issues, 'SOURCE_INVALID', `${path}.source`, 'Unsupported source');
+            if (typeof item.source !== 'string' || !['global', 'workspace'].includes(item.source)) addIssue(issues, 'SOURCE_INVALID', `${path}.source`, 'Unsupported source');
             if (!isModSha256(item.manifestHash)) addIssue(issues, 'HASH_INVALID', `${path}.manifestHash`, 'Invalid manifest SHA-256');
             if (!isModSha256(item.contentHash)) addIssue(issues, 'HASH_INVALID', `${path}.contentHash`, 'Invalid content SHA-256');
-            if (!['general', 'mature', 'adult'].includes(String(item.contentRating))) addIssue(issues, 'CONTENT_RATING_INVALID', `${path}.contentRating`, 'Unsupported content rating');
+            if (typeof item.contentRating !== 'string' || !['general', 'mature', 'adult'].includes(item.contentRating)) addIssue(issues, 'CONTENT_RATING_INVALID', `${path}.contentRating`, 'Unsupported content rating');
             if (!Array.isArray(item.contentTags) || item.contentTags.some(tag => typeof tag !== 'string')) {
                 addIssue(issues, 'ARRAY_REQUIRED', `${path}.contentTags`, 'Expected content tags');
             } else {
@@ -321,6 +339,7 @@ export function validateModLock(value: unknown): ModValidationResult<ModLock> {
             if (!Array.isArray(item.dependencies)) {
                 addIssue(issues, 'ARRAY_REQUIRED', `${path}.dependencies`, 'Expected dependencies');
             } else {
+                if (item.dependencies.length > 64) addIssue(issues, 'LOCK_DEPENDENCY_LIMIT', `${path}.dependencies`, 'At most 64 locked dependencies are allowed');
                 item.dependencies.forEach((dependency, dependencyIndex) => validateLockedDependency(dependency, `${path}.dependencies[${dependencyIndex}]`, issues));
             }
             if (item.engineCompatibility !== 'compatible') addIssue(issues, 'ENGINE_COMPATIBILITY_INVALID', `${path}.engineCompatibility`, 'Expected compatible');
@@ -368,6 +387,8 @@ export function validateModLock(value: unknown): ModValidationResult<ModLock> {
                 if (dependencyIndex > 0 && compareUnicodeCodePointOrder(pkg.dependencies[dependencyIndex - 1].id, dependency.id) >= 0) {
                     addIssue(issues, 'LOCKED_DEPENDENCY_ORDER_INVALID', dependencyPath, 'Locked dependencies must be sorted by MOD ID');
                 }
+                const dependencyOrder = typed.loadOrder.indexOf(dependency.id);
+                if (dependencyOrder >= packageIndex) addIssue(issues, 'LOCK_LOAD_ORDER_INVALID', dependencyPath, 'Every dependency must precede its dependent in loadOrder');
             });
         });
         if (typed.selected.campaignKit) {
@@ -393,9 +414,9 @@ export function validateModLock(value: unknown): ModValidationResult<ModLock> {
 }
 
 export function parseModLockText(text: string): ModValidationResult<ModLock> {
-    return parseBoundedJson(text, validateModLock);
+    return parseBoundedJson(text, validateModLock, MAX_MOD_LOCK_BYTES);
 }
 
 export function parseModLockBytes(bytes: Uint8Array): ModValidationResult<ModLock> {
-    return parseBoundedJson(bytes, validateModLock);
+    return parseBoundedJson(bytes, validateModLock, MAX_MOD_LOCK_BYTES);
 }

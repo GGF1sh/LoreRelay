@@ -157,7 +157,18 @@ export function modPathCollisionKey(value: string): string {
     if (!validation.ok || !validation.normalized) {
         throw new Error(`Invalid MOD relative path: ${validation.code ?? 'UNKNOWN'}`);
     }
-    return validation.normalized.toLowerCase();
+    return unicodeInvariantCaseFold(validation.normalized);
+}
+
+/**
+ * Locale-independent conservative Unicode fold for cross-platform path identity.
+ * Per-scalar uppercase expansion catches Windows-relevant cases such as sigma,
+ * sharp-s, and ligatures without locale-sensitive casing.
+ */
+export function unicodeInvariantCaseFold(value: string): string {
+    return Array.from(value.normalize('NFC'), character => character.toUpperCase())
+        .join('')
+        .normalize('NFC');
 }
 
 export function validateInstalledDirectoryIdentity(input: {

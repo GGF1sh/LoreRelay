@@ -1,4 +1,4 @@
-import { ModDataError, parseStrictJson, parseStrictJsonBytes } from './modHashCore';
+import { ModDataError, canonicalizeModJson, parseStrictJson, parseStrictJsonBytes } from './modHashCore';
 import {
     compareUnicodeCodePointOrder,
     isValidLocalResourceId,
@@ -144,7 +144,9 @@ const CAPABILITY_BY_ENTRYPOINT: Readonly<Record<ModEntrypointKey, ModCapability>
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === null || prototype === Object.prototype;
 }
 
 function comparePrerelease(left: ParsedSemVer, right: ParsedSemVer): number {
@@ -422,9 +424,15 @@ function validateEntrypoints(value: unknown, issues: ModValidationIssue[]): valu
             }
             const pathResult = validateModRelativePath(entry.path);
             if (!pathResult.ok) addIssue(issues, 'ENTRYPOINT_PATH_INVALID', `${entryPath}.path`, `Invalid package-relative path: ${pathResult.code ?? 'UNKNOWN'}`);
-            const identity = hasId ? String(entry.id) : hasLocale ? `${String(entry.locale)}\0${String(entry.path)}` : String(entry.path);
-            if (identities.has(identity)) addIssue(issues, 'DUPLICATE_ENTRYPOINT', entryPath, 'Duplicate entrypoint descriptor identity');
-            identities.add(identity);
+            const identity = hasId
+                ? (typeof entry.id === 'string' ? entry.id : undefined)
+                : hasLocale
+                    ? (typeof entry.locale === 'string' && typeof entry.path === 'string' ? `${entry.locale}\0${entry.path}` : undefined)
+                    : (typeof entry.path === 'string' ? entry.path : undefined);
+            if (identity !== undefined) {
+                if (identities.has(identity)) addIssue(issues, 'DUPLICATE_ENTRYPOINT', entryPath, 'Duplicate entrypoint descriptor identity');
+                identities.add(identity);
+            }
         });
     }
     if (total > MAX_MOD_ENTRYPOINTS_TOTAL) addIssue(issues, 'ENTRYPOINT_TOTAL_LIMIT', path, `At most ${MAX_MOD_ENTRYPOINTS_TOTAL} descriptors are allowed`);
@@ -435,6 +443,20 @@ export function validateModManifest(value: unknown): ModValidationResult<ModMani
     const issues: ModValidationIssue[] = [];
     if (!isRecord(value)) {
         return { ok: false, issues: [{ code: 'OBJECT_REQUIRED', path: '$', message: 'Manifest must be a plain JSON object' }] };
+    }
+    try {
+        if (Buffer.byteLength(canonicalizeModJson(value), 'utf8') > MAX_MOD_MANIFEST_BYTES) {
+            addIssue(issues, 'MANIFEST_TOO_LARGE', '$', `Canonical manifest exceeds ${MAX_MOD_MANIFEST_BYTES} bytes`);
+        }
+    } catch (error) {
+        return {
+            ok: false,
+            issues: [{
+                code: error instanceof ModDataError ? error.code : 'MANIFEST_NOT_JSON',
+                path: '$',
+                message: 'Manifest must contain only plain canonical JSON values',
+            }],
+        };
     }
     checkAllowedKeys(value, [
         'format', 'id', 'version', 'name', 'description', 'authors', 'lorerelay', 'contentRating',
@@ -465,7 +487,7 @@ export function validateModManifest(value: unknown): ModValidationResult<ModMani
             addIssue(issues, 'ENGINE_RANGE_EMPTY', '$.lorerelay.maxVersionExclusive', 'Maximum version must exceed minimum version');
         }
     }
-    if (!['general', 'mature', 'adult'].includes(String(value.contentRating))) {
+    if (typeof value.contentRating !== 'string' || !['general', 'mature', 'adult'].includes(value.contentRating)) {
         addIssue(issues, 'CONTENT_RATING_INVALID', '$.contentRating', 'Unsupported content rating');
     }
     const contentTagsValid = checkSortedUniqueSubset(value.contentTags, MOD_CONTENT_TAGS, '$.contentTags', issues);

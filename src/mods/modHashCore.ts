@@ -194,6 +194,9 @@ class StrictJsonParser {
         if (!Number.isFinite(value)) {
             this.fail('JSON_NON_FINITE_NUMBER', 'JSON number is outside the finite IEEE-754 range');
         }
+        if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+            this.fail('JSON_UNSAFE_INTEGER', 'JSON integer is outside the exact IEEE-754 safe range');
+        }
         return value;
     }
 
@@ -253,6 +256,9 @@ function canonicalizeJsonValue(value: unknown): string {
     if (typeof value === 'number') {
         if (!Number.isFinite(value)) {
             throw new ModDataError('JSON_NON_FINITE_NUMBER', 'Canonical JSON cannot contain a non-finite number');
+        }
+        if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+            throw new ModDataError('JSON_UNSAFE_INTEGER', 'Canonical JSON cannot contain an integer outside the exact IEEE-754 safe range');
         }
         return JSON.stringify(value);
     }

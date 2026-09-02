@@ -76,10 +76,23 @@ interface WalkedFile {
     bytes: Uint8Array;
 }
 
+interface PackageTreeSnapshotEntry {
+    path: string;
+    type: 'directory' | 'file';
+    size: number;
+    mode: number;
+    nlink: number;
+    dev: number;
+    ino: number;
+    mtimeMs: number;
+    ctimeMs: number;
+}
+
 interface ReadResult {
     ok: boolean;
     code?: string;
     bytes?: Uint8Array;
+    stats?: Stats;
 }
 
 function diagnostic(
@@ -112,6 +125,41 @@ function configuredPackagesRoot(roots: ModDiscoveryRoots, source: ModResolvedSou
 function isContained(root: string, target: string): boolean {
     const relative = path.relative(root, target);
     return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function packageTreeSnapshotEntry(relativePath: string, type: 'directory' | 'file', stats: Stats): PackageTreeSnapshotEntry {
+    return {
+        path: relativePath,
+        type,
+        size: stats.size,
+        mode: stats.mode,
+        nlink: stats.nlink,
+        dev: stats.dev,
+        ino: stats.ino,
+        mtimeMs: stats.mtimeMs,
+        ctimeMs: stats.ctimeMs,
+    };
+}
+
+function samePackageTreeSnapshotEntry(left: PackageTreeSnapshotEntry, right: PackageTreeSnapshotEntry): boolean {
+    return left.path === right.path
+        && left.type === right.type
+        && left.size === right.size
+        && left.mode === right.mode
+        && left.nlink === right.nlink
+        && left.dev === right.dev
+        && left.ino === right.ino
+        && left.mtimeMs === right.mtimeMs
+        && left.ctimeMs === right.ctimeMs;
+}
+
+function sortPackageTreeSnapshot(entries: PackageTreeSnapshotEntry[]): PackageTreeSnapshotEntry[] {
+    return entries.sort((left, right) => compareUnicodeCodePointOrder(left.path, right.path)
+        || compareUnicodeCodePointOrder(left.type, right.type));
+}
+
+function samePackageTreeSnapshot(left: readonly PackageTreeSnapshotEntry[], right: readonly PackageTreeSnapshotEntry[]): boolean {
+    return left.length === right.length && left.every((entry, index) => samePackageTreeSnapshotEntry(entry, right[index]));
 }
 
 async function readDirectoryBounded(absolutePath: string, maximumEntries: number): Promise<{ entries: Dirent[]; exceeded: boolean }> {
@@ -189,7 +237,7 @@ async function readOrdinaryFileBounded(input: {
             || !isContained(input.containmentRootReal, afterReal)) {
             return { ok: false, code: 'PACKAGE_CHANGED_DURING_READ' };
         }
-        return { ok: true, bytes };
+        return { ok: true, bytes, stats: pathAfter };
     } catch {
         return { ok: false, code: 'PACKAGE_FILE_READ_FAILED' };
     } finally {
@@ -389,12 +437,23 @@ async function walkExactPackage(input: {
     packageId: string;
     packageVersion: string;
     afterHandleStat?: (relativePath: string) => Promise<void>;
-}): Promise<{ files: WalkedFile[]; diagnostics: ModDiscoveryDiagnostic[] }> {
+}): Promise<{ files: WalkedFile[]; treeEntries: PackageTreeSnapshotEntry[]; diagnostics: ModDiscoveryDiagnostic[] }> {
     const diagnostics: ModDiscoveryDiagnostic[] = [];
     const files: WalkedFile[] = [];
+    const treeEntries: PackageTreeSnapshotEntry[] = [];
     const collisionKeys = new Set<string>();
     let directoryCount = 1;
     let totalBytes = 0;
+    try {
+        const rootStats = await lstat(input.packageRoot);
+        if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
+            diagnostics.push(diagnostic('PACKAGE_CHANGED_DURING_HASH', input.source, 'Package root changed before hashing', input.packageId, input.packageVersion));
+        } else {
+            treeEntries.push(packageTreeSnapshotEntry('', 'directory', rootStats));
+        }
+    } catch {
+        diagnostics.push(diagnostic('PACKAGE_CHANGED_DURING_HASH', input.source, 'Package root became unavailable before hashing', input.packageId, input.packageVersion));
+    }
     const queue: Array<{ absolute: string; relative: string }> = [{ absolute: input.packageRoot, relative: '' }];
     while (queue.length > 0 && diagnostics.length === 0) {
         const current = queue.shift()!;
@@ -446,6 +505,7 @@ async function walkExactPackage(input: {
                     diagnostics.push(diagnostic(checked.code, input.source, 'Directory is not one contained ordinary directory', input.packageId, input.packageVersion, relativePath));
                     break;
                 }
+                treeEntries.push(packageTreeSnapshotEntry(pathValidation.normalized, 'directory', stats));
                 queue.push({ absolute: absolutePath, relative: pathValidation.normalized });
                 continue;
             }
@@ -478,7 +538,7 @@ async function walkExactPackage(input: {
                 maximumBytes,
                 afterHandleStat: input.afterHandleStat ? () => input.afterHandleStat!(pathValidation.normalized!) : undefined,
             });
-            if (!read.ok || !read.bytes) {
+            if (!read.ok || !read.bytes || !read.stats) {
                 diagnostics.push(diagnostic(read.code ?? 'PACKAGE_FILE_READ_FAILED', input.source, 'Package file could not be read as one stable contained ordinary file', input.packageId, input.packageVersion, relativePath));
                 break;
             }
@@ -487,9 +547,137 @@ async function walkExactPackage(input: {
                 break;
             }
             files.push({ path: pathValidation.normalized, kind, bytes: read.bytes });
+            treeEntries.push(packageTreeSnapshotEntry(pathValidation.normalized, 'file', read.stats));
         }
     }
-    return { files, diagnostics };
+    return { files, treeEntries: sortPackageTreeSnapshot(treeEntries), diagnostics };
+}
+
+/**
+ * Re-enumerate package metadata after hashing. This deliberately reads no file
+ * contents, but verifies that the bounded tree is ordinary, contained, and
+ * stable throughout the final snapshot.
+ */
+async function snapshotExactPackageTree(input: {
+    packageRoot: string;
+    packageRootReal: string;
+    source: ModResolvedSource;
+    packageId: string;
+    packageVersion: string;
+}): Promise<{ treeEntries: PackageTreeSnapshotEntry[]; diagnostics: ModDiscoveryDiagnostic[] }> {
+    const diagnostics: ModDiscoveryDiagnostic[] = [];
+    const treeEntries: PackageTreeSnapshotEntry[] = [];
+    const observedNodes: Array<{ absolutePath: string; snapshot: PackageTreeSnapshotEntry }> = [];
+    const collisionKeys = new Set<string>();
+    let directoryCount = 1;
+    let fileCount = 0;
+    let totalBytes = 0;
+    try {
+        const rootStats = await lstat(input.packageRoot);
+        const rootReal = await realpath(input.packageRoot);
+        if (rootStats.isSymbolicLink() || !rootStats.isDirectory() || rootReal !== input.packageRootReal) {
+            throw new Error('package root changed');
+        }
+        const snapshot = packageTreeSnapshotEntry('', 'directory', rootStats);
+        treeEntries.push(snapshot);
+        observedNodes.push({ absolutePath: input.packageRoot, snapshot });
+    } catch {
+        return {
+            treeEntries,
+            diagnostics: [diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package root changed during final tree revalidation', input.packageId, input.packageVersion)],
+        };
+    }
+
+    const queue: Array<{ absolute: string; relative: string }> = [{ absolute: input.packageRoot, relative: '' }];
+    while (queue.length > 0 && diagnostics.length === 0) {
+        const current = queue.shift()!;
+        let entries: Dirent[];
+        try {
+            const bounded = await readDirectoryBounded(current.absolute, MAX_MOD_DISCOVERY_FILES_PER_PACKAGE + MAX_MOD_DISCOVERY_DIRECTORIES_PER_PACKAGE);
+            if (bounded.exceeded) throw new Error('entry limit');
+            entries = bounded.entries;
+        } catch {
+            diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package directory could not be enumerated within the bounded final tree revalidation', input.packageId, input.packageVersion, current.relative || undefined));
+            break;
+        }
+        for (const entry of entries) {
+            const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
+            const validation = validateModRelativePath(relativePath);
+            if (!validation.ok || !validation.normalized) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package path changed to an invalid path during final tree revalidation', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            const collisionKey = modPathCollisionKey(validation.normalized);
+            if (collisionKeys.has(collisionKey)) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package paths collide during final tree revalidation', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            collisionKeys.add(collisionKey);
+            const absolutePath = path.join(current.absolute, entry.name);
+            let stats: Stats;
+            let resolved: string;
+            try {
+                stats = await lstat(absolutePath);
+                resolved = await realpath(absolutePath);
+            } catch {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package entry became unavailable during final tree revalidation', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            if (stats.isSymbolicLink() || !isContained(input.packageRootReal, resolved)) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package entry became linked or escaped containment during final tree revalidation', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            if (stats.isDirectory()) {
+                directoryCount += 1;
+                if (directoryCount > MAX_MOD_DISCOVERY_DIRECTORIES_PER_PACKAGE) {
+                    diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package directory count changed beyond its bounded limit', input.packageId, input.packageVersion, relativePath));
+                    break;
+                }
+                const snapshot = packageTreeSnapshotEntry(validation.normalized, 'directory', stats);
+                treeEntries.push(snapshot);
+                observedNodes.push({ absolutePath, snapshot });
+                queue.push({ absolute: absolutePath, relative: validation.normalized });
+                continue;
+            }
+            if (!stats.isFile() || stats.nlink !== 1) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package entry is no longer one ordinary file', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            fileCount += 1;
+            if (fileCount > MAX_MOD_DISCOVERY_FILES_PER_PACKAGE) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package file count changed beyond its bounded limit', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            const kind = classifyFile(validation.normalized);
+            if (!kind || stats.size > fileSizeLimit(kind)) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package file type or size changed during final tree revalidation', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            totalBytes += stats.size;
+            if (totalBytes > MAX_MOD_DISCOVERY_BYTES_PER_PACKAGE) {
+                diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package byte count changed beyond its bounded limit', input.packageId, input.packageVersion, relativePath));
+                break;
+            }
+            const snapshot = packageTreeSnapshotEntry(validation.normalized, 'file', stats);
+            treeEntries.push(snapshot);
+            observedNodes.push({ absolutePath, snapshot });
+        }
+    }
+
+    for (const node of diagnostics.length === 0 ? observedNodes : []) {
+        try {
+            const after = await lstat(node.absolutePath);
+            const afterType = after.isDirectory() ? 'directory' : after.isFile() ? 'file' : undefined;
+            if (!afterType || after.isSymbolicLink()
+                || !samePackageTreeSnapshotEntry(node.snapshot, packageTreeSnapshotEntry(node.snapshot.path, afterType, after))) {
+                throw new Error('node changed');
+            }
+        } catch {
+            diagnostics.push(diagnostic('PACKAGE_TREE_REVALIDATION_FAILED', input.source, 'Package entry changed while the final tree snapshot was being verified', input.packageId, input.packageVersion, node.snapshot.path || undefined));
+            break;
+        }
+    }
+    return { treeEntries: sortPackageTreeSnapshot(treeEntries), diagnostics };
 }
 
 function declaredDirectPaths(manifest: ModManifest): string[] {
@@ -582,6 +770,24 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
     }
     try {
         const packageHash = hashNormalizedModPackage(walked.files);
+        const finalTree = await snapshotExactPackageTree({
+            packageRoot,
+            packageRootReal: checkedPackage.real,
+            source: input.source,
+            packageId: input.id,
+            packageVersion: input.version,
+        });
+        if (finalTree.diagnostics.length > 0 || !samePackageTreeSnapshot(walked.treeEntries, finalTree.treeEntries)) {
+            return {
+                diagnostics: [diagnostic(
+                    'PACKAGE_TREE_CHANGED_DURING_HASH',
+                    input.source,
+                    'Package tree was added to, removed from, renamed, or otherwise changed during hashing',
+                    input.id,
+                    input.version,
+                )],
+            };
+        }
         return {
             candidate: {
                 source: input.source,

@@ -4,6 +4,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry, GameStateWorld } from './types/GameState';
+import { parseModContext, type ModContext } from './mods/modSafeModeCore';
+import {
+    isModCanonicalAuthorizationCurrent,
+    type ModCanonicalAuthorization,
+} from './mods/modActivationGateHost';
 import { isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { applyFogOnLocationVisit, normalizeFogWorldState } from './fogOfWarCore';
 import { applyCartographyReveal, parseCartographyReveal } from './cartographyRevealCore';
@@ -335,7 +340,11 @@ export function applyStatePatch(state: Record<string, unknown>, patches: StatePa
 }
 
 /** turn_result の narration / gmEntry を game_state.entries にマージする。 */
-export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult: TurnResult): Record<string, unknown> {
+export function mergeGmEntryFromTurn(
+    state: Record<string, unknown>,
+    turnResult: TurnResult,
+    modContext?: ModContext,
+): Record<string, unknown> {
     const narration = typeof turnResult.narration === 'string' ? turnResult.narration.trim() : '';
     if (!narration || !isValidEntryId(turnResult.turnId)) {
         return state;
@@ -352,6 +361,8 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
         sender,
         content: narration
     };
+    const verifiedModContext = parseModContext(modContext);
+    if (verifiedModContext) entry.modContext = { ...verifiedModContext };
 
     if (gmMeta?.speakerNpcId && isValidEntryId(gmMeta.speakerNpcId)) {
         entry.speakerNpcId = gmMeta.speakerNpcId;
@@ -597,9 +608,10 @@ function applyDomainTravelDrift(
 function applyTurnGameStateFinalize(
     turnResult: TurnResult,
     state: Record<string, unknown>,
-    persistWorld: boolean
+    persistWorld: boolean,
+    modContext?: ModContext,
 ): Record<string, unknown> {
-    let next = mergeGmEntryFromTurn(state, turnResult);
+    let next = mergeGmEntryFromTurn(state, turnResult, modContext);
     const asGame = next as unknown as import('./types/GameState').GameState;
     next = applyLivingWorldTurnOps(
         turnResult,
@@ -621,7 +633,8 @@ function applyTurnGameStateFinalize(
 export function applyTurnResultToGameState(
     turnResult: TurnResult,
     baseState: Record<string, unknown>,
-    persistWorld = true
+    persistWorld = true,
+    modContext?: ModContext,
 ): Record<string, unknown> {
     const prevWorld = baseState.world as GameStateWorld | undefined;
     const prevLocationId = typeof prevWorld?.currentLocationId === 'string'
@@ -645,7 +658,7 @@ export function applyTurnResultToGameState(
         patched = applyDomainTravelDrift(patched, prevLocationId, ws.worldTurn);
         patched = applyGuildTravelDrift(patched, prevLocationId, ws.worldTurn);
     }
-    return applyTurnGameStateFinalize(turnResult, patched, persistWorld);
+    return applyTurnGameStateFinalize(turnResult, patched, persistWorld, modContext);
 }
 
 function normalizeStatusArrayFields(state: Record<string, unknown>): Record<string, unknown> {
@@ -668,10 +681,16 @@ function normalizeStatusArrayFields(state: Record<string, unknown>): Record<stri
 
 export function processTurnResult(
     turnResult: TurnResult,
-    acceptedTurnContext?: AcceptedTurnCommitContext
+    acceptedTurnContext?: AcceptedTurnCommitContext,
+    modContext?: ModContext,
+    modAuthorization?: ModCanonicalAuthorization,
 ): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath) {
+        return false;
+    }
+    if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) {
+        console.error('[statePatch] MOD activation authorization is no longer current.');
         return false;
     }
 
@@ -693,6 +712,7 @@ export function processTurnResult(
             ABSOLUTE_MAX_BULK_WORLD_STEPS
         );
         if (elapsedWorldTurns > 0) {
+            if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) return false;
             const simResult = persistWorldSimulationSteps(elapsedWorldTurns, ABSOLUTE_MAX_BULK_WORLD_STEPS);
             if (!simResult.ok) {
                 console.warn(`[statePatch] elapsedWorldTurns skipped: ${simResult.reason}`);
@@ -740,15 +760,16 @@ export function processTurnResult(
                 worldStateDirty = true;
             }
             if (worldStateDirty) {
+                if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) return false;
                 saveWorldState(worldState);
             }
         }
 
-        let commitState = applyTurnGameStateFinalize(turnResult, state, true);
+        let commitState = applyTurnGameStateFinalize(turnResult, state, true, modContext);
 
         const freshDisk = readGameStateRecord(statePath);
         if (readStateRevision(freshDisk) > baseRevision) {
-            commitState = applyTurnResultToGameState(turnResult, freshDisk, false);
+            commitState = applyTurnResultToGameState(turnResult, freshDisk, false, modContext);
         }
 
         pendingAutoLocationImage = undefined;
@@ -791,6 +812,10 @@ export function processTurnResult(
         }
 
         const afterHash = hashGameState(commitState);
+        if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) {
+            console.error('[statePatch] MOD activation authorization changed before game_state commit.');
+            return false;
+        }
         const commit = commitGameState(commitState, {
             mode: 'salvage',
             baseRevision,

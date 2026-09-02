@@ -13,6 +13,7 @@ import {
     MAX_STATUS_FIELD_STR,
     MAX_STATUS_ITEM_LEN,
 } from './gameStateSanitize';
+import { parseModContext } from './mods/modSafeModeCore';
 
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -93,6 +94,9 @@ export function validateGameState(obj: unknown): string[] {
                 if (typeof e.speakerNpcId !== 'string' || !ENTRY_ID_PATTERN.test(e.speakerNpcId)) {
                     errors.push(`entries[${i}].speakerNpcId has invalid format`);
                 }
+            }
+            if (e.modContext !== undefined && !parseModContext(e.modContext)) {
+                errors.push(`entries[${i}].modContext must be a valid lorerelay-mod-context/1 marker`);
             }
         });
     }

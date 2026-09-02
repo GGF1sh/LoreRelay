@@ -287,6 +287,14 @@ import {
     type DeterministicWorkspaceMutationLease,
     WORLD_MUTATION_IN_PROGRESS,
 } from './deterministicWorkspaceMutationGate';
+import {
+    acquireModCanonicalAuthorization,
+    areModCanonicalWritesAllowed,
+    clearModActivationGateRuntime,
+    evaluateModActivationGate,
+    getModActivationGateResult,
+    isModCanonicalAuthorizationCurrent,
+} from './mods/modActivationGateHost';
 
 let panel: vscode.WebviewPanel | undefined;
 let worldGenesisPreviewSession: WorldGenesisPreviewSession | undefined;
@@ -330,6 +338,32 @@ const OPENROUTER_SECRET_KEY = 'lorerelay.openrouter.apiKey';
 const TTS_EXTERNAL_SECRET_KEY = 'lorerelay.tts.external.apiKey';
 const MAX_PLAYER_INPUT_LENGTH = 2000;
 
+async function requireModCanonicalMutationAllowed(showError = true): Promise<boolean> {
+    const workspaceRoot = getWorkspacePath();
+    if (!workspaceRoot) return true;
+    if (!getModActivationGateResult(workspaceRoot)) {
+        const extensionVersion = typeof extensionContext?.extension.packageJSON.version === 'string'
+            ? extensionContext.extension.packageJSON.version
+            : '';
+        await evaluateModActivationGate({
+            workspaceRoot,
+            ...(extensionContext ? { globalStorageRoot: extensionContext.globalStorageUri.fsPath } : {}),
+            currentLoreRelayVersion: extensionVersion,
+            adultSessionAllowed: false,
+        });
+    }
+    const authorization = await acquireModCanonicalAuthorization(workspaceRoot);
+    const allowed = authorization !== undefined && isModCanonicalAuthorizationCurrent(authorization);
+    if (!allowed && showError) {
+        void vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks provider requests and canonical mutations until the MOD lock is repaired.');
+    }
+    return allowed;
+}
+
+async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    await handleWebviewMessage(message, createWebviewHandlerDeps());
+}
+
 function getPanel(): vscode.WebviewPanel | undefined {
     return panel;
 }
@@ -338,6 +372,7 @@ export function activate(context: vscode.ExtensionContext) {
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
     context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
+    context.subscriptions.push({ dispose: () => clearModActivationGateRuntime() });
     clearGameRulesCache();
     initI18n(context.extensionPath);
 
@@ -409,6 +444,25 @@ export function activate(context: vscode.ExtensionContext) {
         if (panel) {
             panel.reveal(vscode.ViewColumn.One);
             return;
+        }
+
+        const workspaceRoot = getWorkspacePath();
+        if (workspaceRoot) {
+            const extensionVersion = typeof context.extension.packageJSON.version === 'string'
+                ? context.extension.packageJSON.version
+                : '';
+            const activation = await evaluateModActivationGate({
+                workspaceRoot,
+                globalStorageRoot: context.globalStorageUri.fsPath,
+                currentLoreRelayVersion: extensionVersion,
+                // Adult session permission remains unavailable until its explicit UI slice.
+                adultSessionAllowed: false,
+            });
+            if (activation.decision.mode === 'safe-required') {
+                const codes = activation.decision.blockers.map(item => item.code).join(', ');
+                vscode.window.showErrorMessage(`LoreRelay: MOD Safe Mode is required; normal campaign startup was blocked (${codes}).`);
+                return;
+            }
         }
 
         const skillDir = getSkillDir();
@@ -485,7 +539,7 @@ export function activate(context: vscode.ExtensionContext) {
         sendRelayModeStatus();
 
         panel.webview.onDidReceiveMessage(
-            (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
+            (message) => dispatchGateCheckedWebviewMessage(message as WebviewMessage),
             undefined,
             context.subscriptions
         );
@@ -520,7 +574,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
-    registerCoreCommands(context, importStLorebook);
+    registerCoreCommands(context, importStLorebook, requireModCanonicalMutationAllowed);
 
     const setOpenRouterKeyCmd = vscode.commands.registerCommand('textadventure.setOpenRouterApiKey', () => {
         void setOpenRouterApiKey(context);
@@ -543,7 +597,9 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const startRemotePlayCmd = vscode.commands.registerCommand('textadventure.startRemotePlay', () => {
-        void toggleRemotePlay(true);
+        void requireModCanonicalMutationAllowed().then(allowed => {
+            if (allowed) void toggleRemotePlay(true);
+        });
     });
 
     const stopRemotePlayCmd = vscode.commands.registerCommand('textadventure.stopRemotePlay', () => {
@@ -555,7 +611,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const generateWorldMapImageCmd = vscode.commands.registerCommand('textadventure.generateWorldMapImage', async () => {
-        await handleGenerateWorldMapImage();
+        if (await requireModCanonicalMutationAllowed()) await handleGenerateWorldMapImage();
     });
 
     const listLmModelsCmd = vscode.commands.registerCommand('textadventure.listLmModels', async () => {
@@ -575,7 +631,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const resetProtagonistBootstrapCmd = vscode.commands.registerCommand(
         'textadventure.resetProtagonistBootstrap',
-        () => { void resetProtagonistBootstrapFlag(); }
+        () => { void requireModCanonicalMutationAllowed().then(allowed => { if (allowed) return resetProtagonistBootstrapFlag(); }); }
     );
 
     const exportReplayCmd = vscode.commands.registerCommand('textadventure.exportReplay', () => {
@@ -583,7 +639,11 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const promoteParlorCmd = vscode.commands.registerCommand('textadventure.promoteParlorToCampaign', () => {
-        void promoteParlorToCampaign().then((result) => {
+        void requireModCanonicalMutationAllowed().then(async allowed => {
+            if (!allowed) return undefined;
+            return promoteParlorToCampaign();
+        }).then((result) => {
+            if (!result) return;
             if (result.ok) {
                 void sendUiState(0, true);
             }
@@ -607,30 +667,31 @@ export function activate(context: vscode.ExtensionContext) {
 
     const retryFailedTransactionsCmd = vscode.commands.registerCommand(
         'textadventure.retryFailedTransactions',
-        () => { void runRetryFailedTransactionsCommand(); }
+        () => { void requireModCanonicalMutationAllowed().then(allowed => { if (allowed) return runRetryFailedTransactionsCommand(); }); }
     );
 
     const applyVehicleStateMigrationCmd = vscode.commands.registerCommand(
         'textadventure.applyVehicleStateMigration',
-        () => { void runApplyVehicleStateMigrationCommand(); }
+        () => { void requireModCanonicalMutationAllowed().then(allowed => { if (allowed) return runApplyVehicleStateMigrationCommand(); }); }
     );
 
     const restoreVehicleStateMigrationBackupCmd = vscode.commands.registerCommand(
         'textadventure.restoreVehicleStateMigrationBackup',
-        () => { void runRestoreVehicleStateMigrationBackupCommand(); }
+        () => { void requireModCanonicalMutationAllowed().then(allowed => { if (allowed) return runRestoreVehicleStateMigrationBackupCommand(); }); }
     );
 
     const upgradeVehicleStateForGameplaySpineCmd = vscode.commands.registerCommand(
         'textadventure.upgradeVehicleStateForGameplaySpine',
-        () => { void runUpgradeVehicleStateForGameplaySpineCommand(); }
+        () => { void requireModCanonicalMutationAllowed().then(allowed => { if (allowed) return runUpgradeVehicleStateForGameplaySpineCommand(); }); }
     );
 
     const gameplaySpineRepairVehicleCmd = vscode.commands.registerCommand(
         'textadventure.gameplaySpineRepairVehicle',
-        () => { void runGameplaySpineVehicleRepairCommand(); }
+        () => { void requireModCanonicalMutationAllowed().then(allowed => { if (allowed) return runGameplaySpineVehicleRepairCommand(); }); }
     );
 
     const generateWorldForgeCmd = vscode.commands.registerCommand('textadventure.generateWorldForge', async () => {
+        if (!(await requireModCanonicalMutationAllowed())) return;
         const defaults = getDefaultGeneratorInput();
         const seed = await vscode.window.showInputBox({
             prompt: 'World seed (letters, digits, hyphens, underscores — determines the generated world)',
@@ -659,8 +720,8 @@ export function activate(context: vscode.ExtensionContext) {
         );
     });
 
-    const openBattleViewCmd = vscode.commands.registerCommand('textadventure.openBattleView', () => {
-        openBattleView(context);
+    const openBattleViewCmd = vscode.commands.registerCommand('textadventure.openBattleView', async () => {
+        if (await requireModCanonicalMutationAllowed()) openBattleView(context);
     });
 
     campaignCombatCoordinator = new CampaignCombatSessionCoordinator(
@@ -671,27 +732,35 @@ export function activate(context: vscode.ExtensionContext) {
     );
     // Lets the post-commit boundary in statePatch start a story-declared
     // encounter without importing the extension entry point.
-    registerStoryCombatStarter(request => campaignCombatCoordinator?.startFromRequest(request)
-        ?? { ok: false, error: 'NO_COMBAT_COORDINATOR' });
+    registerStoryCombatStarter(request => {
+        const ws = getWorkspacePath();
+        if (ws && !areModCanonicalWritesAllowed(ws)) return { ok: false, error: 'MOD_SAFE_MODE_REQUIRED' };
+        return campaignCombatCoordinator?.startFromRequest(request)
+            ?? { ok: false, error: 'NO_COMBAT_COORDINATOR' };
+    });
     combatCommandPlaytestHost.setSessionObserver(() => {
-        campaignCombatCoordinator?.observeHostSession();
-        // V1-B: exactly-once apply when a campaign session reaches durable PENDING
-        const st = campaignCombatCoordinator?.getState();
-        if (st?.lifecycle === 'receipt_pending') {
-            const ws = getWorkspacePath();
-            if (ws) {
-                try {
-                    applyAllPendingCombatOutcomes(ws);
-                } catch (e) {
-                    console.error('[campaignCombat] apply pending failed', e);
+        void requireModCanonicalMutationAllowed(false).then(allowed => {
+            if (!allowed) return;
+            campaignCombatCoordinator?.observeHostSession();
+            // V1-B: exactly-once apply when a campaign session reaches durable PENDING
+            const st = campaignCombatCoordinator?.getState();
+            if (st?.lifecycle === 'receipt_pending') {
+                const ws = getWorkspacePath();
+                if (ws) {
+                    try {
+                        applyAllPendingCombatOutcomes(ws);
+                    } catch (e) {
+                        console.error('[campaignCombat] apply pending failed', e);
+                    }
                 }
             }
-        }
+        });
     });
 
     const startCampaignCombatDebugCmd = vscode.commands.registerCommand(
         'textadventure.startCampaignCombatDebug',
-        () => {
+        async () => {
+            if (!(await requireModCanonicalMutationAllowed())) return;
             const result = campaignCombatCoordinator?.startDebug({ mode: 'command', autoRun: true });
             if (!result?.ok) {
                 void vscode.window.showErrorMessage(
@@ -721,12 +790,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     const applyPendingCombatOutcomesCmd = vscode.commands.registerCommand(
         'textadventure.applyPendingCombatOutcomes',
-        () => {
+        async () => {
             const ws = getWorkspacePath();
             if (!ws) {
                 void vscode.window.showWarningMessage('Open a workspace to apply combat outcomes.');
                 return;
             }
+            if (!(await requireModCanonicalMutationAllowed())) return;
             const results = applyAllPendingCombatOutcomes(ws);
             const applied = results.filter(r => r.ok && r.status === 'applied').length;
             const already = results.filter(r => r.ok && r.status === 'already_applied').length;
@@ -1165,6 +1235,9 @@ async function handleAcceptedPlayerInput(
     presentationText?: string
 ): Promise<{ relayRequestId?: string } | undefined> {
     let trimmed = initialText;
+
+    // This guard deliberately precedes Parlor/InWorld/provider branches.
+    if (!(await requireModCanonicalMutationAllowed())) return;
 
     if (isParlorMode()) {
         await handleParlorPlayerInput(trimmed);
@@ -2419,7 +2492,7 @@ function openBattleView(context: vscode.ExtensionContext): void {
     });
 
     battleViewPanel.webview.onDidReceiveMessage(
-        (message) => handleWebviewMessage(message as WebviewMessage, createWebviewHandlerDeps()),
+        (message) => dispatchGateCheckedWebviewMessage(message as WebviewMessage),
         undefined,
         context.subscriptions
     );
@@ -2433,6 +2506,7 @@ function openBattleView(context: vscode.ExtensionContext): void {
 
 function createWebviewHandlerDeps(): WebviewHandlerDeps {
     return {
+        authorizeCanonicalMutation: requireModCanonicalMutationAllowed,
         handlePlayerInput,
         cancelGmTurn: () => {
             cancelGmBridgeRun(activeGameplayRequestCount > 0);

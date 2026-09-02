@@ -94,6 +94,22 @@ const npcTagged = mergeGmEntryFromTurn(baseState, {
 assertEqual(npcTagged.entries[0].sender, 'Alice', 'mergeGmEntry gmEntry.sender');
 assertEqual(npcTagged.entries[0].speakerNpcId, 'npc_alice', 'mergeGmEntry gmEntry.speakerNpcId');
 
+const activeModContext = {
+  format: 'lorerelay-mod-context/1',
+  lockFingerprint: `sha256:${'a'.repeat(64)}`,
+  adultActive: false
+};
+const modTagged = mergeGmEntryFromTurn(baseState, {
+  turnId: 'turn-mod',
+  narration: 'A verified MOD-loadout turn.'
+}, activeModContext);
+assertEqual(modTagged.entries[0].modContext, activeModContext, 'mergeGmEntry persists verified MOD context');
+const invalidModTagged = mergeGmEntryFromTurn(baseState, {
+  turnId: 'turn-invalid-mod',
+  narration: 'Invalid provenance must not persist.'
+}, { ...activeModContext, lockFingerprint: 'forged' });
+assertEqual(invalidModTagged.entries[0].modContext, undefined, 'mergeGmEntry rejects invalid MOD context');
+
 // hashGameState stability
 const h1 = hashGameState(baseState);
 const h2 = hashGameState(JSON.parse(JSON.stringify(baseState)));

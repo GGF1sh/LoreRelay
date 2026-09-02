@@ -7,6 +7,14 @@ import {
     attachCombatBattleHistoryToSnapshot,
     extractCombatBattleHistoryForCheckpoint,
 } from './checkpointCombatCore';
+import { parseModContext } from './mods/modSafeModeCore';
+import {
+    areModCanonicalWritesAllowed,
+    getModActivationGateResult,
+    isModCanonicalAuthorizationCurrent,
+    type ModCanonicalAuthorization,
+} from './mods/modActivationGateHost';
+import { validateModLock, type ModLock } from './mods/modProfileCore';
 
 export type { CombatBattleHistoryEntry };
 export {
@@ -23,8 +31,8 @@ export interface CheckpointMeta {
 }
 
 export interface CheckpointFile {
-    /** 1.0: history only. 1.1: optional combatBattleHistory for V1-C consequence restore. */
-    format: 'text-adventure-checkpoint/1.0' | 'text-adventure-checkpoint/1.1';
+    /** 1.0: history. 1.1: combat history. 1.2: exact MOD-lock evidence. */
+    format: 'text-adventure-checkpoint/1.0' | 'text-adventure-checkpoint/1.1' | 'text-adventure-checkpoint/1.2';
     meta: CheckpointMeta;
     history: GameEntry[];
     /**
@@ -32,6 +40,10 @@ export interface CheckpointFile {
      * Required so restore/rebuild does not drop un-ACKed combat consequence facts.
      */
     combatBattleHistory?: CombatBattleHistoryEntry[];
+    /** Complete path-free lock. Present together with modLockFingerprint only in 1.2. */
+    modLockSnapshot?: ModLock;
+    /** Exact aggregateHash of modLockSnapshot. */
+    modLockFingerprint?: string;
 }
 
 export interface GmSnapshot {
@@ -61,6 +73,7 @@ export function isValidCheckpointId(checkpointId: string): boolean {
 }
 
 export function buildStateFromGmEntry(entry: GameEntry & Record<string, unknown>): GmSnapshot {
+    const modContext = parseModContext(entry.modContext);
     const state: GmSnapshot = {
         entries: [{
             id: entry.id,
@@ -71,7 +84,8 @@ export function buildStateFromGmEntry(entry: GameEntry & Record<string, unknown>
             ...(entry.imagePrompt ? { imagePrompt: entry.imagePrompt as string } : {}),
             ...(typeof entry.imageBlocked === 'boolean' ? { imageBlocked: entry.imageBlocked as boolean } : {}),
             ...(typeof entry.excludedFromPrompt === 'boolean' ? { excludedFromPrompt: entry.excludedFromPrompt as boolean } : {}),
-            ...(entry.editedAt ? { editedAt: entry.editedAt as string } : {})
+            ...(entry.editedAt ? { editedAt: entry.editedAt as string } : {}),
+            ...(modContext ? { modContext: { ...modContext } } : {})
         }],
         status: (entry.status as Record<string, unknown>) || {},
         options: Array.isArray(entry.options) ? [...(entry.options as string[])] : [],
@@ -142,8 +156,8 @@ export function listCheckpointMetas(ws: string): CheckpointMeta[] {
             continue;
         }
         try {
-            const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as CheckpointFile;
-            if (data.meta?.id) {
+            const data = parseCheckpointFile(JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as unknown);
+            if (data?.meta.id) {
                 metas.push(data.meta);
             }
         } catch {
@@ -161,8 +175,25 @@ export function saveCheckpointFile(
         /** Explicit combat history; if omitted, read from game_state.json when present. */
         combatBattleHistory?: CombatBattleHistoryEntry[];
         gameState?: Record<string, unknown>;
+        /** Trusted active lock from the campaign activation gate. */
+        modLockSnapshot?: ModLock;
+        /** Short-lived gate lease checked at the final filesystem write boundary. */
+        modAuthorization?: ModCanonicalAuthorization;
     },
 ): CheckpointMeta | undefined {
+    if (!areModCanonicalWritesAllowed(ws)) return undefined;
+    const authorization = options?.modAuthorization;
+    if (authorization
+        && (path.resolve(ws) !== authorization.workspaceRoot || !isModCanonicalAuthorizationCurrent(authorization))) {
+        return undefined;
+    }
+    const active = getModActivationGateResult(ws);
+    if (!authorization && (active?.decision.mode === 'normal' || options?.modLockSnapshot)) return undefined;
+    if (authorization?.mode === 'unmodded' && options?.modLockSnapshot) return undefined;
+    const authorizedLock = authorization?.mode === 'modded' ? authorization.lock : undefined;
+    if (authorizedLock && options?.modLockSnapshot
+        && authorizedLock.aggregateHash !== options.modLockSnapshot.aggregateHash) return undefined;
+    if (!authorizedLock && history.some(entry => entry.modContext !== undefined)) return undefined;
     const gm = findLastGmEntry(history);
     if (!gm?.id) {
         return undefined;
@@ -193,18 +224,43 @@ export function saveCheckpointFile(
         }
     }
 
+    const validatedLock = authorizedLock
+        ? validateModLock(authorizedLock)
+        : undefined;
+    if (validatedLock && !validatedLock.ok) {
+        return undefined;
+    }
+    const modLockSnapshot = validatedLock?.ok
+        ? JSON.parse(JSON.stringify(validatedLock.value)) as ModLock
+        : undefined;
     const payload: CheckpointFile = {
-        format: combatBattleHistory && combatBattleHistory.length > 0
-            ? 'text-adventure-checkpoint/1.1'
-            : 'text-adventure-checkpoint/1.0',
+        format: modLockSnapshot
+            ? 'text-adventure-checkpoint/1.2'
+            : combatBattleHistory && combatBattleHistory.length > 0
+                ? 'text-adventure-checkpoint/1.1'
+                : 'text-adventure-checkpoint/1.0',
         meta,
         history: JSON.parse(JSON.stringify(history)),
         ...(combatBattleHistory && combatBattleHistory.length > 0
             ? { combatBattleHistory: JSON.parse(JSON.stringify(combatBattleHistory)) }
             : {}),
+        ...(modLockSnapshot
+            ? {
+                modLockSnapshot,
+                modLockFingerprint: modLockSnapshot.aggregateHash,
+            }
+            : {}),
     };
     const dir = getCheckpointsDir(ws);
+    if (options?.modAuthorization
+        && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
+        return undefined;
+    }
     fs.mkdirSync(dir, { recursive: true });
+    if (options?.modAuthorization
+        && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
+        return undefined;
+    }
     writeJsonAtomic(path.join(dir, `${id}.json`), payload);
     return meta;
 }
@@ -218,13 +274,44 @@ export function loadCheckpointFile(ws: string, checkpointId: string): Checkpoint
         return undefined;
     }
     try {
-        return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as CheckpointFile;
+        return parseCheckpointFile(JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown);
     } catch {
         return undefined;
     }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Validates the format-level contract while preserving legacy 1.0/1.1 payload compatibility. */
+export function parseCheckpointFile(value: unknown): CheckpointFile | undefined {
+    if (!isRecord(value)
+        || !['text-adventure-checkpoint/1.0', 'text-adventure-checkpoint/1.1', 'text-adventure-checkpoint/1.2'].includes(String(value.format))
+        || !isRecord(value.meta)
+        || !isValidCheckpointId(value.meta.id as string)
+        || typeof value.meta.label !== 'string'
+        || typeof value.meta.createdAt !== 'string'
+        || typeof value.meta.turnId !== 'string'
+        || typeof value.meta.turnLabel !== 'string'
+        || !Array.isArray(value.history)) {
+        return undefined;
+    }
+    if (value.format === 'text-adventure-checkpoint/1.2') {
+        const lock = validateModLock(value.modLockSnapshot);
+        if (!lock.ok
+            || typeof value.modLockFingerprint !== 'string'
+            || value.modLockFingerprint !== lock.value.aggregateHash) {
+            return undefined;
+        }
+    } else if (value.modLockSnapshot !== undefined || value.modLockFingerprint !== undefined) {
+        return undefined;
+    }
+    return value as unknown as CheckpointFile;
+}
+
 export function deleteCheckpointFile(ws: string, checkpointId: string): boolean {
+    if (!areModCanonicalWritesAllowed(ws)) return false;
     if (!isValidCheckpointId(checkpointId)) {
         return false;
     }

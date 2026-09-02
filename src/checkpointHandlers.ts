@@ -35,6 +35,23 @@ import { commitGameState } from './stateManager';
 import {
     runAcceptedTurnTimelineRestoreTransaction,
 } from './acceptedTurnReplayGuard';
+import { assessModCheckpointRestore } from './mods/modActivationGateCore';
+import {
+    acquireModCanonicalAuthorization,
+    getModActivationGateResult,
+    isModCanonicalAuthorizationCurrent,
+    type ModCanonicalAuthorization,
+} from './mods/modActivationGateHost';
+import type { ModOpenDecision } from './mods/modSafeModeCore';
+
+const UNMODDED_OPEN_DECISION: ModOpenDecision = {
+    mode: 'unmodded',
+    contributionsActive: false,
+    canonicalWritesAllowed: true,
+    providerRequestsAllowed: true,
+    blockers: [],
+    warnings: [],
+};
 
 export interface CheckpointHandlerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -81,10 +98,19 @@ function writeGameStateToDisk(
 async function runTimelineRestore(
     ws: string,
     reason: string,
-    restoreMutation: () => Promise<boolean> | boolean
+    restoreMutation: () => Promise<boolean> | boolean,
+    existingAuthorization?: ModCanonicalAuthorization,
 ): Promise<boolean> {
+    const authorization = existingAuthorization ?? await acquireModCanonicalAuthorization(ws);
+    if (!authorization || !isModCanonicalAuthorizationCurrent(authorization)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks timeline mutation until the MOD lock is repaired.');
+        return false;
+    }
     const result = await runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
         clearTurnResultRawHashAuthorityForEpochChange();
+        if (!isModCanonicalAuthorizationCurrent(authorization)) {
+            throw new Error('MOD activation authorization changed before timeline restore');
+        }
         const ok = await restoreMutation();
         if (!ok) {
             throw new Error('restore mutation did not complete');
@@ -316,12 +342,20 @@ export async function handleSaveCheckpoint(label?: string): Promise<void> {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
+    const authorization = await acquireModCanonicalAuthorization(ws);
+    if (!authorization || !isModCanonicalAuthorizationCurrent(authorization)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks checkpoint writes until the MOD lock is repaired.');
+        return;
+    }
     const history = getGameEntryHistory();
     if (history.length === 0) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
     }
-    const meta = saveCheckpointFile(ws, history, label);
+    const meta = saveCheckpointFile(ws, history, label, {
+        ...(authorization.mode === 'modded' ? { modLockSnapshot: authorization.lock } : {}),
+        modAuthorization: authorization,
+    });
     if (!meta) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
@@ -336,9 +370,24 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
+    const authorization = await acquireModCanonicalAuthorization(ws);
+    if (!authorization || !isModCanonicalAuthorizationCurrent(authorization)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks checkpoint restore until the MOD lock is repaired.');
+        return;
+    }
     const cp = loadCheckpointFile(ws, checkpointId);
     if (!cp?.history?.length) {
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
+        return;
+    }
+    const runtime = getModActivationGateResult(ws);
+    const restoreDecision = assessModCheckpointRestore({
+        activeDecision: runtime?.decision ?? UNMODDED_OPEN_DECISION,
+        activeLock: authorization.mode === 'modded' ? authorization.lock : undefined,
+        checkpoint: cp,
+    });
+    if (!restoreDecision.allowed) {
+        vscode.window.showErrorMessage(`LoreRelay: checkpoint restore blocked by MOD activation gate (${restoreDecision.code}).`);
         return;
     }
     await runTimelineRestore(ws, 'restore-checkpoint', async () => {
@@ -351,7 +400,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
             t('extension.info.checkpointRestored', { label: cp.meta.label }),
             { combatBattleHistory: cp.combatBattleHistory },
         );
-    });
+    }, authorization);
 }
 
 export async function handleDeleteCheckpoint(checkpointId: string): Promise<void> {

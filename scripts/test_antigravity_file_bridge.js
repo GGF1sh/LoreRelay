@@ -135,11 +135,11 @@ async function assertRelayToggleRoutesToSettingHandler() {
         const calls = [];
         await handleWebviewMessage(
             { type: 'setAntigravityRelayMode', enabled: true },
-            { handleSetAntigravityRelayMode: async (enabled) => calls.push(enabled) }
+            { authorizeCanonicalMutation: async () => true, handleSetAntigravityRelayMode: async (enabled) => calls.push(enabled) }
         );
         await handleWebviewMessage(
             { type: 'setAntigravityRelayMode', enabled: false },
-            { handleSetAntigravityRelayMode: async (enabled) => calls.push(enabled) }
+            { authorizeCanonicalMutation: async () => true, handleSetAntigravityRelayMode: async (enabled) => calls.push(enabled) }
         );
         assert.deepStrictEqual(calls, [true, false]);
     ok('Relay toggle webview message routes to the real setting handler seam');

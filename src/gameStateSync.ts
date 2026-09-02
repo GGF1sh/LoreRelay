@@ -80,6 +80,11 @@ import {
     clearPendingAntigravityRelayRequest,
     readPendingAntigravityRelayRequest,
 } from './antigravityRelayBridgeHost';
+import {
+    acquireModCanonicalAuthorization,
+    areModCanonicalWritesAllowed,
+    isModCanonicalAuthorizationCurrent,
+} from './mods/modActivationGateHost';
 
 export { isAllowedImagePath };
 
@@ -93,10 +98,13 @@ let lastProcessedTurnHash: {
 } | undefined;
 /** Entry IDs already seen when applying game_state (for MediaAgent new-entry detection). */
 const knownStateEntryIds = new Set<string>();
+/** Host-issued provenance awaiting the matching Accepted GM entry watcher event. */
+const trustedAcceptedModContextByEntryId = new Map<string, GameEntry['modContext']>();
 
 export function resetTurnResultProcessingStateForTests(): void {
     lastProcessedTurnHash = undefined;
     knownStateEntryIds.clear();
+    trustedAcceptedModContextByEntryId.clear();
 }
 
 export function getLastProcessedTurnHashForTests(): string {
@@ -208,6 +216,8 @@ export function saveHistoryToDisk(): void {
     if (!histPath) {
         return;
     }
+    const workspaceRoot = d.getWorkspacePath() ?? path.dirname(histPath);
+    if (!areModCanonicalWritesAllowed(workspaceRoot)) return;
     try {
         writeJsonAtomic(histPath, gameEntryHistory, true);
     } catch (e) {
@@ -254,6 +264,10 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
     const statePath = d.getGameStatePath();
     const panel = d.getPanel();
     if (!statePath || !panel) {
+        return;
+    }
+    const workspaceRoot = d.getWorkspacePath();
+    if (workspaceRoot && !areModCanonicalWritesAllowed(workspaceRoot)) {
         return;
     }
 
@@ -426,6 +440,14 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                                 changed = true;
                             }
                         }
+                        // Provenance is host authority. A watched game_state edit may update
+                        // presentation fields, but can never add or replace modContext.
+                        const trustedModContext = trustedAcceptedModContextByEntryId.get(entry.id);
+                        if (entry.role === 'gm' && trustedModContext) {
+                            next.modContext = { ...trustedModContext };
+                            trustedAcceptedModContextByEntryId.delete(entry.id);
+                            changed = true;
+                        }
                         if (changed) {
                             gameEntryHistory[histIdx] = next;
                             historyUpdated = true;
@@ -434,7 +456,13 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                     }
                     if (!seenEntryIds.has(entry.id)) {
                         seenEntryIds.add(entry.id);
-                        const entryWithState: Record<string, unknown> = { ...entry };
+                        const { modContext: _untrustedModContext, ...entryWithoutModContext } = entry;
+                        const entryWithState: Record<string, unknown> = { ...entryWithoutModContext };
+                        const trustedModContext = trustedAcceptedModContextByEntryId.get(entry.id);
+                        if (entry.role === 'gm' && trustedModContext) {
+                            entryWithState.modContext = { ...trustedModContext };
+                            trustedAcceptedModContextByEntryId.delete(entry.id);
+                        }
                         if (entry.role === 'gm') {
                             if (state.status) { entryWithState.status = JSON.parse(JSON.stringify(state.status)); }
                             if (state.options) { entryWithState.options = [...state.options]; }
@@ -466,7 +494,14 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             }
 
             const currentEntries: GameEntry[] = Array.isArray(activeState.entries)
-                ? (activeState.entries as unknown[]).filter(isValidGameEntry)
+                ? (activeState.entries as unknown[]).filter(isValidGameEntry).map((entry) => {
+                    const { modContext: _untrustedModContext, ...withoutModContext } = entry;
+                    const trustedHistoryContext = gameEntryHistory.find(item => item.id === entry.id)?.modContext;
+                    return {
+                        ...withoutModContext,
+                        ...(trustedHistoryContext ? { modContext: { ...trustedHistoryContext } } : {}),
+                    } as GameEntry;
+                })
                 : [];
             const sourceEntries: GameEntry[] = fullHistory ? gameEntryHistory : currentEntries;
             const entriesToSend = sourceEntries.map((entry: GameEntry) => {
@@ -562,16 +597,15 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
 
 /** game_state.json の FileSystemWatcher を開始する（BGM/SE 監視は extension 側）。 */
 export function startGameStateWatcher(): void {
+    const folder = getActiveWorkspaceFolder();
+    if (!folder || !areModCanonicalWritesAllowed(folder.uri.fsPath)) {
+        return;
+    }
     loadHistoryFromDisk();
     void sendCurrentState(0, true);
 
     if (fileWatcher) {
         fileWatcher.dispose();
-    }
-
-    const folder = getActiveWorkspaceFolder();
-    if (!folder) {
-        return;
     }
 
     fileWatcher = vscode.workspace.createFileSystemWatcher(
@@ -623,6 +657,15 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
 }
 
 async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {
+    const workspacePath = path.dirname(fsPath);
+    const modAuthorization = await acquireModCanonicalAuthorization(workspacePath);
+    if (!modAuthorization) {
+        return {
+            kind: 'repairRequired',
+            accepted: false,
+            reason: 'MOD activation gate blocks canonical writes while Safe Mode is required',
+        };
+    }
     let hash = '';
     let turnResult: TurnResult;
     try {
@@ -650,7 +693,6 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         return { kind: 'retryableFailure', accepted: false, reason: 'failed to parse turn_result.json after retries' };
     }
 
-    const workspacePath = path.dirname(fsPath);
     const pendingRelayRequest = readPendingAntigravityRelayRequest(workspacePath);
     const relayMatch = validateTurnResultForPendingRelayRequest(pendingRelayRequest, turnResult);
     if (!relayMatch.ok) {
@@ -709,8 +751,22 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         };
     }
 
-    const enriched = processTurnResult(turnResult, preflight.context);
+    if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
+        return {
+            kind: 'repairRequired',
+            accepted: false,
+            reason: 'MOD activation authorization changed before the Accepted boundary',
+        };
+    }
+    const trustedModContext = modAuthorization.mode === 'modded'
+        ? { ...modAuthorization.modContext }
+        : undefined;
+    if (trustedModContext) {
+        trustedAcceptedModContextByEntryId.set(preflight.context.identity.turnId, trustedModContext);
+    }
+    const enriched = processTurnResult(turnResult, preflight.context, trustedModContext, modAuthorization);
     if (!enriched) {
+        trustedAcceptedModContextByEntryId.delete(preflight.context.identity.turnId);
         if (pendingRelayRequest) {
             notifyRelayImportFailure('processTurnResult returned false before Accepted boundary');
         }

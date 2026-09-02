@@ -22,6 +22,7 @@ async function testWebviewIngress() {
         const playerCalls = [];
         let cancelCalls = 0;
         const deps = {
+            authorizeCanonicalMutation: async () => true,
             async handlePlayerInput(...args) { playerCalls.push(args); },
             cancelGmTurn() { cancelCalls++; },
         };

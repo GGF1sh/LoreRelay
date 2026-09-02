@@ -22,7 +22,17 @@
           "imageBlocked": { "type": "boolean" },
           "excludedFromPrompt": { "type": "boolean" },
           "editedAt": { "type": "string" },
-          "speakerNpcId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" }
+          "speakerNpcId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+          "modContext": {
+            "type": "object",
+            "properties": {
+              "format": { "const": "lorerelay-mod-context/1" },
+              "lockFingerprint": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+              "adultActive": { "type": "boolean" }
+            },
+            "required": ["format", "lockFingerprint", "adultActive"],
+            "additionalProperties": false
+          }
         },
         "required": ["id", "role", "sender", "content"]
       }

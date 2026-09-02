@@ -287,6 +287,11 @@ import {
     type DeterministicWorkspaceMutationLease,
     WORLD_MUTATION_IN_PROGRESS,
 } from './deterministicWorkspaceMutationGate';
+import {
+    areModCanonicalWritesAllowed,
+    clearModActivationGateRuntime,
+    evaluateModActivationGate,
+} from './mods/modActivationGateHost';
 
 let panel: vscode.WebviewPanel | undefined;
 let worldGenesisPreviewSession: WorldGenesisPreviewSession | undefined;
@@ -338,6 +343,7 @@ export function activate(context: vscode.ExtensionContext) {
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
     context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
+    context.subscriptions.push({ dispose: () => clearModActivationGateRuntime() });
     clearGameRulesCache();
     initI18n(context.extensionPath);
 
@@ -409,6 +415,25 @@ export function activate(context: vscode.ExtensionContext) {
         if (panel) {
             panel.reveal(vscode.ViewColumn.One);
             return;
+        }
+
+        const workspaceRoot = getWorkspacePath();
+        if (workspaceRoot) {
+            const extensionVersion = typeof context.extension.packageJSON.version === 'string'
+                ? context.extension.packageJSON.version
+                : '';
+            const activation = await evaluateModActivationGate({
+                workspaceRoot,
+                globalStorageRoot: context.globalStorageUri.fsPath,
+                currentLoreRelayVersion: extensionVersion,
+                // Adult session permission remains unavailable until its explicit UI slice.
+                adultSessionAllowed: false,
+            });
+            if (activation.decision.mode === 'safe-required') {
+                const codes = activation.decision.blockers.map(item => item.code).join(', ');
+                vscode.window.showErrorMessage(`LoreRelay: MOD Safe Mode is required; normal campaign startup was blocked (${codes}).`);
+                return;
+            }
         }
 
         const skillDir = getSkillDir();
@@ -1172,6 +1197,11 @@ async function handleAcceptedPlayerInput(
     }
     if (isInWorldMode()) {
         await handleInWorldPlayerInput(trimmed);
+        return;
+    }
+    const workspaceRoot = getWorkspacePath();
+    if (workspaceRoot && !areModCanonicalWritesAllowed(workspaceRoot)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks provider turns and canonical writes until the MOD lock is repaired.');
         return;
     }
 

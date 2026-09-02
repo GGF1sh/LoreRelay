@@ -32,6 +32,10 @@ import {
     protagonistDraftToProfile,
     resolveUniqueCharacterId,
 } from './protagonistBootstrapCore';
+import {
+    areModCanonicalWritesAllowed,
+    getVerifiedActiveModContext,
+} from './mods/modActivationGateHost';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
 
@@ -214,6 +218,10 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
+    if (!areModCanonicalWritesAllowed(wsPath)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks scenario activation until the MOD lock is repaired.');
+        return;
+    }
 
     const scenarioPath = path.join(dir, 'scenario.json');
     if (!fs.existsSync(scenarioPath)) {
@@ -235,6 +243,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     const meta = (localizedScenario.meta || {}) as Record<string, unknown>;
     const openingStatus = normalizeOpeningStatus(opening.status);
 
+    const modContext = getVerifiedActiveModContext(wsPath);
     const state: Record<string, unknown> = {
         entries: [{
             id: 'scenario-opening',
@@ -242,7 +251,8 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
             sender: 'Game Master',
             content: opening.narrative || t('extension.scenario.openingFallback', {
                 title: String(meta.title || t('extension.scenario.defaultTitle'))
-            })
+            }),
+            ...(modContext ? { modContext } : {}),
         }],
         status: openingStatus,
         options: Array.isArray(opening.options) ? opening.options : [],

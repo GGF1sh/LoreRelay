@@ -1,3 +1,5 @@
+import type { ModContext } from '../mods/modSafeModeCore';
+
 export interface ResourceBar {
     current: number;
     max: number;
@@ -59,6 +61,8 @@ export interface GameEntry {
     imageBlocked?: boolean;
     excludedFromPrompt?: boolean;
     editedAt?: string;
+    /** Trusted coarse provenance for a machine-authored entry created under a MOD lock. */
+    modContext?: ModContext;
 }
 
 export interface GameOverState {

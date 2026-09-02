@@ -44,6 +44,30 @@ expectValid(MINIMAL, 'minimal valid state');
 
 expectValid({
     ...MINIMAL,
+    entries: [{
+        id: 'turn-mod', role: 'gm', sender: 'Game Master', content: 'marked',
+        modContext: {
+            format: 'lorerelay-mod-context/1',
+            lockFingerprint: `sha256:${'b'.repeat(64)}`,
+            adultActive: false,
+        },
+    }],
+}, 'valid MOD context marker');
+
+expectErrors({
+    ...MINIMAL,
+    entries: [{
+        id: 'turn-mod', role: 'gm', sender: 'Game Master', content: 'forged',
+        modContext: {
+            format: 'lorerelay-mod-context/1',
+            lockFingerprint: 'forged',
+            adultActive: false,
+        },
+    }],
+}, ['modContext'], 'forged MOD context marker rejects');
+
+expectValid({
+    ...MINIMAL,
     hiddenState: { secretNote: 'boss hp is 3' },
     world: {
         currentLocationId: 'entrance',

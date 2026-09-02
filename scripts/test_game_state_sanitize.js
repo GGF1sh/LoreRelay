@@ -61,7 +61,14 @@ if (inv.status.location.length !== 500) {
     const salvaged = salvageGameStateFromUnknown({
         schemaVersion: 2,
         entries: [
-            { id: 'turn-1', role: 'gm', sender: 'GM', content: 'Hello' },
+            {
+                id: 'turn-1', role: 'gm', sender: 'GM', content: 'Hello',
+                modContext: {
+                    format: 'lorerelay-mod-context/1',
+                    lockFingerprint: `sha256:${'c'.repeat(64)}`,
+                    adultActive: false,
+                },
+            },
             { id: 'bad id', role: 'gm', sender: 'GM', content: 'drop me' },
             null,
             { id: 'turn-2', role: 'user', sender: 'Player', content: 123 },
@@ -92,6 +99,11 @@ if (inv.status.location.length !== 500) {
         fail('salvage coerces non-string content to empty string');
     } else {
         ok('salvage coerces non-string content to empty string');
+    }
+    if (salvaged.entries[0].modContext?.lockFingerprint !== `sha256:${'c'.repeat(64)}`) {
+        fail('salvage preserves valid MOD provenance');
+    } else {
+        ok('salvage preserves valid MOD provenance');
     }
 }
 

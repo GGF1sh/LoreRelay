@@ -13,6 +13,12 @@ const profileCore = require('../out/mods/modProfileCore.js');
 const resolverCore = require('../out/mods/modResolverCore.js');
 const safeModeCore = require('../out/mods/modSafeModeCore.js');
 const discoveryHost = require('../out/mods/modDiscoveryHost.js');
+const activationCore = require('../out/mods/modActivationGateCore.js');
+const activationHost = require('../out/mods/modActivationGateHost.js');
+const { installVscodeStub } = require('./test_helpers/vscode_stub');
+const restoreVscode = installVscodeStub();
+const checkpoint = require('../out/checkpoint.js');
+restoreVscode();
 
 let assertions = 0;
 function check(value, message) {
@@ -415,6 +421,138 @@ async function main() {
         equal(validHashed.diagnostics, [], 'explicit exact-package request performs bounded hashing');
         check(validHashed.candidate && validHashed.candidate.contentHash.startsWith('sha256:'), 'explicit hash request emits a resolver candidate');
 
+        const activationProfile = profile([{ id: 'discover.mod', version: '1.0.0', source: 'global' }]);
+        const activationResolved = resolverCore.resolveModProfile(activationProfile, [validHashed.candidate], '1.84.32');
+        check(activationResolved.ok, 'activation fixture resolves before it is persisted');
+        const campaignDir = path.join(workspaceRoot, '.text-adventure');
+        fs.mkdirSync(campaignDir, { recursive: true });
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(activationProfile), 'utf8');
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
+
+        activationHost.clearModActivationGateRuntime();
+        equal(activationHost.areModCanonicalWritesAllowed(workspaceRoot), false, 'unevaluated campaign with MOD files fails closed for canonical writes');
+        const activated = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(activated.decision.mode, 'normal', 'campaign startup verifies profile, lock, manifest, and exact package hash');
+        equal(activated.contentActivationAllowed, false, 'activation gate never enables package content in this slice');
+        equal(activationHost.areModCanonicalWritesAllowed(workspaceRoot), true, 'verified active lock permits ordinary canonical writes');
+        equal(activationHost.getVerifiedActiveModContext(workspaceRoot).lockFingerprint, activationResolved.lock.aggregateHash, 'runtime exposes only verified coarse provenance');
+
+        fs.appendFileSync(path.join(campaignDir, 'mod-profile.json'), ' ', 'utf8');
+        equal(activationHost.areModCanonicalWritesAllowed(workspaceRoot), false, 'profile file replacement or edit invalidates the runtime write gate');
+        const reverified = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(reverified.decision.mode, 'normal', 'semantically unchanged profile may reopen only after complete re-verification');
+
+        const driftProfile = profile([{ id: 'discover.mod', version: '*', source: 'global' }]);
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(driftProfile), 'utf8');
+        const profileDrift = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(profileDrift.decision.mode, 'safe-required', 'profile hash drift blocks normal startup');
+        check(profileDrift.decision.blockers.some(item => item.code === 'PROFILE_LOCK_HASH_MISMATCH'), 'profile drift emits a stable activation blocker');
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(activationProfile), 'utf8');
+
+        const incompatibleProfile = profile([{ id: 'discover.mod', version: '2.0.0', source: 'global' }]);
+        const forgedPairLock = JSON.parse(JSON.stringify(activationResolved.lock));
+        forgedPairLock.profileHash = profileCore.computeModProfileHash(incompatibleProfile);
+        const { aggregateHash: ignoredForgedPairHash, ...forgedPairBody } = forgedPairLock;
+        forgedPairLock.aggregateHash = profileCore.computeModLockAggregateHash(forgedPairBody);
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(incompatibleProfile), 'utf8');
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(forgedPairLock), 'utf8');
+        const forgedPair = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(forgedPair.decision.mode, 'safe-required', 'self-consistent profileHash cannot bind a lock that the exact profile does not resolve');
+        check(forgedPair.decision.blockers.some(item => item.code.startsWith('PROFILE_')), 'profile-to-lock resolution failure emits a stable blocker');
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(activationProfile), 'utf8');
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
+
+        const tamperedLock = JSON.parse(JSON.stringify(activationResolved.lock));
+        tamperedLock.packages[0].contentHash = hashCore.sha256ModBytes(Buffer.from('tampered-lock'));
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), JSON.stringify(tamperedLock), 'utf8');
+        const tamperedActivation = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(tamperedActivation.decision.mode, 'safe-required', 'tampered lock blocks normal startup');
+        check(tamperedActivation.decision.blockers.some(item => item.code === 'LOCK_LOCK_AGGREGATE_HASH_MISMATCH'), 'tampered lock reports aggregate mismatch');
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
+
+        const checkpointRoot = path.join(tempRoot, 'checkpoint-campaign');
+        const historyContext = activated.decision.modContext;
+        const checkpointMeta = checkpoint.saveCheckpointFile(checkpointRoot, [{
+            id: 'turn-1',
+            role: 'gm',
+            sender: 'Game Master',
+            content: 'verified history',
+            modContext: historyContext,
+        }], 'MOD checkpoint', { modLockSnapshot: activationResolved.lock });
+        check(checkpointMeta, 'checkpoint 1.2 save succeeds with a verified lock snapshot');
+        const loadedCheckpoint = checkpoint.loadCheckpointFile(checkpointRoot, checkpointMeta.id);
+        equal(loadedCheckpoint.format, 'text-adventure-checkpoint/1.2', 'modded checkpoint uses format 1.2');
+        equal(loadedCheckpoint.modLockFingerprint, activationResolved.lock.aggregateHash, 'checkpoint fingerprint binds the complete snapshot');
+        equal(loadedCheckpoint.history[0].modContext, historyContext, 'checkpoint history preserves coarse MOD provenance');
+        equal(activationCore.assessModCheckpointRestore({
+            activeDecision: activated.decision,
+            activeLock: activationResolved.lock,
+            checkpoint: loadedCheckpoint,
+        }).allowed, true, 'matching active lock permits checkpoint restore');
+        equal(activationCore.assessModCheckpointRestore({
+            activeDecision: normalOpen,
+            activeLock: adultResolved.lock,
+            checkpoint: loadedCheckpoint,
+        }).code, 'CHECKPOINT_LOCK_MISMATCH', 'different active lock blocks checkpoint restore');
+        equal(activationCore.assessModCheckpointRestore({
+            activeDecision: {
+                mode: 'unmodded', contributionsActive: false, canonicalWritesAllowed: true,
+                providerRequestsAllowed: true, blockers: [], warnings: [],
+            },
+            checkpoint: loadedCheckpoint,
+        }).code, 'MODDED_CHECKPOINT_REQUIRES_ACTIVE_LOCK', 'unmodded campaign cannot silently adopt a checkpoint lock');
+
+        fs.unlinkSync(path.join(campaignDir, 'mod-lock.json'));
+        fs.writeFileSync(path.join(workspaceRoot, 'game_history.json'), JSON.stringify([{
+            id: 'turn-1', role: 'gm', sender: 'Game Master', content: 'history', modContext: historyContext,
+        }]), 'utf8');
+        const missingLock = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(missingLock.decision.mode, 'safe-required', 'history provenance prevents a missing lock from becoming unmodded');
+
+        const unmoddedRoot = path.join(tempRoot, 'unmodded-campaign');
+        fs.mkdirSync(unmoddedRoot, { recursive: true });
+        const unmodded = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot: unmoddedRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(unmodded.decision.mode, 'unmodded', 'no profile, lock, or provenance preserves unmodded startup');
+        const legacyMeta = checkpoint.saveCheckpointFile(unmoddedRoot, [{
+            id: 'turn-legacy', role: 'gm', sender: 'Game Master', content: 'legacy',
+        }], 'Legacy checkpoint');
+        equal(checkpoint.loadCheckpointFile(unmoddedRoot, legacyMeta.id).format, 'text-adventure-checkpoint/1.0', 'unmodded checkpoint remains byte-contract compatible format 1.0');
+
         const mismatchRoot = path.join(globalRoot, 'mismatch.mod', '1.0.0');
         writeManifest(mismatchRoot, manifest('other.mod', '1.0.0'));
         const mismatch = await discoveryHost.discoverModPackageManifests({ globalStorageRoot });
@@ -554,8 +692,9 @@ async function main() {
     }
 
     const productionEntry = fs.readFileSync(path.join(__dirname, '..', 'src', 'extension.ts'), 'utf8');
-    check(!productionEntry.includes("./mods/"), 'Slice 1 remains dormant and is not wired into production activation');
-    for (const file of ['modManifestCore.ts', 'modPathCore.ts', 'modHashCore.ts', 'modProfileCore.ts', 'modResolverCore.ts', 'modSafeModeCore.ts']) {
+    check(productionEntry.includes("./mods/modActivationGateHost"), 'production startup is wired only to the activation gate host');
+    check(!productionEntry.includes('mods/contributions'), 'activation gate does not load any MOD contribution adapter');
+    for (const file of ['modManifestCore.ts', 'modPathCore.ts', 'modHashCore.ts', 'modProfileCore.ts', 'modResolverCore.ts', 'modSafeModeCore.ts', 'modActivationGateCore.ts']) {
         const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'mods', file), 'utf8');
         check(!/from ['"](?:vscode|child_process|net|http|https|vm)['"]/.test(source), `${file} has no code, process, VS Code, or network authority`);
         check(!/Date\.now|setTimeout|performance\.now/.test(source), `${file} has no wall-clock resolver authority`);

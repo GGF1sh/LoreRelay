@@ -80,6 +80,11 @@ import {
     clearPendingAntigravityRelayRequest,
     readPendingAntigravityRelayRequest,
 } from './antigravityRelayBridgeHost';
+import {
+    areModCanonicalWritesAllowed,
+    getVerifiedActiveModContext,
+} from './mods/modActivationGateHost';
+import { parseModContext } from './mods/modSafeModeCore';
 
 export { isAllowedImagePath };
 
@@ -256,6 +261,10 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
     if (!statePath || !panel) {
         return;
     }
+    const workspaceRoot = d.getWorkspacePath();
+    if (workspaceRoot && !areModCanonicalWritesAllowed(workspaceRoot)) {
+        return;
+    }
 
     try {
         if (fs.existsSync(statePath)) {
@@ -426,6 +435,16 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
                                 changed = true;
                             }
                         }
+                        const incomingModContext = parseModContext(entry.modContext);
+                        if (incomingModContext) {
+                            const previousModContext = parseModContext(next.modContext);
+                            if (!previousModContext
+                                || previousModContext.lockFingerprint !== incomingModContext.lockFingerprint
+                                || previousModContext.adultActive !== incomingModContext.adultActive) {
+                                next.modContext = { ...incomingModContext };
+                                changed = true;
+                            }
+                        }
                         if (changed) {
                             gameEntryHistory[histIdx] = next;
                             historyUpdated = true;
@@ -562,16 +581,15 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
 
 /** game_state.json の FileSystemWatcher を開始する（BGM/SE 監視は extension 側）。 */
 export function startGameStateWatcher(): void {
+    const folder = getActiveWorkspaceFolder();
+    if (!folder || !areModCanonicalWritesAllowed(folder.uri.fsPath)) {
+        return;
+    }
     loadHistoryFromDisk();
     void sendCurrentState(0, true);
 
     if (fileWatcher) {
         fileWatcher.dispose();
-    }
-
-    const folder = getActiveWorkspaceFolder();
-    if (!folder) {
-        return;
     }
 
     fileWatcher = vscode.workspace.createFileSystemWatcher(
@@ -623,6 +641,15 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
 }
 
 async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {
+    const workspacePath = path.dirname(fsPath);
+    if (!areModCanonicalWritesAllowed(workspacePath)) {
+        return {
+            kind: 'repairRequired',
+            accepted: false,
+            reason: 'MOD activation gate blocks canonical writes while Safe Mode is required',
+        };
+    }
+    const modContext = getVerifiedActiveModContext(workspacePath);
     let hash = '';
     let turnResult: TurnResult;
     try {
@@ -650,7 +677,6 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         return { kind: 'retryableFailure', accepted: false, reason: 'failed to parse turn_result.json after retries' };
     }
 
-    const workspacePath = path.dirname(fsPath);
     const pendingRelayRequest = readPendingAntigravityRelayRequest(workspacePath);
     const relayMatch = validateTurnResultForPendingRelayRequest(pendingRelayRequest, turnResult);
     if (!relayMatch.ok) {
@@ -709,7 +735,7 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         };
     }
 
-    const enriched = processTurnResult(turnResult, preflight.context);
+    const enriched = processTurnResult(turnResult, preflight.context, modContext);
     if (!enriched) {
         if (pendingRelayRequest) {
             notifyRelayImportFailure('processTurnResult returned false before Accepted boundary');

@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry, GameStateWorld } from './types/GameState';
+import { parseModContext, type ModContext } from './mods/modSafeModeCore';
 import { isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { applyFogOnLocationVisit, normalizeFogWorldState } from './fogOfWarCore';
 import { applyCartographyReveal, parseCartographyReveal } from './cartographyRevealCore';
@@ -335,7 +336,11 @@ export function applyStatePatch(state: Record<string, unknown>, patches: StatePa
 }
 
 /** turn_result の narration / gmEntry を game_state.entries にマージする。 */
-export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult: TurnResult): Record<string, unknown> {
+export function mergeGmEntryFromTurn(
+    state: Record<string, unknown>,
+    turnResult: TurnResult,
+    modContext?: ModContext,
+): Record<string, unknown> {
     const narration = typeof turnResult.narration === 'string' ? turnResult.narration.trim() : '';
     if (!narration || !isValidEntryId(turnResult.turnId)) {
         return state;
@@ -352,6 +357,8 @@ export function mergeGmEntryFromTurn(state: Record<string, unknown>, turnResult:
         sender,
         content: narration
     };
+    const verifiedModContext = parseModContext(modContext);
+    if (verifiedModContext) entry.modContext = { ...verifiedModContext };
 
     if (gmMeta?.speakerNpcId && isValidEntryId(gmMeta.speakerNpcId)) {
         entry.speakerNpcId = gmMeta.speakerNpcId;
@@ -597,9 +604,10 @@ function applyDomainTravelDrift(
 function applyTurnGameStateFinalize(
     turnResult: TurnResult,
     state: Record<string, unknown>,
-    persistWorld: boolean
+    persistWorld: boolean,
+    modContext?: ModContext,
 ): Record<string, unknown> {
-    let next = mergeGmEntryFromTurn(state, turnResult);
+    let next = mergeGmEntryFromTurn(state, turnResult, modContext);
     const asGame = next as unknown as import('./types/GameState').GameState;
     next = applyLivingWorldTurnOps(
         turnResult,
@@ -621,7 +629,8 @@ function applyTurnGameStateFinalize(
 export function applyTurnResultToGameState(
     turnResult: TurnResult,
     baseState: Record<string, unknown>,
-    persistWorld = true
+    persistWorld = true,
+    modContext?: ModContext,
 ): Record<string, unknown> {
     const prevWorld = baseState.world as GameStateWorld | undefined;
     const prevLocationId = typeof prevWorld?.currentLocationId === 'string'
@@ -645,7 +654,7 @@ export function applyTurnResultToGameState(
         patched = applyDomainTravelDrift(patched, prevLocationId, ws.worldTurn);
         patched = applyGuildTravelDrift(patched, prevLocationId, ws.worldTurn);
     }
-    return applyTurnGameStateFinalize(turnResult, patched, persistWorld);
+    return applyTurnGameStateFinalize(turnResult, patched, persistWorld, modContext);
 }
 
 function normalizeStatusArrayFields(state: Record<string, unknown>): Record<string, unknown> {
@@ -668,7 +677,8 @@ function normalizeStatusArrayFields(state: Record<string, unknown>): Record<stri
 
 export function processTurnResult(
     turnResult: TurnResult,
-    acceptedTurnContext?: AcceptedTurnCommitContext
+    acceptedTurnContext?: AcceptedTurnCommitContext,
+    modContext?: ModContext,
 ): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath) {
@@ -744,11 +754,11 @@ export function processTurnResult(
             }
         }
 
-        let commitState = applyTurnGameStateFinalize(turnResult, state, true);
+        let commitState = applyTurnGameStateFinalize(turnResult, state, true, modContext);
 
         const freshDisk = readGameStateRecord(statePath);
         if (readStateRevision(freshDisk) > baseRevision) {
-            commitState = applyTurnResultToGameState(turnResult, freshDisk, false);
+            commitState = applyTurnResultToGameState(turnResult, freshDisk, false, modContext);
         }
 
         pendingAutoLocationImage = undefined;

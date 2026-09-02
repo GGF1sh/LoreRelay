@@ -35,6 +35,22 @@ import { commitGameState } from './stateManager';
 import {
     runAcceptedTurnTimelineRestoreTransaction,
 } from './acceptedTurnReplayGuard';
+import { assessModCheckpointRestore } from './mods/modActivationGateCore';
+import {
+    areModCanonicalWritesAllowed,
+    getModActivationGateResult,
+    getVerifiedActiveModLock,
+} from './mods/modActivationGateHost';
+import type { ModOpenDecision } from './mods/modSafeModeCore';
+
+const UNMODDED_OPEN_DECISION: ModOpenDecision = {
+    mode: 'unmodded',
+    contributionsActive: false,
+    canonicalWritesAllowed: true,
+    providerRequestsAllowed: true,
+    blockers: [],
+    warnings: [],
+};
 
 export interface CheckpointHandlerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -83,6 +99,10 @@ async function runTimelineRestore(
     reason: string,
     restoreMutation: () => Promise<boolean> | boolean
 ): Promise<boolean> {
+    if (!areModCanonicalWritesAllowed(ws)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks timeline mutation until the MOD lock is repaired.');
+        return false;
+    }
     const result = await runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
         clearTurnResultRawHashAuthorityForEpochChange();
         const ok = await restoreMutation();
@@ -316,12 +336,18 @@ export async function handleSaveCheckpoint(label?: string): Promise<void> {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
+    if (!areModCanonicalWritesAllowed(ws)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks checkpoint writes until the MOD lock is repaired.');
+        return;
+    }
     const history = getGameEntryHistory();
     if (history.length === 0) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
     }
-    const meta = saveCheckpointFile(ws, history, label);
+    const meta = saveCheckpointFile(ws, history, label, {
+        modLockSnapshot: getVerifiedActiveModLock(ws),
+    });
     if (!meta) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
@@ -339,6 +365,16 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
     const cp = loadCheckpointFile(ws, checkpointId);
     if (!cp?.history?.length) {
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
+        return;
+    }
+    const runtime = getModActivationGateResult(ws);
+    const restoreDecision = assessModCheckpointRestore({
+        activeDecision: runtime?.decision ?? UNMODDED_OPEN_DECISION,
+        activeLock: getVerifiedActiveModLock(ws),
+        checkpoint: cp,
+    });
+    if (!restoreDecision.allowed) {
+        vscode.window.showErrorMessage(`LoreRelay: checkpoint restore blocked by MOD activation gate (${restoreDecision.code}).`);
         return;
     }
     await runTimelineRestore(ws, 'restore-checkpoint', async () => {

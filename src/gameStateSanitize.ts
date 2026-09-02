@@ -2,6 +2,7 @@
 
 import { isValidEntryId } from './entryId';
 import { CURRENT_SCHEMA_VERSION, migrateGameState } from './migrateGameState';
+import { parseModContext } from './mods/modSafeModeCore';
 
 export const MAX_STATUS_ARRAY_ITEMS = 100;
 export const MAX_STATUS_ITEM_LEN = 200;
@@ -179,6 +180,10 @@ function salvageEntry(raw: unknown): Record<string, unknown> | undefined {
     }
     if (isValidEntryId(e.speakerNpcId)) {
         out.speakerNpcId = e.speakerNpcId;
+    }
+    const modContext = parseModContext(e.modContext);
+    if (modContext) {
+        out.modContext = { ...modContext };
     }
     return out;
 }

@@ -431,6 +431,7 @@ async function main() {
 
         activationHost.clearModActivationGateRuntime();
         equal(activationHost.areModCanonicalWritesAllowed(workspaceRoot), false, 'unevaluated campaign with MOD files fails closed for canonical writes');
+        equal(await activationHost.acquireModCanonicalAuthorization(workspaceRoot), undefined, 'no mutation lease is issued before campaign activation evaluation');
         const activated = await activationHost.evaluateModActivationGate({
             globalStorageRoot,
             workspaceRoot,
@@ -441,6 +442,21 @@ async function main() {
         equal(activated.contentActivationAllowed, false, 'activation gate never enables package content in this slice');
         equal(activationHost.areModCanonicalWritesAllowed(workspaceRoot), true, 'verified active lock permits ordinary canonical writes');
         equal(activationHost.getVerifiedActiveModContext(workspaceRoot).lockFingerprint, activationResolved.lock.aggregateHash, 'runtime exposes only verified coarse provenance');
+
+        const initialAuthorization = await activationHost.acquireModCanonicalAuthorization(workspaceRoot);
+        equal(initialAuthorization.mode, 'modded', 'exact package revalidation issues a modded canonical-mutation lease');
+        check(activationHost.isModCanonicalAuthorizationCurrent(initialAuthorization), 'fresh MOD authorization is current');
+        fs.writeFileSync(path.join(validRoot, 'README.md'), 'package drift after startup\n', 'utf8');
+        equal(await activationHost.acquireModCanonicalAuthorization(workspaceRoot), undefined, 'package-tree drift after startup invalidates canonical mutation authorization');
+        check(!activationHost.isModCanonicalAuthorizationCurrent(initialAuthorization), 'failed package revalidation revokes the prior lease generation');
+        fs.writeFileSync(path.join(validRoot, 'README.md'), 'declarative only\r\n', 'utf8');
+        const packageDriftRecovered = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(packageDriftRecovered.decision.mode, 'normal', 'restored exact package tree may be explicitly reverified');
 
         fs.appendFileSync(path.join(campaignDir, 'mod-profile.json'), ' ', 'utf8');
         equal(activationHost.areModCanonicalWritesAllowed(workspaceRoot), false, 'profile file replacement or edit invalidates the runtime write gate');
@@ -482,6 +498,47 @@ async function main() {
         fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(activationProfile), 'utf8');
         fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
 
+        const workspaceVariantRoot = path.join(workspaceRoot, '.text-adventure', 'mods', 'discover.mod', '1.0.0');
+        fs.cpSync(validRoot, workspaceVariantRoot, { recursive: true });
+        const workspaceVariant = await discoveryHost.hashDiscoveredModPackage({
+            globalStorageRoot,
+            workspaceRoot,
+            source: 'workspace',
+            id: 'discover.mod',
+            version: '1.0.0',
+            expectedManifestHash: hashCore.hashCanonicalModJson(discoverManifest),
+            allowAdultContentRead: false,
+        });
+        const anySourceProfile = profile([{ id: 'discover.mod', version: '1.0.0', source: 'any' }]);
+        const anySourceResolved = resolverCore.resolveModProfile(
+            anySourceProfile,
+            [validHashed.candidate, workspaceVariant.candidate],
+            '1.84.32',
+        );
+        check(anySourceResolved.ok, 'same-hash cross-scope activation fixture resolves');
+        equal(anySourceResolved.lock.packages[0].source, 'workspace', 'same-hash cross-scope lock canonicalizes to workspace source');
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(anySourceProfile), 'utf8');
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(anySourceResolved.lock), 'utf8');
+        const sameHashCrossScope = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(sameHashCrossScope.decision.mode, 'normal', 'activation hashes both same-hash scopes and accepts the canonical workspace source');
+        fs.writeFileSync(path.join(workspaceVariantRoot, 'README.md'), 'different workspace variant\n', 'utf8');
+        const differentCrossScope = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(differentCrossScope.decision.mode, 'safe-required', 'different cross-scope id@version variants fail closed during activation');
+        check(differentCrossScope.decision.blockers.some(item => item.code === 'PROFILE_DUPLICATE_VARIANT'), 'cross-scope variant failure is explicit');
+        fs.rmSync(path.join(workspaceRoot, '.text-adventure', 'mods'), { recursive: true, force: true });
+        fs.writeFileSync(path.join(campaignDir, 'mod-profile.json'), profileCore.serializeModProfile(activationProfile), 'utf8');
+        fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
+
         const tamperedLock = JSON.parse(JSON.stringify(activationResolved.lock));
         tamperedLock.packages[0].contentHash = hashCore.sha256ModBytes(Buffer.from('tampered-lock'));
         fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), JSON.stringify(tamperedLock), 'utf8');
@@ -496,6 +553,17 @@ async function main() {
         fs.writeFileSync(path.join(campaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
 
         const checkpointRoot = path.join(tempRoot, 'checkpoint-campaign');
+        const checkpointCampaignDir = path.join(checkpointRoot, '.text-adventure');
+        fs.mkdirSync(checkpointCampaignDir, { recursive: true });
+        fs.writeFileSync(path.join(checkpointCampaignDir, 'mod-profile.json'), profileCore.serializeModProfile(activationProfile), 'utf8');
+        fs.writeFileSync(path.join(checkpointCampaignDir, 'mod-lock.json'), profileCore.serializeModLock(activationResolved.lock), 'utf8');
+        await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot: checkpointRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        const checkpointAuthorization = await activationHost.acquireModCanonicalAuthorization(checkpointRoot);
         const historyContext = activated.decision.modContext;
         const checkpointMeta = checkpoint.saveCheckpointFile(checkpointRoot, [{
             id: 'turn-1',
@@ -503,7 +571,7 @@ async function main() {
             sender: 'Game Master',
             content: 'verified history',
             modContext: historyContext,
-        }], 'MOD checkpoint', { modLockSnapshot: activationResolved.lock });
+        }], 'MOD checkpoint', { modLockSnapshot: activationResolved.lock, modAuthorization: checkpointAuthorization });
         check(checkpointMeta, 'checkpoint 1.2 save succeeds with a verified lock snapshot');
         const loadedCheckpoint = checkpoint.loadCheckpointFile(checkpointRoot, checkpointMeta.id);
         equal(loadedCheckpoint.format, 'text-adventure-checkpoint/1.2', 'modded checkpoint uses format 1.2');
@@ -552,6 +620,46 @@ async function main() {
             id: 'turn-legacy', role: 'gm', sender: 'Game Master', content: 'legacy',
         }], 'Legacy checkpoint');
         equal(checkpoint.loadCheckpointFile(unmoddedRoot, legacyMeta.id).format, 'text-adventure-checkpoint/1.0', 'unmodded checkpoint remains byte-contract compatible format 1.0');
+
+        const malformedEvidenceRoot = path.join(tempRoot, 'malformed-evidence-campaign');
+        fs.mkdirSync(malformedEvidenceRoot, { recursive: true });
+        fs.writeFileSync(path.join(malformedEvidenceRoot, 'game_history.json'), JSON.stringify([{
+            id: 'forged', role: 'gm', sender: 'Game Master', content: 'forged', modContext: { adultActive: false },
+        }]), 'utf8');
+        const malformedEvidence = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot: malformedEvidenceRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(malformedEvidence.decision.mode, 'safe-required', 'malformed provenance cannot silently downgrade a campaign to unmodded');
+        check(malformedEvidence.decision.blockers.some(item => item.code === 'CAMPAIGN_EVIDENCE_INVALID'), 'malformed provenance has an explicit blocker');
+
+        const nonOrdinaryControlRoot = path.join(tempRoot, 'nonordinary-control-campaign');
+        fs.mkdirSync(path.join(nonOrdinaryControlRoot, '.text-adventure', 'mod-profile.json'), { recursive: true });
+        equal(activationHost.areModCanonicalWritesAllowed(nonOrdinaryControlRoot), false, 'a nonordinary control path is present, not absent');
+        const nonOrdinaryControl = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot: nonOrdinaryControlRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(nonOrdinaryControl.decision.mode, 'safe-required', 'a nonordinary profile path requires Safe Mode');
+
+        const manyLegacyRoot = path.join(tempRoot, 'many-legacy-checkpoints');
+        const manyLegacyDir = path.join(manyLegacyRoot, '.text-adventure', 'checkpoints');
+        fs.mkdirSync(manyLegacyDir, { recursive: true });
+        // The old 2,048-file cutoff must not reject a normal legacy campaign.
+        for (let i = 0; i < 2_049; i += 1) {
+            fs.writeFileSync(path.join(manyLegacyDir, `cp-${i}.json`), '{"format":"text-adventure-checkpoint/1.0"}', 'utf8');
+        }
+        const manyLegacy = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot: manyLegacyRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(manyLegacy.decision.mode, 'unmodded', 'more than 2048 genuine legacy checkpoints do not create false MOD evidence');
 
         const mismatchRoot = path.join(globalRoot, 'mismatch.mod', '1.0.0');
         writeManifest(mismatchRoot, manifest('other.mod', '1.0.0'));
@@ -694,6 +802,13 @@ async function main() {
     const productionEntry = fs.readFileSync(path.join(__dirname, '..', 'src', 'extension.ts'), 'utf8');
     check(productionEntry.includes("./mods/modActivationGateHost"), 'production startup is wired only to the activation gate host');
     check(!productionEntry.includes('mods/contributions'), 'activation gate does not load any MOD contribution adapter');
+    check(productionEntry.includes('dispatchGateCheckedWebviewMessage'), 'webview messages pass through one centralized Safe Mode dispatcher guard');
+    check(productionEntry.indexOf('requireModCanonicalMutationAllowed())) return;') < productionEntry.indexOf('if (isParlorMode())'), 'provider authorization precedes Parlor and InWorld branches');
+    const syncSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'gameStateSync.ts'), 'utf8');
+    check(syncSource.includes('trustedAcceptedModContextByEntryId'), 'Accepted GM provenance uses a host-owned entry witness');
+    check(!syncSource.includes('const incomingModContext = parseModContext(entry.modContext)'), 'external game_state synchronization cannot overwrite history provenance');
+    const sanitizeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'gameStateSanitize.ts'), 'utf8');
+    check(!sanitizeSource.includes('out.modContext'), 'salvage strips externally supplied game_state provenance');
     for (const file of ['modManifestCore.ts', 'modPathCore.ts', 'modHashCore.ts', 'modProfileCore.ts', 'modResolverCore.ts', 'modSafeModeCore.ts', 'modActivationGateCore.ts']) {
         const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'mods', file), 'utf8');
         check(!/from ['"](?:vscode|child_process|net|http|https|vm)['"]/.test(source), `${file} has no code, process, VS Code, or network authority`);

@@ -100,10 +100,10 @@ if (inv.status.location.length !== 500) {
     } else {
         ok('salvage coerces non-string content to empty string');
     }
-    if (salvaged.entries[0].modContext?.lockFingerprint !== `sha256:${'c'.repeat(64)}`) {
-        fail('salvage preserves valid MOD provenance');
+    if (salvaged.entries[0].modContext !== undefined) {
+        fail('salvage strips non-authoritative MOD provenance');
     } else {
-        ok('salvage preserves valid MOD provenance');
+        ok('salvage strips non-authoritative MOD provenance');
     }
 }
 

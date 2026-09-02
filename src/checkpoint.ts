@@ -8,6 +8,12 @@ import {
     extractCombatBattleHistoryForCheckpoint,
 } from './checkpointCombatCore';
 import { parseModContext } from './mods/modSafeModeCore';
+import {
+    areModCanonicalWritesAllowed,
+    getModActivationGateResult,
+    isModCanonicalAuthorizationCurrent,
+    type ModCanonicalAuthorization,
+} from './mods/modActivationGateHost';
 import { validateModLock, type ModLock } from './mods/modProfileCore';
 
 export type { CombatBattleHistoryEntry };
@@ -171,8 +177,23 @@ export function saveCheckpointFile(
         gameState?: Record<string, unknown>;
         /** Trusted active lock from the campaign activation gate. */
         modLockSnapshot?: ModLock;
+        /** Short-lived gate lease checked at the final filesystem write boundary. */
+        modAuthorization?: ModCanonicalAuthorization;
     },
 ): CheckpointMeta | undefined {
+    if (!areModCanonicalWritesAllowed(ws)) return undefined;
+    const authorization = options?.modAuthorization;
+    if (authorization
+        && (path.resolve(ws) !== authorization.workspaceRoot || !isModCanonicalAuthorizationCurrent(authorization))) {
+        return undefined;
+    }
+    const active = getModActivationGateResult(ws);
+    if (!authorization && (active?.decision.mode === 'normal' || options?.modLockSnapshot)) return undefined;
+    if (authorization?.mode === 'unmodded' && options?.modLockSnapshot) return undefined;
+    const authorizedLock = authorization?.mode === 'modded' ? authorization.lock : undefined;
+    if (authorizedLock && options?.modLockSnapshot
+        && authorizedLock.aggregateHash !== options.modLockSnapshot.aggregateHash) return undefined;
+    if (!authorizedLock && history.some(entry => entry.modContext !== undefined)) return undefined;
     const gm = findLastGmEntry(history);
     if (!gm?.id) {
         return undefined;
@@ -203,8 +224,8 @@ export function saveCheckpointFile(
         }
     }
 
-    const validatedLock = options?.modLockSnapshot
-        ? validateModLock(options.modLockSnapshot)
+    const validatedLock = authorizedLock
+        ? validateModLock(authorizedLock)
         : undefined;
     if (validatedLock && !validatedLock.ok) {
         return undefined;
@@ -231,7 +252,15 @@ export function saveCheckpointFile(
             : {}),
     };
     const dir = getCheckpointsDir(ws);
+    if (options?.modAuthorization
+        && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
+        return undefined;
+    }
     fs.mkdirSync(dir, { recursive: true });
+    if (options?.modAuthorization
+        && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
+        return undefined;
+    }
     writeJsonAtomic(path.join(dir, `${id}.json`), payload);
     return meta;
 }
@@ -282,6 +311,7 @@ export function parseCheckpointFile(value: unknown): CheckpointFile | undefined 
 }
 
 export function deleteCheckpointFile(ws: string, checkpointId: string): boolean {
+    if (!areModCanonicalWritesAllowed(ws)) return false;
     if (!isValidCheckpointId(checkpointId)) {
         return false;
     }

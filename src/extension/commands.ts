@@ -5,7 +5,11 @@ import { importTavernCard } from '../tavernCardImporter';
 import { runListImageModels, runScanLocalModelFiles } from '../imageGenRunner';
 import { checkForUpdates } from '../updateManager';
 
-export function registerCoreCommands(context: vscode.ExtensionContext, importStLorebook: () => void) {
+export function registerCoreCommands(
+    context: vscode.ExtensionContext,
+    importStLorebook: () => void,
+    requireMutationAllowed: () => Promise<boolean>,
+) {
     const listModelsCmd = vscode.commands.registerCommand('textadventure.listImageModels', () => {
         runListImageModels();
     });
@@ -14,16 +18,16 @@ export function registerCoreCommands(context: vscode.ExtensionContext, importStL
         runScanLocalModelFiles();
     });
 
-    const loadScenarioCmd = vscode.commands.registerCommand('textadventure.loadScenario', () => {
-        loadScenarioPack();
+    const loadScenarioCmd = vscode.commands.registerCommand('textadventure.loadScenario', async () => {
+        if (await requireMutationAllowed()) await loadScenarioPack();
     });
 
-    const importStCharCmd = vscode.commands.registerCommand('textadventure.importStCharacter', () => {
-        importTavernCard();
+    const importStCharCmd = vscode.commands.registerCommand('textadventure.importStCharacter', async () => {
+        if (await requireMutationAllowed()) await importTavernCard();
     });
 
-    const importStLoreCmd = vscode.commands.registerCommand('textadventure.importStLorebook', () => {
-        importStLorebook();
+    const importStLoreCmd = vscode.commands.registerCommand('textadventure.importStLorebook', async () => {
+        if (await requireMutationAllowed()) importStLorebook();
     });
 
     const exportScenarioCmd = vscode.commands.registerCommand('textadventure.exportScenario', () => {

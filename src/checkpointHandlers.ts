@@ -37,9 +37,10 @@ import {
 } from './acceptedTurnReplayGuard';
 import { assessModCheckpointRestore } from './mods/modActivationGateCore';
 import {
-    areModCanonicalWritesAllowed,
+    acquireModCanonicalAuthorization,
     getModActivationGateResult,
-    getVerifiedActiveModLock,
+    isModCanonicalAuthorizationCurrent,
+    type ModCanonicalAuthorization,
 } from './mods/modActivationGateHost';
 import type { ModOpenDecision } from './mods/modSafeModeCore';
 
@@ -97,14 +98,19 @@ function writeGameStateToDisk(
 async function runTimelineRestore(
     ws: string,
     reason: string,
-    restoreMutation: () => Promise<boolean> | boolean
+    restoreMutation: () => Promise<boolean> | boolean,
+    existingAuthorization?: ModCanonicalAuthorization,
 ): Promise<boolean> {
-    if (!areModCanonicalWritesAllowed(ws)) {
+    const authorization = existingAuthorization ?? await acquireModCanonicalAuthorization(ws);
+    if (!authorization || !isModCanonicalAuthorizationCurrent(authorization)) {
         vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks timeline mutation until the MOD lock is repaired.');
         return false;
     }
     const result = await runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
         clearTurnResultRawHashAuthorityForEpochChange();
+        if (!isModCanonicalAuthorizationCurrent(authorization)) {
+            throw new Error('MOD activation authorization changed before timeline restore');
+        }
         const ok = await restoreMutation();
         if (!ok) {
             throw new Error('restore mutation did not complete');
@@ -336,7 +342,8 @@ export async function handleSaveCheckpoint(label?: string): Promise<void> {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
-    if (!areModCanonicalWritesAllowed(ws)) {
+    const authorization = await acquireModCanonicalAuthorization(ws);
+    if (!authorization || !isModCanonicalAuthorizationCurrent(authorization)) {
         vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks checkpoint writes until the MOD lock is repaired.');
         return;
     }
@@ -346,7 +353,8 @@ export async function handleSaveCheckpoint(label?: string): Promise<void> {
         return;
     }
     const meta = saveCheckpointFile(ws, history, label, {
-        modLockSnapshot: getVerifiedActiveModLock(ws),
+        ...(authorization.mode === 'modded' ? { modLockSnapshot: authorization.lock } : {}),
+        modAuthorization: authorization,
     });
     if (!meta) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
@@ -362,6 +370,11 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
+    const authorization = await acquireModCanonicalAuthorization(ws);
+    if (!authorization || !isModCanonicalAuthorizationCurrent(authorization)) {
+        vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks checkpoint restore until the MOD lock is repaired.');
+        return;
+    }
     const cp = loadCheckpointFile(ws, checkpointId);
     if (!cp?.history?.length) {
         vscode.window.showWarningMessage(t('extension.warning.checkpointNotFound'));
@@ -370,7 +383,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
     const runtime = getModActivationGateResult(ws);
     const restoreDecision = assessModCheckpointRestore({
         activeDecision: runtime?.decision ?? UNMODDED_OPEN_DECISION,
-        activeLock: getVerifiedActiveModLock(ws),
+        activeLock: authorization.mode === 'modded' ? authorization.lock : undefined,
         checkpoint: cp,
     });
     if (!restoreDecision.allowed) {
@@ -387,7 +400,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
             t('extension.info.checkpointRestored', { label: cp.meta.label }),
             { combatBattleHistory: cp.combatBattleHistory },
         );
-    });
+    }, authorization);
 }
 
 export async function handleDeleteCheckpoint(checkpointId: string): Promise<void> {

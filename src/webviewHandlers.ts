@@ -19,6 +19,8 @@ import {
     sanitizeEquipmentNotifyFields
 } from './webviewHandlersCore';
 import { isExperienceProfile } from './experienceCore';
+import { getWorkspacePath } from './workspacePaths';
+import { acquireModCanonicalAuthorization, isModCanonicalAuthorizationCurrent } from './mods/modActivationGateHost';
 /** Webview → Extension の postMessage ペイロード（緩い型）。 */
 export interface WebviewMessage {
     type: string;
@@ -30,6 +32,8 @@ export interface WebviewMessage {
  * extension.ts の実装を注入し、God ファイルから switch を分離する。
  */
 export interface WebviewHandlerDeps {
+    /** Production may initialize the campaign gate; direct callers use the same host lease fallback. */
+    authorizeCanonicalMutation?(): Promise<boolean>;
     handlePlayerInput(
         text: unknown,
         authorsNote?: string,
@@ -172,6 +176,14 @@ export interface WebviewHandlerDeps {
     handleOpenBattleView(): void;
 }
 
+const SAFE_MODE_READ_OR_ABORT_WEBVIEW_MESSAGES = new Set([
+    'cancelGmTurn', 'getDebugCapabilities', 'getGameRules', 'getRemotePlayStatus',
+    'insertChatText', 'listCheckpoints', 'loadCharacters', 'loadDirector',
+    'loadLorebook', 'loadMemory', 'loadParty', 'loadWorld',
+    'requestCombatAbilityWorkshop', 'requestCombatLab', 'requestImageGenConfig',
+    'requestParlorSettings', 'requestState', 'requestWorldGenesisSetup',
+]);
+
 /**
  * 破壊的操作の確認は必ずここ(拡張ホスト側)で行う。
  * webview の window.confirm()/alert() は VS Code webview の iframe サンドボックスで
@@ -184,6 +196,16 @@ async function confirmDestructive(message: string, confirmLabel: string): Promis
 
 /** Webview からの postMessage を type 別にルーティングする。 */
 export async function handleWebviewMessage(message: WebviewMessage, deps: WebviewHandlerDeps): Promise<void> {
+    if (!SAFE_MODE_READ_OR_ABORT_WEBVIEW_MESSAGES.has(message.type)) {
+        const workspaceRoot = deps.authorizeCanonicalMutation ? undefined : getWorkspacePath();
+        const authorization = !deps.authorizeCanonicalMutation && workspaceRoot
+            ? await acquireModCanonicalAuthorization(workspaceRoot)
+            : undefined;
+        const allowed = deps.authorizeCanonicalMutation
+            ? await deps.authorizeCanonicalMutation()
+            : !workspaceRoot || (authorization !== undefined && isModCanonicalAuthorizationCurrent(authorization));
+        if (!allowed) return;
+    }
     switch (message.type) {
         case 'selectOption':
         case 'freeInput':

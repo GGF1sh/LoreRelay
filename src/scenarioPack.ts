@@ -33,8 +33,8 @@ import {
     resolveUniqueCharacterId,
 } from './protagonistBootstrapCore';
 import {
-    areModCanonicalWritesAllowed,
-    getVerifiedActiveModContext,
+    acquireModCanonicalAuthorization,
+    isModCanonicalAuthorizationCurrent,
 } from './mods/modActivationGateHost';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
@@ -218,7 +218,8 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
         return;
     }
-    if (!areModCanonicalWritesAllowed(wsPath)) {
+    const modAuthorization = await acquireModCanonicalAuthorization(wsPath);
+    if (!modAuthorization || !isModCanonicalAuthorizationCurrent(modAuthorization)) {
         vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks scenario activation until the MOD lock is repaired.');
         return;
     }
@@ -243,17 +244,22 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     const meta = (localizedScenario.meta || {}) as Record<string, unknown>;
     const openingStatus = normalizeOpeningStatus(opening.status);
 
-    const modContext = getVerifiedActiveModContext(wsPath);
-    const state: Record<string, unknown> = {
-        entries: [{
-            id: 'scenario-opening',
-            role: 'gm',
-            sender: 'Game Master',
-            content: opening.narrative || t('extension.scenario.openingFallback', {
+    const modContext = modAuthorization.mode === 'modded'
+        ? { ...modAuthorization.modContext }
+        : undefined;
+    const openingEntry = {
+        id: 'scenario-opening',
+        role: 'gm' as const,
+        sender: 'Game Master',
+        content: typeof opening.narrative === 'string' && opening.narrative
+            ? opening.narrative
+            : t('extension.scenario.openingFallback', {
                 title: String(meta.title || t('extension.scenario.defaultTitle'))
             }),
-            ...(modContext ? { modContext } : {}),
-        }],
+        ...(modContext ? { modContext } : {}),
+    };
+    const state: Record<string, unknown> = {
+        entries: [openingEntry],
         status: openingStatus,
         options: Array.isArray(opening.options) ? opening.options : [],
         theme: setup.theme || 'fantasy',
@@ -287,16 +293,25 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     const statePath = getGameStatePath();
     if (!statePath) { return; }
 
-    setGameEntryHistoryWithSeenIds([]);
-    saveHistoryToDisk();
-    resetGmBridgeSessions();
-
     try {
-        commitGameState(state, {
+        if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
+            throw new Error('MOD activation authorization changed before scenario reset');
+        }
+        resetGmBridgeSessions();
+        const commit = commitGameState(state, {
             mergeProfile: 'replace',
             runtimeAcceptedTurnWitnessMode: 'clear',
         });
+        if (!commit.ok) throw new Error(commit.reason.join('; '));
+        if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
+            throw new Error('MOD activation authorization changed before scenario history write');
+        }
+        setGameEntryHistoryWithSeenIds([openingEntry]);
+        saveHistoryToDisk();
         ensureScenarioStarterProtagonist(localizedScenario);
+        if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
+            throw new Error('MOD activation authorization changed during scenario activation');
+        }
         const wsScenario = path.join(wsPath, 'scenario.json');
         if (path.resolve(scenarioPath) !== path.resolve(wsScenario)) {
             // Keep the workspace-local scenario copy aligned with the active locale,
@@ -323,6 +338,11 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     const packBgmDir = path.join(dir, 'bgm');
     const packSfxDir = path.join(dir, 'sfx');
     const notes: string[] = [];
+
+    if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
+        vscode.window.showErrorMessage('LoreRelay: scenario activation stopped because the MOD package tree changed.');
+        return;
+    }
 
     if (fs.existsSync(packBgm) || fs.existsSync(packSfx) || fs.existsSync(packBgmDir) || fs.existsSync(packSfxDir)) {
         fs.mkdirSync(assetsDir, { recursive: true });

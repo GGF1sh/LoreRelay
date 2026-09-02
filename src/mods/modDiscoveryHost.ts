@@ -63,7 +63,15 @@ export interface ModManifestDiscoveryResult {
 
 export interface ModPackageHashResult {
     candidate?: ModPackageCandidate;
+    treeIdentity?: ModPackageTreeIdentity;
     diagnostics: ModDiscoveryDiagnostic[];
+}
+
+export interface ModPackageTreeIdentity {
+    source: ModResolvedSource;
+    directoryId: string;
+    directoryVersion: string;
+    entries: readonly PackageTreeSnapshotEntry[];
 }
 
 interface RootDiscoveryResult extends ModManifestDiscoveryResult {
@@ -76,7 +84,7 @@ interface WalkedFile {
     bytes: Uint8Array;
 }
 
-interface PackageTreeSnapshotEntry {
+export interface PackageTreeSnapshotEntry {
     path: string;
     type: 'directory' | 'file';
     size: number;
@@ -796,6 +804,12 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
                 manifest: rootManifest.discovered.manifest,
                 manifestHash: rootManifest.discovered.manifestHash,
                 contentHash: packageHash.contentHash,
+            },
+            treeIdentity: {
+                source: input.source,
+                directoryId: input.id,
+                directoryVersion: input.version,
+                entries: finalTree.treeEntries.map(entry => ({ ...entry })),
             },
             diagnostics: [],
         };

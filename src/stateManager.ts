@@ -16,6 +16,7 @@ import {
     RUNTIME_ACCEPTED_TURN_WITNESS_KEY,
     type AcceptedTurnWitness,
 } from './acceptedTurnReplayGuardCore';
+import { areModCanonicalWritesAllowed } from './mods/modActivationGateHost';
 
 export type { CommitGameStateMode, GameStatePersistPlan } from './stateManagerCore';
 export { resolveGameStatePersistPlan } from './stateManagerCore';
@@ -54,6 +55,9 @@ function writeGameStatePlan(
     state: Record<string, unknown>,
     options: CommitGameStateOptions
 ): CommitGameStateResult {
+    if (!areModCanonicalWritesAllowed(path.dirname(statePath))) {
+        return { ok: false, action: 'skip', reason: ['MOD activation gate blocks canonical writes'] };
+    }
     const createBackup = options.createBackup ?? false;
     const mode = options.mode ?? 'salvage';
     const disk = readGameStateFromDisk(statePath);

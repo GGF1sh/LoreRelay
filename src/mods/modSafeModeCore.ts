@@ -182,6 +182,8 @@ export function assessModCampaignOpen(input: {
     adultSessionAllowed: boolean;
     activeProfileHash?: string;
     modProfilePresent?: boolean;
+    /** True when MOD provenance fields exist even if their values are malformed. */
+    modEvidencePresent?: boolean;
     checkpointLockFingerprints?: readonly string[];
     historyLockFingerprints?: readonly string[];
 }): ModOpenDecision {
@@ -189,6 +191,7 @@ export function assessModCampaignOpen(input: {
     const blockers: ModOpenDiagnostic[] = [];
     if (!input.lock) {
         const modEvidencePresent = input.modProfilePresent === true
+            || input.modEvidencePresent === true
             || input.activeProfileHash !== undefined
             || (input.checkpointLockFingerprints?.length ?? 0) > 0
             || (input.historyLockFingerprints?.length ?? 0) > 0;

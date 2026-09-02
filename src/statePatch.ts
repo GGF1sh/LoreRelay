@@ -5,6 +5,10 @@ import * as vscode from 'vscode';
 import { StatePatchOp, TurnResult } from './types/TurnResult';
 import type { GameEntry, GameStateWorld } from './types/GameState';
 import { parseModContext, type ModContext } from './mods/modSafeModeCore';
+import {
+    isModCanonicalAuthorizationCurrent,
+    type ModCanonicalAuthorization,
+} from './mods/modActivationGateHost';
 import { isWorldForgeEnabled, loadWorldForge } from './worldForge';
 import { applyFogOnLocationVisit, normalizeFogWorldState } from './fogOfWarCore';
 import { applyCartographyReveal, parseCartographyReveal } from './cartographyRevealCore';
@@ -679,9 +683,14 @@ export function processTurnResult(
     turnResult: TurnResult,
     acceptedTurnContext?: AcceptedTurnCommitContext,
     modContext?: ModContext,
+    modAuthorization?: ModCanonicalAuthorization,
 ): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath) {
+        return false;
+    }
+    if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) {
+        console.error('[statePatch] MOD activation authorization is no longer current.');
         return false;
     }
 
@@ -703,6 +712,7 @@ export function processTurnResult(
             ABSOLUTE_MAX_BULK_WORLD_STEPS
         );
         if (elapsedWorldTurns > 0) {
+            if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) return false;
             const simResult = persistWorldSimulationSteps(elapsedWorldTurns, ABSOLUTE_MAX_BULK_WORLD_STEPS);
             if (!simResult.ok) {
                 console.warn(`[statePatch] elapsedWorldTurns skipped: ${simResult.reason}`);
@@ -750,6 +760,7 @@ export function processTurnResult(
                 worldStateDirty = true;
             }
             if (worldStateDirty) {
+                if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) return false;
                 saveWorldState(worldState);
             }
         }
@@ -801,6 +812,10 @@ export function processTurnResult(
         }
 
         const afterHash = hashGameState(commitState);
+        if (modAuthorization && !isModCanonicalAuthorizationCurrent(modAuthorization)) {
+            console.error('[statePatch] MOD activation authorization changed before game_state commit.');
+            return false;
+        }
         const commit = commitGameState(commitState, {
             mode: 'salvage',
             baseRevision,

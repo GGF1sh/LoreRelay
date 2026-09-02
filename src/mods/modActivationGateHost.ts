@@ -7,6 +7,8 @@ import {
     hashDiscoveredModPackage,
     type ModDiscoveryDiagnostic,
     type ModDiscoveryRoots,
+    type ModPackageTreeIdentity,
+    type PackageTreeSnapshotEntry,
 } from './modDiscoveryHost';
 import {
     MAX_MOD_LOCK_BYTES,
@@ -32,7 +34,8 @@ import { canonicalizeModJson } from './modHashCore';
 export const MOD_PROFILE_FILE = 'mod-profile.json';
 export const MOD_LOCK_FILE = 'mod-lock.json';
 export const MAX_MOD_EVIDENCE_FILE_BYTES = 64 * 1024 * 1024;
-export const MAX_MOD_EVIDENCE_CHECKPOINTS = 2_048;
+export const MAX_MOD_EVIDENCE_CHECKPOINT_FILES = 65_536;
+export const MAX_MOD_EVIDENCE_CHECKPOINT_TOTAL_BYTES = 256 * 1024 * 1024;
 
 export interface ModActivationGateInput extends ModDiscoveryRoots {
     workspaceRoot: string;
@@ -49,6 +52,20 @@ export interface ModActivationGateResult {
     lock?: ModLock;
 }
 
+export type ModCanonicalAuthorization =
+    | {
+        mode: 'unmodded';
+        workspaceRoot: string;
+        generation: number;
+    }
+    | {
+        mode: 'modded';
+        workspaceRoot: string;
+        generation: number;
+        lock: ModLock;
+        modContext: ModContext;
+    };
+
 interface BoundedReadResult {
     kind: 'missing' | 'ok' | 'invalid';
     bytes?: Uint8Array;
@@ -58,6 +75,10 @@ interface BoundedReadResult {
 
 const runtimeByWorkspace = new Map<string, ModActivationGateResult>();
 const runtimeFilesByWorkspace = new Map<string, { profile?: FileIdentity; lock?: FileIdentity }>();
+const runtimeInputByWorkspace = new Map<string, ModActivationGateInput>();
+const runtimeGenerationByWorkspace = new Map<string, number>();
+const runtimePackageTreesByWorkspace = new Map<string, ModPackageTreeIdentity[]>();
+let nextRuntimeGeneration = 1;
 
 interface FileIdentity {
     dev: number;
@@ -181,66 +202,201 @@ async function readBoundedOrdinaryFile(filePath: string, maximumBytes: number): 
     }
 }
 
-function collectEntryFingerprints(value: unknown, destination: Set<string>): void {
-    if (!Array.isArray(value)) return;
+/** Evidence also guards synchronous write sinks before the UI has opened. */
+function readBoundedOrdinaryFileSync(filePath: string, maximumBytes: number): BoundedReadResult {
+    let descriptor: number | undefined;
+    try {
+        const parent = fs.lstatSync(path.dirname(filePath));
+        const initial = fs.lstatSync(filePath);
+        if (parent.isSymbolicLink() || !parent.isDirectory()
+            || initial.isSymbolicLink() || !initial.isFile() || initial.nlink !== 1) {
+            return { kind: 'invalid', code: 'FILE_NOT_ORDINARY' };
+        }
+        if (initial.size > maximumBytes) return { kind: 'invalid', code: 'DOCUMENT_TOO_LARGE' };
+        descriptor = fs.openSync(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+        const before = fs.fstatSync(descriptor);
+        if (!before.isFile() || before.nlink !== 1 || !sameFileIdentity(fileIdentity(initial), fileIdentity(before))) {
+            return { kind: 'invalid', code: 'FILE_CHANGED_DURING_READ' };
+        }
+        const bytes = Buffer.alloc(Math.min(maximumBytes + 1, before.size + 1));
+        let offset = 0;
+        while (offset < bytes.length) {
+            const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, offset);
+            if (count === 0) break;
+            offset += count;
+        }
+        const after = fs.fstatSync(descriptor);
+        const finalPath = fs.lstatSync(filePath);
+        if (offset > maximumBytes || finalPath.isSymbolicLink() || !finalPath.isFile() || finalPath.nlink !== 1
+            || !sameFileIdentity(fileIdentity(before), fileIdentity(after))
+            || !sameFileIdentity(fileIdentity(after), fileIdentity(finalPath))) {
+            return { kind: 'invalid', code: 'FILE_CHANGED_DURING_READ' };
+        }
+        return { kind: 'ok', bytes: bytes.subarray(0, offset), identity: fileIdentity(finalPath) };
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ENOENT'
+            ? { kind: 'missing' }
+            : { kind: 'invalid', code: 'FILE_READ_FAILED' };
+    } finally {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+    }
+}
+
+function collectEntryFingerprints(
+    value: unknown,
+    destination: Set<string>,
+): { modEvidencePresent: boolean; invalidModEvidencePresent: boolean } {
+    let modEvidencePresent = false;
+    let invalidModEvidencePresent = false;
+    if (!Array.isArray(value)) return { modEvidencePresent, invalidModEvidencePresent };
     for (const entry of value) {
         if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
-        const context = parseModContext((entry as Record<string, unknown>).modContext);
+        const record = entry as Record<string, unknown>;
+        if (!Object.prototype.hasOwnProperty.call(record, 'modContext')) continue;
+        modEvidencePresent = true;
+        const context = parseModContext(record.modContext);
         if (context) destination.add(context.lockFingerprint);
+        else invalidModEvidencePresent = true;
     }
+    return { modEvidencePresent, invalidModEvidencePresent };
 }
 
-async function readJsonEvidence(filePath: string): Promise<unknown> {
-    const read = await readBoundedOrdinaryFile(filePath, MAX_MOD_EVIDENCE_FILE_BYTES);
-    if (read.kind !== 'ok' || !read.bytes) return undefined;
+interface JsonEvidenceRead {
+    kind: 'missing' | 'ok' | 'invalid';
+    value?: unknown;
+    potentialModEvidence?: boolean;
+    byteLength?: number;
+}
+
+function readJsonEvidence(filePath: string, maximumBytes = MAX_MOD_EVIDENCE_FILE_BYTES): JsonEvidenceRead {
+    const read = readBoundedOrdinaryFileSync(filePath, maximumBytes);
+    if (read.kind === 'missing') return { kind: 'missing' };
+    if (read.kind !== 'ok' || !read.bytes) return { kind: 'invalid' };
     try {
-        return JSON.parse(Buffer.from(read.bytes).toString('utf8')) as unknown;
+        return {
+            kind: 'ok',
+            value: JSON.parse(Buffer.from(read.bytes).toString('utf8')) as unknown,
+            byteLength: read.bytes.byteLength,
+        };
     } catch {
-        return undefined;
+        const text = Buffer.from(read.bytes).toString('utf8');
+        return {
+            kind: 'invalid',
+            byteLength: read.bytes.byteLength,
+            potentialModEvidence: text.includes('modContext')
+                || text.includes('modLockFingerprint')
+                || text.includes('modLockSnapshot')
+                || text.includes('text-adventure-checkpoint/1.2'),
+        };
     }
 }
 
-async function collectCampaignEvidence(workspaceRoot: string): Promise<{
+function collectCampaignEvidence(workspaceRoot: string): {
     historyLockFingerprints: string[];
     checkpointLockFingerprints: string[];
-    checkpointScanLimitExceeded: boolean;
-}> {
+    modEvidencePresent: boolean;
+    invalidModEvidencePresent: boolean;
+} {
     const history = new Set<string>();
     const checkpoints = new Set<string>();
-    const historyValue = await readJsonEvidence(path.join(workspaceRoot, 'game_history.json'));
-    collectEntryFingerprints(historyValue, history);
-    const stateValue = await readJsonEvidence(path.join(workspaceRoot, 'game_state.json'));
-    if (stateValue && typeof stateValue === 'object' && !Array.isArray(stateValue)) {
-        collectEntryFingerprints((stateValue as Record<string, unknown>).entries, history);
+    let modEvidencePresent = false;
+    let invalidModEvidencePresent = false;
+    const historyRead = readJsonEvidence(path.join(workspaceRoot, 'game_history.json'));
+    if (historyRead.kind === 'invalid' && historyRead.potentialModEvidence !== false) invalidModEvidencePresent = true;
+    if (historyRead.kind === 'ok') {
+        const result = collectEntryFingerprints(historyRead.value, history);
+        modEvidencePresent ||= result.modEvidencePresent;
+        invalidModEvidencePresent ||= result.invalidModEvidencePresent;
+    }
+    const stateRead = readJsonEvidence(path.join(workspaceRoot, 'game_state.json'));
+    if (stateRead.kind === 'invalid' && stateRead.potentialModEvidence !== false) invalidModEvidencePresent = true;
+    const stateValue = stateRead.value;
+    if (stateRead.kind === 'ok' && stateValue && typeof stateValue === 'object' && !Array.isArray(stateValue)) {
+        const result = collectEntryFingerprints((stateValue as Record<string, unknown>).entries, history);
+        modEvidencePresent ||= result.modEvidencePresent;
+        invalidModEvidencePresent ||= result.invalidModEvidencePresent;
     }
 
     const checkpointDir = path.join(workspaceRoot, '.text-adventure', 'checkpoints');
     let files: string[] = [];
-    let checkpointScanLimitExceeded = false;
+    let checkpointDirectory: fs.Dir | undefined;
+    let checkpointDirectoryIdentity: FileIdentity | undefined;
     try {
-        const candidates = (await fs.promises.readdir(checkpointDir))
-            .filter(file => /^cp-\d+\.json$/.test(file))
-            .sort();
-        checkpointScanLimitExceeded = candidates.length > MAX_MOD_EVIDENCE_CHECKPOINTS;
-        files = candidates.slice(0, MAX_MOD_EVIDENCE_CHECKPOINTS);
-    } catch {
+        const stats = fs.lstatSync(checkpointDir);
+        if (stats.isSymbolicLink() || !stats.isDirectory()) throw new Error('checkpoint path is not ordinary');
+        checkpointDirectoryIdentity = fileIdentity(stats);
+        checkpointDirectory = fs.opendirSync(checkpointDir);
+        while (true) {
+            const entry = checkpointDirectory.readSync();
+            if (!entry) break;
+            if (!/^cp-\d+\.json$/.test(entry.name)) continue;
+            files.push(entry.name);
+            if (files.length > MAX_MOD_EVIDENCE_CHECKPOINT_FILES) {
+                invalidModEvidencePresent = true;
+                files.length = MAX_MOD_EVIDENCE_CHECKPOINT_FILES;
+                break;
+            }
+        }
+        files.sort(compareUnicodeCodePointOrder);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') invalidModEvidencePresent = true;
         files = [];
+    } finally {
+        checkpointDirectory?.closeSync();
     }
+    let checkpointBytesRead = 0;
     for (const file of files) {
-        const value = await readJsonEvidence(path.join(checkpointDir, file));
+        const read = readJsonEvidence(path.join(checkpointDir, file));
+        checkpointBytesRead += read.byteLength ?? 0;
+        if (checkpointBytesRead > MAX_MOD_EVIDENCE_CHECKPOINT_TOTAL_BYTES) {
+            invalidModEvidencePresent = true;
+            break;
+        }
+        if (read.kind === 'invalid') {
+            if (read.potentialModEvidence !== false) invalidModEvidencePresent = true;
+            continue;
+        }
+        if (read.kind === 'missing') {
+            invalidModEvidencePresent = true;
+            continue;
+        }
+        const value = read.value;
         if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
         const record = value as Record<string, unknown>;
-        if (record.format === 'text-adventure-checkpoint/1.2'
-            && typeof record.modLockFingerprint === 'string'
-            && /^sha256:[a-f0-9]{64}$/.test(record.modLockFingerprint)) {
-            checkpoints.add(record.modLockFingerprint);
+        const checkpointModFieldsPresent = record.format === 'text-adventure-checkpoint/1.2'
+            || Object.prototype.hasOwnProperty.call(record, 'modLockFingerprint')
+            || Object.prototype.hasOwnProperty.call(record, 'modLockSnapshot');
+        if (checkpointModFieldsPresent) {
+            modEvidencePresent = true;
+            if (record.format === 'text-adventure-checkpoint/1.2'
+                && typeof record.modLockFingerprint === 'string'
+                && /^sha256:[a-f0-9]{64}$/.test(record.modLockFingerprint)) {
+                checkpoints.add(record.modLockFingerprint);
+            } else {
+                invalidModEvidencePresent = true;
+            }
         }
-        collectEntryFingerprints(record.history, history);
+        const historyResult = collectEntryFingerprints(record.history, history);
+        modEvidencePresent ||= historyResult.modEvidencePresent;
+        invalidModEvidencePresent ||= historyResult.invalidModEvidencePresent;
+    }
+    if (checkpointDirectoryIdentity) {
+        try {
+            const finalDirectory = fs.lstatSync(checkpointDir);
+            if (finalDirectory.isSymbolicLink()
+                || !finalDirectory.isDirectory()
+                || !sameFileIdentity(checkpointDirectoryIdentity, fileIdentity(finalDirectory))) {
+                invalidModEvidencePresent = true;
+            }
+        } catch {
+            invalidModEvidencePresent = true;
+        }
     }
     return {
         historyLockFingerprints: [...history].sort(),
         checkpointLockFingerprints: [...checkpoints].sort(),
-        checkpointScanLimitExceeded,
+        modEvidencePresent,
+        invalidModEvidencePresent,
     };
 }
 
@@ -248,6 +404,7 @@ function storeRuntime(
     workspaceRoot: string,
     result: ModActivationGateResult,
     files?: { profile?: FileIdentity; lock?: FileIdentity },
+    packageTrees: readonly ModPackageTreeIdentity[] = [],
 ): ModActivationGateResult {
     const stored: ModActivationGateResult = {
         decision: result.decision.mode === 'normal'
@@ -259,13 +416,24 @@ function storeRuntime(
     };
     runtimeByWorkspace.set(workspaceKey(workspaceRoot), stored);
     runtimeFilesByWorkspace.set(workspaceKey(workspaceRoot), { ...files });
+    runtimePackageTreesByWorkspace.set(workspaceKey(workspaceRoot), packageTrees.map(tree => ({
+        ...tree,
+        entries: tree.entries.map(entry => ({ ...entry })),
+    })));
+    runtimeGenerationByWorkspace.set(workspaceKey(workspaceRoot), nextRuntimeGeneration++);
     return stored;
 }
 
 export async function evaluateModActivationGate(input: ModActivationGateInput): Promise<ModActivationGateResult> {
     const root = workspaceKey(input.workspaceRoot);
+    runtimeInputByWorkspace.set(root, {
+        ...input,
+        workspaceRoot: root,
+        ...(input.globalStorageRoot ? { globalStorageRoot: path.resolve(input.globalStorageRoot) } : {}),
+    });
     runtimeByWorkspace.delete(root);
     runtimeFilesByWorkspace.delete(root);
+    runtimePackageTreesByWorkspace.delete(root);
     if (!path.isAbsolute(input.workspaceRoot)
         || (input.globalStorageRoot !== undefined && !path.isAbsolute(input.globalStorageRoot))) {
         return storeRuntime(root, {
@@ -318,10 +486,10 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
     const profile = profileValidation?.ok ? profileValidation.value : undefined;
     const lock = lockValidation?.ok ? lockValidation.value : undefined;
     if (!profile || !lock) {
-        const evidence = await collectCampaignEvidence(root);
-        if (evidence.checkpointScanLimitExceeded) {
+        const evidence = collectCampaignEvidence(root);
+        if (evidence.invalidModEvidencePresent) {
             return storeRuntime(root, {
-                decision: safeDecision([gateDiagnostic('CAMPAIGN_EVIDENCE_COMPLEXITY_LIMIT', `At most ${MAX_MOD_EVIDENCE_CHECKPOINTS} checkpoint evidence files may be inspected`)]),
+                decision: safeDecision([gateDiagnostic('CAMPAIGN_EVIDENCE_INVALID', 'Campaign MOD evidence is malformed or could not be inspected safely')]),
                 contentActivationAllowed: false,
                 ...(profile ? { profile } : {}),
                 ...(lock ? { lock } : {}),
@@ -336,6 +504,7 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
             activeProfileHash: profile ? computeModProfileHash(profile) : undefined,
             checkpointLockFingerprints: evidence.checkpointLockFingerprints,
             historyLockFingerprints: evidence.historyLockFingerprints,
+            modEvidencePresent: evidence.modEvidencePresent,
         });
         const missingPeer = (profile && !lock) || (!profile && lock);
         return storeRuntime(root, {
@@ -371,40 +540,35 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
     }
 
     const candidates: ModPackageCandidate[] = [];
+    const packageTrees: ModPackageTreeIdentity[] = [];
     const hashDiagnostics: ModDiscoveryDiagnostic[] = [];
-    for (const locked of lock.packages) {
-        const manifest = discovered.manifests.find(item => item.source === locked.source
-            && item.directoryId === locked.id
-            && item.directoryVersion === locked.version);
-        if (!manifest) continue;
-        if (manifest.manifestHash !== locked.manifestHash) {
-            hashDiagnostics.push({
-                code: 'LOCKED_PACKAGE_HASH_MISMATCH',
-                source: locked.source,
-                packageId: locked.id,
-                packageVersion: locked.version,
-                message: 'Discovered manifest differs from the locked hash',
+    const lockedIdentities = [...new Set(lock.packages.map(pkg => `${pkg.id}\0${pkg.version}`))].sort(compareUnicodeCodePointOrder);
+    for (const identity of lockedIdentities) {
+        const separator = identity.indexOf('\0');
+        const id = identity.slice(0, separator);
+        const version = identity.slice(separator + 1);
+        const variants = discovered.manifests.filter(item => item.directoryId === id && item.directoryVersion === version);
+        for (const manifest of variants) {
+            if (manifest.manifest.contentRating === 'adult' && !input.adultSessionAllowed) {
+                return storeRuntime(root, {
+                    decision: safeDecision([gateDiagnostic('ADULT_SESSION_PERMISSION_REQUIRED', 'Adult session permission is required before activation', id)]),
+                    contentActivationAllowed: false,
+                    profile,
+                    lock,
+                }, runtimeFiles);
+            }
+            const hashed = await hashDiscoveredModPackage({
+                ...roots,
+                source: manifest.source,
+                id,
+                version,
+                expectedManifestHash: manifest.manifestHash,
+                allowAdultContentRead: input.adultSessionAllowed,
             });
-            continue;
+            hashDiagnostics.push(...hashed.diagnostics);
+            if (hashed.candidate) candidates.push(hashed.candidate);
+            if (hashed.treeIdentity) packageTrees.push(hashed.treeIdentity);
         }
-        if (manifest.manifest.contentRating === 'adult' && !input.adultSessionAllowed) {
-            return storeRuntime(root, {
-                decision: safeDecision([gateDiagnostic('ADULT_SESSION_PERMISSION_REQUIRED', 'Adult session permission is required before activation', locked.id)]),
-                contentActivationAllowed: false,
-                profile,
-                lock,
-            }, runtimeFiles);
-        }
-        const hashed = await hashDiscoveredModPackage({
-            ...roots,
-            source: locked.source,
-            id: locked.id,
-            version: locked.version,
-            expectedManifestHash: locked.manifestHash,
-            allowAdultContentRead: input.adultSessionAllowed,
-        });
-        hashDiagnostics.push(...hashed.diagnostics);
-        if (hashed.candidate) candidates.push(hashed.candidate);
     }
     if (hashDiagnostics.length > 0) {
         return storeRuntime(root, {
@@ -413,6 +577,23 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
             profile,
             lock,
         }, runtimeFiles);
+    }
+    const candidatesByIdentity = new Map<string, ModPackageCandidate[]>();
+    for (const candidate of candidates) {
+        const key = `${candidate.directoryId}\0${candidate.directoryVersion}`;
+        candidatesByIdentity.set(key, [...(candidatesByIdentity.get(key) ?? []), candidate]);
+    }
+    for (const variants of candidatesByIdentity.values()) {
+        if (variants.length < 2) continue;
+        const baseline = variants[0];
+        if (variants.some(item => item.manifestHash !== baseline.manifestHash || item.contentHash !== baseline.contentHash)) {
+            return storeRuntime(root, {
+                decision: safeDecision([gateDiagnostic('PROFILE_DUPLICATE_VARIANT', `Global and workspace variants differ for ${baseline.directoryId}@${baseline.directoryVersion}`, baseline.directoryId)]),
+                contentActivationAllowed: false,
+                profile,
+                lock,
+            }, runtimeFiles);
+        }
     }
 
     const resolvedProfile = resolveModProfile(profile, candidates, input.currentLoreRelayVersion);
@@ -459,7 +640,7 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
         checkpointLockFingerprints: [],
         historyLockFingerprints: [],
     });
-    return storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles);
+    return storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles, packageTrees);
 }
 
 export function getModActivationGateResult(workspaceRoot: string): ModActivationGateResult | undefined {
@@ -482,9 +663,10 @@ export function getVerifiedActiveModContext(workspaceRoot: string): ModContext |
 
 function fileExists(filePath: string): boolean {
     try {
-        return fs.lstatSync(filePath).isFile();
-    } catch {
-        return false;
+        fs.lstatSync(filePath);
+        return true;
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code !== 'ENOENT';
     }
 }
 
@@ -497,21 +679,226 @@ function currentOrdinaryFileIdentity(filePath: string): FileIdentity | undefined
     }
 }
 
+function samePackageTreeIdentityEntry(expected: PackageTreeSnapshotEntry, stats: fs.Stats): boolean {
+    const type = stats.isDirectory() ? 'directory' : stats.isFile() ? 'file' : undefined;
+    return type === expected.type
+        && !stats.isSymbolicLink()
+        && (type !== 'file' || stats.nlink === 1)
+        && stats.size === expected.size
+        && stats.mode === expected.mode
+        && stats.nlink === expected.nlink
+        && stats.dev === expected.dev
+        && stats.ino === expected.ino
+        && stats.mtimeMs === expected.mtimeMs
+        && stats.ctimeMs === expected.ctimeMs;
+}
+
+function isPackageTreeIdentityCurrent(input: ModActivationGateInput, tree: ModPackageTreeIdentity): boolean {
+    const base = tree.source === 'global' ? input.globalStorageRoot : input.workspaceRoot;
+    if (!base) return false;
+    const packagesRoot = tree.source === 'global'
+        ? path.join(path.resolve(base), 'mods', 'packages')
+        : path.join(path.resolve(base), '.text-adventure', 'mods');
+    const idRoot = path.join(packagesRoot, tree.directoryId);
+    const packageRoot = path.join(idRoot, tree.directoryVersion);
+    try {
+        for (const directoryPath of [packagesRoot, idRoot, packageRoot]) {
+            const stats = fs.lstatSync(directoryPath);
+            if (stats.isSymbolicLink() || !stats.isDirectory()) return false;
+        }
+        const packagesRootReal = fs.realpathSync(packagesRoot);
+        const packageRootReal = fs.realpathSync(packageRoot);
+        const relative = path.relative(packagesRootReal, packageRootReal);
+        if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return false;
+    } catch {
+        return false;
+    }
+    const entriesByPath = new Map(tree.entries.map(entry => [entry.path, entry]));
+    if (!entriesByPath.has('')) return false;
+    const expectedChildren = new Map<string, Set<string>>();
+    for (const entry of tree.entries) {
+        const absolutePath = entry.path
+            ? path.join(packageRoot, ...entry.path.split('/'))
+            : packageRoot;
+        let stats: fs.Stats;
+        try {
+            stats = fs.lstatSync(absolutePath);
+        } catch {
+            return false;
+        }
+        if (!samePackageTreeIdentityEntry(entry, stats)) return false;
+        if (!entry.path) continue;
+        const parent = path.posix.dirname(entry.path) === '.' ? '' : path.posix.dirname(entry.path);
+        const name = path.posix.basename(entry.path);
+        const children = expectedChildren.get(parent) ?? new Set<string>();
+        children.add(name);
+        expectedChildren.set(parent, children);
+    }
+    for (const entry of tree.entries.filter(item => item.type === 'directory')) {
+        const expected = expectedChildren.get(entry.path) ?? new Set<string>();
+        const absolutePath = entry.path
+            ? path.join(packageRoot, ...entry.path.split('/'))
+            : packageRoot;
+        let directory: fs.Dir | undefined;
+        try {
+            directory = fs.opendirSync(absolutePath);
+            let count = 0;
+            while (true) {
+                const child = directory.readSync();
+                if (!child) break;
+                count += 1;
+                if (count > expected.size || !expected.has(child.name)) return false;
+            }
+            if (count !== expected.size) return false;
+        } catch {
+            return false;
+        } finally {
+            directory?.closeSync();
+        }
+    }
+    return true;
+}
+
+function areStoredPackageTreesCurrent(workspaceRoot: string): boolean {
+    const root = workspaceKey(workspaceRoot);
+    const current = runtimeByWorkspace.get(root);
+    if (current?.decision.mode !== 'normal') return true;
+    const input = runtimeInputByWorkspace.get(root);
+    const trees = runtimePackageTreesByWorkspace.get(root);
+    const expectedPackageCount = current.lock?.packages.length ?? 0;
+    if (!input || !trees
+        || !(expectedPackageCount === 0 ? trees.length === 0 : trees.length >= expectedPackageCount)
+        || !trees.every(tree => isPackageTreeIdentityCurrent(input, tree))) return false;
+    // Absence is part of the proof too: a new counterpart variant must revoke a
+    // direct synchronous commit, without waiting for the next async discovery.
+    for (const pkg of current.lock?.packages ?? []) {
+        for (const source of ['global', 'workspace'] as const) {
+            if (trees.some(tree => tree.source === source
+                && tree.directoryId === pkg.id && tree.directoryVersion === pkg.version)) continue;
+            const base = source === 'global' ? input.globalStorageRoot : input.workspaceRoot;
+            if (!base) continue;
+            const packagesRoot = source === 'global'
+                ? path.join(path.resolve(base), 'mods', 'packages')
+                : path.join(path.resolve(base), '.text-adventure', 'mods');
+            if (fileExists(path.join(packagesRoot, pkg.id, pkg.version))) return false;
+        }
+    }
+    return true;
+}
+
 /** Fail closed for unevaluated modded campaigns; ordinary unmodded flows remain unchanged. */
 export function areModCanonicalWritesAllowed(workspaceRoot: string): boolean {
     const current = getModActivationGateResult(workspaceRoot);
     const campaignDir = path.join(workspaceKey(workspaceRoot), '.text-adventure');
+    try {
+        const parent = fs.lstatSync(campaignDir);
+        if (parent.isSymbolicLink() || !parent.isDirectory()) return false;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+    }
+    const controlMatches = (expected: FileIdentity | undefined, fileName: string): boolean => {
+        const filePath = path.join(campaignDir, fileName);
+        return expected
+            ? sameFileIdentity(expected, currentOrdinaryFileIdentity(filePath))
+            : !fileExists(filePath);
+    };
     if (current) {
         if (!current.decision.canonicalWritesAllowed) return false;
         const expected = runtimeFilesByWorkspace.get(workspaceKey(workspaceRoot));
-        return sameFileIdentity(expected?.profile, currentOrdinaryFileIdentity(path.join(campaignDir, MOD_PROFILE_FILE)))
-            && sameFileIdentity(expected?.lock, currentOrdinaryFileIdentity(path.join(campaignDir, MOD_LOCK_FILE)));
+        const bindingsCurrent = controlMatches(expected?.profile, MOD_PROFILE_FILE)
+            && controlMatches(expected?.lock, MOD_LOCK_FILE)
+            && areStoredPackageTreesCurrent(workspaceRoot);
+        if (!bindingsCurrent) return false;
+        if (current.decision.mode === 'unmodded') {
+            const evidence = collectCampaignEvidence(workspaceKey(workspaceRoot));
+            return !evidence.modEvidencePresent && !evidence.invalidModEvidencePresent;
+        }
+        return true;
     }
-    return !fileExists(path.join(campaignDir, MOD_PROFILE_FILE))
-        && !fileExists(path.join(campaignDir, MOD_LOCK_FILE));
+    if (fileExists(path.join(campaignDir, MOD_PROFILE_FILE))
+        || fileExists(path.join(campaignDir, MOD_LOCK_FILE))) return false;
+    const evidence = collectCampaignEvidence(workspaceKey(workspaceRoot));
+    return !evidence.modEvidencePresent && !evidence.invalidModEvidencePresent;
+}
+
+/**
+ * Revalidates the exact profile, lock, and every locked package tree before issuing
+ * one short-lived canonical-mutation lease. A modded lease never degrades to an
+ * unmodded/undefined context.
+ */
+export async function acquireModCanonicalAuthorization(workspaceRoot: string): Promise<ModCanonicalAuthorization | undefined> {
+    const root = workspaceKey(workspaceRoot);
+    const current = runtimeByWorkspace.get(root);
+    if (!current) {
+        if (!areModCanonicalWritesAllowed(root)) return undefined;
+        runtimeInputByWorkspace.set(root, {
+            workspaceRoot: root,
+            currentLoreRelayVersion: '',
+            adultSessionAllowed: false,
+        });
+        storeRuntime(root, {
+            decision: {
+                mode: 'unmodded', contributionsActive: false, canonicalWritesAllowed: true,
+                providerRequestsAllowed: true, blockers: [], warnings: [],
+            },
+            contentActivationAllowed: false,
+        });
+        return { mode: 'unmodded', workspaceRoot: root, generation: runtimeGenerationByWorkspace.get(root)! };
+    }
+    if (!areModCanonicalWritesAllowed(root)) return undefined;
+    const input = runtimeInputByWorkspace.get(root);
+    if (current.decision.mode === 'normal') {
+        if (!input || !current.lock) return undefined;
+        const expectedFingerprint = current.lock.aggregateHash;
+        const expectedProfileHash = current.lock.profileHash;
+        const refreshed = await evaluateModActivationGate(input);
+        if (refreshed.decision.mode !== 'normal'
+            || !refreshed.lock
+            || refreshed.lock.aggregateHash !== expectedFingerprint
+            || refreshed.lock.profileHash !== expectedProfileHash
+            || !areModCanonicalWritesAllowed(root)) {
+            return undefined;
+        }
+        return {
+            mode: 'modded',
+            workspaceRoot: root,
+            generation: runtimeGenerationByWorkspace.get(root) ?? 0,
+            lock: cloneLock(refreshed.lock),
+            modContext: cloneContext(refreshed.decision.modContext),
+        };
+    }
+    if (current.decision.mode !== 'unmodded') return undefined;
+    if (input) {
+        const refreshed = await evaluateModActivationGate(input);
+        if (refreshed.decision.mode !== 'unmodded' || !areModCanonicalWritesAllowed(root)) return undefined;
+    }
+    return {
+        mode: 'unmodded',
+        workspaceRoot: root,
+        generation: runtimeGenerationByWorkspace.get(root) ?? 0,
+    };
+}
+
+/** Final synchronous identity/generation check immediately before an authoritative write. */
+export function isModCanonicalAuthorizationCurrent(authorization: ModCanonicalAuthorization): boolean {
+    const root = workspaceKey(authorization.workspaceRoot);
+    if (root !== authorization.workspaceRoot
+        || authorization.generation !== (runtimeGenerationByWorkspace.get(root) ?? 0)
+        || !areModCanonicalWritesAllowed(root)) {
+        return false;
+    }
+    const current = runtimeByWorkspace.get(root);
+    if (authorization.mode === 'unmodded') return current === undefined || current.decision.mode === 'unmodded';
+    return current?.decision.mode === 'normal'
+        && current.lock?.aggregateHash === authorization.lock.aggregateHash
+        && current.decision.modContext.lockFingerprint === authorization.modContext.lockFingerprint
+        && current.decision.modContext.adultActive === authorization.modContext.adultActive;
 }
 
 export function clearModActivationGateRuntime(): void {
     runtimeByWorkspace.clear();
     runtimeFilesByWorkspace.clear();
+    runtimeInputByWorkspace.clear();
+    runtimeGenerationByWorkspace.clear();
+    runtimePackageTreesByWorkspace.clear();
 }

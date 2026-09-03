@@ -15,6 +15,10 @@ const restoreCore = require('../out/mods/modActivationGateCore');
 const { createVscodeStub, installVscodeStub } = require('./test_helpers/vscode_stub');
 const restoreVscode = installVscodeStub();
 const checkpoint = require('../out/checkpoint');
+const replayGuard = require('../out/acceptedTurnReplayGuard');
+const realStateManager = require('../out/stateManager');
+const realWorkspacePaths = require('../out/workspacePaths');
+const checkpointCombat = require('../out/checkpointCombatCore');
 restoreVscode();
 
 let assertions = 0;
@@ -52,6 +56,166 @@ function loadBoundary(relativeFile, mocks, append = '') {
 
 function stateEntry(id, role = 'gm', modContext) {
     return { id, role, sender: role === 'user' ? 'Player' : 'Game Master', content: id, ...(modContext ? { modContext } : {}) };
+}
+
+async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
+    const context = { format: 'lorerelay-mod-context/1', lockFingerprint: lock.aggregateHash, adultActive: false };
+    const changedProfile = { ...profile, enabled: [{ ...profile.enabled[0], source: 'any' }] };
+    const changed = resolver.resolveModProfile(changedProfile, [hashed.candidate], '1.84.32');
+    check(changed.ok && changed.lock.aggregateHash !== lock.aggregateHash, 'alternate valid profile/lock fixture is distinct');
+    const controls = (root, selectedProfile = profile, selectedLock = lock) => {
+        fs.mkdirSync(path.join(root, '.text-adventure'), { recursive: true });
+        fs.writeFileSync(path.join(root, '.text-adventure', 'mod-profile.json'), profiles.serializeModProfile(selectedProfile));
+        fs.writeFileSync(path.join(root, '.text-adventure', 'mod-lock.json'), profiles.serializeModLock(selectedLock));
+    };
+    const cpEvidence = { format: 'text-adventure-checkpoint/1.2', modLockSnapshot: lock, modLockFingerprint: lock.aggregateHash, history: [] };
+    for (const source of ['history', 'state', 'checkpoint']) {
+        const root = path.join(temp, `lineage-${source}`);
+        controls(root);
+        if (source === 'history') fs.writeFileSync(path.join(root, 'game_history.json'), JSON.stringify([stateEntry('old', 'gm', context)]));
+        if (source === 'state') fs.writeFileSync(path.join(root, 'game_state.json'), JSON.stringify({ entries: [stateEntry('old', 'gm', context)] }));
+        if (source === 'checkpoint') {
+            fs.mkdirSync(path.join(root, '.text-adventure', 'checkpoints'));
+            fs.writeFileSync(path.join(root, '.text-adventure', 'checkpoints', 'cp-1.json'), JSON.stringify(cpEvidence));
+        }
+        equal((await activation.evaluateModActivationGate({ ...input, workspaceRoot: root })).decision.mode, 'normal', `${source} matching saved lineage opens`);
+        controls(root, changedProfile, changed.lock);
+        const result = await activation.evaluateModActivationGate({ ...input, workspaceRoot: root });
+        equal(result.decision.mode, 'safe-required', `${source} rejects simultaneous profile/lock replacement`);
+        check(result.decision.blockers.some(item => item.code === 'CAMPAIGN_LOCK_LINEAGE_MISMATCH'), `${source} reports explicit lineage mismatch`);
+        equal(activation.areModCanonicalWritesAllowed(root), false, `${source} mismatch cannot write`);
+    }
+    const freshRoot = path.join(temp, 'fresh-alternate-lock');
+    controls(freshRoot, changedProfile, changed.lock);
+    equal((await activation.evaluateModActivationGate({ ...input, workspaceRoot: freshRoot })).decision.mode, 'normal', 'alternate lock is valid in a fresh campaign without prior provenance');
+    fs.writeFileSync(path.join(freshRoot, 'game_history.json'), JSON.stringify([stateEntry('late', 'gm', context)]));
+    equal(activation.areModCanonicalWritesAllowed(freshRoot), false, 'new mismatching provenance revokes an already-open campaign before writing');
+    fs.writeFileSync(path.join(freshRoot, 'game_history.json'), '[{"modContext":null}]');
+    equal((await activation.evaluateModActivationGate({ ...input, workspaceRoot: freshRoot })).decision.mode, 'safe-required', 'malformed provenance is rejected even with both valid control files');
+
+    const cachedRoot = path.join(temp, 'evidence-cache');
+    const checkpointDir = path.join(cachedRoot, '.text-adventure', 'checkpoints');
+    fs.mkdirSync(checkpointDir, { recursive: true });
+    for (let i = 0; i < 2049; i++) fs.writeFileSync(path.join(checkpointDir, `cp-${i}.json`), '{"format":"text-adventure-checkpoint/1.0","history":[]}');
+    fs.writeFileSync(path.join(cachedRoot, 'game_state.json'), '{"entries":[]}');
+    fs.writeFileSync(path.join(cachedRoot, 'game_history.json'), '[]');
+    equal((await activation.evaluateModActivationGate({ ...input, workspaceRoot: cachedRoot })).decision.mode, 'unmodded', 'cache primes a 2049-checkpoint legacy campaign');
+    const originalOpen = fs.openSync;
+    const originalOpendir = fs.opendirSync;
+    let checkpointOpens = 0;
+    let checkpointListings = 0;
+    fs.openSync = function(file, ...args) {
+        if (typeof file === 'string' && file.startsWith(checkpointDir + path.sep) && args[0] !== 'w') checkpointOpens++;
+        return originalOpen.call(this, file, ...args);
+    };
+    fs.opendirSync = function(file, ...args) {
+        if (file === checkpointDir) checkpointListings++;
+        return originalOpendir.call(this, file, ...args);
+    };
+    try {
+        for (let i = 0; i < 5; i++) equal(activation.areModCanonicalWritesAllowed(cachedRoot), true, 'unchanged cached unmodded gate remains writable');
+        equal(checkpointOpens, 0, 'hot guards do not open/parse any unchanged checkpoint');
+        equal(checkpointListings, 0, 'hot guards reuse unchanged directory membership');
+        for (let i = 0; i < 3; i++) {
+            fs.writeFileSync(path.join(cachedRoot, 'game_state.json'), JSON.stringify({ entries: [], revision: i }));
+            fs.writeFileSync(path.join(cachedRoot, 'game_history.json'), JSON.stringify([stateEntry(`user-${i}`, 'user')]));
+            equal(activation.areModCanonicalWritesAllowed(cachedRoot), true, 'normal state/history writes preserve unmodded cache');
+        }
+        equal(checkpointOpens, 0, 'state/history identity changes do not reread unrelated checkpoints');
+        equal(checkpointListings, 0, 'state/history identity changes do not relist checkpoint directory');
+        fs.writeFileSync(path.join(checkpointDir, 'cp-0.json'), JSON.stringify(cpEvidence));
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), false, 'in-place checkpoint edit invalidates evidence even without a membership change');
+        equal(checkpointOpens, 1, 'only the edited checkpoint is reopened');
+        fs.renameSync(path.join(checkpointDir, 'cp-0.json'), path.join(temp, 'detached-evidence.json'));
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), true, 'checkpoint deletion invalidates cached membership and aggregate');
+        fs.writeFileSync(path.join(checkpointDir, 'cp-9999.json'), JSON.stringify(cpEvidence));
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), false, 'checkpoint addition invalidates cached membership');
+        fs.renameSync(path.join(checkpointDir, 'cp-9999.json'), path.join(checkpointDir, 'cp-9998.json'));
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), false, 'checkpoint rename retains the MOD evidence');
+        fs.renameSync(checkpointDir, path.join(temp, 'detached-checkpoints'));
+        fs.mkdirSync(checkpointDir);
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), true, 'directory replacement cannot retain stale checkpoint evidence');
+        fs.writeFileSync(path.join(cachedRoot, 'game_history.json'), JSON.stringify([stateEntry('changed', 'gm', context)]));
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), false, 'history identity change invalidates its cached evidence');
+        fs.writeFileSync(path.join(cachedRoot, 'game_history.json'), '[]');
+        fs.writeFileSync(path.join(cachedRoot, 'game_state.json'), JSON.stringify({ entries: [stateEntry('changed', 'gm', context)] }));
+        equal(activation.areModCanonicalWritesAllowed(cachedRoot), false, 'state identity change invalidates its cached evidence');
+    } finally {
+        fs.openSync = originalOpen;
+        fs.opendirSync = originalOpendir;
+    }
+
+    for (const action of ['checkpoint', 'undo', 'rewind', 'regenerate']) {
+        for (const failure of ['history', 'state', ...(action === 'checkpoint' ? ['none'] : [])]) {
+            const root = path.join(temp, `restore-${action}-${failure}`);
+            controls(root);
+            const statePath = path.join(root, 'game_state.json');
+            const historyPath = path.join(root, 'game_history.json');
+            const originalHistory = [stateEntry('user-1', 'user'), stateEntry('gm-1', 'gm', context), stateEntry('user-2', 'user'), stateEntry('gm-2', 'gm', context)];
+            fs.writeFileSync(historyPath, JSON.stringify(originalHistory));
+            fs.writeFileSync(statePath, JSON.stringify({ schemaVersion: 2, entries: originalHistory, status: {}, options: [] }));
+            const stateBefore = fs.readFileSync(statePath, 'utf8');
+            const historyBefore = fs.readFileSync(historyPath, 'utf8');
+            const priorScope = replayGuard.ensureAcceptedTurnScope(root);
+            await activation.evaluateModActivationGate({ ...input, workspaceRoot: root });
+            const auth = await activation.acquireModCanonicalAuthorization(root);
+            const saved = checkpoint.saveCheckpointFile(root, originalHistory.slice(0, 2), 'restore test', { modAuthorization: auth });
+            check(saved, `${action}/${failure} checkpoint fixture saves`);
+            const sync = loadBoundary('gameStateSync.js', {
+                vscode: createVscodeStub(),
+                './workspacePaths': realWorkspacePaths,
+                './mods/modActivationGateHost': activation,
+            });
+            sync.initGameStateSync({ getHistoryPath: () => historyPath, getWorkspacePath: () => root });
+            sync.setGameEntryHistoryWithSeenIds(originalHistory);
+            const messages = [];
+            const errors = [];
+            const vscode = createVscodeStub();
+            vscode.window.showInformationMessage = message => messages.push(message);
+            vscode.window.showErrorMessage = message => errors.push(message);
+            const changeLock = () => fs.appendFileSync(path.join(root, '.text-adventure', 'mod-lock.json'), ' ');
+            const packageReadme = path.join(input.globalStorageRoot, 'mods', 'packages', profile.enabled[0].id, profile.enabled[0].version, 'README.md');
+            const handlers = loadBoundary('checkpointHandlers.js', {
+                vscode,
+                './workspacePaths': { ...realWorkspacePaths, getWorkspacePath: () => root, getGameStatePath: () => statePath },
+                './checkpoint': checkpoint,
+                './checkpointCombatCore': checkpointCombat,
+                './entryId': { isValidEntryId: () => true },
+                './i18n': { t: key => key },
+                './mods/modActivationGateHost': activation,
+                './mods/modActivationGateCore': restoreCore,
+                './acceptedTurnReplayGuard': replayGuard,
+                './stateManager': { commitGameState: (state, options) => realStateManager.commitGameStateAtPathForRuntimeAuthority(statePath, state, options) },
+                './gameStateSync': {
+                    ...sync, sendCurrentState() {}, replaceHistoryFromDisk() {},
+                    setGameEntryHistoryWithSeenIds(entries, ids) {
+                        sync.setGameEntryHistoryWithSeenIds(entries, ids);
+                        if (failure === 'history') changeLock();
+                    },
+                },
+                './gmBridgeRunner': { resetGmBridgeSessions() { if (failure === 'state') fs.writeFileSync(packageReadme, 'changed during restore'); } },
+            });
+            handlers.initCheckpointHandlers({ getPanel: () => undefined, isGameOverActive: () => false });
+            if (action === 'checkpoint') await handlers.handleRestoreCheckpoint(saved.id);
+            if (action === 'undo') await handlers.handleUndoLastTurn();
+            if (action === 'rewind') await handlers.handleRestoreToTurn('gm-1');
+            if (action === 'regenerate') await handlers.handleRegenerateLastTurn();
+            check(replayGuard.loadExistingAcceptedTurnScope(root).timelineEpochId !== priorScope.timelineEpochId, `${action}/${failure} exercised a post-rotation write boundary`);
+            if (failure === 'none') {
+                equal(replayGuard.getAcceptedTurnRestoreRepairLatchOutcome(root), undefined, 'successful matching restore has no repair latch');
+                check(messages.length === 1 && errors.length === 0, 'successful matching restore reports success');
+                equal(JSON.parse(fs.readFileSync(statePath)).entries[0].id, 'gm-1', 'successful matching restore persists target state');
+            } else {
+                equal(replayGuard.getAcceptedTurnRestoreRepairLatchOutcome(root)?.kind, 'repairRequired', `${action}/${failure} rejected write installs a real repair latch`);
+                equal(messages.length, 0, `${action}/${failure} rejected write never reports success`);
+                check(errors.length > 0, `${action}/${failure} rejection reaches the user-visible transaction failure`);
+                equal(fs.readFileSync(statePath, 'utf8'), stateBefore, `${action}/${failure} rejected state remains byte-identical`);
+                if (failure === 'history') equal(fs.readFileSync(historyPath, 'utf8'), historyBefore, `${action}/history rejection preserves prior history bytes`);
+            }
+            if (failure === 'state') fs.writeFileSync(packageReadme, 'original');
+            replayGuard.resetAcceptedTurnReplayGuardForTests();
+        }
+    }
 }
 
 async function main() {
@@ -214,7 +378,7 @@ async function main() {
         equal(checkpoint.parseCheckpointFile({ ...cp, modLockFingerprint: resolved.lock.aggregateHash }), undefined, 'checkpoint 1.2 rejects inconsistent snapshot evidence');
 
         const trustedContext = (await activation.acquireModCanonicalAuthorization(workspaceRoot)).modContext;
-        const forgedContext = { ...trustedContext, lockFingerprint: hashes.sha256ModBytes(Buffer.from('forged')) };
+        const forgedContext = { ...trustedContext, adultActive: !trustedContext.adultActive };
         const syncStatePath = path.join(workspaceRoot, 'game_state.json');
         fs.writeFileSync(syncStatePath, JSON.stringify({
             schemaVersion: 2, status: {}, options: [],
@@ -253,7 +417,9 @@ async function main() {
         fs.writeFileSync(path.join(malformedCheckpointRoot, '.text-adventure', 'checkpoints', 'cp-1.json'), '{"format":"text-adventure-checkpoint/1.2","modLockFingerprint":"invalid"}');
         equal(activation.areModCanonicalWritesAllowed(malformedCheckpointRoot), false, 'direct write sink detects malformed checkpoint evidence even before startup evaluation');
         equal((await activation.evaluateModActivationGate({ ...input, workspaceRoot: malformedCheckpointRoot })).decision.mode, 'safe-required', 'malformed checkpoint evidence is never unmodded');
+        await verifyPostMergeRepairs(temp, input, hashed, profile, resolved.lock);
     } finally {
+        replayGuard.resetAcceptedTurnReplayGuardForTests();
         activation.clearModActivationGateRuntime();
         const target = path.resolve(temp);
         check(target.startsWith(path.resolve(os.tmpdir()) + path.sep), 'test cleanup is contained in the unique OS temp directory');

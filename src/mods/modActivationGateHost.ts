@@ -266,6 +266,7 @@ interface JsonEvidenceRead {
     value?: unknown;
     potentialModEvidence?: boolean;
     byteLength?: number;
+    identity?: FileIdentity;
 }
 
 function readJsonEvidence(filePath: string, maximumBytes = MAX_MOD_EVIDENCE_FILE_BYTES): JsonEvidenceRead {
@@ -277,12 +278,14 @@ function readJsonEvidence(filePath: string, maximumBytes = MAX_MOD_EVIDENCE_FILE
             kind: 'ok',
             value: JSON.parse(Buffer.from(read.bytes).toString('utf8')) as unknown,
             byteLength: read.bytes.byteLength,
+            identity: read.identity,
         };
     } catch {
         const text = Buffer.from(read.bytes).toString('utf8');
         return {
             kind: 'invalid',
             byteLength: read.bytes.byteLength,
+            identity: read.identity,
             potentialModEvidence: text.includes('modContext')
                 || text.includes('modLockFingerprint')
                 || text.includes('modLockSnapshot')
@@ -291,113 +294,164 @@ function readJsonEvidence(filePath: string, maximumBytes = MAX_MOD_EVIDENCE_FILE
     }
 }
 
-function collectCampaignEvidence(workspaceRoot: string): {
+interface CampaignEvidence {
     historyLockFingerprints: string[];
     checkpointLockFingerprints: string[];
     modEvidencePresent: boolean;
     invalidModEvidencePresent: boolean;
-} {
+}
+
+type EvidenceIdentity = FileIdentity | 'missing' | 'invalid';
+interface DocumentEvidence extends CampaignEvidence {
+    byteLength: number;
+    missing: boolean;
+}
+interface CampaignEvidenceCache {
+    directoryIdentity?: EvidenceIdentity;
+    files: string[];
+    documents: Map<string, { identity: EvidenceIdentity; evidence: DocumentEvidence }>;
+    lastDocuments?: DocumentEvidence[];
+    aggregate?: CampaignEvidence;
+}
+const campaignEvidenceCache = new Map<string, CampaignEvidenceCache>();
+
+function evidenceIdentity(filePath: string, directory = false): EvidenceIdentity {
+    try {
+        const stats = fs.lstatSync(filePath);
+        if (stats.isSymbolicLink() || (directory ? !stats.isDirectory() : !stats.isFile() || stats.nlink !== 1)) return 'invalid';
+        return fileIdentity(stats);
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'invalid';
+    }
+}
+
+function sameEvidenceIdentity(left: EvidenceIdentity | undefined, right: EvidenceIdentity): boolean {
+    if (left === 'invalid' || right === 'invalid') return false;
+    return typeof left === 'object' && typeof right === 'object'
+        ? sameFileIdentity(left, right)
+        : left === right;
+}
+
+function readDocumentEvidence(cache: CampaignEvidenceCache, filePath: string, kind: 'history' | 'state' | 'checkpoint'): DocumentEvidence {
+    const identity = evidenceIdentity(filePath);
+    const cached = cache.documents.get(filePath);
+    if (cached && sameEvidenceIdentity(cached.identity, identity)) return cached.evidence;
+    const read = readJsonEvidence(filePath);
     const history = new Set<string>();
     const checkpoints = new Set<string>();
     let modEvidencePresent = false;
-    let invalidModEvidencePresent = false;
-    const historyRead = readJsonEvidence(path.join(workspaceRoot, 'game_history.json'));
-    if (historyRead.kind === 'invalid' && historyRead.potentialModEvidence !== false) invalidModEvidencePresent = true;
-    if (historyRead.kind === 'ok') {
-        const result = collectEntryFingerprints(historyRead.value, history);
+    let invalidModEvidencePresent = read.kind === 'invalid' && read.potentialModEvidence !== false;
+    const value = read.value;
+    const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+    if (read.kind === 'ok') {
+        const entries = kind === 'history' ? value : kind === 'state' ? record?.entries : record?.history;
+        const result = collectEntryFingerprints(entries, history);
         modEvidencePresent ||= result.modEvidencePresent;
         invalidModEvidencePresent ||= result.invalidModEvidencePresent;
     }
-    const stateRead = readJsonEvidence(path.join(workspaceRoot, 'game_state.json'));
-    if (stateRead.kind === 'invalid' && stateRead.potentialModEvidence !== false) invalidModEvidencePresent = true;
-    const stateValue = stateRead.value;
-    if (stateRead.kind === 'ok' && stateValue && typeof stateValue === 'object' && !Array.isArray(stateValue)) {
-        const result = collectEntryFingerprints((stateValue as Record<string, unknown>).entries, history);
-        modEvidencePresent ||= result.modEvidencePresent;
-        invalidModEvidencePresent ||= result.invalidModEvidencePresent;
-    }
-
-    const checkpointDir = path.join(workspaceRoot, '.text-adventure', 'checkpoints');
-    let files: string[] = [];
-    let checkpointDirectory: fs.Dir | undefined;
-    let checkpointDirectoryIdentity: FileIdentity | undefined;
-    try {
-        const stats = fs.lstatSync(checkpointDir);
-        if (stats.isSymbolicLink() || !stats.isDirectory()) throw new Error('checkpoint path is not ordinary');
-        checkpointDirectoryIdentity = fileIdentity(stats);
-        checkpointDirectory = fs.opendirSync(checkpointDir);
-        while (true) {
-            const entry = checkpointDirectory.readSync();
-            if (!entry) break;
-            if (!/^cp-\d+\.json$/.test(entry.name)) continue;
-            files.push(entry.name);
-            if (files.length > MAX_MOD_EVIDENCE_CHECKPOINT_FILES) {
-                invalidModEvidencePresent = true;
-                files.length = MAX_MOD_EVIDENCE_CHECKPOINT_FILES;
-                break;
-            }
+    if (kind === 'checkpoint' && record && (record.format === 'text-adventure-checkpoint/1.2'
+        || Object.prototype.hasOwnProperty.call(record, 'modLockFingerprint')
+        || Object.prototype.hasOwnProperty.call(record, 'modLockSnapshot'))) {
+        modEvidencePresent = true;
+        if (record.format === 'text-adventure-checkpoint/1.2'
+            && typeof record.modLockFingerprint === 'string'
+            && /^sha256:[a-f0-9]{64}$/.test(record.modLockFingerprint)) {
+            checkpoints.add(record.modLockFingerprint);
+        } else {
+            invalidModEvidencePresent = true;
         }
-        files.sort(compareUnicodeCodePointOrder);
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') invalidModEvidencePresent = true;
-        files = [];
-    } finally {
-        checkpointDirectory?.closeSync();
     }
+    const finalIdentity = evidenceIdentity(filePath);
+    if (!sameEvidenceIdentity(identity, finalIdentity)
+        || (read.identity && !sameEvidenceIdentity(read.identity, finalIdentity))) invalidModEvidencePresent = true;
+    const evidence: DocumentEvidence = {
+        historyLockFingerprints: [...history].sort(),
+        checkpointLockFingerprints: [...checkpoints].sort(),
+        modEvidencePresent, invalidModEvidencePresent,
+        byteLength: read.byteLength ?? 0,
+        missing: read.kind === 'missing',
+    };
+    // Retain only reduced evidence, never the potentially large JSON/payload.
+    if (!invalidModEvidencePresent) cache.documents.set(filePath, { identity: finalIdentity, evidence });
+    else cache.documents.delete(filePath);
+    return evidence;
+}
+
+function collectCampaignEvidence(workspaceRoot: string): CampaignEvidence {
+    const cache = campaignEvidenceCache.get(workspaceRoot) ?? { files: [], documents: new Map() } as CampaignEvidenceCache;
+    campaignEvidenceCache.set(workspaceRoot, cache);
+    const checkpointDir = path.join(workspaceRoot, '.text-adventure', 'checkpoints');
+    const directoryIdentity = evidenceIdentity(checkpointDir, true);
+    let invalidModEvidencePresent = directoryIdentity === 'invalid';
+    if (!sameEvidenceIdentity(cache.directoryIdentity, directoryIdentity)) {
+        const files: string[] = [];
+        let directory: fs.Dir | undefined;
+        try {
+            if (typeof directoryIdentity === 'object') {
+                directory = fs.opendirSync(checkpointDir);
+                while (true) {
+                    const entry = directory.readSync();
+                    if (!entry) break;
+                    if (!/^cp-\d+\.json$/.test(entry.name)) continue;
+                    files.push(entry.name);
+                    if (files.length > MAX_MOD_EVIDENCE_CHECKPOINT_FILES) {
+                        invalidModEvidencePresent = true;
+                        break;
+                    }
+                }
+            }
+            if (!sameEvidenceIdentity(directoryIdentity, evidenceIdentity(checkpointDir, true))) invalidModEvidencePresent = true;
+        } catch {
+            invalidModEvidencePresent = true;
+        } finally {
+            directory?.closeSync();
+        }
+        if (invalidModEvidencePresent) {
+            cache.directoryIdentity = undefined;
+            cache.lastDocuments = undefined;
+            return { historyLockFingerprints: [], checkpointLockFingerprints: [], modEvidencePresent: false, invalidModEvidencePresent: true };
+        }
+        cache.files = files.sort(compareUnicodeCodePointOrder);
+        cache.directoryIdentity = directoryIdentity;
+        const present = new Set(files.map(file => path.join(checkpointDir, file)));
+        for (const file of cache.documents.keys()) {
+            if (path.dirname(file) === checkpointDir && !present.has(file)) cache.documents.delete(file);
+        }
+    }
+    const documents = [
+        readDocumentEvidence(cache, path.join(workspaceRoot, 'game_history.json'), 'history'),
+        readDocumentEvidence(cache, path.join(workspaceRoot, 'game_state.json'), 'state'),
+    ];
     let checkpointBytesRead = 0;
-    for (const file of files) {
-        const read = readJsonEvidence(path.join(checkpointDir, file));
-        checkpointBytesRead += read.byteLength ?? 0;
-        if (checkpointBytesRead > MAX_MOD_EVIDENCE_CHECKPOINT_TOTAL_BYTES) {
+    for (const file of cache.files) {
+        // Parent directory timestamps do not change on an in-place child edit.
+        // Probe child identity, but open/parse only changed documents.
+        const evidence = readDocumentEvidence(cache, path.join(checkpointDir, file), 'checkpoint');
+        documents.push(evidence);
+        checkpointBytesRead += evidence.byteLength;
+        if (evidence.missing || checkpointBytesRead > MAX_MOD_EVIDENCE_CHECKPOINT_TOTAL_BYTES) {
             invalidModEvidencePresent = true;
             break;
         }
-        if (read.kind === 'invalid') {
-            if (read.potentialModEvidence !== false) invalidModEvidencePresent = true;
-            continue;
-        }
-        if (read.kind === 'missing') {
-            invalidModEvidencePresent = true;
-            continue;
-        }
-        const value = read.value;
-        if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-        const record = value as Record<string, unknown>;
-        const checkpointModFieldsPresent = record.format === 'text-adventure-checkpoint/1.2'
-            || Object.prototype.hasOwnProperty.call(record, 'modLockFingerprint')
-            || Object.prototype.hasOwnProperty.call(record, 'modLockSnapshot');
-        if (checkpointModFieldsPresent) {
-            modEvidencePresent = true;
-            if (record.format === 'text-adventure-checkpoint/1.2'
-                && typeof record.modLockFingerprint === 'string'
-                && /^sha256:[a-f0-9]{64}$/.test(record.modLockFingerprint)) {
-                checkpoints.add(record.modLockFingerprint);
-            } else {
-                invalidModEvidencePresent = true;
-            }
-        }
-        const historyResult = collectEntryFingerprints(record.history, history);
-        modEvidencePresent ||= historyResult.modEvidencePresent;
-        invalidModEvidencePresent ||= historyResult.invalidModEvidencePresent;
     }
-    if (checkpointDirectoryIdentity) {
-        try {
-            const finalDirectory = fs.lstatSync(checkpointDir);
-            if (finalDirectory.isSymbolicLink()
-                || !finalDirectory.isDirectory()
-                || !sameFileIdentity(checkpointDirectoryIdentity, fileIdentity(finalDirectory))) {
-                invalidModEvidencePresent = true;
-            }
-        } catch {
-            invalidModEvidencePresent = true;
-        }
-    }
-    return {
-        historyLockFingerprints: [...history].sort(),
-        checkpointLockFingerprints: [...checkpoints].sort(),
-        modEvidencePresent,
-        invalidModEvidencePresent,
+    if (!sameEvidenceIdentity(directoryIdentity, evidenceIdentity(checkpointDir, true))) invalidModEvidencePresent = true;
+    if (!invalidModEvidencePresent && cache.aggregate && cache.lastDocuments?.length === documents.length
+        && documents.every((document, index) => document === cache.lastDocuments![index])) return cache.aggregate;
+    const aggregate: CampaignEvidence = {
+        historyLockFingerprints: [...new Set(documents.flatMap(document => document.historyLockFingerprints))].sort(),
+        checkpointLockFingerprints: [...new Set(documents.flatMap(document => document.checkpointLockFingerprints))].sort(),
+        modEvidencePresent: documents.some(document => document.modEvidencePresent),
+        invalidModEvidencePresent: invalidModEvidencePresent || documents.some(document => document.invalidModEvidencePresent),
     };
+    cache.lastDocuments = aggregate.invalidModEvidencePresent ? undefined : documents;
+    cache.aggregate = aggregate;
+    return aggregate;
+}
+
+function evidenceMatchesLock(evidence: CampaignEvidence, fingerprint: string): boolean {
+    return !evidence.invalidModEvidencePresent
+        && evidence.historyLockFingerprints.every(value => value === fingerprint)
+        && evidence.checkpointLockFingerprints.every(value => value === fingerprint);
 }
 
 function storeRuntime(
@@ -630,6 +684,13 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
         }, runtimeFiles);
     }
 
+    const evidence = collectCampaignEvidence(root);
+    if (evidence.invalidModEvidencePresent) {
+        return storeRuntime(root, {
+            decision: safeDecision([gateDiagnostic('CAMPAIGN_EVIDENCE_INVALID', 'Campaign MOD evidence is malformed or could not be inspected safely')]),
+            contentActivationAllowed: false, profile, lock,
+        }, runtimeFiles);
+    }
     const decision = assessModCampaignOpen({
         lock,
         installedCandidates: candidates,
@@ -637,8 +698,9 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
         adultSessionAllowed: input.adultSessionAllowed,
         activeProfileHash: profileHash,
         modProfilePresent: true,
-        checkpointLockFingerprints: [],
-        historyLockFingerprints: [],
+        checkpointLockFingerprints: evidence.checkpointLockFingerprints,
+        historyLockFingerprints: evidence.historyLockFingerprints,
+        modEvidencePresent: evidence.modEvidencePresent,
     });
     return storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles, packageTrees);
 }
@@ -813,7 +875,7 @@ export function areModCanonicalWritesAllowed(workspaceRoot: string): boolean {
             const evidence = collectCampaignEvidence(workspaceKey(workspaceRoot));
             return !evidence.modEvidencePresent && !evidence.invalidModEvidencePresent;
         }
-        return true;
+        return current.lock !== undefined && evidenceMatchesLock(collectCampaignEvidence(workspaceKey(workspaceRoot)), current.lock.aggregateHash);
     }
     if (fileExists(path.join(campaignDir, MOD_PROFILE_FILE))
         || fileExists(path.join(campaignDir, MOD_LOCK_FILE))) return false;
@@ -896,6 +958,7 @@ export function isModCanonicalAuthorizationCurrent(authorization: ModCanonicalAu
 }
 
 export function clearModActivationGateRuntime(): void {
+    campaignEvidenceCache.clear();
     runtimeByWorkspace.clear();
     runtimeFilesByWorkspace.clear();
     runtimeInputByWorkspace.clear();

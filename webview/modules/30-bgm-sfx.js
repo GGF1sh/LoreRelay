@@ -8,6 +8,7 @@ let bgmUserMuted = false;
 let bgmBaseVolume = 0.5; // 0..1 ユーザー音量
 let bgmAudioReady = false; // ユーザー操作で自動再生が解禁されたか
 let bgmFadeTimer = null;
+const bgmModGrants = new Map();
 
 const bgmNowEl = document.getElementById('bgm-now');
 const bgmListEl = document.getElementById('bgm-list');
@@ -24,12 +25,12 @@ let bgmIdle = bgmAudioB;
 [bgmAudioA, bgmAudioB].forEach(a => { a.preload = 'auto'; });
 
 function setBgmManifest(tracks, defaultVolume, enabled) {
-  const prior = bgmTracks.find(t => t.id === bgmCurrentId);
   bgmTracks = Array.isArray(tracks) ? tracks : [];
-  if (prior?.modAsset && !bgmTracks.some(t => t.id === prior.id && t.uri === prior.uri)) {
+  if ([...bgmModGrants.values()].some(prior => !bgmTracks.some(t => t.id === prior.id && t.uri === prior.uri))) {
     if (bgmFadeTimer) clearInterval(bgmFadeTimer);
     bgmFadeTimer = null;
     for (const a of [bgmAudioA, bgmAudioB]) { a.pause(); a.src = ''; }
+    bgmModGrants.clear();
     bgmCurrentId = null;
   }
   if (typeof defaultVolume === 'number') {
@@ -106,6 +107,8 @@ function crossfadeTo(track) {
 
   // idle 側に新トラックをロードして再生
   bgmIdle.src = track.uri;
+  if (track.modAsset) bgmModGrants.set(bgmIdle, { id: track.id, uri: track.uri });
+  else bgmModGrants.delete(bgmIdle);
   bgmIdle.loop = track.loop !== false; // 既定 loop:true
   bgmIdle.volume = 0;
   const playPromise = bgmIdle.play();
@@ -129,6 +132,7 @@ function crossfadeTo(track) {
       clearInterval(bgmFadeTimer);
       bgmFadeTimer = null;
       fadingOut.pause();
+      bgmModGrants.delete(fadingOut);
       // active/idle を入れ替え
       const tmp = bgmActive; bgmActive = bgmIdle; bgmIdle = tmp;
     }

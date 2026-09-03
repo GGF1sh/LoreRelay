@@ -84,6 +84,7 @@ const runtimeGenerationByWorkspace = new Map<string, number>();
 const runtimePackageTreesByWorkspace = new Map<string, ModPackageTreeIdentity[]>();
 const runtimeContentByWorkspace = new Map<string, ModContentRegistry>();
 const runtimeAssetBytesByWorkspace = new Map<string, Map<string, Uint8Array>>();
+const runtimeRefreshesByWorkspace = new Map<string, number>();
 let nextRuntimeGeneration = 1;
 
 interface FileIdentity {
@@ -490,6 +491,23 @@ function storeRuntime(
 }
 
 export async function evaluateModActivationGate(input: ModActivationGateInput): Promise<ModActivationGateResult> {
+    const root = workspaceKey(input.workspaceRoot);
+    runtimeRefreshesByWorkspace.set(root, (runtimeRefreshesByWorkspace.get(root) ?? 0) + 1);
+    try {
+        return await evaluateModActivationGateNow(input);
+    } finally {
+        const pending = (runtimeRefreshesByWorkspace.get(root) ?? 1) - 1;
+        if (pending > 0) runtimeRefreshesByWorkspace.set(root, pending);
+        else runtimeRefreshesByWorkspace.delete(root);
+    }
+}
+
+/** Pending verification grants no read/write authority; it is not a confirmed permanent revocation. */
+export function isModActivationGateRefreshing(workspaceRoot: string): boolean {
+    return (runtimeRefreshesByWorkspace.get(workspaceKey(workspaceRoot)) ?? 0) > 0;
+}
+
+async function evaluateModActivationGateNow(input: ModActivationGateInput): Promise<ModActivationGateResult> {
     const root = workspaceKey(input.workspaceRoot);
     runtimeInputByWorkspace.set(root, {
         ...input,
@@ -1048,6 +1066,7 @@ export function isModCanonicalAuthorizationCurrent(authorization: ModCanonicalAu
 export function clearModActivationGateRuntime(): void {
     runtimeContentByWorkspace.clear();
     runtimeAssetBytesByWorkspace.clear();
+    runtimeRefreshesByWorkspace.clear();
     campaignEvidenceCache.clear();
     runtimeByWorkspace.clear();
     runtimeFilesByWorkspace.clear();

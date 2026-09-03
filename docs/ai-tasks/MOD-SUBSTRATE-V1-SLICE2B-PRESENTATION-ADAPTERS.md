@@ -10,8 +10,8 @@ Risk: High. Scope: presentation only; activation still requires the existing pro
 - Keep original Scenario opening, Lorebook content and Persona prompt data unchanged. Translate only Scenario selection names/descriptions, Persona selection names, Lorebook display badges, and asset alternative text/descriptions.
 - Append raster assets to the existing Parlor/In-World background gallery and audio to the existing BGM/SFX manifests. Selection stores canonical IDs, never file paths. No replace/patch or copying MOD payload into campaign definitions.
 - A read-only `lorerelay-mod-asset` filesystem provider serves detached, hash-verified buffers through panel-scoped opaque URIs. Both `stat` and `readFile` recheck the active lock and package identities. No installed-package resource root or filesystem path is sent to the webview.
-- Panel disposal revokes its URI grants. On authorization drift, future reads fail immediately; a one-second presentation refresh removes cached MOD choices/backgrounds and stops MOD audio already playing. Reopening is required to acquire a new presentation session.
-- Legacy media paths cannot fall back into declared MOD packages or the global/workspace MOD roots.
+- Panel disposal revokes its URI grants. During routine authorization revalidation, reads/stat remain fail-closed without permanently revoking the panel. Successful verification of the same lock preserves the session; confirmed drift revokes it. A one-second presentation refresh, after any in-flight verification completes, removes cached MOD choices/backgrounds and stops MOD audio already playing (including the fading-out side of a crossfade). Reopening is required after confirmed revocation.
+- Legacy media paths cannot fall back into declared MOD packages or the global/workspace MOD roots. Both the original absolute ancestry and realpath ancestry are checked, including junctions pointing out of an inactive package.
 
 ## Data formats
 
@@ -74,5 +74,17 @@ The initial local work stopped under `AGENTS.md` after three new-test failures. 
 Resumption fixes the shared stub generically: `get(_key, defaultValue)` returns `defaultValue`; omitted defaults remain undefined. No production optional chaining or ad-hoc fallback was added. The first resumed run of `node scripts/test_mod_presentation_adapters.js` passed 130 assertions, including default values `''`, `0`, `false`, `null`, an object and an omitted default.
 
 Required closing evidence remains focused checks, selected Test Console plan, one fixed-HEAD independent security review, any repair and direct verification, one final unchanged-tree full suite, exact-head CI and eligible Standard Close. Final SHAs/results are recorded in the PR rather than guessed in this document.
+
+## Independent review and repair
+
+One independent security review covered implementation HEAD `0eefd81415bb54687b1f08df7d3e067477446d08` and reported two P2 findings, no P1 findings. It ran only targeted reproductions, not duplicate suites.
+
+| Finding | Repair | Direct regression |
+| --- | --- | --- |
+| P2: routine canonical authorization rehash temporarily clears the registry, permanently revoking a healthy panel | Explicit per-workspace pending-verification status; timer defers permanent revocation, provider reads/stat still deny during uncertainty | Pause the real profile-file open inside `acquireModCanonicalAuthorization`, tick broker, finish unchanged-lock verification; old URI and same panel remain usable |
+| P2: realpath-only legacy exclusion loses MOD ancestry through an outward junction | Inspect both lexical absolute ancestors and resolved ancestors | An inactive workspace-MOD junction to an ordinary directory is denied by guard and real media manifest; ordinary legacy target remains usable |
+| Additional implementation-side reproduction: MOD-to-legacy crossfade leaves fading-out MOD audio playing on revocation | Track MOD grants on both audio instances, not just the currently selected track ID | Complete MOD fade-in, start legacy fade, revoke MOD; both audio and fade timer stop |
+
+These repairs are one pass. There is no second independent review of the repair; direct regressions and final-tree full-suite/CI evidence close that stage.
 
 Excluded: installers, MOD Manager, adult opt-in UI, Prompt fragments, Campaign Kit, Combat fixtures, replace/patch and arbitrary code MODs.

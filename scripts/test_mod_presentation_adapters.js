@@ -185,6 +185,30 @@ async function main() {
         eq(panel.webview.options.localResourceRoots[0].scheme, 'lorerelay-mod-asset', 'no package filesystem root granted');
         eq(provider.readFile(issued), png(), 'read serves exact hashed PNG buffer');
         eq(provider.stat(issued).size, png().length, 'stat is guarded too');
+        let releaseRefresh, enteredRefresh;
+        const heldRefresh = new Promise(resolve => { releaseRefresh = resolve; });
+        const refreshEntered = new Promise(resolve => { enteredRefresh = resolve; });
+        const openBeforeRefresh = fsp.open;
+        let held = false;
+        fsp.open = async function(filename, ...args) {
+            if (!held && String(filename).endsWith('mod-profile.json')) { held = true; enteredRefresh(); await heldRefresh; }
+            return openBeforeRefresh.call(this, filename, ...args);
+        };
+        let refresh;
+        try {
+            refresh = gate.acquireModCanonicalAuthorization(ws);
+            await refreshEntered;
+            eq(gate.isModActivationGateRefreshing(ws), true, 'real canonical acquisition reports pending revalidation');
+            timers[0](); eq(revoked, 0, 'routine pending rehash is not permanent revocation');
+            throws(() => provider.readFile(issued), 'pending revalidation still denies provider reads');
+            throws(() => provider.stat(issued), 'pending revalidation still denies provider stat');
+            eq(broker.resolveModAssetForWebview(panel, ws, 'example.story:view'), undefined, 'pending verification cannot issue new URI grants');
+        } finally { releaseRefresh(); fsp.open = openBeforeRefresh; }
+        eq((await refresh).mode, 'modded', 'unchanged lock revalidates normally');
+        eq(gate.isModActivationGateRefreshing(ws), false, 'pending marker clears after completed gate');
+        timers[0](); eq(revoked, 0, 'successful routine acquisition preserves healthy panel');
+        eq(provider.readFile(issued), png(), 'already issued URI survives unchanged-lock refresh');
+        eq(broker.resolveModAssetForWebview(panel, ws, 'example.story:view'), uri, 'same panel can resolve after routine refresh');
         eq(broker.resolveModAssetForWebview(panel, adultWs, 'example.story:view'), undefined, 'panel cannot cross workspace');
         for (const id of ['inactive.story:view', 'adult.story:view', '../image.png', 'file:///secret', 'example.story:unknown']) eq(broker.resolveModAssetForWebview(panel, ws, id), undefined, 'only locked ID lookup');
         for (const change of [{ scheme: 'file' }, { authority: 'other' }, { query: 'x' }, { fragment: 'x' }, { path: issued.path + '/..' }]) throws(() => provider.readFile({ ...issued, ...change }), 'forged URI denied');
@@ -193,7 +217,15 @@ async function main() {
         eq(broker.isLegacyMediaOutsideModPackages(path.join(inactive.root, 'image.png')), false, 'legacy paths cannot read inactive MOD');
         const legacy = path.join(ws, 'legacy.wav'); fs.writeFileSync(legacy, wav());
         eq(broker.isLegacyMediaOutsideModPackages(legacy), true, 'ordinary local legacy media compatible');
-        fs.writeFileSync(path.join(ws, 'bgm.json'), JSON.stringify([{ id: 'legacy', file: legacy }, { id: 'raw-inactive', file: path.join(inactive.root, 'music.wav') }, { id: 'example.story:music', file: legacy }]));
+        const junctionPackage = path.join(temp, 'junction-campaign/.text-adventure/mods/inactive.story/1.0.0');
+        const junctionTarget = path.join(temp, 'legacy-target');
+        fs.mkdirSync(junctionPackage, { recursive: true }); fs.mkdirSync(junctionTarget);
+        fs.writeFileSync(path.join(junctionPackage, 'lorerelay.mod.json'), '{}'); fs.writeFileSync(path.join(junctionTarget, 'music.wav'), wav());
+        fs.symlinkSync(junctionTarget, path.join(junctionPackage, 'redirect'), 'junction');
+        const redirected = path.join(junctionPackage, 'redirect/music.wav');
+        eq(broker.isLegacyMediaOutsideModPackages(redirected), false, 'junction out of inactive MOD retains its lexical MOD ancestry');
+        eq(broker.isLegacyMediaOutsideModPackages(path.join(junctionTarget, 'music.wav')), true, 'ordinary target itself is still legacy-compatible');
+        fs.writeFileSync(path.join(ws, 'bgm.json'), JSON.stringify([{ id: 'legacy', file: legacy }, { id: 'raw-inactive', file: path.join(inactive.root, 'music.wav') }, { id: 'raw-junction', file: redirected }, { id: 'example.story:music', file: legacy }]));
         const media = boundary('mediaManifest.js', { './workspacePaths': { getWorkspacePath: () => ws }, './mods/modAssetBroker': broker, './mods/modActivationGateHost': gate, './mods/modPathCore': require('../out/mods/modPathCore'), './i18n': { getConfiguredLocale: () => 'ja' } });
         media.initMediaManifest({ getPanel: () => panel }); media.sendBgmManifest(); media.sendSfxManifest();
         eq(messages.find(m => m.type === 'bgmManifest').tracks.map(x => x.id), ['legacy', 'example.story:music'], 'existing music manifest appends locked audio without raw fallback/collision');
@@ -230,6 +262,11 @@ async function main() {
         ok(audio.some(a => !a.paused), 'real media code starts authorized clips');
         vm.runInContext('setBgmManifest([],50,true); setSfxManifest([],70,true);', ctx);
         ok(audio.every(a => a.paused), 'revocation pauses background crossfade and SFX'); eq(intervalCallbacks.size, 0, 'revocation cancels pending crossfade');
+        vm.runInContext("setBgmManifest([{id:'mod:music',uri:'safe',modAsset:true},{id:'local',uri:'legacy'}],50,true); playBgmById('mod:music');", ctx);
+        for (let tick = 0; tick < 24; tick++) for (const callback of [...intervalCallbacks.values()]) callback();
+        vm.runInContext("playBgmById('local'); setBgmManifest([{id:'local',uri:'legacy'}],50,true);", ctx);
+        ok(audio.every(a => a.paused), 'revocation also stops the fading-out MOD track after current ID changes to legacy');
+        eq(intervalCallbacks.size, 0, 'mixed MOD-to-legacy crossfade cannot restart revoked audio');
         console.log(`MOD presentation adapters: ${assertions} assertions passed.`);
     } finally {
         global.setInterval = nativeInterval; global.clearInterval = nativeClearInterval;

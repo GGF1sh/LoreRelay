@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { createHash, randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getActiveModAsset, getActiveModContributions } from './modActivationGateHost';
+import { getActiveModAsset, getActiveModContributions, isModActivationGateRefreshing } from './modActivationGateHost';
 
 const scheme = 'lorerelay-mod-asset';
 interface Grant { workspaceRoot: string; id: string; fingerprint: string }
@@ -15,13 +15,18 @@ export function isLegacyMediaOutsideModPackages(filename: string): boolean {
     try {
         const real = fs.realpathSync(filename), stat = fs.statSync(real);
         if (!stat.isFile() || stat.nlink !== 1) return false;
-        let directory = path.dirname(real);
-        for (let depth = 0; depth < 64; depth++) {
-            const parent = path.dirname(directory), name = path.basename(directory).toLowerCase(), parentName = path.basename(parent).toLowerCase();
-            if (fs.existsSync(path.join(directory, 'lorerelay.mod.json')) || (name === 'mods' && parentName === '.text-adventure') || (name === 'packages' && parentName === 'mods')) return false;
-            if (parent === directory) return true;
-            directory = parent;
+        // A junction can point out of a MOD root; realpath alone loses that original MOD ancestry.
+        for (let directory of [path.dirname(path.resolve(filename)), path.dirname(real)]) {
+            let reachedRoot = false;
+            for (let depth = 0; depth < 64; depth++) {
+                const parent = path.dirname(directory), name = path.basename(directory).toLowerCase(), parentName = path.basename(parent).toLowerCase();
+                if (fs.existsSync(path.join(directory, 'lorerelay.mod.json')) || (name === 'mods' && parentName === '.text-adventure') || (name === 'packages' && parentName === 'mods')) return false;
+                if (parent === directory) { reachedRoot = true; break; }
+                directory = parent;
+            }
+            if (!reachedRoot) return false;
         }
+        return true;
     } catch { /* Unknown containment is not legacy authorization. */ }
     return false;
 }
@@ -29,6 +34,7 @@ export function isLegacyMediaOutsideModPackages(filename: string): boolean {
 function read(uri: vscode.Uri): Uint8Array {
     if (uri.scheme !== scheme || uri.authority || uri.query || uri.fragment) throw vscode.FileSystemError.FileNotFound();
     const grant = grants.get(uri.path);
+    if (!grant || isModActivationGateRefreshing(grant.workspaceRoot)) throw vscode.FileSystemError.FileNotFound();
     const asset = grant && getActiveModAsset(grant.workspaceRoot, grant.id);
     if (!grant || !asset || asset.lockFingerprint !== grant.fingerprint) throw vscode.FileSystemError.FileNotFound();
     return asset.bytes;
@@ -37,6 +43,7 @@ function read(uri: vscode.Uri): Uint8Array {
 function size(uri: vscode.Uri): number {
     if (uri.scheme !== scheme || uri.authority || uri.query || uri.fragment) throw vscode.FileSystemError.FileNotFound();
     const grant = grants.get(uri.path), registry = grant && getActiveModContributions(grant.workspaceRoot);
+    if (!grant || isModActivationGateRefreshing(grant.workspaceRoot)) throw vscode.FileSystemError.FileNotFound();
     const asset = registry?.assets.find(item => item.id === grant?.id);
     if (!asset || !grant || registry?.lockFingerprint !== grant.fingerprint) throw vscode.FileSystemError.FileNotFound();
     return asset.value.byteLength;
@@ -71,6 +78,9 @@ export function attachModAssetBroker(panel: vscode.WebviewPanel, workspaceRoot: 
     const revoke = (): void => { for (const key of state.paths) grants.delete(key); state.paths.clear(); state.revoked = true; };
     // Already-rendered resources are removed too. Reads themselves do not wait for this presentation refresh.
     const timer = setInterval(() => {
+        // Routine acquisition temporarily clears the registry while rehashing. Reads still fail closed,
+        // but only its completed outcome may permanently destroy a panel's presentation session.
+        if (isModActivationGateRefreshing(workspaceRoot)) return;
         if (!state.revoked && getActiveModContributions(workspaceRoot)?.lockFingerprint !== state.fingerprint) {
             revoke(); onRevoked();
         }
@@ -83,7 +93,7 @@ export function attachModAssetBroker(panel: vscode.WebviewPanel, workspaceRoot: 
 /** Resolve one canonical ID; metadata/paths supplied by webview or MODs cannot grant access. */
 export function resolveModAssetForWebview(panel: vscode.WebviewPanel, workspaceRoot: string, id: string): string | undefined {
     const state = panels.get(panel), registry = getActiveModContributions(workspaceRoot);
-    if (!state || state.revoked || state.workspaceRoot !== workspaceRoot || state.fingerprint !== registry?.lockFingerprint) return undefined;
+    if (!state || state.revoked || state.workspaceRoot !== workspaceRoot || isModActivationGateRefreshing(workspaceRoot) || state.fingerprint !== registry?.lockFingerprint) return undefined;
     const asset = registry.assets.find(item => item.id === id);
     if (!asset) return undefined;
     const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav' };

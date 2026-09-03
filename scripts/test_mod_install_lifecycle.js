@@ -131,10 +131,27 @@ async function main() {
         eq(result.code, 'ADULT_CONTENT_READ_NOT_AUTHORIZED', 'adult install requires distinct read permission');
         result = await install.installLocalModPackage({ ...roots, destination: 'global', inspection: adult, allowAdultContentRead: true });
         eq(result.status, 'installed', 'explicit adult package read allows installation, not activation');
+        const adultRead = result.readAuthorization, adultCandidate = result.candidate;
+        ok(adultRead, 'installed package supplies destination/content-bound read authorization');
         const denied = await install.resolveInstalledModProfile({ ...roots, profile: profile(['adult.install']), loreRelayVersion: '1.84.32' });
         eq(denied.ok, false, 'profile alone does not permit adult payload read'); eq(denied.diagnostics[0].code, 'ADULT_CONTENT_READ_NOT_AUTHORIZED', 'adult preview gate');
-        const noApproval = await install.resolveInstalledModProfile({ ...roots, profile: profile(['adult.install']), adultReadRequests: [adult], loreRelayVersion: '1.84.32' });
+        const noApproval = await install.resolveInstalledModProfile({ ...roots, profile: profile(['adult.install']), adultReadRequests: [adultRead], loreRelayVersion: '1.84.32' });
         eq(noApproval.ok, false, 'read authorization is not activation consent');
+        const approvedProfile = profile(['adult.install']); approvedProfile.adultContent = { allow: true, approvals: [{ id: adultRead.id, version: adultRead.version, manifestHash: adultRead.manifestHash, contentHash: adultRead.contentHash }] };
+        eq((await install.resolveInstalledModProfile({ ...roots, profile: approvedProfile, adultReadRequests: [adultRead], loreRelayVersion: '1.84.32' })).ok, true, 'unchanged installed identity and exact approval resolve');
+        eq((await install.resolveInstalledModProfile({ ...roots, profile: approvedProfile, adultReadRequests: [adult], loreRelayVersion: '1.84.32' })).diagnostics[0].code, 'ADULT_CONTENT_READ_NOT_AUTHORIZED', 'source inspection is not installed-read authority');
+        eq((await install.resolveInstalledModProfile({ ...roots, profile: approvedProfile, adultReadRequests: [{ ...adultRead }], loreRelayVersion: '1.84.32' })).diagnostics[0].code, 'ADULT_CONTENT_READ_NOT_AUTHORIZED', 'installed-read capability cannot be forged');
+        const adultTarget = path.join(roots.globalStorageRoot, 'mods/packages/adult.install/1.0.0');
+        const originalOpen = fsp.open; const payloadOpens = [];
+        fsp.open = async function(filename, ...args) { if (String(filename).startsWith(adultTarget) && !String(filename).endsWith('lorerelay.mod.json')) payloadOpens.push(String(filename)); return originalOpen.call(this, filename, ...args); };
+        try {
+            fs.appendFileSync(path.join(adultTarget, 'content/persona.json'), ' ');
+            const drifted = await install.resolveInstalledModProfile({ ...roots, profile: approvedProfile, adultReadRequests: [adultRead], loreRelayVersion: '1.84.32' });
+            eq(drifted.ok, false, 'old adult read capability fails on same-manifest payload drift'); eq(payloadOpens, [], 'changed adult payload is not opened');
+        } finally { fsp.open = originalOpen; }
+        const otherRoots = { globalStorageRoot: folder(path.join(temp, 'other-global'), {}) };
+        folder(path.join(otherRoots.globalStorageRoot, 'mods/packages/adult.install/1.0.0'), packageFiles('adult.install', 'adult'));
+        eq((await install.resolveInstalledModProfile({ ...otherRoots, profile: approvedProfile, adultReadRequests: [adultRead], loreRelayVersion: '1.84.32' })).diagnostics[0].code, 'ADULT_CONTENT_READ_NOT_AUTHORIZED', 'capability cannot authorize another installed source');
         const missing = folder(path.join(temp, 'missing'), packageFiles('dependent.install', 'general', [{ id: 'absent.package', version: '>=1.0.0' }]));
         result = await install.installLocalModPackage({ ...roots, destination: 'global', inspection: await install.inspectLocalModImport({ filename: missing, kind: 'folder' }) });
         eq(result.status, 'installed', 'missing dependencies do not prevent storing a valid package');
@@ -187,6 +204,42 @@ async function main() {
         fs.mkdirSync(path.join(staging, '.install-lock'));
         eq((await install.installLocalModPackage({ ...roots, destination: 'global', inspection: crossInspection })).code, 'MOD_INSTALL_BUSY', 'cross-process scope lock');
         ok(fs.existsSync(path.join(staging, '.install-lock')), 'another transaction lock not removed'); fs.rmdirSync(path.join(staging, '.install-lock'));
+        const overlapping = folder(path.join(temp, 'overlap'), packageFiles('overlap.install'));
+        const overlappingInspection = await install.inspectLocalModImport({ filename: overlapping, kind: 'folder' });
+        const beforeOverlap = fs.readdirSync(overlapping);
+        result = await install.installLocalModPackage({ workspaceRoot: overlapping, destination: 'workspace', inspection: overlappingInspection });
+        eq(result.code, 'MOD_IMPORT_DESTINATION_OVERLAP', 'workspace root cannot also be import source');
+        eq(fs.readdirSync(overlapping), beforeOverlap, 'overlap rejected before any directory/report/staging write');
+        const nestedBase = folder(path.join(overlapping, 'nested-storage'), {});
+        result = await install.installLocalModPackage({ globalStorageRoot: nestedBase, destination: 'global', inspection: overlappingInspection });
+        eq(result.code, 'MOD_IMPORT_DESTINATION_OVERLAP', 'nested global destination rejected'); eq(fs.readdirSync(nestedBase), [], 'nested destination remains untouched');
+        const scopeBase = folder(path.join(temp, 'scope-base'), {}), sourceScope = folder(path.join(scopeBase, 'mods'), packageFiles('scope.install'));
+        eq((await install.installLocalModPackage({ globalStorageRoot: scopeBase, destination: 'global', inspection: await install.inspectLocalModImport({ filename: sourceScope, kind: 'folder' }) })).code, 'MOD_IMPORT_DESTINATION_OVERLAP', 'source equal to derived scope rejected even when base is outside');
+        const eligibleRoots = { globalStorageRoot: folder(path.join(temp, 'eligible-global'), {}), workspaceRoot: folder(path.join(temp, 'eligible-workspace'), {}) };
+        folder(path.join(eligibleRoots.globalStorageRoot, 'mods/packages/eligible.install/1.0.0'), packageFiles('eligible.install'));
+        const outOfRange = packageFiles('eligible.install', 'adult'); const outManifest = JSON.parse(outOfRange['lorerelay.mod.json']); outManifest.version = '2.0.0'; outOfRange['lorerelay.mod.json'] = Buffer.from(JSON.stringify(outManifest)); outOfRange['content/persona.json'] = Buffer.from('invalid payload must stay unread');
+        const outRoot = folder(path.join(eligibleRoots.globalStorageRoot, 'mods/packages/eligible.install/2.0.0'), outOfRange);
+        const incompatible = packageFiles('eligible.install', 'adult'); const incompatibleManifest = JSON.parse(incompatible['lorerelay.mod.json']); incompatibleManifest.version = '1.1.0'; incompatibleManifest.lorerelay.minVersion = '9.0.0'; incompatible['lorerelay.mod.json'] = Buffer.from(JSON.stringify(incompatibleManifest));
+        const incompatibleRoot = folder(path.join(eligibleRoots.globalStorageRoot, 'mods/packages/eligible.install/1.1.0'), incompatible);
+        const unselectedRoot = folder(path.join(eligibleRoots.workspaceRoot, '.text-adventure/mods/eligible.install/1.0.0'), packageFiles('eligible.install', 'adult'));
+        const specific = profile(['eligible.install']); specific.enabled[0].source = 'global'; const outsideOpens = [];
+        fsp.open = async function(filename, ...args) { if ([outRoot, incompatibleRoot, unselectedRoot].some(root => String(filename).startsWith(root)) && !String(filename).endsWith('lorerelay.mod.json')) outsideOpens.push(String(filename)); return originalOpen.call(this, filename, ...args); };
+        try {
+            const eligibleResult = await install.resolveInstalledModProfile({ ...eligibleRoots, profile: specific, loreRelayVersion: '1.84.32' });
+            eq(eligibleResult.ok, true, 'out-of-range, incompatible and unselected-source adult variants do not block general v1');
+            eq(eligibleResult.lock.packages.map(pkg => pkg.version), ['1.0.0'], 'only eligible version locked'); eq(outsideOpens, [], 'excluded candidate payloads never opened');
+        } finally { fsp.open = originalOpen; }
+        const raceSource = folder(path.join(temp, 'reservation-race'), packageFiles('reservation.install'));
+        const raceInspection = await install.inspectLocalModImport({ filename: raceSource, kind: 'folder' });
+        const raceTarget = path.join(roots.globalStorageRoot, 'mods/packages/reservation.install/1.0.0'); let foreignInode;
+        if (process.platform === 'win32') {
+            fsp.rename = async function(from, to) { if (String(to) === raceTarget) { fs.mkdirSync(raceTarget); foreignInode = fs.statSync(raceTarget).ino; } return rename.call(this, from, to); };
+        } else {
+            fsp.mkdir = async function(filename, ...args) { if (String(filename) === raceTarget) { fs.mkdirSync(raceTarget); foreignInode = fs.statSync(raceTarget).ino; } return nativeMkdir.call(this, filename, ...args); };
+        }
+        try { result = await install.installLocalModPackage({ ...roots, destination: 'global', inspection: raceInspection }); } finally { fsp.rename = rename; fsp.mkdir = nativeMkdir; }
+        eq(result.code, 'MOD_INSTALL_VERSION_EXISTS', 'concurrent empty target creation is not overwritten'); eq(fs.statSync(raceTarget).ino, foreignInode, 'foreign reservation inode preserved'); eq(fs.readdirSync(raceTarget), [], 'foreign empty target remains empty');
+        eq(result.cleanup, 'complete', 'losing publication cleans only staging'); fs.rmdirSync(raceTarget);
         eq((await discoverModPackageManifests(roots)).diagnostics, [], 'final metadata rescan remains valid');
         console.log(`MOD install lifecycle: ${assertions} assertions passed.`);
     } finally {

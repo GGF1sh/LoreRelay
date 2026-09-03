@@ -208,11 +208,15 @@ async function readOrdinaryFileBounded(input: {
     absolutePath: string;
     containmentRootReal: string;
     maximumBytes: number;
+    expectedIdentity?: PackageTreeSnapshotEntry;
     afterHandleStat?: () => Promise<void>;
 }): Promise<ReadResult> {
     let handle: Awaited<ReturnType<typeof open>> | undefined;
     try {
         const pathStats = await lstat(input.absolutePath);
+        if (input.expectedIdentity && !samePackageTreeSnapshotEntry(input.expectedIdentity, packageTreeSnapshotEntry(input.expectedIdentity.path, 'file', pathStats))) {
+            return { ok: false, code: 'PACKAGE_READ_IDENTITY_CHANGED' };
+        }
         if (pathStats.isSymbolicLink()) return { ok: false, code: 'PACKAGE_LINK_FORBIDDEN' };
         if (!pathStats.isFile()) return { ok: false, code: 'PACKAGE_SPECIAL_FILE_FORBIDDEN' };
         if (pathStats.nlink !== 1) return { ok: false, code: 'PACKAGE_HARD_LINK_FORBIDDEN' };
@@ -448,6 +452,7 @@ async function walkExactPackage(input: {
     source: ModResolvedSource;
     packageId: string;
     packageVersion: string;
+    expectedEntries?: readonly PackageTreeSnapshotEntry[];
     afterHandleStat?: (relativePath: string) => Promise<void>;
 }): Promise<{ files: WalkedFile[]; treeEntries: PackageTreeSnapshotEntry[]; diagnostics: ModDiscoveryDiagnostic[] }> {
     const diagnostics: ModDiscoveryDiagnostic[] = [];
@@ -502,6 +507,13 @@ async function walkExactPackage(input: {
                 diagnostics.push(diagnostic('PACKAGE_LSTAT_FAILED', input.source, 'File status check failed', input.packageId, input.packageVersion, relativePath));
                 break;
             }
+            if (input.expectedEntries) {
+                const expected = input.expectedEntries.find(item => item.path === pathValidation.normalized);
+                if (!expected || !samePackageTreeSnapshotEntry(expected, packageTreeSnapshotEntry(expected.path, stats.isDirectory() ? 'directory' : 'file', stats))) {
+                    diagnostics.push(diagnostic('PACKAGE_READ_IDENTITY_CHANGED', input.source, 'Package no longer matches its read authorization', input.packageId, input.packageVersion));
+                    break;
+                }
+            }
             if (stats.isSymbolicLink()) {
                 diagnostics.push(diagnostic('PACKAGE_LINK_FORBIDDEN', input.source, 'Symbolic links, junctions, and reparse links are forbidden', input.packageId, input.packageVersion, relativePath));
                 break;
@@ -548,6 +560,7 @@ async function walkExactPackage(input: {
                 absolutePath,
                 containmentRootReal: input.packageRootReal,
                 maximumBytes,
+                expectedIdentity: input.expectedEntries?.find(item => item.path === pathValidation.normalized),
                 afterHandleStat: input.afterHandleStat ? () => input.afterHandleStat!(pathValidation.normalized!) : undefined,
             });
             if (!read.ok || !read.bytes || !read.stats) {
@@ -740,6 +753,8 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
     expectedManifestHash: string;
     allowAdultContentRead: boolean;
     includeContentFiles?: boolean;
+    /** Host-issued read authorization for an exact installed package snapshot. */
+    expectedTreeIdentity?: ModPackageTreeIdentity;
     validatedTransitivePaths?: readonly string[];
     /** Deterministic fault-injection seam used only by focused host tests. */
     afterFileStatForTest?: (relativePath: string) => Promise<void>;
@@ -775,12 +790,21 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
     if (rootManifest.discovered.manifest.contentRating === 'adult' && !input.allowAdultContentRead) {
         return { diagnostics: [diagnostic('ADULT_CONTENT_READ_NOT_AUTHORIZED', input.source, 'Adult payload hashing requires an explicit package-read request', input.id, input.version)] };
     }
+    if (input.expectedTreeIdentity) {
+        const expected = input.expectedTreeIdentity;
+        const current = await snapshotExactPackageTree({ packageRoot, packageRootReal: checkedPackage.real, source: input.source, packageId: input.id, packageVersion: input.version });
+        if (expected.source !== input.source || expected.directoryId !== input.id || expected.directoryVersion !== input.version
+            || current.diagnostics.length || !samePackageTreeSnapshot(expected.entries, current.treeEntries)) {
+            return { diagnostics: [diagnostic('PACKAGE_READ_IDENTITY_CHANGED', input.source, 'Installed package changed since explicit read authorization', input.id, input.version)] };
+        }
+    }
     const walked = await walkExactPackage({
         packageRoot,
         packageRootReal: checkedPackage.real,
         source: input.source,
         packageId: input.id,
         packageVersion: input.version,
+        expectedEntries: input.expectedTreeIdentity?.entries,
         afterHandleStat: input.afterFileStatForTest,
     });
     if (walked.diagnostics.length > 0) return { diagnostics: sortDiagnostics(walked.diagnostics) };

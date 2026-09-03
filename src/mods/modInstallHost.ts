@@ -3,9 +3,9 @@ import * as fs from 'fs/promises';
 import { constants, type Stats } from 'fs';
 import { randomUUID } from 'crypto';
 import { ModDataError, hashCanonicalModJson, hashNormalizedModPackage, type ModPackageHashFile } from './modHashCore';
-import { MAX_MOD_MANIFEST_BYTES, parseModManifestBytes, type ModManifest } from './modManifestCore';
-import { discoverModPackageManifests, hashDiscoveredModPackage, readModImportFolder, type ModDiscoveryRoots } from './modDiscoveryHost';
-import { resolveModProfile, type ModPackageCandidate } from './modResolverCore';
+import { MAX_MOD_MANIFEST_BYTES, parseModManifestBytes, satisfiesSemVerRange, isLoreRelayVersionCompatible, type ModManifest } from './modManifestCore';
+import { discoverModPackageManifests, hashDiscoveredModPackage, readModImportFolder, type ModDiscoveryRoots, type ModPackageTreeIdentity, type PackageTreeSnapshotEntry } from './modDiscoveryHost';
+import { resolveModProfile, MAX_MOD_RESOLVER_SEARCH_STEPS, type ModPackageCandidate } from './modResolverCore';
 import { validateModProfile, serializeModLock, serializeModProfile, type ModProfile, type ModResolvedSource } from './modProfileCore';
 import { validateModRelativePath } from './modPathCore';
 import { validateModContentPackage } from './contributions/modContentCore';
@@ -23,13 +23,22 @@ export interface ModInstallRequest extends ModDiscoveryRoots {
     /** Trusted caller permission for this inspected package; never sourced from a manifest/profile. */
     allowAdultContentRead?: boolean;
 }
+/** Minted only after a validated installation; inspection tokens cannot substitute for this capability. */
+export interface ModInstalledReadAuthorization {
+    readonly id: string;
+    readonly version: string;
+    readonly source: ModResolvedSource;
+    readonly manifestHash: string;
+    readonly contentHash: string;
+}
 export type ModInstallResult =
-    | { status: 'installed'; candidate: ModPackageCandidate; cleanup: 'complete' | 'retained'; rescan: Awaited<ReturnType<typeof discoverModPackageManifests>> }
+    | { status: 'installed'; candidate: ModPackageCandidate; readAuthorization?: ModInstalledReadAuthorization; cleanup: 'complete' | 'retained'; rescan: Awaited<ReturnType<typeof discoverModPackageManifests>> }
     | { status: 'rejected'; code: string; cleanup: 'not-needed' | 'complete' | 'retained'; reportId?: string };
 
 interface Pin { filename: string; stats: Stats }
 interface InspectionSource { filename: string; kind: 'folder' | 'zip'; manifest: ModManifest; manifestHash: string; stats: Stats }
 const inspections = new WeakMap<ModImportInspection, InspectionSource>();
+const installedReads = new WeakMap<ModInstalledReadAuthorization, { root: string; pins: readonly Pin[]; tree: ModPackageTreeIdentity }>();
 function fail(code: string): never { throw new ModDataError(code, 'Local MOD operation rejected; source content and paths are omitted'); }
 function identity(a: Stats, b: Stats): boolean { return a.dev === b.dev && a.ino === b.ino && a.mode === b.mode; }
 function stableFile(a: Stats, b: Stats): boolean {
@@ -138,6 +147,25 @@ async function cleanupOwned(root: Pin, owned: readonly Pin[], anchor: readonly P
     } catch { return false; }
 }
 
+async function verifyPackageSnapshot(root: string, entries: readonly PackageTreeSnapshotEntry[], movedRoot = false): Promise<PackageTreeSnapshotEntry[]> {
+    const result: PackageTreeSnapshotEntry[] = [];
+    for (const entry of entries) {
+        const filename = path.join(root, entry.path), stats = await fs.lstat(filename);
+        const rootMove = movedRoot && entry.path === '';
+        if (stats.isSymbolicLink() || stats.dev !== entry.dev || stats.ino !== entry.ino || stats.mode !== entry.mode
+            || stats.size !== entry.size || stats.nlink !== entry.nlink || (!rootMove && (stats.mtimeMs !== entry.mtimeMs || stats.ctimeMs !== entry.ctimeMs))
+            || (entry.type === 'directory' ? !stats.isDirectory() : !stats.isFile()) || !samePath(filename, await fs.realpath(filename))) return fail('MOD_INSTALL_STAGING_CHANGED');
+        if (entry.type === 'directory') {
+            const expected = new Set(entries.filter(item => item.path && path.posix.dirname(item.path) === (entry.path || '.')).map(item => path.posix.basename(item.path)));
+            const handle = await fs.opendir(filename);
+            for await (const child of handle) if (!expected.delete(child.name)) return fail('MOD_INSTALL_STAGING_CHANGED');
+            if (expected.size) return fail('MOD_INSTALL_STAGING_CHANGED');
+        }
+        result.push({ ...entry, mtimeMs: stats.mtimeMs, ctimeMs: stats.ctimeMs });
+    }
+    return result;
+}
+
 /** No UI, activation, campaign writes, update, uninstall, overwrite, or copy/delete rename fallback. */
 export async function installLocalModPackage(input: ModInstallRequest): Promise<ModInstallResult> {
     input = { ...input };
@@ -146,12 +174,19 @@ export async function installLocalModPackage(input: ModInstallRequest): Promise<
     if (request.manifest.contentRating === 'adult' && input.allowAdultContentRead !== true) return { status: 'rejected', code: 'ADULT_CONTENT_READ_NOT_AUTHORIZED', cleanup: 'not-needed' };
     const transactionId = randomUUID(), owned: Pin[] = [];
     let stage: Pin | undefined, stagingPins: Pin[] = [], reportPins: Pin[] = [], scopeLock: Pin | undefined;
+    let reservation: Pin | undefined, reservationParents: Pin[] = [], readAuthorization: ModInstalledReadAuthorization | undefined;
     let committed: ModPackageCandidate | undefined, cleanup: 'not-needed' | 'complete' | 'retained' = 'not-needed', errorCode: string | undefined;
     try {
         const base = input.destination === 'global' ? input.globalStorageRoot : input.workspaceRoot;
         if (!base) return fail('MOD_INSTALL_ROOT_INVALID');
         const basePins = await ancestors(base);
-        const scope = await ensure(basePins, [input.destination === 'global' ? 'mods' : '.text-adventure']);
+        const scopeName = input.destination === 'global' ? 'mods' : '.text-adventure';
+        if (request.kind === 'folder') {
+            await ancestors(request.filename);
+            const relative = path.relative(request.filename, path.join(absolute(base), scopeName));
+            if (!relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))) return fail('MOD_IMPORT_DESTINATION_OVERLAP');
+        }
+        const scope = await ensure(basePins, [scopeName]);
         const packages = await ensure(scope, [input.destination === 'global' ? 'packages' : 'mods']);
         stagingPins = await ensure(scope, [input.destination === 'global' ? 'staging' : 'mod-staging']);
         reportPins = await ensure(scope, [input.destination === 'global' ? 'validation-reports' : 'mod-validation-reports']);
@@ -234,28 +269,34 @@ export async function installLocalModPackage(input: ModInstallRequest): Promise<
         }
         // Recheck the exact validated tree immediately before publication, not
         // merely the package directory or its previously enumerated file list.
-        for (const entry of hashed.treeIdentity!.entries) {
-            const filename = path.join(stagedPackage, entry.path), stats = await fs.lstat(filename);
-            if (stats.isSymbolicLink() || stats.dev !== entry.dev || stats.ino !== entry.ino || stats.mode !== entry.mode
-                || stats.size !== entry.size || stats.nlink !== entry.nlink || stats.mtimeMs !== entry.mtimeMs || stats.ctimeMs !== entry.ctimeMs
-                || !samePath(filename, await fs.realpath(filename))) return fail('MOD_INSTALL_STAGING_CHANGED');
-            if (entry.type === 'directory') {
-                const expected = new Set(hashed.treeIdentity!.entries.filter(item => item.path && path.posix.dirname(item.path) === (entry.path || '.')).map(item => path.posix.basename(item.path)));
-                const directoryHandle = await fs.opendir(filename);
-                for await (const child of directoryHandle) if (!expected.delete(child.name)) return fail('MOD_INSTALL_STAGING_CHANGED');
-                if (expected.size) return fail('MOD_INSTALL_STAGING_CHANGED');
-            }
-        }
+        await verifyPackageSnapshot(stagedPackage, hashed.treeIdentity!.entries);
         await check([...stagedPins, ...targetPins, scopeLock]);
-        // Valid existing packages are nonempty directories and cannot be replaced
-        // by rename; the scope mutex also serializes cooperating installer processes.
+        // Windows rename refuses existing directories. POSIX needs an exclusive
+        // empty reservation: replace only our own reservation, never an existing
+        // target discovered between lstat and publication. It contains no payload.
+        if (process.platform !== 'win32') {
+            try { await fs.mkdir(target, { mode: 0o700 }); } catch (error) { return fail((error as NodeJS.ErrnoException).code === 'EEXIST' ? 'MOD_INSTALL_VERSION_EXISTS' : 'MOD_INSTALL_RESERVATION_FAILED'); }
+            reservationParents = targetPins; reservation = await directory(target);
+            await check([...targetPins, reservation]);
+        }
         try { await fs.rename(stagedPackage, target); }
-        catch (error) { return fail((error as NodeJS.ErrnoException).code === 'EXDEV' ? 'CROSS_DEVICE_STAGING' : 'MOD_INSTALL_ATOMIC_RENAME_FAILED'); }
+        catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'EXDEV') return fail('CROSS_DEVICE_STAGING');
+            if (!reservation) { try { await fs.lstat(target); return fail('MOD_INSTALL_VERSION_EXISTS'); } catch (found) { if (found instanceof ModDataError) throw found; } }
+            return fail('MOD_INSTALL_ATOMIC_RENAME_FAILED');
+        }
+        reservation = undefined;
         committed = { ...hashed.candidate, source: input.destination };
+        const installedEntries = await verifyPackageSnapshot(target, hashed.treeIdentity!.entries, true);
+        readAuthorization = Object.freeze({ id: committed.manifest.id, version: committed.manifest.version, source: committed.source, manifestHash: committed.manifestHash, contentHash: committed.contentHash });
+        installedReads.set(readAuthorization, { root: target, pins: targetPins, tree: { ...hashed.treeIdentity!, source: input.destination, entries: installedEntries } });
     } catch (error) {
         errorCode = error instanceof ModDataError && /^[A-Z0-9_]+$/.test(error.code) ? error.code : 'MOD_INSTALL_FAILED';
     } finally {
-        if (stage) cleanup = await cleanupOwned(stage, owned, stagingPins) ? 'complete' : 'retained';
+        if (reservation) {
+            try { await check([...reservationParents, reservation]); await fs.rmdir(reservation.filename); } catch { cleanup = 'retained'; }
+        }
+        if (stage) cleanup = await cleanupOwned(stage, owned, stagingPins) && cleanup !== 'retained' ? 'complete' : 'retained';
         if (scopeLock) {
             try { await check([...stagingPins, scopeLock]); await fs.rmdir(scopeLock.filename); } catch { cleanup = 'retained'; }
         }
@@ -264,7 +305,8 @@ export async function installLocalModPackage(input: ModInstallRequest): Promise<
         let rescan: Awaited<ReturnType<typeof discoverModPackageManifests>>;
         try { rescan = await discoverModPackageManifests(input); }
         catch { rescan = { manifests: [], diagnostics: [{ source: input.destination, code: 'MOD_INSTALL_RESCAN_FAILED', message: 'Installation committed; rescan unavailable' }] }; }
-        return { status: 'installed', candidate: committed, cleanup: cleanup === 'complete' ? 'complete' : 'retained', rescan };
+        if (!readAuthorization) rescan.diagnostics.push({ source: input.destination, code: 'MOD_INSTALL_READ_AUTHORIZATION_UNAVAILABLE', message: 'Published package changed; no payload read capability issued' });
+        return { status: 'installed', candidate: committed, ...(readAuthorization ? { readAuthorization } : {}), cleanup: cleanup === 'complete' ? 'complete' : 'retained', rescan };
     }
     let reportId: string | undefined;
     if (reportPins.length) {
@@ -278,23 +320,50 @@ export async function installLocalModPackage(input: ModInstallRequest): Promise<
 }
 
 /** Read-only resolve preview. Never persists a profile/lock or changes campaign/runtime authorization. */
-export async function resolveInstalledModProfile(input: ModDiscoveryRoots & { profile: ModProfile; loreRelayVersion: string; adultReadRequests?: readonly ModImportInspection[] }) {
+export async function resolveInstalledModProfile(input: ModDiscoveryRoots & { profile: ModProfile; loreRelayVersion: string; adultReadRequests?: readonly ModInstalledReadAuthorization[] }) {
     const parsed = validateModProfile(input.profile);
     if (!parsed.ok) return { ok: false as const, diagnostics: parsed.issues.map(issue => ({ code: issue.code })) };
     input = { ...input, profile: JSON.parse(serializeModProfile(parsed.value)), adultReadRequests: [...(input.adultReadRequests ?? [])] };
     const discovery = await discoverModPackageManifests(input);
     if (discovery.diagnostics.length) return { ok: false as const, diagnostics: discovery.diagnostics.map(item => ({ code: item.code })) };
-    const needed = new Set(input.profile.enabled.map(entry => entry.id));
-    for (let size = -1; size !== needed.size;) {
-        size = needed.size;
-        for (const entry of discovery.manifests) if (needed.has(entry.manifest.id)) for (const dependency of entry.manifest.dependencies) needed.add(dependency.id);
+    const eligible = new Set<(typeof discovery.manifests)[number]>();
+    const requests = [...input.profile.enabled];
+    const seenRequests = new Set<string>();
+    let eligibilitySteps = 0;
+    for (let cursor = 0; cursor < requests.length; cursor++) {
+        const request = requests[cursor], fixed = input.profile.enabled.find(entry => entry.id === request.id);
+        const key = JSON.stringify(request);
+        if (seenRequests.has(key)) continue;
+        seenRequests.add(key);
+        for (const entry of discovery.manifests) {
+            if (entry.manifest.id !== request.id) continue;
+            if (++eligibilitySteps > MAX_MOD_RESOLVER_SEARCH_STEPS) return { ok: false as const, diagnostics: [{ code: 'RESOLUTION_COMPLEXITY_LIMIT' }] };
+            if (!satisfiesSemVerRange(entry.manifest.version, request.version)
+                || (request.source !== 'any' && request.source !== entry.source)
+                || (fixed && (!satisfiesSemVerRange(entry.manifest.version, fixed.version) || (fixed.source !== 'any' && fixed.source !== entry.source)))
+                || !isLoreRelayVersionCompatible(entry.manifest, input.loreRelayVersion) || eligible.has(entry)) continue;
+            eligible.add(entry);
+            for (const dependency of entry.manifest.dependencies) requests.push({ ...dependency, source: 'any' });
+        }
     }
     const candidates: ModPackageCandidate[] = [];
     let totalBytes = 0;
-    for (const entry of discovery.manifests.filter(entry => needed.has(entry.manifest.id))) {
-        const allowAdultContentRead = input.adultReadRequests?.some(request => inspections.has(request) && request.id === entry.manifest.id && request.version === entry.manifest.version && request.manifestHash === entry.manifestHash) ?? false;
-        const hashed = await hashDiscoveredModPackage({ ...input, source: entry.source, id: entry.directoryId, version: entry.directoryVersion, expectedManifestHash: entry.manifestHash, allowAdultContentRead, includeContentFiles: true });
+    for (const entry of discovery.manifests.filter(entry => eligible.has(entry))) {
+        let authorization: ModInstalledReadAuthorization | undefined, expectedTreeIdentity: ModPackageTreeIdentity | undefined;
+        if (entry.manifest.contentRating === 'adult') {
+            for (const token of input.adultReadRequests ?? []) {
+                const evidence = installedReads.get(token), base = entry.source === 'global' ? input.globalStorageRoot : input.workspaceRoot;
+                if (!evidence || !base || token.source !== entry.source || token.id !== entry.manifest.id || token.version !== entry.manifest.version || token.manifestHash !== entry.manifestHash) continue;
+                const expectedRoot = path.join(base, ...(entry.source === 'global' ? ['mods', 'packages'] : ['.text-adventure', 'mods']), token.id, token.version);
+                if (!samePath(expectedRoot, evidence.root)) continue;
+                try { await check(evidence.pins); await verifyPackageSnapshot(evidence.root, evidence.tree.entries); }
+                catch { continue; }
+                authorization = token; expectedTreeIdentity = evidence.tree; break;
+            }
+        }
+        const hashed = await hashDiscoveredModPackage({ ...input, source: entry.source, id: entry.directoryId, version: entry.directoryVersion, expectedManifestHash: entry.manifestHash, allowAdultContentRead: !!authorization, expectedTreeIdentity, includeContentFiles: true });
         if (!hashed.candidate || !hashed.contentFiles) return { ok: false as const, diagnostics: hashed.diagnostics.map(item => ({ code: item.code })) };
+        if (authorization && hashed.candidate.contentHash !== authorization.contentHash) return { ok: false as const, diagnostics: [{ code: 'PACKAGE_READ_IDENTITY_CHANGED' }] };
         totalBytes += hashed.treeIdentity!.entries.filter(item => item.type === 'file').reduce((sum, item) => sum + item.size, 0);
         if (totalBytes > 256 * 1024 * 1024) return { ok: false as const, diagnostics: [{ code: 'MOD_RESOLVE_BYTE_LIMIT' }] };
         try { validateModContentPackage({ ...hashed.candidate, files: hashed.contentFiles }); }

@@ -698,6 +698,36 @@ function declaredDirectPaths(manifest: ModManifest): string[] {
         .map(entry => entry.path);
 }
 
+/** Import-only source read. No discovery registration or activation authority is created. */
+export async function readModImportFolder(input: {
+    packageRoot: string;
+    expectedManifestHash: string;
+    allowAdultContentRead: boolean;
+}): Promise<readonly ModPackageHashFile[]> {
+    const root = path.resolve(input.packageRoot);
+    const checked = await checkOrdinaryDirectory(root, root);
+    if (!checked.ok) throw new ModDataError(checked.code, 'Import source must be an ordinary directory');
+    const bytes = await readOrdinaryFileBounded({ absolutePath: path.join(root, 'lorerelay.mod.json'), containmentRootReal: checked.real, maximumBytes: MAX_MOD_MANIFEST_BYTES });
+    const manifest = bytes.bytes && parseModManifestBytes(bytes.bytes);
+    if (!bytes.ok || !manifest?.ok || hashCanonicalModJson(manifest.value) !== input.expectedManifestHash) {
+        throw new ModDataError('MOD_IMPORT_MANIFEST_CHANGED', 'Import manifest differs from inspected identity');
+    }
+    if (manifest.value.contentRating === 'adult' && !input.allowAdultContentRead) {
+        throw new ModDataError('ADULT_CONTENT_READ_NOT_AUTHORIZED', 'Adult payload read requires explicit permission');
+    }
+    const request = { packageRoot: root, packageRootReal: checked.real, source: 'global' as const, packageId: manifest.value.id, packageVersion: manifest.value.version };
+    const walked = await walkExactPackage(request);
+    if (walked.diagnostics.length) throw new ModDataError(walked.diagnostics[0].code, 'Import source validation failed');
+    const final = await snapshotExactPackageTree(request);
+    const manifestFile = walked.files.find(file => file.path === 'lorerelay.mod.json');
+    const finalManifest = manifestFile && parseModManifestBytes(manifestFile.bytes);
+    if (final.diagnostics.length || !samePackageTreeSnapshot(walked.treeEntries, final.treeEntries)
+        || !finalManifest?.ok || hashCanonicalModJson(finalManifest.value) !== input.expectedManifestHash) {
+        throw new ModDataError('PACKAGE_TREE_CHANGED_DURING_HASH', 'Import source changed during its bounded read');
+    }
+    return walked.files;
+}
+
 /**
  * Hash one exact package only after an explicit resolve/approval request.
  * `validatedTransitivePaths` may be supplied only by future strict content

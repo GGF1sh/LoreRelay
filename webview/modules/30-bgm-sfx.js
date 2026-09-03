@@ -7,6 +7,8 @@ let bgmEnabled = true;
 let bgmUserMuted = false;
 let bgmBaseVolume = 0.5; // 0..1 ユーザー音量
 let bgmAudioReady = false; // ユーザー操作で自動再生が解禁されたか
+let bgmFadeTimer = null;
+const bgmModGrants = new Map();
 
 const bgmNowEl = document.getElementById('bgm-now');
 const bgmListEl = document.getElementById('bgm-list');
@@ -24,6 +26,13 @@ let bgmIdle = bgmAudioB;
 
 function setBgmManifest(tracks, defaultVolume, enabled) {
   bgmTracks = Array.isArray(tracks) ? tracks : [];
+  if ([...bgmModGrants.values()].some(prior => !bgmTracks.some(t => t.id === prior.id && t.uri === prior.uri))) {
+    if (bgmFadeTimer) clearInterval(bgmFadeTimer);
+    bgmFadeTimer = null;
+    for (const a of [bgmAudioA, bgmAudioB]) { a.pause(); a.src = ''; }
+    bgmModGrants.clear();
+    bgmCurrentId = null;
+  }
   if (typeof defaultVolume === 'number') {
     bgmBaseVolume = Math.min(1, Math.max(0, defaultVolume / 100));
     bgmVolumeEl.value = String(Math.round(bgmBaseVolume * 100));
@@ -93,10 +102,13 @@ function effectiveVolume(track) {
 }
 
 function crossfadeTo(track) {
+  if (bgmFadeTimer) clearInterval(bgmFadeTimer);
   const target = effectiveVolume(track);
 
   // idle 側に新トラックをロードして再生
   bgmIdle.src = track.uri;
+  if (track.modAsset) bgmModGrants.set(bgmIdle, { id: track.id, uri: track.uri });
+  else bgmModGrants.delete(bgmIdle);
   bgmIdle.loop = track.loop !== false; // 既定 loop:true
   bgmIdle.volume = 0;
   const playPromise = bgmIdle.play();
@@ -111,14 +123,16 @@ function crossfadeTo(track) {
   const fadingIn = bgmIdle;
   const startOutVol = fadingOut.volume;
   let i = 0;
-  const timer = setInterval(() => {
+  bgmFadeTimer = setInterval(() => {
     i++;
     const r = i / steps;
     fadingIn.volume = Math.min(target, target * r);
     fadingOut.volume = Math.max(0, startOutVol * (1 - r));
     if (i >= steps) {
-      clearInterval(timer);
+      clearInterval(bgmFadeTimer);
+      bgmFadeTimer = null;
       fadingOut.pause();
+      bgmModGrants.delete(fadingOut);
       // active/idle を入れ替え
       const tmp = bgmActive; bgmActive = bgmIdle; bgmIdle = tmp;
     }
@@ -173,12 +187,18 @@ let sfxSounds = [];
 let sfxEnabled = true;
 let sfxMuted = false;
 let sfxBaseVolume = 0.7;
+const playingModSfx = new Map();
 
 const sfxVolumeEl = document.getElementById('sfx-volume');
 const sfxMuteBtn = document.getElementById('sfx-mute');
 
 function setSfxManifest(sounds, defaultVolume, enabled) {
   sfxSounds = Array.isArray(sounds) ? sounds : [];
+  for (const [audio, sound] of playingModSfx) {
+    if (!sfxSounds.some(s => s.id === sound.id && s.uri === sound.uri)) {
+      audio.pause(); audio.src = ''; playingModSfx.delete(audio);
+    }
+  }
   if (typeof defaultVolume === 'number') {
     sfxBaseVolume = Math.min(1, Math.max(0, defaultVolume / 100));
     if (sfxVolumeEl) sfxVolumeEl.value = String(Math.round(sfxBaseVolume * 100));
@@ -192,6 +212,11 @@ function playSfx(id) {
   if (!s || !s.uri) return;
   // ワンショット: 毎回新しい Audio で重ね再生（BGM を止めない）
   const a = new Audio(s.uri);
+  if (s.modAsset) {
+    playingModSfx.set(a, s);
+    a.addEventListener('ended', () => playingModSfx.delete(a), { once: true });
+    a.addEventListener('error', () => playingModSfx.delete(a), { once: true });
+  }
   const sv = (typeof s.volume === 'number') ? Math.min(1, Math.max(0, s.volume)) : 1;
   a.volume = Math.min(1, Math.max(0, sfxBaseVolume * sv));
   a.play().catch(() => { /* 自動再生ブロック時は無視 */ });
@@ -203,6 +228,11 @@ async function playSfxAsync(id) {
   const s = sfxSounds.find(x => x.id === id);
   if (!s || !s.uri) return false;
   const a = new Audio(s.uri);
+  if (s.modAsset) {
+    playingModSfx.set(a, s);
+    a.addEventListener('ended', () => playingModSfx.delete(a), { once: true });
+    a.addEventListener('error', () => playingModSfx.delete(a), { once: true });
+  }
   const sv = (typeof s.volume === 'number') ? Math.min(1, Math.max(0, s.volume)) : 1;
   a.volume = Math.min(1, Math.max(0, sfxBaseVolume * sv));
   try { await a.play(); return true; } catch { return false; }

@@ -21,7 +21,7 @@ function createVscodeStub(overrides = {}) {
         },
         workspace: {
             getConfiguration: () => ({
-                get: () => undefined,
+                get: (_key, defaultValue) => defaultValue,
                 update: noopAsync,
             }),
             workspaceFolders: undefined,

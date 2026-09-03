@@ -296,6 +296,8 @@ import {
     isModCanonicalAuthorizationCurrent,
 } from './mods/modActivationGateHost';
 
+import { attachModAssetBroker, registerModAssetBroker } from './mods/modAssetBroker';
+
 let panel: vscode.WebviewPanel | undefined;
 let worldGenesisPreviewSession: WorldGenesisPreviewSession | undefined;
 let worldGenesisApplyInProgress = false;
@@ -373,6 +375,7 @@ export function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
     context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
     context.subscriptions.push({ dispose: () => clearModActivationGateRuntime() });
+    context.subscriptions.push(registerModAssetBroker());
     clearGameRulesCache();
     initI18n(context.extensionPath);
 
@@ -485,6 +488,10 @@ export function activate(context: vscode.ExtensionContext) {
                 localResourceRoots: resourceRoots
             }
         );
+
+        if (workspaceRoot) attachModAssetBroker(panel, workspaceRoot, () => {
+            sendBgmManifest(); sendSfxManifest(); sendParlorSettingsToWebview();
+        });
 
         const webviewPath = path.join(context.extensionPath, 'webview');
         const htmlPath = path.join(webviewPath, 'index.html');

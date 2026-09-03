@@ -25,6 +25,7 @@ import {
     validateModRelativePath,
 } from './modPathCore';
 import { ModResolvedSource } from './modProfileCore';
+import { parseModAssetCatalogs } from './contributions/modAssetCore';
 
 export const MAX_MOD_DISCOVERY_FILES_PER_PACKAGE = 2_048;
 export const MAX_MOD_DISCOVERY_DIRECTORIES_PER_PACKAGE = 256;
@@ -761,6 +762,14 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
 
     const requiredPaths = new Set(['lorerelay.mod.json', ...declaredDirectPaths(rootManifest.discovered.manifest)]);
     const allowedPaths = new Set([...requiredPaths, 'README.md', 'LICENSE', 'LICENSE.txt']);
+    try {
+        for (const asset of parseModAssetCatalogs(rootManifest.discovered.manifest, walked.files)) {
+            requiredPaths.add(asset.path);
+            allowedPaths.add(asset.path);
+        }
+    } catch (error) {
+        return { diagnostics: [diagnostic(error instanceof ModDataError ? error.code : 'MOD_ASSET_INVALID', input.source, 'Strict asset closure validation failed', input.id, input.version)] };
+    }
     for (const suppliedPath of input.validatedTransitivePaths ?? []) {
         const validation = validateModRelativePath(suppliedPath);
         if (!validation.ok || !validation.normalized) {
@@ -802,8 +811,8 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
         }
         return {
             ...(input.includeContentFiles ? {
-                contentFiles: walked.files.filter(file => ['scenarios', 'lorebooks', 'personas'].some(kind =>
-                    rootManifest.discovered!.manifest.entrypoints[kind as 'scenarios' | 'lorebooks' | 'personas']?.some(entry => entry.path === file.path)))
+                contentFiles: walked.files.filter(file => file.kind === 'binary' || ['scenarios', 'lorebooks', 'personas', 'localization', 'assets'].some(kind =>
+                    rootManifest.discovered!.manifest.entrypoints[kind as 'scenarios' | 'lorebooks' | 'personas' | 'localization' | 'assets']?.some(entry => entry.path === file.path)))
                     .map(file => ({ ...file, bytes: Buffer.from(file.bytes) })),
             } : {}),
             candidate: {

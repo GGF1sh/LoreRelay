@@ -35,6 +35,7 @@ import {
 import {
     acquireModCanonicalAuthorization,
     getActiveModContributions,
+    getModPresentationText,
     isModCanonicalAuthorizationCurrent,
 } from './mods/modActivationGateHost';
 import { runAcceptedTurnTimelineRestoreTransaction } from './acceptedTurnReplayGuard';
@@ -436,7 +437,12 @@ export async function loadScenarioPack(): Promise<void> {
     if (registry?.scenarios.length) {
         const selected = await vscode.window.showQuickPick([
             { label: t('extension.scenario.openLabel'), scenarioId: '' },
-            ...registry.scenarios.map(entry => ({ label: entry.value.meta.title, description: entry.id, scenarioId: entry.id })),
+            ...registry.scenarios.map(entry => ({
+                label: getModPresentationText(wsPath, entry.id, 'name', getConfiguredLocale()) ?? entry.value.meta.title,
+                description: entry.id,
+                detail: getModPresentationText(wsPath, entry.id, 'description', getConfiguredLocale()),
+                scenarioId: entry.id,
+            })),
         ], { title: t('extension.scenario.openTitle') });
         if (!selected) return;
         if (selected.scenarioId) {

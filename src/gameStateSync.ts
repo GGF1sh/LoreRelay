@@ -52,6 +52,9 @@ import {
 import type { TurnResultFileOutcome } from './acceptedTurnReplayGuardCore';
 import { queueAutoLocationImageSilent } from './autoLocationImageRunner';
 import { markTurnResultHandled } from './turnResultFallback';
+import { getActiveModContributions } from './mods/modActivationGateHost';
+import { localizeModLoreLabels } from './mods/contributions/modLocalizationCore';
+import { getConfiguredLocale } from './i18n';
 import { handleGameStateMedia, handleTurnResultMedia } from './mediaAgent';
 import { pushGameStateToRemoteClients } from './remotePlayServer';
 import { pushScenarioDirectorToWebview } from './scenarioDirector';
@@ -813,7 +816,12 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
             panel.webview.postMessage({
                 type: 'gameStateUpdate',
                 syncSeq: ++gameStateSyncSeq,
-                turnResult: sanitizeTurnResultForWebview(enriched, trustLookup),
+                turnResult: (() => {
+                    const display = sanitizeTurnResultForWebview(enriched, trustLookup);
+                    const registry = getActiveModContributions(workspacePath);
+                    if (registry && display.triggeredLore) display.triggeredLore = localizeModLoreLabels(registry, display.triggeredLore, getConfiguredLocale());
+                    return display;
+                })(),
             });
         }
     } catch (e) {

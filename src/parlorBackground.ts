@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { isLegacyMediaOutsideModPackages } from './mods/modAssetBroker';
 import { getWorkspacePath } from './workspacePaths';
 import {
     PARLOR_BACKGROUNDS_DIR,
@@ -43,7 +44,7 @@ export function resolveParlorBackgroundPath(filename: string): string | undefine
     if (!resolved.startsWith(base + path.sep)) {
         return undefined;
     }
-    if (!fs.existsSync(resolved)) {
+    if (!fs.existsSync(resolved) || !isLegacyMediaOutsideModPackages(resolved)) {
         return undefined;
     }
     return resolved;

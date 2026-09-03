@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { constants } from 'fs';
 import { open } from 'fs/promises';
+import { createHash } from 'crypto';
+import { resolveModLocalizedField, type ModPresentationField } from './contributions/modLocalizationCore';
 import {
     discoverModPackageManifests,
     hashDiscoveredModPackage,
@@ -81,6 +83,7 @@ const runtimeInputByWorkspace = new Map<string, ModActivationGateInput>();
 const runtimeGenerationByWorkspace = new Map<string, number>();
 const runtimePackageTreesByWorkspace = new Map<string, ModPackageTreeIdentity[]>();
 const runtimeContentByWorkspace = new Map<string, ModContentRegistry>();
+const runtimeAssetBytesByWorkspace = new Map<string, Map<string, Uint8Array>>();
 let nextRuntimeGeneration = 1;
 
 interface FileIdentity {
@@ -469,12 +472,13 @@ function storeRuntime(
             ? { ...result.decision, modContext: cloneContext(result.decision.modContext) }
             : { ...result.decision, blockers: [...result.decision.blockers], warnings: [...result.decision.warnings] } as ModOpenDecision,
         contentActivationAllowed: result.decision.mode === 'normal' && !!registry
-            && registry.scenarios.length + registry.lorebooks.length + registry.personas.length > 0,
+            && registry.scenarios.length + registry.lorebooks.length + registry.personas.length + registry.assets.length > 0,
         ...(result.profile ? { profile: JSON.parse(JSON.stringify(result.profile)) as ModProfile } : {}),
         ...(result.lock ? { lock: cloneLock(result.lock) } : {}),
     };
     runtimeByWorkspace.set(workspaceKey(workspaceRoot), stored);
     runtimeContentByWorkspace.delete(workspaceKey(workspaceRoot));
+    runtimeAssetBytesByWorkspace.delete(workspaceKey(workspaceRoot));
     if (stored.contentActivationAllowed && registry) runtimeContentByWorkspace.set(workspaceKey(workspaceRoot), registry);
     runtimeFilesByWorkspace.set(workspaceKey(workspaceRoot), { ...files });
     runtimePackageTreesByWorkspace.set(workspaceKey(workspaceRoot), packageTrees.map(tree => ({
@@ -496,6 +500,7 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
     runtimeFilesByWorkspace.delete(root);
     runtimePackageTreesByWorkspace.delete(root);
     runtimeContentByWorkspace.delete(root);
+    runtimeAssetBytesByWorkspace.delete(root);
     if (!path.isAbsolute(input.workspaceRoot)
         || (input.globalStorageRoot !== undefined && !path.isAbsolute(input.globalStorageRoot))) {
         return storeRuntime(root, {
@@ -604,6 +609,7 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
     const candidates: ModPackageCandidate[] = [];
     const contentPackages: ModContentPackage[] = [];
     let contentBytes = 0;
+    let assetBytes = 0;
     const packageTrees: ModPackageTreeIdentity[] = [];
     const hashDiagnostics: ModDiscoveryDiagnostic[] = [];
     const lockedIdentities = [...new Set(lock.packages.map(pkg => `${pkg.id}\0${pkg.version}`))].sort(compareUnicodeCodePointOrder);
@@ -638,9 +644,10 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
             if (hashed.candidate) candidates.push(hashed.candidate);
             if (hashed.treeIdentity) packageTrees.push(hashed.treeIdentity);
             if (hashed.candidate && hashed.contentFiles) {
-                contentBytes += hashed.contentFiles.reduce((sum, file) => sum + file.bytes.byteLength, 0);
-                if (contentBytes > 4 * 1024 * 1024) return storeRuntime(root, {
-                    decision: safeDecision([gateDiagnostic('MOD_CONTENT_LIMIT', 'Active content exceeds the 4 MiB budget')]),
+                contentBytes += hashed.contentFiles.filter(file => file.kind !== 'binary').reduce((sum, file) => sum + file.bytes.byteLength, 0);
+                assetBytes += hashed.contentFiles.filter(file => file.kind === 'binary').reduce((sum, file) => sum + file.bytes.byteLength, 0);
+                if (contentBytes > 4 * 1024 * 1024 || assetBytes > 64 * 1024 * 1024) return storeRuntime(root, {
+                    decision: safeDecision([gateDiagnostic('MOD_CONTENT_LIMIT', 'Active content exceeds the 4 MiB document or 64 MiB media budget')]),
                     contentActivationAllowed: false, profile, lock,
                 }, runtimeFiles);
                 contentPackages.push({ ...hashed.candidate, files: hashed.contentFiles });
@@ -736,7 +743,32 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
             }, runtimeFiles);
         }
     }
-    return storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles, packageTrees, registry);
+    const result = storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles, packageTrees, registry);
+    if (result.contentActivationAllowed && registry) {
+        const verifiedBytes = new Map<string, Uint8Array>();
+        const needed = new Set(registry.assets.map(asset => asset.value.byteHash));
+        for (const pkg of contentPackages) for (const file of pkg.files) if (file.kind === 'binary') {
+            const hash = createHash('sha256').update(file.bytes).digest('hex');
+            if (needed.has(hash)) verifiedBytes.set(hash, Buffer.from(file.bytes));
+        }
+        runtimeAssetBytesByWorkspace.set(root, verifiedBytes);
+    }
+    return result;
+}
+
+/** The broker gets a detached verified buffer, never a package path or a reopened file. */
+export function getActiveModAsset(workspaceRoot: string, id: string): { lockFingerprint: string; bytes: Uint8Array } | undefined {
+    const root = workspaceKey(workspaceRoot);
+    const registry = runtimeContentByWorkspace.get(root);
+    if (!registry || !areModCanonicalWritesAllowed(root) || runtimeByWorkspace.get(root)?.lock?.aggregateHash !== registry.lockFingerprint) return undefined;
+    const asset = registry.assets.find(item => item.id === id);
+    const bytes = asset && runtimeAssetBytesByWorkspace.get(root)?.get(asset.value.byteHash);
+    return bytes ? { lockFingerprint: registry.lockFingerprint, bytes: Buffer.from(bytes) } : undefined;
+}
+
+export function getModPresentationText(workspaceRoot: string, id: string, field: ModPresentationField, locale: string): string | undefined {
+    const registry = getActiveModContributions(workspaceRoot);
+    return registry ? resolveModLocalizedField(registry, id, field, locale) : undefined;
 }
 
 /** Consumer access always rechecks the current lock/package identities; no mutable cache escapes. */
@@ -1015,6 +1047,7 @@ export function isModCanonicalAuthorizationCurrent(authorization: ModCanonicalAu
 
 export function clearModActivationGateRuntime(): void {
     runtimeContentByWorkspace.clear();
+    runtimeAssetBytesByWorkspace.clear();
     campaignEvidenceCache.clear();
     runtimeByWorkspace.clear();
     runtimeFilesByWorkspace.clear();

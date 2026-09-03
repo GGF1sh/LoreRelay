@@ -4,6 +4,8 @@ import { compareUnicodeCodePointOrder, isValidLocalResourceId, toCanonicalModRes
 import type { ModLock } from '../modProfileCore';
 import type { LorebookEntry } from '../../lorebookMatcher';
 import { parsePlayerPersonaPreset, type PlayerPersonaPreset } from '../../personaPresetCore';
+import { parseModAssetCatalogs, type ModAssetMetadata } from './modAssetCore';
+import { parseModLocalization, type ModLocalizedString, type ModPresentationResource } from './modLocalizationCore';
 
 /** Slice 2A is self-contained text data. No file references, regex, media or scripts. */
 export interface ModScenarioDefinition {
@@ -25,6 +27,9 @@ export interface ModContentRegistry {
     scenarios: ModContribution<ModScenarioDefinition>[];
     lorebooks: ModContribution<LorebookEntry>[];
     personas: ModContribution<PlayerPersonaPreset>[];
+    assets: ModContribution<ModAssetMetadata>[];
+    presentations: ModPresentationResource[];
+    localization: ModLocalizedString[];
 }
 
 export interface ModContentPackage {
@@ -114,7 +119,7 @@ function parsePersona(raw: unknown, descriptorId: string): PlayerPersonaPreset {
 
 /** Pure construction; the host alone supplies hash-verified bytes and a manifest-bound active lock. */
 export function buildModContentRegistry(lock: ModLock, packages: readonly ModContentPackage[]): ModContentRegistry {
-    const registry: ModContentRegistry = { lockFingerprint: lock.aggregateHash, scenarios: [], lorebooks: [], personas: [] };
+    const registry: ModContentRegistry = { lockFingerprint: lock.aggregateHash, scenarios: [], lorebooks: [], personas: [], assets: [], presentations: [], localization: [] };
     const seen = new Set<string>();
     let documentBytes = 0;
     const append = <T>(list: ModContribution<T>[], pkg: ModContentPackage, id: string, value: T): void => {
@@ -130,7 +135,7 @@ export function buildModContentRegistry(lock: ModLock, packages: readonly ModCon
         const pkg = matches[0];
         if (!locked || matches.length !== 1 || pkg.manifest.version !== locked.version
             || pkg.manifestHash !== locked.manifestHash || pkg.contentHash !== locked.contentHash) return reject('MOD_CONTENT_LOCK_MISMATCH');
-        if (pkg.manifest.capabilities.some(capability => !['scenario', 'lorebook', 'persona'].includes(capability))) return reject('MOD_CONTENT_CAPABILITY_UNSUPPORTED');
+        if (pkg.manifest.capabilities.some(capability => !['scenario', 'lorebook', 'persona', 'asset', 'localization'].includes(capability))) return reject('MOD_CONTENT_CAPABILITY_UNSUPPORTED');
         for (const kind of ['scenarios', 'lorebooks', 'personas'] as const) {
             const descriptors = [...(pkg.manifest.entrypoints[kind] ?? [])].sort((a, b) => compareUnicodeCodePointOrder(a.id, b.id));
             for (const descriptor of descriptors) {
@@ -139,20 +144,32 @@ export function buildModContentRegistry(lock: ModLock, packages: readonly ModCon
                 documentBytes += file.bytes.byteLength;
                 if (documentBytes > 4 * 1024 * 1024) return reject('MOD_CONTENT_LIMIT');
                 const raw = parseStrictJsonBytes(normalizeModPackageFile(file));
-                if (kind === 'scenarios') append(registry.scenarios, pkg, descriptor.id, parseScenario(raw));
+                if (kind === 'scenarios') {
+                    const scenario = parseScenario(raw);
+                    append(registry.scenarios, pkg, descriptor.id, scenario);
+                    registry.presentations.push({ id: toCanonicalModResourceId(id, descriptor.id), fields: { name: scenario.meta.title, description: scenario.meta.description ?? '' } });
+                }
                 if (kind === 'personas') {
                     const preset = parsePersona(raw, descriptor.id);
                     append(registry.personas, pkg, descriptor.id, { ...preset, id: toCanonicalModResourceId(id, descriptor.id) });
+                    registry.presentations.push({ id: toCanonicalModResourceId(id, descriptor.id), fields: { name: preset.name ?? descriptor.id, description: preset.description ?? '' } });
                 }
                 if (kind === 'lorebooks') {
                     const entries = parseLorebook(raw).sort((a, b) => compareUnicodeCodePointOrder(a.id!, b.id!));
                     for (const entry of entries) {
                         const canonicalId = toCanonicalModResourceId(id, entry.id!);
                         append(registry.lorebooks, pkg, entry.id!, { ...entry, id: canonicalId, comment: `${canonicalId} — ${entry.comment ?? entry.id}` });
+                        registry.presentations.push({ id: canonicalId, fields: { label: entry.comment ?? entry.id! } });
                     }
                 }
             }
         }
+        for (const asset of parseModAssetCatalogs(pkg.manifest, pkg.files)) {
+            append(registry.assets, pkg, asset.id.slice(id.length + 1), asset.value);
+            registry.presentations.push({ id: asset.id, fields: { alt: asset.value.alt ?? asset.id } });
+        }
+        registry.localization.push(...parseModLocalization(pkg.manifest, pkg.files, registry.presentations));
+        if (registry.localization.length > 8192) return reject('MOD_CONTENT_LIMIT');
     }
     // Detach every returned object from the caller's mutable buffers/manifest.
     return JSON.parse(canonicalizeModJson(registry)) as ModContentRegistry;

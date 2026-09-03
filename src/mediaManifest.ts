@@ -3,6 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath } from './workspacePaths';
 import { getSkillDir } from './imageGenRunner';
+import { getActiveModContributions, getModPresentationText } from './mods/modActivationGateHost';
+import { isLegacyMediaOutsideModPackages, resolveModAssetForWebview } from './mods/modAssetBroker';
+import { getConfiguredLocale } from './i18n';
+import { splitCanonicalResourceId } from './mods/modPathCore';
 
 export interface MediaManifestDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -58,7 +62,7 @@ function resolveMediaFile(file: string, manifestDir: string, subfolder: string):
         path.join(manifestDir, subfolder, file)
     ];
     for (const c of candidates) {
-        if (fs.existsSync(c)) { return c; }
+        if (fs.existsSync(c) && isLegacyMediaOutsideModPackages(c)) { return c; }
     }
     return undefined;
 }
@@ -71,7 +75,7 @@ export function sendBgmManifest(): void {
     const defaultVolume = config.get<number>('bgm.volume', 50);
 
     const manifestPath = getBgmManifestPath();
-    let tracks: Array<{ id: string; uri: string; mood?: string; description?: string; loop?: boolean; volume?: number }> = [];
+    let tracks: Array<{ id: string; uri: string; mood?: string; description?: string; loop?: boolean; volume?: number; modAsset?: boolean }> = [];
 
     if (enabled && manifestPath && fs.existsSync(manifestPath)) {
         try {
@@ -80,7 +84,7 @@ export function sendBgmManifest(): void {
             const manifestDir = path.dirname(manifestPath);
             const rawTracks: BgmTrack[] = Array.isArray(manifest) ? manifest : (manifest.tracks || []);
             for (const t of rawTracks) {
-                if (!t || !t.id || !t.file) { continue; }
+                if (!t || !t.id || !t.file || (typeof t.id === 'string' && splitCanonicalResourceId(t.id)?.namespace === 'mod')) { continue; }
                 const resolved = resolveMediaFile(t.file, manifestDir, 'bgm');
                 if (!resolved) { continue; }
                 tracks.push({
@@ -97,6 +101,12 @@ export function sendBgmManifest(): void {
         }
     }
 
+    const ws = getWorkspacePath();
+    if (enabled && ws) for (const asset of getActiveModContributions(ws)?.assets ?? []) {
+        if (!['bgm', 'audio'].includes(asset.value.kind)) continue;
+        const uri = resolveModAssetForWebview(panel, ws, asset.id);
+        if (uri) tracks.push({ id: asset.id, uri, description: getModPresentationText(ws, asset.id, 'alt', getConfiguredLocale()), loop: asset.value.kind === 'bgm', modAsset: true });
+    }
     panel.webview.postMessage({ type: 'bgmManifest', tracks, defaultVolume, enabled });
 }
 
@@ -108,7 +118,7 @@ export function sendSfxManifest(): void {
     const defaultVolume = config.get<number>('sfx.volume', 70);
 
     const manifestPath = getSfxManifestPath();
-    const sounds: Array<{ id: string; uri: string; description?: string; volume?: number }> = [];
+    const sounds: Array<{ id: string; uri: string; description?: string; volume?: number; modAsset?: boolean }> = [];
 
     if (enabled && manifestPath && fs.existsSync(manifestPath)) {
         try {
@@ -117,7 +127,7 @@ export function sendSfxManifest(): void {
             const manifestDir = path.dirname(manifestPath);
             const rawSounds: SfxItem[] = Array.isArray(manifest) ? manifest : (manifest.sounds || []);
             for (const s of rawSounds) {
-                if (!s || !s.id || !s.file) { continue; }
+                if (!s || !s.id || !s.file || (typeof s.id === 'string' && splitCanonicalResourceId(s.id)?.namespace === 'mod')) { continue; }
                 const resolved = resolveMediaFile(s.file, manifestDir, 'sfx');
                 if (!resolved) { continue; }
                 sounds.push({
@@ -132,6 +142,12 @@ export function sendSfxManifest(): void {
         }
     }
 
+    const ws = getWorkspacePath();
+    if (enabled && ws) for (const asset of getActiveModContributions(ws)?.assets ?? []) {
+        if (asset.value.kind !== 'sfx') continue;
+        const uri = resolveModAssetForWebview(panel, ws, asset.id);
+        if (uri) sounds.push({ id: asset.id, uri, description: getModPresentationText(ws, asset.id, 'alt', getConfiguredLocale()), modAsset: true });
+    }
     panel.webview.postMessage({ type: 'sfxManifest', sounds, defaultVolume, enabled });
 }
 

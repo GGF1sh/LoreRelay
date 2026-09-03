@@ -71,7 +71,8 @@ import {
 } from './parlorBackground';
 import { resolveParlorCampaignTransition } from './parlorPromoteCore';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
-import { areModCanonicalWritesAllowed } from './mods/modActivationGateHost';
+import { areModCanonicalWritesAllowed, getActiveModContributions, getModPresentationText } from './mods/modActivationGateHost';
+import { resolveModAssetForWebview } from './mods/modAssetBroker';
 import { ModDataError } from './mods/modHashCore';
 
 export interface ParlorBridgeDeps {
@@ -177,6 +178,12 @@ export function sendParlorSettingsToWebview(): void {
         label: bg.label,
         uri: toParlorBackgroundWebviewUri(panel, bg.filename) || '',
     }));
+    const ws = getWorkspacePath();
+    if (ws) for (const asset of getActiveModContributions(ws)?.assets ?? []) {
+        if (!asset.value.mediaType.startsWith('image/')) continue;
+        const uri = resolveModAssetForWebview(panel, ws, asset.id);
+        if (uri) backgrounds.push({ id: asset.id, label: `${getModPresentationText(ws, asset.id, 'alt', getConfiguredLocale()) ?? asset.id} — ${asset.id}`, uri });
+    }
     const activeCharacterId = getActiveCharacterId() || null;
     const statePath = getGameStatePath();
     const hasGameState = Boolean(statePath && fs.existsSync(statePath));
@@ -194,7 +201,8 @@ export function sendParlorSettingsToWebview(): void {
         persona,
         personaPresets: personaPresets.map((preset) => ({
             id: preset.id,
-            displayName: preset.name || preset.id,
+            displayName: (ws && getModPresentationText(ws, preset.id, 'name', getConfiguredLocale())) || preset.name || preset.id,
+            ...(preset.id.includes(':') ? { sourceLabel: preset.id } : {}),
             ...(preset.meta?.sourceLabel ? { sourceLabel: preset.meta.sourceLabel } : {}),
         })),
         activePersonaId,
@@ -219,6 +227,12 @@ function applyParlorBackgroundToWebview(): void {
     const experience = loadExperienceConfig();
     const bgId = experience.parlor?.backgroundId;
     if (!bgId) {
+        return;
+    }
+    if (bgId.includes(':')) {
+        const ws = getWorkspacePath();
+        const asset = ws && getActiveModContributions(ws)?.assets.find(item => item.id === bgId && item.value.mediaType.startsWith('image/'));
+        panel.webview.postMessage({ type: 'parlorBackground', uri: asset && ws ? resolveModAssetForWebview(panel, ws, bgId) ?? null : null });
         return;
     }
     const entry = listWorkspaceParlorBackgrounds().find((b) => b.id === bgId);
@@ -568,7 +582,10 @@ export async function handleImportParlorPersonaJson(): Promise<void> {
 export function handleSetParlorBackground(backgroundId: string | null): void {
     const experience = loadExperienceConfig();
     const parlor = { ...experience.parlor };
-    if (backgroundId && /^[a-zA-Z0-9_-]{1,64}$/.test(backgroundId)) {
+    const ws = getWorkspacePath();
+    const modBackground = backgroundId && ws && getActiveModContributions(ws)?.assets.some(asset => asset.id === backgroundId && asset.value.mediaType.startsWith('image/'));
+    if (backgroundId?.includes(':') && !modBackground) return;
+    if (backgroundId && (/^[a-zA-Z0-9_-]{1,64}$/.test(backgroundId) || modBackground)) {
         parlor.backgroundId = backgroundId;
     } else {
         delete parlor.backgroundId;

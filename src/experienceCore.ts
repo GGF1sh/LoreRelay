@@ -72,7 +72,8 @@ export function parseExperienceConfig(raw: unknown): ExperienceConfig {
         if (typeof p.lorebookEnabled === 'boolean') {
             out.parlor.lorebookEnabled = p.lorebookEnabled;
         }
-        if (typeof p.backgroundId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(p.backgroundId)) {
+        if (typeof p.backgroundId === 'string' && (/^[a-zA-Z0-9_-]{1,64}$/.test(p.backgroundId)
+            || splitCanonicalResourceId(p.backgroundId)?.namespace === 'mod')) {
             out.parlor.backgroundId = p.backgroundId;
         }
         if (p.activePersonaId === null) {

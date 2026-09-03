@@ -756,7 +756,7 @@ export function appendActiveModLorebookEntries(workspaceRoot: string, base: Lore
         if (current) storeRuntime(workspaceRoot, {
             ...current, decision: safeDecision([gateDiagnostic('MOD_CONTENT_ID_COLLISION', 'Campaign and MOD lore IDs collide')]),
         });
-        return base;
+        throw new ModDataError('MOD_CONTENT_ID_COLLISION', 'Campaign and MOD lore IDs collide; prompt construction aborted');
     }
     return [...base, ...additions.map(entry => entry.value)];
 }

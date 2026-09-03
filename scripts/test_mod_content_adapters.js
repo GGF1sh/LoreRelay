@@ -199,6 +199,40 @@ async function main() {
             if (mode === 'queued-existing') eq(fs.readFileSync(path.join(scenarioWs, 'game_state.json'), 'utf8'), '{"sentinel":true}', 'recheck after transaction queue prevents reset');
             if (['history-denied', 'queued-existing'].includes(mode)) ok(replay.getAcceptedTurnRestoreRepairLatchOutcome(scenarioWs), 'failed transaction enters real repair latch');
         }
+        for (const handler of ['handleParlorPlayerInput', 'handleInWorldPlayerInput']) {
+            const chatWs = campaign(`collision-${handler}`, profile, lock); use(chatWs);
+            await gate.evaluateModActivationGate(input(chatWs));
+            const savedRoles = [];
+            const session = { messages: [] };
+            const save = (value, message) => { savedRoles.push(message.role); return value; };
+            let allowPrompt = false;
+            const collide = () => allowPrompt ? 'prompt' : gate.appendActiveModLorebookEntries(chatWs, [{ id: 'a.story:town', content: 'imported collision' }]);
+            const chat = boundary('parlorBridge.js', {
+                './workspacePaths': workspace, './mods/modActivationGateHost': gate, './mods/modHashCore': hash,
+                './characterManager': { getActiveCharacterProfile: () => ({ id: 'npc', name: 'NPC' }) },
+                './gmBridgeRunner': { isParlorBridgeBusy: () => false },
+                './connectionProfile': { getActiveParlorConnectionProfile: () => ({ provider: 'test' }) },
+                './parlorSession': { getOrCreateParlorSession: () => session, appendAndSaveParlorMessage: save },
+                './inWorldSession': { getOrCreateInWorldSession: () => session, appendAndSaveInWorldMessage: save },
+                './parlorPromptBuilder': { buildParlorUserPrompt: collide }, './inWorldPromptBuilder': { buildInWorldChatPrompt: collide },
+                './experience': { isParlorMode: () => true, isInWorldMode: () => true },
+                './i18n': { t: x => x, getConfiguredLocale: () => 'en' },
+            }, 'exports.providerCalls = 0; invokeParlorByProfile = async () => { exports.providerCalls++; exports.onInvoke?.(); return { ok: true, text: "reply" }; }; sendParlorSessionToWebview = () => undefined; sendInWorldSessionToWebview = () => undefined;');
+            await chat[handler]('harbor');
+            eq(gate.getModActivationGateResult(chatWs).decision.mode, 'safe-required', `${handler}: collision revokes activation`);
+            eq(chat.providerCalls, 0, `${handler}: no provider call after blocking collision`);
+            eq(savedRoles, ['user'], `${handler}: no post-collision response/session write`);
+            await chat[handler]('blocked retry');
+            eq(savedRoles, ['user'], `${handler}: Safe Mode retry cannot append another user message`);
+            eq(chat.providerCalls, 0, `${handler}: Safe Mode retry cannot invoke provider`);
+            await gate.evaluateModActivationGate(input(chatWs));
+            savedRoles.length = 0;
+            allowPrompt = true;
+            chat.onInvoke = () => fs.appendFileSync(path.join(chatWs, '.text-adventure/mod-lock.json'), '\n');
+            await chat[handler]('drift during provider request');
+            eq(chat.providerCalls, 1, `${handler}: permitted request begins before drift`);
+            eq(savedRoles, ['user'], `${handler}: response cannot persist after lock drift`);
+        }
         use(ws);
         const local = { version: 1, id: 'local', name: 'Local persona' };
         const ordinary = path.join(temp, 'ordinary'); fs.mkdirSync(path.join(ordinary, 'personas'), { recursive: true });

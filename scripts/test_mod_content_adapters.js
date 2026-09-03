@@ -79,7 +79,7 @@ async function main() {
         };
         const docs = {
             'scenario.json': { format: 'text-adventure-scenario/1.0', meta: { title: id }, setup: { theme: 'fantasy' }, opening: { narrative: `Opening sentinel ${id}`, options: ['Explore'] } },
-            'lore.json': { format: 'text-adventure-lorebook/1.0', entries: [{ id: 'town', comment: 'Town', keys: ['harbor'], content: `Lore sentinel ${id}` }] },
+            'lore.json': { format: 'text-adventure-lorebook/1.0', entries: [{ id: 'town', comment: 'Town', keys: ['harbor'], content: `Lore sentinel ${id}`, pinned: id === 'a.story' }] },
             'persona.json': { version: 1, id: 'traveler', name: `Traveler ${id}`, description: `Persona sentinel ${id}` },
         };
         fs.writeFileSync(path.join(root, 'lorerelay.mod.json'), JSON.stringify(manifest));
@@ -144,6 +144,13 @@ async function main() {
         eq(fs.existsSync(path.join(ws, 'persona.json')), false, 'MOD persona text is never copied into local persona');
         const gm = boundary('gmPromptBuilder.js', { './workspacePaths': workspace, './mods/modActivationGateHost': gate, './lorebookMatcher': require('../out/lorebookMatcher') });
         ok(gm.getTriggeredLoreLabels('harbor').some(label => label.includes('a.story:town')), 'real GM matcher consumes namespaced lore');
+        for (const file of ['parlorPromptBuilder.js', 'inWorldPromptBuilder.js']) {
+            const consumer = boundary(file, { './lorebookLoader': lorebook }, 'exports.resolveLoreSnippetsForTest = loreLabelsToSnippets;');
+            const snippets = consumer.resolveLoreSnippetsForTest(gm.getTriggeredLoreLabels('harbor'));
+            ok(snippets.includes('Lore sentinel a.story'), `${file}: pinned decorated label resolves to MOD content`);
+            ok(snippets.includes('Lore sentinel z.foundation'), `${file}: unpinned MOD content remains intact`);
+            eq(snippets.some(value => value.startsWith('📌')), false, `${file}: no label-only fallback for valid pinned entry`);
+        }
         const unchanged = fs.readFileSync(path.join(first.root, 'persona.json'));
         fs.writeFileSync(path.join(first.root, 'persona.json'), '{}');
         eq(gate.getActiveModContributions(ws), undefined, 'package drift revokes all cached content');

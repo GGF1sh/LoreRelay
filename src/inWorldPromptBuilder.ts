@@ -21,6 +21,7 @@ function loreLabelsToSnippets(labels: string[]): string[] {
     for (const entry of book.entries) {
         if (entry.label && entry.content) {
             byLabel.set(entry.label, entry.content);
+            if (entry.pinned) byLabel.set(`📌 ${entry.label}`, entry.content);
         }
     }
     return labels.map((label) => byLabel.get(label) || label).filter(Boolean);

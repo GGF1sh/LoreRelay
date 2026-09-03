@@ -88,11 +88,11 @@ function writeGameStateToDisk(
     statePath: string,
     state: Record<string, unknown>,
     clearRuntimeWitness = false
-): void {
-    commitGameState(state, {
+): boolean {
+    return commitGameState(state, {
         mergeProfile: 'replace',
         ...(clearRuntimeWitness ? { runtimeAcceptedTurnWitnessMode: 'clear' as const } : {}),
-    });
+    }).ok;
 }
 
 async function runTimelineRestore(
@@ -268,7 +268,7 @@ async function writeRestoredGameState(
     };
     const newState = attachCombatBattleHistoryToSnapshot(base, options?.combatBattleHistory);
     try {
-        writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>, true);
+        if (!writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>, true)) return false;
         replaceHistoryFromDisk();
         sendCurrentState(0, true);
         sendCheckpointList();
@@ -306,7 +306,7 @@ export async function handleUndoLastTurn(): Promise<void> {
     }
     await runTimelineRestore(ws, 'undo-last-turn', async () => {
         setGameEntryHistoryWithSeenIds(truncateHistoryOneTurn(history));
-        saveHistoryToDisk();
+        if (!saveHistoryToDisk()) return false;
         resetGmBridgeSessions();
         return writeRestoredGameState(findLastGmEntry(getGameEntryHistory()), t('extension.info.undoSuccess'));
     });
@@ -329,7 +329,7 @@ export async function handleRestoreToTurn(entryId: string): Promise<void> {
     }
     await runTimelineRestore(ws, 'restore-to-turn', async () => {
         setGameEntryHistoryWithSeenIds(result.history, result.seenIds);
-        saveHistoryToDisk();
+        if (!saveHistoryToDisk()) return false;
         resetGmBridgeSessions();
         const gm = findLastGmEntry(getGameEntryHistory());
         return writeRestoredGameState(gm, t('extension.info.rewindSuccess'));
@@ -392,7 +392,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
     }
     await runTimelineRestore(ws, 'restore-checkpoint', async () => {
         setGameEntryHistoryWithSeenIds(cp.history);
-        saveHistoryToDisk();
+        if (!saveHistoryToDisk()) return false;
         resetGmBridgeSessions();
         const gm = findLastGmEntry(getGameEntryHistory());
         return writeRestoredGameState(
@@ -439,7 +439,7 @@ export async function handleRegenerateLastTurn(): Promise<void> {
     }
     const restored = await runTimelineRestore(ws, 'regenerate-last-turn', async () => {
         setGameEntryHistoryWithSeenIds(trimmed);
-        saveHistoryToDisk();
+        if (!saveHistoryToDisk()) return false;
         resetGmBridgeSessions();
         const gm = findLastGmEntry(getGameEntryHistory());
         return writeRestoredGameState(gm, t('extension.info.regenerateStarted'));

@@ -210,18 +210,20 @@ export function loadHistoryFromDisk(): void {
     }
 }
 
-export function saveHistoryToDisk(): void {
+export function saveHistoryToDisk(): boolean {
     const d = requireDeps();
     const histPath = d.getHistoryPath();
     if (!histPath) {
-        return;
+        return false;
     }
     const workspaceRoot = d.getWorkspacePath() ?? path.dirname(histPath);
-    if (!areModCanonicalWritesAllowed(workspaceRoot)) return;
+    if (!areModCanonicalWritesAllowed(workspaceRoot)) return false;
     try {
         writeJsonAtomic(histPath, gameEntryHistory, true);
+        return true;
     } catch (e) {
         console.error('Error saving game_history.json:', e);
+        return false;
     }
 }
 

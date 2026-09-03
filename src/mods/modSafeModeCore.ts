@@ -218,6 +218,13 @@ export function assessModCampaignOpen(input: {
         }
         return safeRequired(blockers, warnings);
     }
+    if ([...(input.checkpointLockFingerprints ?? []), ...(input.historyLockFingerprints ?? [])]
+        .some(fingerprint => fingerprint !== input.lock!.aggregateHash)) {
+        return safeRequired([{
+            code: 'CAMPAIGN_LOCK_LINEAGE_MISMATCH', modId: '',
+            message: 'Saved campaign provenance differs from the active lock; an explicit recovery/fork is required',
+        }], warnings);
+    }
     if (input.lock.resolverVersion !== MOD_RESOLVER_VERSION) {
         blockers.push({ code: 'RESOLVER_VERSION_CHANGED', modId: '', message: 'Explicit re-resolution or migration is required' });
     }

@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { loadExperienceConfig } from './experience';
+import { getPlayerPersonaPreset } from './personaPreset';
 import {
     DEFAULT_PLAYER_PERSONA,
     PERSONA_FILENAME,
@@ -22,6 +24,12 @@ function resolvePersonaPath(): string | undefined {
 }
 
 export function loadPlayerPersona(): PlayerPersona {
+    const selectedId = loadExperienceConfig().parlor?.activePersonaId;
+    if (selectedId?.includes(':')) {
+        // Keep a selection reference, never an unlabelled copy that survives deactivation.
+        const preset = getPlayerPersonaPreset(selectedId);
+        return preset ? parsePlayerPersona(preset) : { ...DEFAULT_PLAYER_PERSONA };
+    }
     const filePath = resolvePersonaPath();
     if (!filePath || !fs.existsSync(filePath)) {
         return { ...DEFAULT_PLAYER_PERSONA };

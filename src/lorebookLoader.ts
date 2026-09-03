@@ -3,6 +3,7 @@ import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { previewText } from './promptContext';
 import type { LorebookEntry } from './lorebookMatcher';
+import { appendActiveModLorebookEntries } from './mods/modActivationGateHost';
 
 const LOREBOOK_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -73,7 +74,7 @@ export function getLorebookWritePath(): string | undefined {
     return ws ? path.join(ws, 'lorebook.json') : undefined;
 }
 
-export function loadLorebookForUi(): { sourceFile?: string; writeFile: string; entries: LorebookUiEntry[] } {
+export function loadLorebookForUi(includeModContributions = false): { sourceFile?: string; writeFile: string; entries: LorebookUiEntry[] } {
     const ws = getWorkspacePath();
     const writeFile = 'lorebook.json';
     if (!ws) {
@@ -88,10 +89,10 @@ export function loadLorebookForUi(): { sourceFile?: string; writeFile: string; e
         return {
             sourceFile: path.basename(filePath),
             writeFile,
-            entries: raw.map(mapEntryToUi)
+            entries: (includeModContributions ? appendActiveModLorebookEntries(ws, raw) : raw).map(mapEntryToUi)
         };
     }
-    return { writeFile, entries: [] };
+    return { writeFile, entries: (includeModContributions ? appendActiveModLorebookEntries(ws, []) : []).map(mapEntryToUi) };
 }
 
 function parseKeysInput(raw: unknown): string[] {

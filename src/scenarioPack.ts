@@ -34,8 +34,10 @@ import {
 } from './protagonistBootstrapCore';
 import {
     acquireModCanonicalAuthorization,
+    getActiveModContributions,
     isModCanonicalAuthorizationCurrent,
 } from './mods/modActivationGateHost';
+import { runAcceptedTurnTimelineRestoreTransaction } from './acceptedTurnReplayGuard';
 
 export { BUNDLED_SAMPLE_IDS, resolveBundledSampleDir } from './scenarioPackCore';
 
@@ -216,6 +218,11 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    // A declared MOD must never enter the legacy recursive folder-copy importer.
+    if (isDeclaredModFolder(dir)) {
+        vscode.window.showErrorMessage('LoreRelay: select a locked MOD scenario instead of importing its package folder.');
         return;
     }
     const modAuthorization = await acquireModCanonicalAuthorization(wsPath);
@@ -425,6 +432,19 @@ export async function loadScenarioPack(): Promise<void> {
         return;
     }
 
+    const registry = getActiveModContributions(wsPath);
+    if (registry?.scenarios.length) {
+        const selected = await vscode.window.showQuickPick([
+            { label: t('extension.scenario.openLabel'), scenarioId: '' },
+            ...registry.scenarios.map(entry => ({ label: entry.value.meta.title, description: entry.id, scenarioId: entry.id })),
+        ], { title: t('extension.scenario.openTitle') });
+        if (!selected) return;
+        if (selected.scenarioId) {
+            await loadActiveModScenario(selected.scenarioId, registry.lockFingerprint);
+            return;
+        }
+    }
+
     if (!(await confirmScenarioReset(wsPath))) {
         return;
     }
@@ -439,6 +459,71 @@ export async function loadScenarioPack(): Promise<void> {
     if (!picked || picked.length === 0) { return; }
 
     await loadScenarioPackFromDir(picked[0].fsPath);
+}
+
+function isDeclaredModFolder(directory: string): boolean {
+    try {
+        let current = fs.realpathSync(directory);
+        for (let depth = 0; depth < 64; depth++) {
+            if (fs.existsSync(path.join(current, 'lorerelay.mod.json'))) return true;
+            const parent = path.dirname(current);
+            if (parent === current) return false;
+            current = parent;
+        }
+    } catch { /* fail closed for uninspectable roots */ }
+    return true;
+}
+
+function isPristineModCampaign(workspaceRoot: string, transactionStarted = false): boolean {
+    // Conservative new-campaign contract: no prior state, history, ledgers or character files.
+    // Never interpret malformed/empty existing campaign files as permission to replace them.
+    try {
+        if (fs.readdirSync(workspaceRoot).some(name => !['.text-adventure', '.vscode'].includes(name))) return false;
+        const campaignDir = path.join(workspaceRoot, '.text-adventure');
+        return fs.readdirSync(campaignDir).every(name => ['mod-profile.json', 'mod-lock.json', 'mods'].includes(name)
+            || (transactionStarted && name === 'runtime'));
+    } catch {
+        return false;
+    }
+}
+
+/** Only an explicit selection in a new, locked campaign can initialize MOD scenario state. */
+export async function loadActiveModScenario(id: string, expectedLockFingerprint: string): Promise<boolean> {
+    const ws = getWorkspacePath();
+    if (!ws || !vscode.workspace.isTrusted) return false;
+    const authorization = await acquireModCanonicalAuthorization(ws);
+    const registry = getActiveModContributions(ws);
+    const selected = registry?.scenarios.find(entry => entry.id === id);
+    if (!authorization || authorization.mode !== 'modded' || !selected
+        || registry?.lockFingerprint !== expectedLockFingerprint || !isModCanonicalAuthorizationCurrent(authorization)
+        || !isPristineModCampaign(ws)) {
+        vscode.window.showErrorMessage('LoreRelay: MOD scenarios require a new empty campaign and the unchanged active lock.');
+        return false;
+    }
+    const scenario = selected.value;
+    const openingEntry = {
+        id: 'scenario-opening', role: 'gm' as const, sender: 'Game Master',
+        content: scenario.opening.narrative, modContext: { ...authorization.modContext },
+    };
+    const result = await runAcceptedTurnTimelineRestoreTransaction(ws, 'mod-scenario-new-campaign', () => {
+        if (!isPristineModCampaign(ws, true) || !isModCanonicalAuthorizationCurrent(authorization)) throw new Error('MOD scenario authorization changed');
+        const commit = commitGameState({
+            entries: [openingEntry], status: {}, options: scenario.opening.options ?? [],
+            theme: scenario.setup?.theme ?? 'fantasy', summary: scenario.opening.summary ?? '',
+        }, { mergeProfile: 'replace', runtimeAcceptedTurnWitnessMode: 'clear' });
+        if (!commit.ok) throw new Error('MOD scenario state commit rejected');
+        if (!isModCanonicalAuthorizationCurrent(authorization)) throw new Error('MOD scenario history authorization changed');
+        setGameEntryHistoryWithSeenIds([openingEntry]);
+        if (!saveHistoryToDisk()) throw new Error('MOD scenario history write rejected');
+        resetGmBridgeSessions();
+    });
+    if (!('ok' in result) || !result.ok) {
+        vscode.window.showErrorMessage('LoreRelay: MOD scenario initialization failed; campaign repair is required.');
+        return false;
+    }
+    await vscode.commands.executeCommand('textadventure.openGame');
+    await sendCurrentState(0, true);
+    return true;
 }
 
 export async function validateScenarioPack(): Promise<void> {

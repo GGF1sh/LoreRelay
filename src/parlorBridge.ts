@@ -436,6 +436,11 @@ export function handleSetParlorConnectionProfile(profileId: string): void {
 }
 
 function applyParlorPersona(persona: unknown, activePersonaId: string | null): void {
+    if (activePersonaId?.includes(':')) {
+        if (!getPlayerPersonaPreset(activePersonaId)) throw new Error('MOD persona is no longer active');
+        saveExperienceConfig({ parlor: { activePersonaId } });
+        return;
+    }
     const next = parsePlayerPersona(persona);
     const previousPersona = loadPlayerPersona();
     const previousActivePersonaId = loadExperienceConfig().parlor?.activePersonaId ?? null;

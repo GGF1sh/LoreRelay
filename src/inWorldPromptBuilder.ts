@@ -16,7 +16,7 @@ import {
 } from './inWorldPromptBuilderCore';
 
 function loreLabelsToSnippets(labels: string[]): string[] {
-    const book = loadLorebookForUi();
+    const book = loadLorebookForUi(true);
     const byLabel = new Map<string, string>();
     for (const entry of book.entries) {
         if (entry.label && entry.content) {

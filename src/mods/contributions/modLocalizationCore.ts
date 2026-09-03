@@ -26,7 +26,9 @@ export function parseModLocalization(manifest: ModManifest, files: readonly ModP
             if (parts.length !== 2 || owner?.namespace !== 'mod' || owner.modId !== manifest.id || !resource
                 || !Object.prototype.hasOwnProperty.call(resource.fields, field) || seen.has(identity) || strings.length >= 4096
                 || typeof value !== 'string' || !value.trim() || value.trim() !== value || Buffer.byteLength(value) > 4096
-                || /[\u0000-\u001f\u007f<>]|!\[|:\/\/|(?:data|file|command|vscode):/i.test(value)) return invalid();
+                // URI tokens (including custom schemes) are not presentation prose.
+                // A colon followed by whitespace and numeric times/ratios remain ordinary text.
+                || /[\u0000-\u001f\u007f<>]|!\[|:\/\/|(?:data|file|command|vscode):|(?:^|[^a-z0-9+.-])[a-z][a-z0-9+.-]*:(?=\S)|\[[^\r\n]*\]\s*(?:\(|\[|:)|\bwww\.[^\s]+|[^\s@]+@[^\s@]+\.[^\s@]+/i.test(value)) return invalid();
             seen.add(identity);
             strings.push({ resourceId, field, locale: descriptor.locale.toLowerCase(), text: value });
         }

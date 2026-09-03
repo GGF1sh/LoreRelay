@@ -174,3 +174,15 @@ export function buildModContentRegistry(lock: ModLock, packages: readonly ModCon
     // Detach every returned object from the caller's mutable buffers/manifest.
     return JSON.parse(canonicalizeModJson(registry)) as ModContentRegistry;
 }
+
+/** Validate an uninstalled package's content only; this does not resolve dependencies or authorize activation. */
+export function validateModContentPackage(pkg: ModContentPackage): void {
+    // A private structural view selects exactly this package through the same
+    // strict adapters. Neither this view nor the resulting registry escapes.
+    const view = {
+        aggregateHash: pkg.contentHash,
+        loadOrder: [pkg.manifest.id],
+        packages: [{ id: pkg.manifest.id, version: pkg.manifest.version, source: pkg.source, manifestHash: pkg.manifestHash, contentHash: pkg.contentHash }],
+    } as ModLock;
+    buildModContentRegistry(view, [pkg]);
+}

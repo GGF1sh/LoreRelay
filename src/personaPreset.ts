@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
 import { parsePlayerPersona, type PlayerPersona } from './personaCore';
+import { getActiveModContributions } from './mods/modActivationGateHost';
 import {
     chooseAvailablePersonaPresetId,
     isValidPersonaPresetId,
@@ -26,6 +27,12 @@ function resolvePresetPath(id: string, workspacePath?: string): string | undefin
 }
 
 export function listPlayerPersonaPresets(workspacePath?: string): PlayerPersonaPreset[] {
+    const ws = workspacePath ?? getWorkspacePath();
+    const contributions = ws ? getActiveModContributions(ws)?.personas.map(entry => entry.value) ?? [] : [];
+    return [...listLocalPlayerPersonaPresets(workspacePath), ...contributions];
+}
+
+function listLocalPlayerPersonaPresets(workspacePath?: string): PlayerPersonaPreset[] {
     const dir = resolvePresetDirectory(workspacePath);
     if (!dir || !fs.existsSync(dir)) return [];
     try {
@@ -45,6 +52,10 @@ export function listPlayerPersonaPresets(workspacePath?: string): PlayerPersonaP
 }
 
 export function getPlayerPersonaPreset(id: string, workspacePath?: string): PlayerPersonaPreset | undefined {
+    if (id.includes(':')) {
+        const ws = workspacePath ?? getWorkspacePath();
+        return ws ? getActiveModContributions(ws)?.personas.find(entry => entry.id === id)?.value : undefined;
+    }
     const filePath = resolvePresetPath(id, workspacePath);
     if (!filePath || !fs.existsSync(filePath)) return undefined;
     try {

@@ -1,6 +1,6 @@
 # MOD-SUBSTRATE-V1 — Safe Declarative MOD Substrate
 
-Status: Revision 2 accepted and merged; Slice 1 implemented as a dormant validation substrate
+Status: Revision 2 accepted; Slice 1 and Activation Gate merged; Slice 2A text content adapters implemented
 
 Design merge: `origin/main` at `a2ed867e668b6272da78bdedf0791c90f1e12e95`
 
@@ -503,6 +503,27 @@ This is the recommended first implementation PR.
 - Acceptance: all common criteria plus type-specific parser/consumer, inactive/adult leakage, URI broker, and unmodded-regression tests.
 - Computer Use: no for the core PR; a focused visual smoke is required only if presentation code changes.
 - Independent security review: yes.
+
+### Slice 2A — Text-only Scenario / Lorebook / Persona adapters
+
+Activation Gate and its post-merge repairs are integrated through PR #90 (`8521a44a1d040ce1929ab68f5d7e7abb3d113426`). The authorized Slice 2A subset is deliberately narrower than the full Slice 2 contract above.
+
+- `src/mods/contributions/modContentCore.ts` constructs a deterministic registry from the active lock's load order, then descriptor/entry ID order. The host supplies exactly the buffers used by package hashing, only from the lock's canonical source. It does not reopen paths for a second, potentially different payload. Consumers obtain detached copies only after the current package/control/evidence identity guard succeeds.
+- The locked graph activates all-or-nothing. Unsupported capabilities, invalid content, duplicate canonical IDs, or missing documents produce Safe Mode with content-free diagnostics. Installed but inactive packages supply no payload bytes to adapters. Adult payload reads additionally require session permission and an exact profile approval matching the locked content hash; manifest/content verification still follows. Production session permission remains off until the later adult opt-in UI exists.
+- Every document must be strict normalized JSON, at most 256 KiB; active content is at most 4 MiB and 1,024 resources. Unknown fields, invalid types, duplicate keys, lossy numbers, malformed identities and over-limit values reject rather than being truncated/coerced.
+- Slice 2A text rejects control characters, HTML, image Markdown and URI schemes. Assets, file references and external URLs are not supported. Narrative text remains advisory, not canonical operation output.
+
+Type-specific contracts:
+
+| Type | Strict supported shape | Consumer and mutation boundary |
+| --- | --- | --- |
+| Scenario | `text-adventure-scenario/1.0`; `meta: {title, description?}`, `setup?: {theme?}`, `opening: {narrative, summary?, options?}`. Title at most 120 characters/480 bytes, description 4,000 bytes, narrative 32,768 bytes, summary 8,192 bytes, at most 8 options of 512 bytes. Theme is a bounded lowercase identifier. Other fields, including status, commerce, director, player-character setup and media, are rejected in 2A. | Existing Load Scenario command offers locked scenarios. Selection is bound to the displayed lock fingerprint. Only a new empty campaign root containing `.text-adventure` and optional `.vscode` is accepted; `.text-adventure` may contain only profile, lock and workspace MOD packages. An existing state/history/checkpoint/ledger is never interpreted as a reset request. Initialization uses the canonical state manager and existing single-flight transaction/repair latch, preserves `modContext`, and never copies package files. The legacy folder importer rejects declared MOD folders and their descendants. |
+| Lorebook | `text-adventure-lorebook/1.0` with `entries` (at most 128/document). Each entry requires local `id`, nonempty `keys` and `content`; optional `comment`, `secondary_keys`, `enabled`, `priority`, `insertion_order`, `pinned`, `use_regex:false`. Content at most 8,192 bytes; keys at most 16 × 200 bytes; priority/order integers in [-100,100]. Regex is explicitly unsupported, not silently downgraded. | Namespaced append in GM, Parlor and In-world prompt consumers. Labels retain canonical ID attribution so equal display labels cannot overwrite each other in prompt lookup. MOD entries are not put into the editable lorebook list or saved into the user's lorebook file. |
+| Persona | Existing version `1`; local `id` must equal the descriptor and satisfy the existing preset-ID parser; required `name`, optional `description`/`speakingStyle`. Name at most 80 characters/320 bytes; other fields at most 2,000 characters/8,000 bytes. Metadata, character-copy references and unknown fields reject. | Existing selection list adds namespaced presets. Explicit selection stores only the canonical preset ID in experience configuration; it never copies MOD text to `persona.json`. Each prompt/UI read resolves the ID through the active registry. Inactive/missing references yield no persona content. MOD presets cannot be updated through the local preset writer. |
+
+Lorebook ID collisions revoke activation and throw a content-free error; they never return a fallback prompt. Parlor/In-world handlers check MOD authority before session mutation, immediately before provider invocation, and after the response before saving it. A collision during prompt construction aborts the request and all later writes; already-saved user text is retained, not rolled back.
+
+Unmodded loaders and editable local files retain their existing behavior. No Localization, asset broker, installer, MOD Manager, Prompt fragments, Campaign Kit, Combat fixture, replacement/patch operation, or code execution is enabled by this slice. These remain separately gated.
 
 ### Slice 3 — MOD Manager and local import lifecycle
 

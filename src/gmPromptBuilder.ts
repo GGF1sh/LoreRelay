@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
+import { appendActiveModLorebookEntries } from './mods/modActivationGateHost';
 import type { ProfileUpdate } from './types/GameState';
 import type { CharacterProfile } from './types/Character';
 import {
@@ -458,7 +459,7 @@ let lorebookCachePath = '';
 let lorebookCacheMtime = 0;
 let lorebookCacheEntries: LorebookEntry[] = [];
 
-function loadAllLorebookEntriesRaw(): LorebookEntry[] {
+function loadBaseLorebookEntriesRaw(): LorebookEntry[] {
     const ws = getWorkspacePath();
     if (!ws) {
         return [];
@@ -488,7 +489,9 @@ function loadAllLorebookEntriesRaw(): LorebookEntry[] {
 }
 
 function resolveLorebookForPrompt(hintText: string, maxEntries = 5): LorebookEntry[] {
-    const enabled = loadAllLorebookEntriesRaw().filter((e) => e.enabled !== false);
+    const ws = getWorkspacePath();
+    const base = loadBaseLorebookEntriesRaw();
+    const enabled = (ws ? appendActiveModLorebookEntries(ws, base) : base).filter((e) => e.enabled !== false);
     const pinned = enabled.filter((e) => e.pinned === true);
     const pinnedIds = new Set(pinned.map((e) => e.id).filter(Boolean));
     const keywordPool = enabled.filter((e) => !e.pinned);

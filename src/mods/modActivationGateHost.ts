@@ -29,7 +29,9 @@ import {
 import type { ModPackageCandidate } from './modResolverCore';
 import { resolveModProfile } from './modResolverCore';
 import { compareUnicodeCodePointOrder } from './modPathCore';
-import { canonicalizeModJson } from './modHashCore';
+import { canonicalizeModJson, ModDataError } from './modHashCore';
+import { buildModContentRegistry, type ModContentPackage, type ModContentRegistry } from './contributions/modContentCore';
+import type { LorebookEntry } from '../lorebookMatcher';
 
 export const MOD_PROFILE_FILE = 'mod-profile.json';
 export const MOD_LOCK_FILE = 'mod-lock.json';
@@ -46,8 +48,8 @@ export interface ModActivationGateInput extends ModDiscoveryRoots {
 
 export interface ModActivationGateResult {
     decision: ModOpenDecision;
-    /** Slice 2 is the first lane allowed to consume definitions, assets, prompts, or scenarios. */
-    contentActivationAllowed: false;
+    /** True only for the fully validated Slice 2A registry. Never authorizes assets or scripts. */
+    contentActivationAllowed: boolean;
     profile?: ModProfile;
     lock?: ModLock;
 }
@@ -78,6 +80,7 @@ const runtimeFilesByWorkspace = new Map<string, { profile?: FileIdentity; lock?:
 const runtimeInputByWorkspace = new Map<string, ModActivationGateInput>();
 const runtimeGenerationByWorkspace = new Map<string, number>();
 const runtimePackageTreesByWorkspace = new Map<string, ModPackageTreeIdentity[]>();
+const runtimeContentByWorkspace = new Map<string, ModContentRegistry>();
 let nextRuntimeGeneration = 1;
 
 interface FileIdentity {
@@ -459,16 +462,20 @@ function storeRuntime(
     result: ModActivationGateResult,
     files?: { profile?: FileIdentity; lock?: FileIdentity },
     packageTrees: readonly ModPackageTreeIdentity[] = [],
+    registry?: ModContentRegistry,
 ): ModActivationGateResult {
     const stored: ModActivationGateResult = {
         decision: result.decision.mode === 'normal'
             ? { ...result.decision, modContext: cloneContext(result.decision.modContext) }
             : { ...result.decision, blockers: [...result.decision.blockers], warnings: [...result.decision.warnings] } as ModOpenDecision,
-        contentActivationAllowed: false,
+        contentActivationAllowed: result.decision.mode === 'normal' && !!registry
+            && registry.scenarios.length + registry.lorebooks.length + registry.personas.length > 0,
         ...(result.profile ? { profile: JSON.parse(JSON.stringify(result.profile)) as ModProfile } : {}),
         ...(result.lock ? { lock: cloneLock(result.lock) } : {}),
     };
     runtimeByWorkspace.set(workspaceKey(workspaceRoot), stored);
+    runtimeContentByWorkspace.delete(workspaceKey(workspaceRoot));
+    if (stored.contentActivationAllowed && registry) runtimeContentByWorkspace.set(workspaceKey(workspaceRoot), registry);
     runtimeFilesByWorkspace.set(workspaceKey(workspaceRoot), { ...files });
     runtimePackageTreesByWorkspace.set(workspaceKey(workspaceRoot), packageTrees.map(tree => ({
         ...tree,
@@ -488,6 +495,7 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
     runtimeByWorkspace.delete(root);
     runtimeFilesByWorkspace.delete(root);
     runtimePackageTreesByWorkspace.delete(root);
+    runtimeContentByWorkspace.delete(root);
     if (!path.isAbsolute(input.workspaceRoot)
         || (input.globalStorageRoot !== undefined && !path.isAbsolute(input.globalStorageRoot))) {
         return storeRuntime(root, {
@@ -594,6 +602,8 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
     }
 
     const candidates: ModPackageCandidate[] = [];
+    const contentPackages: ModContentPackage[] = [];
+    let contentBytes = 0;
     const packageTrees: ModPackageTreeIdentity[] = [];
     const hashDiagnostics: ModDiscoveryDiagnostic[] = [];
     const lockedIdentities = [...new Set(lock.packages.map(pkg => `${pkg.id}\0${pkg.version}`))].sort(compareUnicodeCodePointOrder);
@@ -603,7 +613,11 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
         const version = identity.slice(separator + 1);
         const variants = discovered.manifests.filter(item => item.directoryId === id && item.directoryVersion === version);
         for (const manifest of variants) {
-            if (manifest.manifest.contentRating === 'adult' && !input.adultSessionAllowed) {
+            const lockedPackage = lock.packages.find(pkg => pkg.id === id && pkg.version === version);
+            if (manifest.manifest.contentRating === 'adult' && (!input.adultSessionAllowed
+                || !profile.adultContent.allow || !profile.adultContent.approvals.some(approval =>
+                    approval.id === id && approval.version === version && approval.manifestHash === manifest.manifestHash
+                    && approval.contentHash === lockedPackage?.contentHash))) {
                 return storeRuntime(root, {
                     decision: safeDecision([gateDiagnostic('ADULT_SESSION_PERMISSION_REQUIRED', 'Adult session permission is required before activation', id)]),
                     contentActivationAllowed: false,
@@ -618,10 +632,19 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
                 version,
                 expectedManifestHash: manifest.manifestHash,
                 allowAdultContentRead: input.adultSessionAllowed,
+                includeContentFiles: manifest.source === lockedPackage?.source,
             });
             hashDiagnostics.push(...hashed.diagnostics);
             if (hashed.candidate) candidates.push(hashed.candidate);
             if (hashed.treeIdentity) packageTrees.push(hashed.treeIdentity);
+            if (hashed.candidate && hashed.contentFiles) {
+                contentBytes += hashed.contentFiles.reduce((sum, file) => sum + file.bytes.byteLength, 0);
+                if (contentBytes > 4 * 1024 * 1024) return storeRuntime(root, {
+                    decision: safeDecision([gateDiagnostic('MOD_CONTENT_LIMIT', 'Active content exceeds the 4 MiB budget')]),
+                    contentActivationAllowed: false, profile, lock,
+                }, runtimeFiles);
+                contentPackages.push({ ...hashed.candidate, files: hashed.contentFiles });
+            }
         }
     }
     if (hashDiagnostics.length > 0) {
@@ -702,7 +725,40 @@ export async function evaluateModActivationGate(input: ModActivationGateInput): 
         historyLockFingerprints: evidence.historyLockFingerprints,
         modEvidencePresent: evidence.modEvidencePresent,
     });
-    return storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles, packageTrees);
+    let registry: ModContentRegistry | undefined;
+    if (decision.mode === 'normal') {
+        try {
+            registry = buildModContentRegistry(lock, contentPackages);
+        } catch (error) {
+            return storeRuntime(root, {
+                decision: safeDecision([gateDiagnostic(error instanceof ModDataError ? error.code : 'MOD_CONTENT_INVALID', 'Strict MOD content validation failed')]),
+                contentActivationAllowed: false, profile, lock,
+            }, runtimeFiles);
+        }
+    }
+    return storeRuntime(root, { decision, contentActivationAllowed: false, profile, lock }, runtimeFiles, packageTrees, registry);
+}
+
+/** Consumer access always rechecks the current lock/package identities; no mutable cache escapes. */
+export function getActiveModContributions(workspaceRoot: string): ModContentRegistry | undefined {
+    const root = workspaceKey(workspaceRoot);
+    const registry = runtimeContentByWorkspace.get(root);
+    if (!registry || !areModCanonicalWritesAllowed(root)
+        || runtimeByWorkspace.get(root)?.lock?.aggregateHash !== registry.lockFingerprint) return undefined;
+    return JSON.parse(JSON.stringify(registry)) as ModContentRegistry;
+}
+
+/** MOD lore is appended, never written into the user's editable lorebook. */
+export function appendActiveModLorebookEntries(workspaceRoot: string, base: LorebookEntry[]): LorebookEntry[] {
+    const additions = getActiveModContributions(workspaceRoot)?.lorebooks ?? [];
+    if (additions.some(entry => base.some(existing => existing.id === entry.id))) {
+        const current = runtimeByWorkspace.get(workspaceKey(workspaceRoot));
+        if (current) storeRuntime(workspaceRoot, {
+            ...current, decision: safeDecision([gateDiagnostic('MOD_CONTENT_ID_COLLISION', 'Campaign and MOD lore IDs collide')]),
+        });
+        throw new ModDataError('MOD_CONTENT_ID_COLLISION', 'Campaign and MOD lore IDs collide; prompt construction aborted');
+    }
+    return [...base, ...additions.map(entry => entry.value)];
 }
 
 export function getModActivationGateResult(workspaceRoot: string): ModActivationGateResult | undefined {
@@ -958,6 +1014,7 @@ export function isModCanonicalAuthorizationCurrent(authorization: ModCanonicalAu
 }
 
 export function clearModActivationGateRuntime(): void {
+    runtimeContentByWorkspace.clear();
     campaignEvidenceCache.clear();
     runtimeByWorkspace.clear();
     runtimeFilesByWorkspace.clear();

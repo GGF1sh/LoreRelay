@@ -14,6 +14,7 @@ import {
     hashCanonicalModJson,
     hashNormalizedModPackage,
     isModSha256,
+    type ModPackageHashFile,
 } from './modHashCore';
 import { MAX_MOD_RESOLVER_CANDIDATES, ModPackageCandidate } from './modResolverCore';
 import {
@@ -64,6 +65,8 @@ export interface ModManifestDiscoveryResult {
 export interface ModPackageHashResult {
     candidate?: ModPackageCandidate;
     treeIdentity?: ModPackageTreeIdentity;
+    /** Exact buffers covered by contentHash; never reopen payloads for activation. */
+    contentFiles?: readonly ModPackageHashFile[];
     diagnostics: ModDiscoveryDiagnostic[];
 }
 
@@ -705,6 +708,7 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
     version: string;
     expectedManifestHash: string;
     allowAdultContentRead: boolean;
+    includeContentFiles?: boolean;
     validatedTransitivePaths?: readonly string[];
     /** Deterministic fault-injection seam used only by focused host tests. */
     afterFileStatForTest?: (relativePath: string) => Promise<void>;
@@ -797,6 +801,11 @@ export async function hashDiscoveredModPackage(input: ModDiscoveryRoots & {
             };
         }
         return {
+            ...(input.includeContentFiles ? {
+                contentFiles: walked.files.filter(file => ['scenarios', 'lorebooks', 'personas'].some(kind =>
+                    rootManifest.discovered!.manifest.entrypoints[kind as 'scenarios' | 'lorebooks' | 'personas']?.some(entry => entry.path === file.path)))
+                    .map(file => ({ ...file, bytes: Buffer.from(file.bytes) })),
+            } : {}),
             candidate: {
                 source: input.source,
                 directoryId: input.id,

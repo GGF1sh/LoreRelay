@@ -1,4 +1,5 @@
 /** Pure experience profile types — no vscode/fs dependency. */
+import { splitCanonicalResourceId } from './mods/modPathCore';
 
 export type ExperienceProfile = 'parlor' | 'campaign' | 'inworld';
 
@@ -76,7 +77,8 @@ export function parseExperienceConfig(raw: unknown): ExperienceConfig {
         }
         if (p.activePersonaId === null) {
             out.parlor.activePersonaId = null;
-        } else if (typeof p.activePersonaId === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(p.activePersonaId)) {
+        } else if (typeof p.activePersonaId === 'string' && (/^[a-z0-9][a-z0-9_-]{0,63}$/.test(p.activePersonaId)
+            || splitCanonicalResourceId(p.activePersonaId)?.namespace === 'mod')) {
             out.parlor.activePersonaId = p.activePersonaId;
         }
     }

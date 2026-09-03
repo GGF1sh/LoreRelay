@@ -70,7 +70,9 @@ import {
     toParlorBackgroundWebviewUri,
 } from './parlorBackground';
 import { resolveParlorCampaignTransition } from './parlorPromoteCore';
-import { getGameStatePath } from './workspacePaths';
+import { getGameStatePath, getWorkspacePath } from './workspacePaths';
+import { areModCanonicalWritesAllowed } from './mods/modActivationGateHost';
+import { ModDataError } from './mods/modHashCore';
 
 export interface ParlorBridgeDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
@@ -436,6 +438,11 @@ export function handleSetParlorConnectionProfile(profileId: string): void {
 }
 
 function applyParlorPersona(persona: unknown, activePersonaId: string | null): void {
+    if (activePersonaId?.includes(':')) {
+        if (!getPlayerPersonaPreset(activePersonaId)) throw new Error('MOD persona is no longer active');
+        saveExperienceConfig({ parlor: { activePersonaId } });
+        return;
+    }
     const next = parsePlayerPersona(persona);
     const previousPersona = loadPlayerPersona();
     const previousActivePersonaId = loadExperienceConfig().parlor?.activePersonaId ?? null;
@@ -578,7 +585,19 @@ export function handleSetParlorBackground(backgroundId: string | null): void {
     sendParlorSettingsToWebview();
 }
 
+function assertChatModAuthorization(workspaceRoot: string | undefined): void {
+    if (workspaceRoot && (workspaceRoot !== getWorkspacePath() || !areModCanonicalWritesAllowed(workspaceRoot))) {
+        throw new ModDataError('MOD_CONTENT_AUTHORIZATION_REQUIRED', 'MOD authorization changed during chat');
+    }
+}
+
+function handleChatModFailure(error: unknown): void {
+    if (!(error instanceof ModDataError)) throw error;
+    vscode.window.showErrorMessage('LoreRelay: Safe Mode blocked chat because MOD content or authorization is invalid.');
+}
+
 export async function handleParlorPlayerInput(text: string): Promise<void> {
+    const workspaceRoot = getWorkspacePath();
     if (parlorInFlight || isParlorBridgeBusy()) {
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
         return;
@@ -612,6 +631,7 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
 
     parlorInFlight = true;
     try {
+        assertChatModAuthorization(workspaceRoot);
         let session = getOrCreateParlorSession(characterId);
         session = appendAndSaveParlorMessage(session, {
             role: 'user',
@@ -620,7 +640,9 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         sendParlorSessionToWebview();
 
         const prompt = buildParlorUserPrompt(character, session, text);
+        assertChatModAuthorization(workspaceRoot);
         const result = await invokeParlorByProfile(prompt, connProfile);
+        assertChatModAuthorization(workspaceRoot);
         if (!isParlorMode()) {
             return;
         }
@@ -635,12 +657,15 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
             }, character.name, getConfiguredLocale());
             sendParlorSessionToWebview();
         }
+    } catch (error) {
+        handleChatModFailure(error);
     } finally {
         parlorInFlight = false;
     }
 }
 
 export async function handleInWorldPlayerInput(text: string): Promise<void> {
+    const workspaceRoot = getWorkspacePath();
     if (parlorInFlight || isParlorBridgeBusy()) {
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
         return;
@@ -654,6 +679,7 @@ export async function handleInWorldPlayerInput(text: string): Promise<void> {
 
     parlorInFlight = true;
     try {
+        assertChatModAuthorization(workspaceRoot);
         let session = getOrCreateInWorldSession(characterId);
         session = appendAndSaveInWorldMessage(session, {
             role: 'user',
@@ -663,7 +689,9 @@ export async function handleInWorldPlayerInput(text: string): Promise<void> {
 
         const prompt = buildInWorldChatPrompt(character, session, text);
         const connProfile = getActiveParlorConnectionProfile();
+        assertChatModAuthorization(workspaceRoot);
         const result = await invokeParlorByProfile(prompt, connProfile);
+        assertChatModAuthorization(workspaceRoot);
         if (!isInWorldMode()) {
             return;
         }
@@ -678,6 +706,8 @@ export async function handleInWorldPlayerInput(text: string): Promise<void> {
             }, character.name, getConfiguredLocale());
             sendInWorldSessionToWebview();
         }
+    } catch (error) {
+        handleChatModFailure(error);
     } finally {
         parlorInFlight = false;
     }

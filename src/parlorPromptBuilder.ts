@@ -11,11 +11,12 @@ import { loadPlayerPersona } from './persona';
 import { buildParlorPersonaContext } from './personaCore';
 
 function loreLabelsToSnippets(labels: string[]): string[] {
-    const book = loadLorebookForUi();
+    const book = loadLorebookForUi(true);
     const byLabel = new Map<string, string>();
     for (const entry of book.entries) {
         if (entry.label && entry.content) {
             byLabel.set(entry.label, entry.content);
+            if (entry.pinned) byLabel.set(`📌 ${entry.label}`, entry.content);
         }
     }
     return labels.map((label) => byLabel.get(label) || label).filter(Boolean);

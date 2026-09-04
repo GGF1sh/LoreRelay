@@ -5497,6 +5497,25 @@ body.vscode-light .logistics-minimap {
   padding: 10px 12px;
 }
 
+/* --- 90d-mod-manager.css --- */
+.mod-manager-panel { width: min(760px, calc(100vw - 2rem)); }
+.mod-manager-body { display: grid; gap: .85rem; }
+.mod-manager-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.mod-manager-banner, .mod-manager-notice, .mod-manager-campaign-state { padding: .7rem .8rem; border-radius: 8px; border: 1px solid var(--border-color, rgba(255,255,255,.2)); }
+.mod-manager-banner, .mod-manager-campaign-state.is-blocked { border-color: var(--vscode-inputValidation-errorBorder, #be1100); background: var(--vscode-inputValidation-errorBackground, rgba(190,17,0,.12)); }
+.mod-manager-notice { background: var(--vscode-inputValidation-infoBackground, rgba(55,148,255,.12)); }
+.mod-manager-adult-toggle { display: flex; align-items: center; gap: .55rem; }
+.mod-manager-packages { display: grid; gap: .65rem; max-height: 45vh; overflow: auto; }
+.mod-manager-card { display: grid; gap: .35rem; padding: .75rem; border: 1px solid var(--border-color, rgba(255,255,255,.18)); border-radius: 9px; background: var(--panel-bg, rgba(0,0,0,.13)); }
+.mod-manager-card-title { margin: 0; }
+.mod-manager-identity, .mod-manager-meta { overflow-wrap: anywhere; color: var(--muted-text, #aaa); font-size: .88rem; }
+.mod-manager-ok { color: var(--vscode-testing-iconPassed, #73c991); }
+.mod-manager-error { color: var(--vscode-testing-iconFailed, #f14c4c); }
+.mod-manager-preview { border-top: 1px solid var(--border-color, rgba(255,255,255,.18)); padding-top: .7rem; }
+.mod-manager-preview h4 { margin: 0 0 .45rem; }
+.mod-manager-footer-actions { position: sticky; bottom: 0; padding-top: .55rem; background: var(--panel-bg, #161616); }
+@media (max-width: 719px) { .mod-manager-panel { width: 100vw; max-width: 100vw; } .mod-manager-actions .glass-btn { flex: 1 1 45%; } }
+
 /* --- 95-character-creator.css --- */
 /* ============================
    Character Creator / Editor Modal

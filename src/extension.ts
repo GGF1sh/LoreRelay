@@ -297,6 +297,7 @@ import {
 } from './mods/modActivationGateHost';
 
 import { attachModAssetBroker, registerModAssetBroker } from './mods/modAssetBroker';
+import { createModManagerHost, type ModManagerHost } from './mods/modManagerHost';
 
 let panel: vscode.WebviewPanel | undefined;
 let worldGenesisPreviewSession: WorldGenesisPreviewSession | undefined;
@@ -320,6 +321,7 @@ let campaignCombatCoordinator: CampaignCombatSessionCoordinator | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
+let modManagerHost: ModManagerHost | undefined;
 let openRouterSettingsWarningShown = false;
 const shopkeeperRequestGate = createShopkeeperRequestGate(32);
 const endDayRequestGate = createEndDayRequestGate(32);
@@ -344,6 +346,7 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
     const workspaceRoot = getWorkspacePath();
     if (!workspaceRoot) return true;
     if (!getModActivationGateResult(workspaceRoot)) {
+        await modManagerHost?.recoverCurrentWorkspace();
         const extensionVersion = typeof extensionContext?.extension.packageJSON.version === 'string'
             ? extensionContext.extension.packageJSON.version
             : '';
@@ -351,7 +354,8 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
             workspaceRoot,
             ...(extensionContext ? { globalStorageRoot: extensionContext.globalStorageUri.fsPath } : {}),
             currentLoreRelayVersion: extensionVersion,
-            adultSessionAllowed: false,
+            adultSessionAllowed: (modManagerHost?.adultSessionApprovals(workspaceRoot).length ?? 0) > 0,
+            adultSessionApprovals: modManagerHost?.adultSessionApprovals(workspaceRoot) ?? [],
         });
     }
     const authorization = await acquireModCanonicalAuthorization(workspaceRoot);
@@ -363,6 +367,7 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (modManagerHost?.handles(message.type) && await modManagerHost.handleMessage(message)) return;
     await handleWebviewMessage(message, createWebviewHandlerDeps());
 }
 
@@ -373,6 +378,14 @@ function getPanel(): vscode.WebviewPanel | undefined {
 export function activate(context: vscode.ExtensionContext) {
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
+    modManagerHost = createModManagerHost({
+        context,
+        getPanel,
+        getWorkspacePath,
+        currentLoreRelayVersion: () => typeof context.extension.packageJSON.version === 'string'
+            ? context.extension.packageJSON.version
+            : '',
+    });
     context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
     context.subscriptions.push({ dispose: () => clearModActivationGateRuntime() });
     context.subscriptions.push(registerModAssetBroker());
@@ -451,6 +464,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const workspaceRoot = getWorkspacePath();
         if (workspaceRoot) {
+            await modManagerHost?.recoverCurrentWorkspace();
             const extensionVersion = typeof context.extension.packageJSON.version === 'string'
                 ? context.extension.packageJSON.version
                 : '';
@@ -458,13 +472,12 @@ export function activate(context: vscode.ExtensionContext) {
                 workspaceRoot,
                 globalStorageRoot: context.globalStorageUri.fsPath,
                 currentLoreRelayVersion: extensionVersion,
-                // Adult session permission remains unavailable until its explicit UI slice.
-                adultSessionAllowed: false,
+                adultSessionAllowed: (modManagerHost?.adultSessionApprovals(workspaceRoot).length ?? 0) > 0,
+                adultSessionApprovals: modManagerHost?.adultSessionApprovals(workspaceRoot) ?? [],
             });
             if (activation.decision.mode === 'safe-required') {
                 const codes = activation.decision.blockers.map(item => item.code).join(', ');
-                vscode.window.showErrorMessage(`LoreRelay: MOD Safe Mode is required; normal campaign startup was blocked (${codes}).`);
-                return;
+                vscode.window.showWarningMessage(`LoreRelay: MOD Safe Mode is active; provider requests and canonical writes remain blocked (${codes}). Open MOD Manager for diagnostics.`);
             }
         }
 

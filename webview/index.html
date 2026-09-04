@@ -45,6 +45,9 @@
             <div id="game-rules-wrap">
               <button id="game-rules-settings-btn" class="glass-btn" title="Game Rules">⚙️</button>
             </div>
+            <div id="mod-manager-wrap">
+              <button id="mod-manager-btn" class="glass-btn" data-i18n-title="webview.modManager.open" title="MOD Manager">🧩</button>
+            </div>
             <div id="remote-play-wrap">
               <button id="remote-play-btn" class="glass-btn" data-i18n-title="webview.remotePlay.toggle" title="Remote Play">📱</button>
             </div>
@@ -1106,6 +1109,41 @@
         <textarea id="ig-tpl-freeform" class="img-gen-textarea" data-tpl="freeform" rows="2"></textarea>
       </details>
       <div id="img-gen-saved" class="img-gen-saved hidden" data-i18n="webview.imageGen.saved">Saved</div>
+    </div>
+  </aside>
+
+  <div id="mod-manager-backdrop" class="img-gen-backdrop hidden" aria-hidden="true"></div>
+  <aside id="mod-manager-panel" class="img-gen-panel mod-manager-panel hidden" aria-hidden="true" aria-label="MOD Manager">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.modManager.title">MOD Manager</h3>
+      <button type="button" id="mod-manager-close" class="glass-btn" data-i18n-title="webview.modManager.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body mod-manager-body">
+      <div id="mod-manager-safe" class="mod-manager-banner hidden" role="status"></div>
+      <div id="mod-manager-notice" class="mod-manager-notice hidden" role="status"></div>
+      <label class="mod-manager-adult-toggle">
+        <input type="checkbox" id="mod-manager-show-adult">
+        <span data-i18n="webview.modManager.showAdult">Show adult-rated MOD metadata</span>
+      </label>
+      <p class="img-gen-hint" data-i18n="webview.modManager.adultSeparate">Visibility, session reading and campaign approval are separate confirmations.</p>
+      <div class="mod-manager-actions">
+        <button type="button" class="glass-btn" data-mod-install="folder" data-mod-destination="global" data-i18n="webview.modManager.installGlobalFolder">Global folder</button>
+        <button type="button" class="glass-btn" data-mod-install="zip" data-mod-destination="global" data-i18n="webview.modManager.installGlobalZip">Global ZIP</button>
+        <button type="button" class="glass-btn" data-mod-install="folder" data-mod-destination="workspace" data-i18n="webview.modManager.installWorkspaceFolder">Workspace folder</button>
+        <button type="button" class="glass-btn" data-mod-install="zip" data-mod-destination="workspace" data-i18n="webview.modManager.installWorkspaceZip">Workspace ZIP</button>
+        <button type="button" id="mod-manager-rescan" class="glass-btn" data-i18n="webview.modManager.rescan">Rescan</button>
+      </div>
+      <div id="mod-manager-campaign-state" class="mod-manager-campaign-state"></div>
+      <div id="mod-manager-packages" class="mod-manager-packages"></div>
+      <section id="mod-manager-preview" class="mod-manager-preview hidden">
+        <h4 data-i18n="webview.modManager.previewTitle">Resolve preview</h4>
+        <div id="mod-manager-preview-body"></div>
+      </section>
+      <div class="mod-manager-actions mod-manager-footer-actions">
+        <button type="button" id="mod-manager-resolve" class="glass-btn" data-i18n="webview.modManager.resolve">Resolve Preview</button>
+        <button type="button" id="mod-manager-commit" class="glass-btn" data-i18n="webview.modManager.commit" disabled>Confirm profile &amp; lock</button>
+        <button type="button" id="mod-manager-export" class="glass-btn" data-i18n="webview.modManager.exportDiagnostics">Copy diagnostics</button>
+      </div>
     </div>
   </aside>
 

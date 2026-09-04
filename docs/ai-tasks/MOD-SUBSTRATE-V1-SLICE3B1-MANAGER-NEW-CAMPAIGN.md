@@ -2,11 +2,11 @@
 
 ## Status
 
-`IMPLEMENTATION_IN_PROGRESS_TEST_STOP_REACHED`
+`LOCAL_NON_GUI_VERIFICATION_COMPLETE_EXTERNAL_GATES_PENDING`
 
 Base: `7ca65a1e495e13fbd6e74c7441f15e2cbad91875`
 
-This record is intentionally checked in with the work-in-progress branch so a stopped local run does not lose its exact failure evidence. It is not an acceptance or completion record.
+This record preserves the stopped-run evidence and the resumed High Risk verification. It is not an acceptance or completion record: exact-head CI and native Computer Use smoke remain terminal gates.
 
 ## Scope
 
@@ -66,8 +66,23 @@ After the next explicit continuation, the corrected test and the complete affect
 - MOD Substrate V1: 191 assertions
 - Activation gate boundaries: 130 assertions
 
-No executable source changed during these runs. Test Console planning, independent review, final full suite, Computer Use smoke, exact-head CI, and Standard Close remain pending for the complete Slice 3B1 lane.
+No executable source changed during these runs.
 
-## Required continuation
+## Final non-GUI verification
 
-Resume from this unchanged worktree by running the new focused test once. If it passes, continue with the Slice 3B1 focused set and the repository High Risk verification sequence. If it exposes a production issue, classify and repair it before broad verification.
+- GitHub Codex security review completed once on `2ce20edcaa296e4bc2601b09fa2e117984aaf9aa`: no security findings.
+- The existing exact-head CI failure was classified as stale generated Symbol Registry files, not a coverage threshold or product-test failure.
+- One repair pass ran `npm run generate:symbol-registry`; only `docs/generated/SYMBOL_REGISTRY.md` and `docs/generated/symbol_registry.json` changed.
+- Direct repair verification: `npm run check:symbol-registry` PASS (5,581 entries).
+- Final clean Test Console plan target: `d167a52cc7928fb8ddd3cede30ac6be2a3bb033a`.
+- Selected plan result: 27/27 commands PASS, including 24/24 focused commands, compile, UTF-8, i18n, webview structure/bundle, validation, and Symbol Registry checks.
+- The plan required a fail-closed full suite because `scripts/build-webview.js` is not classified by the planner.
+- One full suite on the final unchanged executable tree: 342/342 PASS; Combat 736/736 PASS; duration 174.7 seconds.
+- Result directory: `.test-runs/2026-09-04T08-54-16-604Z-d167a52c`.
+
+## Remaining terminal gates
+
+- Push the documentation-only Symbol Registry repair and this record, then require exact-head PR CI success.
+- Native Windows Computer Use smoke remains blocked by this Codex session exposing browser surfaces only (`apps=[]`). No additional retry is required in the same environment.
+- Resume smoke on the same final HEAD only when native desktop-app control is available. Keep every controlled window on monitor 2.
+- Until smoke passes, keep PR #94 Draft and do not Ready, merge, or claim Standard Close.

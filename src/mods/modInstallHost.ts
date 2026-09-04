@@ -35,6 +35,10 @@ export type ModInstallResult =
     | { status: 'installed'; candidate: ModPackageCandidate; readAuthorization?: ModInstalledReadAuthorization; cleanup: 'complete' | 'retained'; rescan: Awaited<ReturnType<typeof discoverModPackageManifests>> }
     | { status: 'rejected'; code: string; cleanup: 'not-needed' | 'complete' | 'retained'; reportId?: string };
 
+export type ModInstalledReadAuthorizationResult =
+    | { ok: true; authorization: ModInstalledReadAuthorization; candidate: ModPackageCandidate }
+    | { ok: false; code: string };
+
 interface Pin { filename: string; stats: Stats }
 interface InspectionSource { filename: string; kind: 'folder' | 'zip'; manifest: ModManifest; manifestHash: string; stats: Stats }
 const inspections = new WeakMap<ModImportInspection, InspectionSource>();
@@ -372,4 +376,60 @@ export async function resolveInstalledModProfile(input: ModDiscoveryRoots & { pr
     }
     const resolution = resolveModProfile(input.profile, candidates, input.loreRelayVersion);
     return resolution.ok ? { ...resolution, profileJson: serializeModProfile(input.profile), lockJson: serializeModLock(resolution.lock) } : resolution;
+}
+
+/**
+ * Re-authorize one already installed adult package after an explicit host-owned
+ * session confirmation. Metadata identity is checked before any payload read;
+ * the returned opaque capability is bound to the final validated tree/content.
+ */
+export async function authorizeInstalledModPackageRead(input: ModDiscoveryRoots & {
+    source: ModResolvedSource;
+    id: string;
+    version: string;
+    expectedManifestHash: string;
+}): Promise<ModInstalledReadAuthorizationResult> {
+    try {
+        const discovery = await discoverModPackageManifests(input);
+        if (discovery.diagnostics.length) return { ok: false, code: discovery.diagnostics[0].code };
+        const entry = discovery.manifests.find(item => item.source === input.source
+            && item.directoryId === input.id && item.directoryVersion === input.version);
+        if (!entry || entry.manifestHash !== input.expectedManifestHash) return { ok: false, code: 'MOD_INSTALL_READ_IDENTITY_MISMATCH' };
+        if (entry.manifest.contentRating !== 'adult') return { ok: false, code: 'ADULT_CONTENT_READ_NOT_REQUIRED' };
+        const hashed = await hashDiscoveredModPackage({
+            ...input,
+            expectedManifestHash: input.expectedManifestHash,
+            allowAdultContentRead: true,
+            includeContentFiles: true,
+        });
+        if (!hashed.candidate || !hashed.contentFiles || !hashed.treeIdentity) {
+            return { ok: false, code: hashed.diagnostics[0]?.code ?? 'MOD_INSTALL_READ_AUTHORIZATION_FAILED' };
+        }
+        validateModContentPackage({ ...hashed.candidate, files: hashed.contentFiles });
+        const base = input.source === 'global' ? input.globalStorageRoot : input.workspaceRoot;
+        if (!base) return { ok: false, code: 'MOD_INSTALL_ROOT_INVALID' };
+        const root = path.join(base, ...(input.source === 'global' ? ['mods', 'packages'] : ['.text-adventure', 'mods']), input.id, input.version);
+        const pins = await ancestors(path.dirname(root));
+        const entries = await verifyPackageSnapshot(root, hashed.treeIdentity.entries);
+        const authorization = Object.freeze({
+            id: input.id,
+            version: input.version,
+            source: input.source,
+            manifestHash: hashed.candidate.manifestHash,
+            contentHash: hashed.candidate.contentHash,
+        });
+        installedReads.set(authorization, {
+            root,
+            pins,
+            tree: { ...hashed.treeIdentity, entries },
+        });
+        return { ok: true, authorization, candidate: hashed.candidate };
+    } catch (error) {
+        return {
+            ok: false,
+            code: error instanceof ModDataError && /^[A-Z0-9_]+$/.test(error.code)
+                ? error.code
+                : 'MOD_INSTALL_READ_AUTHORIZATION_FAILED',
+        };
+    }
 }

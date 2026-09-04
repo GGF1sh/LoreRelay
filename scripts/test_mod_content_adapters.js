@@ -162,7 +162,12 @@ async function main() {
         const adultWs = campaign('adult', adultProfile.profile, adultProfile.lock);
         eq((await gate.evaluateModActivationGate(input(adultWs))).decision.mode, 'safe-required', 'adult opt-in/session permission remain separate');
         eq(gate.getActiveModContributions(adultWs), undefined, 'adult session-off exposes no content');
-        eq((await gate.evaluateModActivationGate({ ...input(adultWs), adultSessionAllowed: true })).contentActivationAllowed, true, 'exact approved adult package uses same adapters');
+        eq((await gate.evaluateModActivationGate({
+            ...input(adultWs),
+            adultSessionAllowed: true,
+            adultSessionApprovals: adultProfile.profile.adultContent.approvals,
+        })).contentActivationAllowed, true, 'exact approved adult package uses same adapters');
+        eq((await gate.evaluateModActivationGate({ ...input(adultWs), adultSessionAllowed: true })).decision.mode, 'safe-required', 'adult session boolean alone does not authorize package payload reads');
         adultProfile.profile.adultContent.approvals = [];
         const forged = { ...adultProfile.lock, profileHash: profileCore.computeModProfileHash(adultProfile.profile) };
         delete forged.aggregateHash; forged.aggregateHash = hash.hashCanonicalModJson(forged);

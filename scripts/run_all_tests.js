@@ -85,6 +85,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_mod_content_adapters.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_mod_presentation_adapters.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_mod_install_lifecycle.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_mod_manager.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_campaign_resources_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_location_path_core.js', consumesCompiledOutput: true },

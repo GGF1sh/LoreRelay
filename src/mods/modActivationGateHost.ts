@@ -18,6 +18,7 @@ import {
     computeModProfileHash,
     parseModLockBytes,
     parseModProfileBytes,
+    type ModAdultApproval,
     type ModLock,
     type ModProfile,
 } from './modProfileCore';
@@ -46,6 +47,8 @@ export interface ModActivationGateInput extends ModDiscoveryRoots {
     currentLoreRelayVersion: string;
     /** False until an explicit adult-session UI is implemented. */
     adultSessionAllowed: boolean;
+    /** Exact, process-local adult packages re-authorized for this session. */
+    adultSessionApprovals?: readonly ModAdultApproval[];
 }
 
 export interface ModActivationGateResult {
@@ -513,6 +516,7 @@ async function evaluateModActivationGateNow(input: ModActivationGateInput): Prom
         ...input,
         workspaceRoot: root,
         ...(input.globalStorageRoot ? { globalStorageRoot: path.resolve(input.globalStorageRoot) } : {}),
+        adultSessionApprovals: input.adultSessionApprovals?.map(approval => ({ ...approval })) ?? [],
     });
     runtimeByWorkspace.delete(root);
     runtimeFilesByWorkspace.delete(root);
@@ -613,6 +617,12 @@ async function evaluateModActivationGateNow(input: ModActivationGateInput): Prom
     }
 
     const roots: ModDiscoveryRoots = { workspaceRoot: root, ...(input.globalStorageRoot ? { globalStorageRoot: input.globalStorageRoot } : {}) };
+    const adultSessionAllowed = input.adultSessionAllowed && lock.packages
+        .filter(pkg => pkg.contentRating === 'adult')
+        .every(pkg => input.adultSessionApprovals?.some(approval => approval.id === pkg.id
+            && approval.version === pkg.version
+            && approval.manifestHash === pkg.manifestHash
+            && approval.contentHash === pkg.contentHash));
     const discovered = await discoverModPackageManifests(roots);
     const discoveryLimit = discovered.diagnostics.find(item => item.code === 'RESOLUTION_COMPLEXITY_LIMIT');
     if (discoveryLimit) {
@@ -638,7 +648,7 @@ async function evaluateModActivationGateNow(input: ModActivationGateInput): Prom
         const variants = discovered.manifests.filter(item => item.directoryId === id && item.directoryVersion === version);
         for (const manifest of variants) {
             const lockedPackage = lock.packages.find(pkg => pkg.id === id && pkg.version === version);
-            if (manifest.manifest.contentRating === 'adult' && (!input.adultSessionAllowed
+            if (manifest.manifest.contentRating === 'adult' && (!adultSessionAllowed
                 || !profile.adultContent.allow || !profile.adultContent.approvals.some(approval =>
                     approval.id === id && approval.version === version && approval.manifestHash === manifest.manifestHash
                     && approval.contentHash === lockedPackage?.contentHash))) {
@@ -655,7 +665,7 @@ async function evaluateModActivationGateNow(input: ModActivationGateInput): Prom
                 id,
                 version,
                 expectedManifestHash: manifest.manifestHash,
-                allowAdultContentRead: input.adultSessionAllowed,
+                allowAdultContentRead: adultSessionAllowed,
                 includeContentFiles: manifest.source === lockedPackage?.source,
             });
             hashDiagnostics.push(...hashed.diagnostics);
@@ -743,7 +753,7 @@ async function evaluateModActivationGateNow(input: ModActivationGateInput): Prom
         lock,
         installedCandidates: candidates,
         currentLoreRelayVersion: input.currentLoreRelayVersion,
-        adultSessionAllowed: input.adultSessionAllowed,
+        adultSessionAllowed,
         activeProfileHash: profileHash,
         modProfilePresent: true,
         checkpointLockFingerprints: evidence.checkpointLockFingerprints,
@@ -1003,6 +1013,7 @@ export async function acquireModCanonicalAuthorization(workspaceRoot: string): P
             workspaceRoot: root,
             currentLoreRelayVersion: '',
             adultSessionAllowed: false,
+            adultSessionApprovals: [],
         });
         storeRuntime(root, {
             decision: {

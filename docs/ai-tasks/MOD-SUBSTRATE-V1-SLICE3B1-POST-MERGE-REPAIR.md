@@ -2,7 +2,7 @@
 
 ## Status
 
-`IMPLEMENTATION_FOCUSED_PASS_FINAL_VERIFICATION_PENDING`
+`NON_GUI_VERIFICATION_COMPLETE_GUI_SMOKE_PENDING`
 
 Base: `dab625b1b93f3b3207d5b2bb24f2ecf7b26654c7`
 
@@ -29,9 +29,37 @@ Explicitly excluded: campaign fork lifecycle, update, uninstall, installer chang
   - authorized adult enabled-to-disabled behavior, zero additional confirmation, empty resolve result, and persisted approval removal.
 - `npm run check:symbol-registry`: PASS, 5,581 entries.
 
+## Final non-GUI verification
+
+- Test Console plan: `.test-runs/plans/2026-09-04T16-23-35-951Z-be931485-verify.json`.
+  - Clean tree: yes.
+  - Complete plan: yes.
+  - Selected commands: 21.
+  - Focused commands: 18.
+  - Unknown changed files: 0.
+  - Policy-selected full suite: no; this High Risk lane nevertheless ran the required full suite explicitly.
+- Saved-plan execution: PASS, 21/21 commands and 18/18 focused commands.
+  - Result: `.test-runs/2026-09-04T16-24-00-500Z-be931485`.
+  - Target executable HEAD: `be931485e4cdb861964f15c423cae5a1273414a3`.
+- First full-suite attempt: 341/342 suites PASS; Combat 736/736 PASS.
+  - The sole failure was the known synchronized stale-takeover timing race in `test_runtime_accepted_replay_guard.js`.
+  - The unchanged PR #94 tree and the repair tree each passed the failing candidate in direct isolation, and this repair does not change accepted-replay code or its test.
+  - The failure was therefore classified as an unrelated pre-existing timing flake, and the workflow-policy retry after a failed run was used once.
+- Final unchanged-tree full suite: PASS, 342/342 suites; Combat 736/736; 191.9 seconds.
+- No executable or production change was made after the passing final full suite.
+
+## Computer Use terminal gate
+
+- The native `@oai/sky` entry point is available and enumerated the intended extension-development VS Code window exactly once.
+- Read-only capture identified `[拡張機能開発ホスト] ⚔️ LoreRelay - campaign-empty - Visual Studio Code` at `1698,182 / 1105x1001`.
+- Current monitor geometry is:
+  - monitor 1: `0,0 / 3440x1440`;
+  - monitor 2: `1265,-1080 / 1536x864`.
+- Because the target window is on monitor 1 and the authorized smoke is monitor-2-only, no click, focus change, keyboard input, or window movement was performed.
+- Pending action: after the extension-development host is moved fully onto monitor 2, verify only the adult MOD enabled-to-disabled flow without changing the executable tree or rerunning tests.
+
 ## Remaining gates
 
-- Test Console plan and its selected verification commands.
-- One full suite on the final unchanged executable tree, including Combat regression.
-- Narrow native Computer Use smoke for adult enabled-to-disabled only.
-- Exact-head PR CI and Standard Close.
+- Narrow native Computer Use smoke for adult enabled-to-disabled only, on monitor 2.
+- Exact-head PR CI.
+- After the smoke passes: Ready and Standard Close.

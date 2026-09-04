@@ -47,7 +47,11 @@ The new focused test was attempted three times and stopped per `AGENTS.md` after
 2. A strict parser intentionally returned null-prototype objects, so `deepStrictEqual` rejected an otherwise identical approval. The test now compares its JSON value.
 3. The test expected launcher ID `mod-manager-open`; the implemented HTML uses `mod-manager-btn`. The assertion now matches the actual stable ID.
 
-No fourth run has been performed. Therefore the focused test, selected plan, independent review, final unchanged-tree full suite, Computer Use smoke, exact-head CI, and Standard Close are still pending.
+At this initial checkpoint no fourth run had been performed. The focused test, selected plan, independent review, final unchanged-tree full suite, Computer Use smoke, exact-head CI, and Standard Close were still pending.
+
+### Authorized continuation result
+
+The focused test was run once after explicit continuation authorization and stopped on a fourth test-only expectation error. The webview uses an `if (message.type === 'modManagerState')` listener and calls `packagesEl.replaceChildren()`; the static assertion incorrectly required a `case 'modManagerState'` switch branch. The assertion now matches the actual event-listener contract. No additional test run has been made after this failure.
 
 ## Required continuation
 

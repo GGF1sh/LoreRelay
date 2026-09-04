@@ -241,7 +241,7 @@ async function main() {
         const webview = fs.readFileSync(path.join(__dirname, '../webview/modules/80d-mod-manager.js'), 'utf8');
         ok(html.includes('id="mod-manager-panel"') && html.includes('id="mod-manager-btn"'), 'MOD Manager launcher and panel are present');
         eq(webview.includes('innerHTML'), false, 'manager renderer never uses HTML injection');
-        ok(webview.includes("case 'modManagerState'") && webview.includes('replaceChildren'), 'host state replaces visible package DOM');
+        ok(webview.includes("message.type === 'modManagerState'") && webview.includes('packagesEl.replaceChildren()'), 'host state replaces visible package DOM');
         for (const locale of ['en', 'ja', 'zh-CN', 'zh-TW']) {
             const strings = JSON.parse(fs.readFileSync(path.join(__dirname, `../locales/${locale}.json`), 'utf8'));
             for (const key of ['webview.modManager.title', 'webview.modManager.adultVisible', 'webview.modManager.resolve', 'webview.modManager.commit', 'webview.modManager.forkRequired']) {

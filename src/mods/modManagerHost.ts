@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import { constants } from 'fs';
 import { createHash, randomUUID } from 'crypto';
 import { t } from '../i18n';
+import type { DeterministicWorkspaceMutationGate } from '../deterministicWorkspaceMutationGate';
 import {
     MOD_LOCK_FILE,
     MOD_PROFILE_FILE,
@@ -70,6 +71,7 @@ export interface ModManagerHostDeps {
     getPanel(): vscode.WebviewPanel | undefined;
     getWorkspacePath(): string | undefined;
     currentLoreRelayVersion(): string;
+    mutationGate: DeterministicWorkspaceMutationGate;
 }
 
 function sha(bytes: Uint8Array | string): string {
@@ -101,6 +103,24 @@ function lockAggregateHash(lock: ModLock): string {
 
 function authorizationKey(value: Pick<ModInstalledReadAuthorization, 'source' | 'id' | 'version'>): string {
     return `${value.source}\0${value.id}\0${value.version}`;
+}
+
+function hiddenAdultModIds(
+    activation: ModActivationGateResult,
+    discovery: Awaited<ReturnType<typeof discoverModPackageManifests>>,
+): Set<string> {
+    const hidden = new Set(discovery.manifests
+        .filter(item => item.manifest.contentRating === 'adult')
+        .map(item => item.manifest.id));
+    for (const approval of activation.profile?.adultContent.approvals ?? []) hidden.add(approval.id);
+    for (const locked of activation.lock?.packages ?? []) {
+        if (locked.contentRating === 'adult') hidden.add(locked.id);
+    }
+    return hidden;
+}
+
+function visibleModId(modId: string | undefined, adultVisible: boolean, hiddenAdultIds: ReadonlySet<string>): { modId?: string } {
+    return !modId || (!adultVisible && hiddenAdultIds.has(modId)) ? {} : { modId };
 }
 
 async function ordinaryDirectory(filename: string, create = false): Promise<void> {
@@ -322,7 +342,7 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
         const activation = await evaluate(workspaceRoot);
         const discovery = await discoveryFor(workspaceRoot);
         const visible = deps.context.globalState.get<boolean>(ADULT_VISIBILITY_KEY, false);
-        const hiddenAdultIds = new Set(discovery.manifests.filter(item => item.manifest.contentRating === 'adult').map(item => item.manifest.id));
+        const hiddenAdultIds = hiddenAdultModIds(activation, discovery);
         const installed = discovery.manifests.filter(item => visible || item.manifest.contentRating !== 'adult');
         const key = workspaceKey(workspaceRoot);
         if (!drafts.has(key)) drafts.set(key, cloneProfile(activation.profile ?? emptyProfile()));
@@ -344,7 +364,7 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
         })).sort((a, b) => a.id.localeCompare(b.id) || b.version.localeCompare(a.version) || a.source.localeCompare(b.source));
         const blockerCodes = activation.decision.blockers.map(item => ({
             code: item.code,
-            ...(!item.modId || hiddenAdultIds.has(item.modId) ? {} : { modId: item.modId }),
+            ...visibleModId(item.modId, visible, hiddenAdultIds),
         }));
         const preview = previews.get(key);
         post({
@@ -356,7 +376,7 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
             blockers: blockerCodes,
             discoveryDiagnostics: discovery.diagnostics.map(item => ({
                 code: item.code,
-                ...(!item.packageId || hiddenAdultIds.has(item.packageId) ? {} : { modId: item.packageId }),
+                ...visibleModId(item.packageId, visible, hiddenAdultIds),
                 source: item.source,
             })),
             packages,
@@ -445,12 +465,16 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
                     await sendState(workspaceRoot, result.status === 'installed' ? 'MOD_INSTALL_SUCCESS' : result.code);
                 } else if (message.type === 'setModEnabled') {
                     const manifest = await findManifest(workspaceRoot, message);
-                    if (!manifest || manifest.manifest.contentRating === 'adult') return true;
+                    if (!manifest || typeof message.enabled !== 'boolean'
+                        || (manifest.manifest.contentRating === 'adult' && message.enabled)) return true;
                     const activation = getModActivationGateResult(workspaceRoot) ?? await evaluate(workspaceRoot);
                     if (!drafts.has(key)) drafts.set(key, cloneProfile(activation.profile ?? emptyProfile()));
                     const draft = drafts.get(key)!;
                     draft.enabled = draft.enabled.filter(item => item.id !== manifest.manifest.id);
                     draft.adultContent.approvals = draft.adultContent.approvals.filter(item => item.id !== manifest.manifest.id);
+                    if (manifest.manifest.contentRating === 'adult' && draft.adultContent.approvals.length === 0) {
+                        draft.adultContent.allow = false;
+                    }
                     if (message.enabled === true) draft.enabled.push({ id: manifest.manifest.id, version: `=${manifest.manifest.version}`, source: manifest.source });
                     previews.delete(key);
                     await sendState(workspaceRoot);
@@ -497,29 +521,41 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
                         await sendState(workspaceRoot, result.diagnostics[0]?.code ?? 'MOD_RESOLVE_FAILED');
                     }
                 } else if (message.type === 'commitModProfile') {
-                    const preview = previews.get(key);
-                    const eligibility = await campaignEligibility(workspaceRoot);
-                    if (!preview || !eligibility.empty) { await sendState(workspaceRoot, eligibility.reason ?? 'MOD_RESOLVE_PREVIEW_REQUIRED'); return true; }
-                    const rerun = await resolveInstalledModProfile({
-                        ...roots(workspaceRoot), profile: drafts.get(key)!, loreRelayVersion: deps.currentLoreRelayVersion(),
-                        adultReadRequests: [...sessionMap(workspaceRoot).values()],
-                    });
-                    if (!rerun.ok || rerun.profileJson !== preview.profileJson || rerun.lockJson !== preview.lockJson) {
-                        previews.delete(key); await sendState(workspaceRoot, 'MOD_RESOLVE_PREVIEW_STALE'); return true;
-                    }
-                    await commitModControlPair(workspaceRoot, preview.profileJson, preview.lockJson);
-                    previews.delete(key);
-                    await sendState(workspaceRoot, 'MOD_CONTROL_COMMIT_SUCCESS');
+                    const mutation = await deps.mutationGate.run(
+                        workspaceRoot,
+                        { actionKind: 'mod_profile_commit', requestId: `mod-profile-${randomUUID()}` },
+                        async (): Promise<string> => {
+                            const preview = previews.get(key);
+                            let eligibility = await campaignEligibility(workspaceRoot);
+                            if (!preview || !eligibility.empty) return eligibility.reason ?? 'MOD_RESOLVE_PREVIEW_REQUIRED';
+                            const rerun = await resolveInstalledModProfile({
+                                ...roots(workspaceRoot), profile: drafts.get(key)!, loreRelayVersion: deps.currentLoreRelayVersion(),
+                                adultReadRequests: [...sessionMap(workspaceRoot).values()],
+                            });
+                            if (!rerun.ok || rerun.profileJson !== preview.profileJson || rerun.lockJson !== preview.lockJson) {
+                                previews.delete(key);
+                                return 'MOD_RESOLVE_PREVIEW_STALE';
+                            }
+                            eligibility = await campaignEligibility(workspaceRoot);
+                            if (!eligibility.empty) return eligibility.reason ?? 'MOD_MANAGER_CAMPAIGN_FORK_REQUIRED';
+                            await commitModControlPair(workspaceRoot, preview.profileJson, preview.lockJson);
+                            previews.delete(key);
+                            return 'MOD_CONTROL_COMMIT_SUCCESS';
+                        },
+                    );
+                    if (mutation.status === 'busy') await sendState(workspaceRoot, mutation.code);
+                    else if (mutation.status === 'failed') throw mutation.error;
+                    else await sendState(workspaceRoot, mutation.value);
                 } else if (message.type === 'exportModDiagnostics') {
                     const activation = await evaluate(workspaceRoot);
                     const visible = deps.context.globalState.get<boolean>(ADULT_VISIBILITY_KEY, false);
                     const discovery = await discoveryFor(workspaceRoot);
-                    const adultIds = new Set(discovery.manifests.filter(item => item.manifest.contentRating === 'adult').map(item => item.manifest.id));
+                    const adultIds = hiddenAdultModIds(activation, discovery);
                     const report = {
                         format: 'lorerelay-mod-diagnostics/1',
                         safeMode: activation.decision.mode === 'safe-required',
-                        blockers: activation.decision.blockers.map(item => ({ code: item.code, ...(!item.modId || (!visible && adultIds.has(item.modId)) ? {} : { modId: item.modId }) })),
-                        discovery: discovery.diagnostics.map(item => ({ code: item.code, source: item.source, ...(!item.packageId || (!visible && adultIds.has(item.packageId)) ? {} : { modId: item.packageId }) })),
+                        blockers: activation.decision.blockers.map(item => ({ code: item.code, ...visibleModId(item.modId, visible, adultIds) })),
+                        discovery: discovery.diagnostics.map(item => ({ code: item.code, source: item.source, ...visibleModId(item.packageId, visible, adultIds) })),
                     };
                     await vscode.env.clipboard.writeText(`${JSON.stringify(report, null, 2)}\n`);
                     notice('MOD_DIAGNOSTICS_COPIED');

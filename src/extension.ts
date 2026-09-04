@@ -385,6 +385,7 @@ export function activate(context: vscode.ExtensionContext) {
         currentLoreRelayVersion: () => typeof context.extension.packageJSON.version === 'string'
             ? context.extension.packageJSON.version
             : '',
+        mutationGate: deterministicWorkspaceMutationGate,
     });
     context.subscriptions.push({ dispose: () => deterministicWorkspaceMutationGate.dispose() });
     context.subscriptions.push({ dispose: () => clearModActivationGateRuntime() });

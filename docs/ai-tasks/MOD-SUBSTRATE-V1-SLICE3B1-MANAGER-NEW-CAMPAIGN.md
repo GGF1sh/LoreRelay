@@ -53,6 +53,8 @@ At this initial checkpoint no fourth run had been performed. The focused test, s
 
 The focused test was run once after explicit continuation authorization and stopped on a fourth test-only expectation error. The webview uses an `if (message.type === 'modManagerState')` listener and calls `packagesEl.replaceChildren()`; the static assertion incorrectly required a `case 'modManagerState'` switch branch. The assertion now matches the actual event-listener contract. No additional test run has been made after this failure.
 
+The next explicitly authorized single run stopped on another test-only key mismatch: the localization assertion required `webview.modManager.adultVisible`, while the UI and all four locale bundles consistently use `webview.modManager.showAdult`. The assertion now checks the production key. No additional run has been made after this failure.
+
 ## Required continuation
 
 Resume from this unchanged worktree by running the new focused test once. If it passes, continue with the Slice 3B1 focused set and the repository High Risk verification sequence. If it exposes a production issue, classify and repair it before broad verification.

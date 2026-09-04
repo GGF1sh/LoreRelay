@@ -244,7 +244,7 @@ async function main() {
         ok(webview.includes("message.type === 'modManagerState'") && webview.includes('packagesEl.replaceChildren()'), 'host state replaces visible package DOM');
         for (const locale of ['en', 'ja', 'zh-CN', 'zh-TW']) {
             const strings = JSON.parse(fs.readFileSync(path.join(__dirname, `../locales/${locale}.json`), 'utf8'));
-            for (const key of ['webview.modManager.title', 'webview.modManager.adultVisible', 'webview.modManager.resolve', 'webview.modManager.commit', 'webview.modManager.forkRequired']) {
+            for (const key of ['webview.modManager.title', 'webview.modManager.showAdult', 'webview.modManager.resolve', 'webview.modManager.commit', 'webview.modManager.forkRequired']) {
                 ok(typeof strings[key] === 'string' && strings[key].length > 0, `${locale} includes ${key}`);
             }
         }

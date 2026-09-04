@@ -55,6 +55,19 @@ The focused test was run once after explicit continuation authorization and stop
 
 The next explicitly authorized single run stopped on another test-only key mismatch: the localization assertion required `webview.modManager.adultVisible`, while the UI and all four locale bundles consistently use `webview.modManager.showAdult`. The assertion now checks the production key. No additional run has been made after this failure.
 
+### Focused continuation PASS
+
+After the next explicit continuation, the corrected test and the complete affected MOD regression set passed on HEAD `0252434077249f3a56d0b2ca7e900ae83a8aa4e9`:
+
+- MOD Manager 3B1: 72 assertions
+- Install lifecycle: 126 assertions
+- Presentation adapters: 162 assertions
+- Content adapters: 94 assertions
+- MOD Substrate V1: 191 assertions
+- Activation gate boundaries: 130 assertions
+
+No executable source changed during these runs. Test Console planning, independent review, final full suite, Computer Use smoke, exact-head CI, and Standard Close remain pending for the complete Slice 3B1 lane.
+
 ## Required continuation
 
 Resume from this unchanged worktree by running the new focused test once. If it passes, continue with the Slice 3B1 focused set and the repository High Risk verification sequence. If it exposes a production issue, classify and repair it before broad verification.

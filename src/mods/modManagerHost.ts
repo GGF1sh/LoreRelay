@@ -192,8 +192,16 @@ async function finishControlTransaction(workspaceRoot: string, transaction: Cont
     const transactionRoot = path.join(stagingRoot, transaction.id);
     await ordinaryDirectory(workspaceRoot);
     await ordinaryDirectory(controlRoot);
-    await ordinaryDirectory(stagingRoot);
-    await ordinaryDirectory(transactionRoot);
+    let transactionPresent = true;
+    try {
+        await ordinaryDirectory(stagingRoot);
+        await ordinaryDirectory(transactionRoot);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        // Cleanup may have removed the empty directories before journal retirement.
+        // Recovery below must still prove the exact committed pair before proceeding.
+        transactionPresent = false;
+    }
     const profilePath = path.join(controlRoot, MOD_PROFILE_FILE);
     const lockPath = path.join(controlRoot, MOD_LOCK_FILE);
     const stagedProfile = path.join(transactionRoot, MOD_PROFILE_FILE);
@@ -214,22 +222,60 @@ async function finishControlTransaction(workspaceRoot: string, transaction: Cont
         await fs.rename(stagedPath, finalPath);
         if (await fileHash(finalPath, maximum) !== expected) throw Object.assign(new Error('Published MOD control changed'), { code: 'MOD_CONTROL_COMMIT_FAILED' });
     };
-    await publish(profilePath, stagedProfile, oldProfile, transaction.profileHash, transaction.oldProfileHash, 256 * 1024);
-    await publish(lockPath, stagedLock, oldLock, transaction.lockHash, transaction.oldLockHash, 8 * 1024 * 1024);
+    if (transactionPresent) {
+        await publish(profilePath, stagedProfile, oldProfile, transaction.profileHash, transaction.oldProfileHash, 256 * 1024);
+        await publish(lockPath, stagedLock, oldLock, transaction.lockHash, transaction.oldLockHash, 8 * 1024 * 1024);
+    }
     const profileBytes = await readOrdinary(profilePath, 256 * 1024);
     const lockBytes = await readOrdinary(lockPath, 8 * 1024 * 1024);
     const profile = profileBytes && parseModProfileBytes(profileBytes);
     const lock = lockBytes && parseModLockBytes(lockBytes);
-    if (!profile?.ok || !lock?.ok || computeModProfileHash(profile.value) !== lock.value.profileHash
+    if (!profileBytes || !lockBytes || sha(profileBytes) !== transaction.profileHash || sha(lockBytes) !== transaction.lockHash
+        || !profile?.ok || !lock?.ok || computeModProfileHash(profile.value) !== lock.value.profileHash
         || lockAggregateHash(lock.value) !== lock.value.aggregateHash) {
         throw Object.assign(new Error('Committed MOD controls failed validation'), { code: 'MOD_CONTROL_COMMIT_FAILED' });
     }
-    await fs.unlink(path.join(controlRoot, CONTROL_TRANSACTION_FILE));
-    for (const filename of [oldProfile, oldLock]) await fs.unlink(filename).catch(error => {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    });
-    await fs.rmdir(transactionRoot);
-    await fs.rmdir(stagingRoot).catch(error => { if ((error as NodeJS.ErrnoException).code !== 'ENOTEMPTY') throw error; });
+    try {
+        if (transactionPresent) {
+            const artifacts: Array<[string, string | null, number]> = [
+                [stagedProfile, transaction.profileHash, 256 * 1024],
+                [stagedLock, transaction.lockHash, 8 * 1024 * 1024],
+                [oldProfile, transaction.oldProfileHash, 256 * 1024],
+                [oldLock, transaction.oldLockHash, 8 * 1024 * 1024],
+            ];
+            const knownNames = new Set(artifacts.map(([filename]) => path.basename(filename)));
+            await ordinaryDirectory(transactionRoot);
+            if ((await fs.readdir(transactionRoot)).some(name => !knownNames.has(name))) {
+                throw new Error('Unknown MOD transaction artifact');
+            }
+            // Validate all evidence first; revalidate each ordinary file immediately
+            // before unlink. No-op publication leaves expected staging here; recovery
+            // after a rename or earlier cleanup legitimately leaves it absent.
+            const checkArtifact = async (filename: string, expected: string | null, maximum: number) => {
+                const actual = await fileHash(filename, maximum);
+                if (actual !== undefined && actual !== expected) {
+                    throw Object.assign(new Error('MOD transaction artifact changed'), { code: 'MOD_CONTROL_TRANSACTION_INVALID' });
+                }
+                return actual !== undefined;
+            };
+            for (const artifact of artifacts) await checkArtifact(...artifact);
+            for (const artifact of artifacts) {
+                await ordinaryDirectory(transactionRoot);
+                if (await checkArtifact(...artifact)) await fs.unlink(artifact[0]);
+            }
+            await fs.rmdir(transactionRoot);
+        }
+        await fs.rmdir(stagingRoot).catch(error => {
+            if (!['ENOENT', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+        });
+        // Retain recovery authority until known artifacts and the transaction directory
+        // are gone. A crash here is recovered by exact pair validation above.
+        await fs.unlink(path.join(controlRoot, CONTROL_TRANSACTION_FILE));
+    } catch (error) {
+        throw Object.assign(new Error('MOD controls committed; transaction cleanup blocked'), {
+            code: 'MOD_CONTROL_COMMITTED_CLEANUP_BLOCKED', committed: true, cause: error,
+        });
+    }
 }
 
 /** Complete a journaled profile/lock pair before any activation-gate read. */

@@ -7,6 +7,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const path = require('path');
 const Module = require('module');
+const { createHash, randomUUID } = require('crypto');
 const { createVscodeStub } = require('./test_helpers/vscode_stub');
 
 let dialogSelection;
@@ -81,6 +82,155 @@ async function resolvedPair(roots, profile) {
     return result;
 }
 
+const controlHash = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+const compact = json => JSON.stringify(JSON.parse(json));
+
+function controlPaths(workspace, id = randomUUID()) {
+    const control = path.join(workspace, '.text-adventure');
+    const staging = path.join(control, 'mod-control-staging');
+    const transaction = path.join(staging, id);
+    return { workspace, id, control, staging, transaction,
+        profile: path.join(control, 'mod-profile.json'), lock: path.join(control, 'mod-lock.json'),
+        journal: path.join(control, 'mod-control-transaction.json') };
+}
+
+function seedControlTransaction(temp, name, pair, options = {}) {
+    const p = controlPaths(folder(path.join(temp, name)));
+    folder(p.transaction);
+    const files = {
+        [p.profile]: pair.profileJson, [p.lock]: pair.lockJson,
+        [path.join(p.transaction, 'mod-profile.json')]: pair.profileJson,
+        [path.join(p.transaction, 'mod-lock.json')]: pair.lockJson,
+        ...options,
+    };
+    // Named options make absent/published/backup states explicit at the call site.
+    for (const [name, bytes] of Object.entries(options)) {
+        if (name === 'profile') { files[p.profile] = bytes; delete files[name]; }
+        if (name === 'lock') { files[p.lock] = bytes; delete files[name]; }
+        if (['mod-profile.json', 'mod-lock.json', 'mod-profile.json.old', 'mod-lock.json.old', 'unknown.txt'].includes(name)) {
+            files[path.join(p.transaction, name)] = bytes; delete files[name];
+        }
+    }
+    for (const [filename, bytes] of Object.entries(files)) if (bytes !== null) fs.writeFileSync(filename, bytes);
+    fs.writeFileSync(p.journal, JSON.stringify({
+        format: 'lorerelay-mod-control-transaction/1', id: p.id,
+        profileHash: controlHash(pair.profileJson), lockHash: controlHash(pair.lockJson),
+        oldProfileHash: controlHash(compact(pair.profileJson)), oldLockHash: controlHash(compact(pair.lockJson)),
+    }));
+    return p;
+}
+
+function assertControlCommitted(p, pair, label) {
+    eq(fs.readFileSync(p.profile, 'utf8'), pair.profileJson, `${label}: exact profile`);
+    eq(fs.readFileSync(p.lock, 'utf8'), pair.lockJson, `${label}: exact lock`);
+    eq(fs.existsSync(p.journal), false, `${label}: no journal`);
+    eq(fs.existsSync(p.transaction), false, `${label}: no transaction residue`);
+    eq(fs.existsSync(p.staging), false, `${label}: no staging residue`);
+}
+
+async function controlCleanupRegressions(temp, pair) {
+    const originalRename = fsp.rename;
+    for (const [label, oldProfile, oldLock, published] of [
+        ['fresh', null, null, ['mod-profile.json', 'mod-lock.json']],
+        ['identical', pair.profileJson, pair.lockJson, []],
+        ['profile-identical', pair.profileJson, compact(pair.lockJson), ['mod-lock.json']],
+        ['lock-identical', compact(pair.profileJson), pair.lockJson, ['mod-profile.json']],
+        ['neither-identical', compact(pair.profileJson), compact(pair.lockJson), ['mod-profile.json', 'mod-lock.json']],
+    ]) {
+        const p = controlPaths(folder(path.join(temp, `r5-${label}`)));
+        folder(p.control);
+        if (oldProfile !== null) fs.writeFileSync(p.profile, oldProfile);
+        if (oldLock !== null) fs.writeFileSync(p.lock, oldLock);
+        const before = [p.profile, p.lock].map(filename => fs.existsSync(filename) ? fs.statSync(filename) : undefined);
+        const writes = [];
+        fsp.rename = async function (from, to) {
+            if ([p.profile, p.lock].includes(to)) writes.push(path.basename(to));
+            return originalRename.call(this, from, to);
+        };
+        try { await manager.commitModControlPair(p.workspace, pair.profileJson, pair.lockJson); }
+        finally { fsp.rename = originalRename; }
+        assertControlCommitted(p, pair, label);
+        eq(writes, published, `${label}: publishes only changed sides`);
+        for (const [index, filename] of [p.profile, p.lock].entries()) {
+            if (before[index] && !published.includes(path.basename(filename))) {
+                const after = fs.statSync(filename);
+                eq([after.ino, after.mtimeMs], [before[index].ino, before[index].mtimeMs], `${label}: identical final retains identity`);
+            }
+        }
+    }
+
+    for (const [label, options] of [
+        ['both-staged', {}],
+        ['both-published', { 'mod-profile.json': null, 'mod-lock.json': null }],
+        ['profile-published', { 'mod-profile.json': null, lock: compact(pair.lockJson), 'mod-profile.json.old': compact(pair.profileJson) }],
+        ['lock-published', { 'mod-lock.json': null, profile: compact(pair.profileJson), 'mod-lock.json.old': compact(pair.lockJson) }],
+        ['both-backups', { 'mod-profile.json': null, 'mod-lock.json': null, 'mod-profile.json.old': compact(pair.profileJson), 'mod-lock.json.old': compact(pair.lockJson) }],
+    ]) {
+        const p = seedControlTransaction(temp, `r5-recover-${label}`, pair, options);
+        await manager.recoverPendingModControlCommit(p.workspace);
+        assertControlCommitted(p, pair, label);
+        await manager.recoverPendingModControlCommit(p.workspace);
+        assertControlCommitted(p, pair, `${label} repeated`);
+    }
+
+    for (const [label, filename, bytes] of [
+        ['tampered-stage', 'mod-profile.json', 'foreign staged content'],
+        ['tampered-backup', 'mod-lock.json.old', 'foreign backup content'],
+        ['unknown-residue', 'unknown.txt', 'keep unknown evidence'],
+        ['oversized-stage', 'mod-profile.json', Buffer.alloc(256 * 1024 + 1)],
+    ]) {
+        const p = seedControlTransaction(temp, `r5-${label}`, pair, { [filename]: bytes });
+        for (let attempt = 0; attempt < 2; attempt++) {
+            assertions++;
+            await assert.rejects(() => manager.recoverPendingModControlCommit(p.workspace), error =>
+                error.code === 'MOD_CONTROL_COMMITTED_CLEANUP_BLOCKED' && error.committed === true);
+            eq(fs.readFileSync(p.profile, 'utf8'), pair.profileJson, `${label}: committed profile preserved`);
+            eq(fs.readFileSync(p.lock, 'utf8'), pair.lockJson, `${label}: committed lock preserved`);
+            eq(fs.readFileSync(path.join(p.transaction, filename)), Buffer.from(bytes), `${label}: evidence preserved`);
+            ok(fs.existsSync(p.journal), `${label}: recovery journal retained`);
+        }
+    }
+    const linked = seedControlTransaction(temp, 'r5-hardlinked-stage', pair);
+    fs.linkSync(path.join(linked.transaction, 'mod-profile.json'), path.join(linked.workspace, 'foreign-link'));
+    assertions++;
+    await assert.rejects(() => manager.recoverPendingModControlCommit(linked.workspace), error =>
+        error.code === 'MOD_CONTROL_COMMITTED_CLEANUP_BLOCKED' && error.cause.code === 'MOD_CONTROL_UNSAFE_FILE');
+    eq(fs.statSync(path.join(linked.workspace, 'foreign-link')).nlink, 2, 'hardlinked staged evidence retained');
+
+    // Actual interruptions after each irreversible cleanup operation. The journal
+    // must survive all directory removals and recovery must tolerate missing artifacts.
+    for (const boundary of ['unlink-stage', 'unlink-backup', 'rmdir-transaction', 'rmdir-staging', 'unlink-journal']) {
+        const p = seedControlTransaction(temp, `r5-crash-${boundary}`, pair, { 'mod-profile.json.old': compact(pair.profileJson) });
+        const method = boundary.startsWith('rmdir') ? 'rmdir' : 'unlink';
+        const target = boundary === 'unlink-stage' ? path.join(p.transaction, 'mod-profile.json')
+            : boundary === 'unlink-backup' ? path.join(p.transaction, 'mod-profile.json.old')
+            : boundary === 'rmdir-transaction' ? p.transaction : boundary === 'rmdir-staging' ? p.staging : p.journal;
+        const original = fsp[method];
+        let interrupted = false;
+        fsp[method] = async function (filename, ...args) {
+            if (method === 'rmdir') ok(fs.existsSync(p.journal), `${boundary}: journal outlives directory cleanup`);
+            const result = await original.call(this, filename, ...args);
+            if (filename === target && !interrupted) {
+                interrupted = true;
+                throw Object.assign(new Error('simulated cleanup interruption'), { code: 'SIMULATED_CRASH' });
+            }
+            return result;
+        };
+        try { await rejects(() => manager.recoverPendingModControlCommit(p.workspace), 'MOD_CONTROL_COMMITTED_CLEANUP_BLOCKED', boundary); }
+        finally { fsp[method] = original; }
+        ok(interrupted, `${boundary}: actual filesystem boundary reached`);
+        await manager.recoverPendingModControlCommit(p.workspace);
+        assertControlCommitted(p, pair, boundary);
+        await manager.recoverPendingModControlCommit(p.workspace);
+    }
+    const missing = seedControlTransaction(temp, 'r5-missing-stage-directory-foreign-final', pair, { 'mod-profile.json': null, 'mod-lock.json': null, profile: 'foreign final' });
+    fs.rmdirSync(missing.transaction);
+    await rejects(() => manager.recoverPendingModControlCommit(missing.workspace), 'MOD_CONTROL_COMMIT_FAILED', 'absent staging cannot authorize a different canonical pair');
+    eq(fs.readFileSync(missing.profile, 'utf8'), 'foreign final', 'missing-directory recovery preserves concurrent final');
+    ok(fs.existsSync(missing.journal), 'unproven commit retains journal');
+    console.log('R5 cleanup: equality matrix, repeated recovery, tamper preservation and cleanup interruption boundaries passed.');
+}
+
 async function main() {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-mod-manager-'));
     const globalStorageRoot = folder(path.join(temp, 'global'));
@@ -90,6 +240,7 @@ async function main() {
     try {
         const pairWorkspace = folder(path.join(temp, 'pair-workspace'));
         const pair = await resolvedPair({ globalStorageRoot, workspaceRoot: pairWorkspace }, profileFor('general.manager'));
+        await controlCleanupRegressions(temp, pair);
         await manager.commitModControlPair(pairWorkspace, pair.profileJson, pair.lockJson);
         eq(fs.readFileSync(path.join(pairWorkspace, '.text-adventure/mod-profile.json'), 'utf8'), pair.profileJson, 'normal commit publishes exact profile');
         eq(fs.readFileSync(path.join(pairWorkspace, '.text-adventure/mod-lock.json'), 'utf8'), pair.lockJson, 'normal commit publishes exact lock');

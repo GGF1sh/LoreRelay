@@ -28,6 +28,7 @@ Module.prototype.require = function patchedRequire(id) {
 const manager = require('../out/mods/modManagerHost');
 const install = require('../out/mods/modInstallHost');
 const profileCore = require('../out/mods/modProfileCore');
+const { createDeterministicWorkspaceMutationGate } = require('../out/deterministicWorkspaceMutationGate');
 
 let assertions = 0;
 const eq = (actual, expected, message) => { assertions += 1; assert.deepStrictEqual(actual, expected, message); };
@@ -153,9 +154,11 @@ async function main() {
         let messages = [];
         const panel = { webview: { postMessage: message => { messages.push(message); return Promise.resolve(true); } } };
         const context = { globalStorageUri: { fsPath: globalStorageRoot }, globalState };
+        const mutationGate = createDeterministicWorkspaceMutationGate();
         const host = manager.createModManagerHost({
             context, getPanel: () => panel, getWorkspacePath: () => workspaceRoot,
             currentLoreRelayVersion: () => '1.84.32',
+            mutationGate,
         });
         eq(host.handles('commitGameState'), false, 'manager allowlist cannot bypass arbitrary canonical writes');
         eq(await host.handleMessage({ type: 'commitGameState' }), false, 'unknown manager message is not handled');
@@ -193,6 +196,33 @@ async function main() {
         eq(fs.existsSync(path.join(existingWorkspace, '.text-adventure/mod-profile.json')), false, 'existing campaign profile is untouched');
         eq(fs.readFileSync(path.join(existingWorkspace, 'game_state.json'), 'utf8'), '{}', 'existing campaign state is untouched');
 
+        const raceWorkspace = folder(path.join(temp, 'ui-race'));
+        workspaceRoot = raceWorkspace;
+        messages = [];
+        await host.handleMessage({ type: 'setModEnabled', id: 'general.manager', version: '1.0.0', source: 'global', enabled: true });
+        await host.handleMessage({ type: 'resolveModProfilePreview' });
+        const competingMutation = mutationGate.acquire(
+            raceWorkspace,
+            { actionKind: 'test_competing_canonical_write', requestId: 'test-competing-canonical-write' },
+        );
+        eq(competingMutation.status, 'acquired', 'test competing canonical write owns the shared workspace mutation gate');
+        await host.handleMessage({ type: 'commitModProfile' });
+        eq(lastState(messages).notice, 'WORLD_MUTATION_IN_PROGRESS', 'profile commit is serialized behind the shared canonical mutation gate');
+        eq(fs.existsSync(path.join(raceWorkspace, '.text-adventure/mod-profile.json')), false, 'busy shared mutation gate prevents profile publication');
+        if (competingMutation.status === 'acquired') competingMutation.lease.release();
+        const nativeResolve = install.resolveInstalledModProfile;
+        install.resolveInstalledModProfile = async options => {
+            const result = await nativeResolve(options);
+            fs.writeFileSync(path.join(raceWorkspace, 'game_state.json'), '{}');
+            return result;
+        };
+        try {
+            await host.handleMessage({ type: 'commitModProfile' });
+        } finally { install.resolveInstalledModProfile = nativeResolve; }
+        eq(fs.existsSync(path.join(raceWorkspace, '.text-adventure/mod-profile.json')), false, 'campaign state created during resolve blocks profile publication');
+        eq(fs.existsSync(path.join(raceWorkspace, '.text-adventure/mod-lock.json')), false, 'campaign state created during resolve blocks lock publication');
+        eq(lastState(messages).notice, 'MOD_MANAGER_CAMPAIGN_FORK_REQUIRED', 'resolve race reports fork requirement');
+
         workspaceRoot = folder(path.join(temp, 'ui-adult'));
         messages = [];
         await host.handleMessage({ type: 'setModAdultVisibility', visible: true });
@@ -213,6 +243,7 @@ async function main() {
         const restarted = manager.createModManagerHost({
             context, getPanel: () => panel, getWorkspacePath: () => workspaceRoot,
             currentLoreRelayVersion: () => '1.84.32',
+            mutationGate,
         });
         eq(restarted.adultSessionApprovals(workspaceRoot), [], 'adult package read authorization is process-local');
         messages = [];
@@ -224,11 +255,42 @@ async function main() {
         await restarted.handleMessage({ type: 'requestModManagerState' });
         eq(lastState(messages).safeMode, false, 'reauthorized unchanged adult campaign exits Safe Mode');
 
+        await restarted.handleMessage({ type: 'setModEnabled', id: 'adult.manager', version: '1.0.0', source: 'global', enabled: false });
+        uiState = lastState(messages);
+        eq(uiState.packages.find(item => item.id === 'adult.manager').enabled, false, 'authorized adult MOD can be disabled without a new consent prompt');
+        const disabledWarningCount = warnings.length;
+        await restarted.handleMessage({ type: 'resolveModProfilePreview' });
+        eq(warnings.length, disabledWarningCount, 'adult disable and resolve require no new adult confirmation');
+        eq(lastState(messages).preview.packages, [], 'adult disable removes the package from resolve preview');
+        await restarted.handleMessage({ type: 'commitModProfile' });
+        const disabledAdultProfile = profileCore.parseModProfileBytes(fs.readFileSync(path.join(workspaceRoot, '.text-adventure/mod-profile.json')));
+        ok(disabledAdultProfile.ok, 'disabled adult profile parses');
+        eq(disabledAdultProfile.value.enabled, [], 'adult disable removes the enabled draft entry');
+        eq(JSON.parse(JSON.stringify(disabledAdultProfile.value.adultContent)), { allow: false, approvals: [] }, 'adult disable removes persisted approval and allow flag');
+
+        await restarted.handleMessage({ type: 'authorizeAdultMod', id: 'adult.manager', version: '1.0.0', source: 'global' });
+        await restarted.handleMessage({ type: 'resolveModProfilePreview' });
+        await restarted.handleMessage({ type: 'commitModProfile' });
+
         await restarted.handleMessage({ type: 'setModAdultVisibility', visible: false });
         eq(restarted.adultSessionApprovals(workspaceRoot), [], 'hiding adult metadata revokes session authority');
         uiState = lastState(messages);
         ok(!JSON.stringify(uiState).includes('adult.manager'), 'hiding adult metadata removes adult id from replacement state');
         ok(!JSON.stringify(uiState).includes('Adult metadata sentinel'), 'hiding adult metadata removes adult name from replacement state');
+
+        const adultPackageRoot = path.join(installedRoot, 'adult.manager/1.0.0');
+        const missingAdultPackageRoot = path.join(installedRoot, 'adult.manager/1.0.0.missing');
+        fs.renameSync(adultPackageRoot, missingAdultPackageRoot);
+        try {
+            messages = [];
+            await restarted.handleMessage({ type: 'requestModManagerState' });
+            uiState = lastState(messages);
+            ok(uiState.safeMode, 'missing locked adult package enters Safe Mode');
+            ok(!JSON.stringify(uiState).includes('adult.manager'), 'hidden locked adult id is absent when its package is missing');
+            clipboard = '';
+            await restarted.handleMessage({ type: 'exportModDiagnostics' });
+            ok(!clipboard.includes('adult.manager'), 'hidden locked adult id is absent from exported missing-package diagnostics');
+        } finally { fs.renameSync(missingAdultPackageRoot, adultPackageRoot); }
 
         clipboard = '';
         await restarted.handleMessage({ type: 'exportModDiagnostics' });
@@ -242,6 +304,7 @@ async function main() {
         ok(html.includes('id="mod-manager-panel"') && html.includes('id="mod-manager-btn"'), 'MOD Manager launcher and panel are present');
         eq(webview.includes('innerHTML'), false, 'manager renderer never uses HTML injection');
         ok(webview.includes("message.type === 'modManagerState'") && webview.includes('packagesEl.replaceChildren()'), 'host state replaces visible package DOM');
+        ok(webview.includes('if (item.enabled)') && webview.includes("{ type: 'setModEnabled'") && webview.includes('enabled: false'), 'adult enabled card exposes the ordinary disable message');
         for (const locale of ['en', 'ja', 'zh-CN', 'zh-TW']) {
             const strings = JSON.parse(fs.readFileSync(path.join(__dirname, `../locales/${locale}.json`), 'utf8'));
             for (const key of ['webview.modManager.title', 'webview.modManager.showAdult', 'webview.modManager.resolve', 'webview.modManager.commit', 'webview.modManager.forkRequired']) {

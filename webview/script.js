@@ -5970,11 +5970,16 @@ function escapeHtml(str) {
       action.type = 'button';
       action.className = 'glass-btn';
       if (item.contentRating === 'adult') {
-        action.textContent = item.sessionAuthorized
-          ? label('webview.modManager.adultAuthorized', 'Adult session authorized')
+        action.textContent = item.enabled
+          ? label('webview.modManager.disable', 'Disable')
           : label('webview.modManager.authorizeAdult', 'Authorize & enable adult MOD');
-        action.disabled = item.sessionAuthorized && item.enabled;
-        action.addEventListener('click', () => vscode.postMessage({ type: 'authorizeAdultMod', id: item.id, version: item.version, source: item.source }));
+        action.addEventListener('click', () => {
+          if (item.enabled) {
+            vscode.postMessage({ type: 'setModEnabled', id: item.id, version: item.version, source: item.source, enabled: false });
+            return;
+          }
+          vscode.postMessage({ type: 'authorizeAdultMod', id: item.id, version: item.version, source: item.source });
+        });
       } else {
         action.textContent = item.enabled ? label('webview.modManager.disable', 'Disable') : label('webview.modManager.enable', 'Enable');
         action.addEventListener('click', () => vscode.postMessage({ type: 'setModEnabled', id: item.id, version: item.version, source: item.source, enabled: !item.enabled }));

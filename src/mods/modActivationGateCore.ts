@@ -1,7 +1,7 @@
 import { canonicalizeModJson } from './modHashCore';
 import type { ModLock } from './modProfileCore';
 import { validateModLock } from './modProfileCore';
-import type { ModOpenDecision } from './modSafeModeCore';
+import { parseModContext, type ModOpenDecision } from './modSafeModeCore';
 
 export type ModCheckpointRestoreDecision =
     | { allowed: true; code: 'UNMODDED_LEGACY_CHECKPOINT' | 'ACTIVE_LOCK_MATCH' }
@@ -20,6 +20,37 @@ export interface ModCheckpointEvidence {
     format: string;
     modLockSnapshot?: unknown;
     modLockFingerprint?: unknown;
+    stateSnapshot?: unknown;
+}
+
+function collectSnapshotModEvidence(value: unknown): {
+    present: boolean;
+    invalid: boolean;
+    fingerprints: string[];
+} {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return { present: false, invalid: false, fingerprints: [] };
+    }
+    const snapshot = value as Record<string, unknown>;
+    const gameState = snapshot.gameState;
+    if (!gameState || typeof gameState !== 'object' || Array.isArray(gameState)) {
+        return { present: false, invalid: false, fingerprints: [] };
+    }
+    const entries = (gameState as Record<string, unknown>).entries;
+    if (!Array.isArray(entries)) return { present: false, invalid: false, fingerprints: [] };
+    const fingerprints = new Set<string>();
+    let present = false;
+    let invalid = false;
+    for (const entry of entries) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+        const record = entry as Record<string, unknown>;
+        if (!Object.prototype.hasOwnProperty.call(record, 'modContext')) continue;
+        present = true;
+        const context = parseModContext(record.modContext);
+        if (context) fingerprints.add(context.lockFingerprint);
+        else invalid = true;
+    }
+    return { present, invalid, fingerprints: [...fingerprints].sort() };
 }
 
 /**
@@ -37,8 +68,11 @@ export function assessModCheckpointRestore(input: {
 
     const hasModFields = input.checkpoint.modLockSnapshot !== undefined
         || input.checkpoint.modLockFingerprint !== undefined;
+    const snapshotEvidence = input.checkpoint.format === 'text-adventure-checkpoint/1.3'
+        ? collectSnapshotModEvidence(input.checkpoint.stateSnapshot)
+        : { present: false, invalid: false, fingerprints: [] };
     const isModCheckpoint = input.checkpoint.format === 'text-adventure-checkpoint/1.2'
-        || (input.checkpoint.format === 'text-adventure-checkpoint/1.3' && hasModFields);
+        || (input.checkpoint.format === 'text-adventure-checkpoint/1.3' && (hasModFields || snapshotEvidence.present));
     if (!isModCheckpoint) {
         return input.activeDecision.mode === 'unmodded'
             ? { allowed: true, code: 'UNMODDED_LEGACY_CHECKPOINT' }
@@ -49,7 +83,9 @@ export function assessModCheckpointRestore(input: {
     const lockValidation = validateModLock(input.checkpoint.modLockSnapshot);
     if (typeof fingerprint !== 'string'
         || !lockValidation.ok
-        || fingerprint !== lockValidation.value.aggregateHash) {
+        || fingerprint !== lockValidation.value.aggregateHash
+        || snapshotEvidence.invalid
+        || snapshotEvidence.fingerprints.some(value => value !== fingerprint)) {
         return { allowed: false, code: 'CHECKPOINT_MOD_FIELDS_INVALID' };
     }
 

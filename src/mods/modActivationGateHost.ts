@@ -359,6 +359,19 @@ function readDocumentEvidence(cache: CampaignEvidenceCache, filePath: string, ki
         const result = collectEntryFingerprints(entries, history);
         modEvidencePresent ||= result.modEvidencePresent;
         invalidModEvidencePresent ||= result.invalidModEvidencePresent;
+        if (kind === 'checkpoint' && record?.format === 'text-adventure-checkpoint/1.3') {
+            const snapshot = record.stateSnapshot;
+            const snapshotRecord = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+                ? snapshot as Record<string, unknown>
+                : undefined;
+            const gameState = snapshotRecord?.gameState;
+            const gameStateRecord = gameState && typeof gameState === 'object' && !Array.isArray(gameState)
+                ? gameState as Record<string, unknown>
+                : undefined;
+            const snapshotResult = collectEntryFingerprints(gameStateRecord?.entries, history);
+            modEvidencePresent ||= snapshotResult.modEvidencePresent;
+            invalidModEvidencePresent ||= snapshotResult.invalidModEvidencePresent;
+        }
     }
     if (kind === 'checkpoint' && record && (record.format === 'text-adventure-checkpoint/1.2'
         || Object.prototype.hasOwnProperty.call(record, 'modLockFingerprint')

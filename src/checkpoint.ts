@@ -75,6 +75,14 @@ export interface GmSnapshot {
 
 const MAX_CHECKPOINT_FILE_BYTES = 64 * 1024 * 1024;
 
+export function serializeCheckpointForStorage(value: unknown): string | undefined {
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch {
+        return undefined;
+    }
+}
+
 function readCheckpointJson(filePath: string): unknown {
     const stat = fs.lstatSync(filePath);
     if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_CHECKPOINT_FILE_BYTES) {
@@ -297,7 +305,8 @@ export function saveCheckpointFile(
         && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
         return undefined;
     }
-    if (Buffer.byteLength(JSON.stringify(payload), 'utf8') > MAX_CHECKPOINT_FILE_BYTES) return undefined;
+    const serializedPayload = serializeCheckpointForStorage(payload);
+    if (!serializedPayload || Buffer.byteLength(serializedPayload, 'utf8') > MAX_CHECKPOINT_FILE_BYTES) return undefined;
     writeJsonAtomic(path.join(dir, `${id}.json`), payload);
     return meta;
 }
@@ -345,11 +354,21 @@ export function parseCheckpointFile(value: unknown): CheckpointFile | undefined 
         const snapshot = parseCheckpointStateSnapshot(value.stateSnapshot);
         if (!snapshot || validateGameState(snapshot.gameState).length > 0) return undefined;
         const hasLock = value.modLockSnapshot !== undefined || value.modLockFingerprint !== undefined;
+        const snapshotFingerprints = new Set<string>();
+        const snapshotEntries = Array.isArray(snapshot.gameState.entries) ? snapshot.gameState.entries : [];
+        for (const entry of snapshotEntries) {
+            if (!isRecord(entry) || !Object.prototype.hasOwnProperty.call(entry, 'modContext')) continue;
+            const context = parseModContext(entry.modContext);
+            if (!context) return undefined;
+            snapshotFingerprints.add(context.lockFingerprint);
+        }
+        if (snapshotFingerprints.size > 0 && !hasLock) return undefined;
         if (hasLock) {
             const lock = validateModLock(value.modLockSnapshot);
             if (!lock.ok
                 || typeof value.modLockFingerprint !== 'string'
-                || value.modLockFingerprint !== lock.value.aggregateHash) {
+                || value.modLockFingerprint !== lock.value.aggregateHash
+                || [...snapshotFingerprints].some(fingerprint => fingerprint !== lock.value.aggregateHash)) {
                 return undefined;
             }
         }

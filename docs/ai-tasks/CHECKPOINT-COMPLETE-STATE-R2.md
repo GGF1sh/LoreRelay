@@ -1,6 +1,6 @@
 # CHECKPOINT-COMPLETE-STATE-R2
 
-Status: VERIFIED_PR_PENDING
+Status: REPAIR_VERIFYING
 
 Risk: High — save data, restore authority, multi-file rollback
 
@@ -62,3 +62,7 @@ latch; this slice does not claim filesystem-level atomic rename across multiple 
   was timing-flaky in the plan and passed on the same HEAD in isolated verification. No R2 command
   or assertion failed.
 - Final unchanged executable tree: full suite `344/344`; Combat `736/736`.
+- PR exact-head Code Review found two P1 boundary gaps. The repair now measures the exact indented
+  checkpoint serialization written to disk, and rejects/detects MOD provenance hidden in or
+  inconsistent with a 1.3 authoritative state snapshot. Direct repair regressions pass; the prior
+  full-suite result is superseded because executable code changed.

@@ -56,6 +56,10 @@ try {
     equal(snapshot.gameState.hiddenState, gameState.hiddenState, 'hidden state is preserved');
     equal(snapshot.gameState.domain, gameState.domain, 'domain root is preserved');
     equal(snapshot.gameState.guild, gameState.guild, 'guild root is preserved');
+    const serializationProbe = { entries: [{ id: 'one', nested: { value: 1 } }] };
+    const storageJson = checkpoint.serializeCheckpointForStorage(serializationProbe);
+    equal(storageJson, JSON.stringify(serializationProbe, null, 2), 'checkpoint size authority uses the exact pretty serialization written to disk');
+    equal(Buffer.byteLength(storageJson, 'utf8') > Buffer.byteLength(JSON.stringify(serializationProbe), 'utf8'), true, 'storage-size regression distinguishes pretty bytes from compact bytes');
     writeJson(path.join(root, 'game_state.json'), gameState);
     equal(snapshotCore.isCheckpointStateSnapshotCurrent(root, snapshot), true, 'unchanged game state and ledgers remain publishable');
     writeJson(path.join(root, 'game_state.json'), { ...gameState, commerce: { ...gameState.commerce, credits: 999 } });

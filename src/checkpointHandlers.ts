@@ -43,6 +43,8 @@ import {
     type ModCanonicalAuthorization,
 } from './mods/modActivationGateHost';
 import type { ModOpenDecision } from './mods/modSafeModeCore';
+import { restoreCheckpointStateSnapshot } from './checkpointSnapshot';
+import type { DeterministicWorkspaceMutationGate } from './deterministicWorkspaceMutationGate';
 
 const UNMODDED_OPEN_DECISION: ModOpenDecision = {
     mode: 'unmodded',
@@ -56,6 +58,7 @@ const UNMODDED_OPEN_DECISION: ModOpenDecision = {
 export interface CheckpointHandlerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
     isGameOverActive: () => boolean;
+    mutationGate?: DeterministicWorkspaceMutationGate;
 }
 
 let deps: CheckpointHandlerDeps | undefined;
@@ -106,7 +109,7 @@ async function runTimelineRestore(
         vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks timeline mutation until the MOD lock is repaired.');
         return false;
     }
-    const result = await runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
+    const executeRestore = () => runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
         clearTurnResultRawHashAuthorityForEpochChange();
         if (!isModCanonicalAuthorizationCurrent(authorization)) {
             throw new Error('MOD activation authorization changed before timeline restore');
@@ -117,6 +120,23 @@ async function runTimelineRestore(
         }
         return true;
     });
+    const mutationGate = requireDeps().mutationGate;
+    const guarded = mutationGate
+        ? await mutationGate.run(
+            ws,
+            { actionKind: 'timeline_restore', requestId: `${reason}-${Date.now()}` },
+            executeRestore,
+        )
+        : { status: 'completed' as const, value: await executeRestore() };
+    if (guarded.status === 'busy') {
+        vscode.window.showErrorMessage('LoreRelay: another canonical world mutation is in progress. Retry the timeline operation after it completes.');
+        return false;
+    }
+    if (guarded.status === 'failed') {
+        vscode.window.showErrorMessage(`LoreRelay: timeline restore failed: ${guarded.error instanceof Error ? guarded.error.message : String(guarded.error)}`);
+        return false;
+    }
+    const result = guarded.value;
     if ('kind' in result) {
         vscode.window.showErrorMessage(`LoreRelay: ${result.reason ?? 'Replay timeline restore preparation failed.'}`);
         return false;
@@ -391,7 +411,24 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         return;
     }
     await runTimelineRestore(ws, 'restore-checkpoint', async () => {
+        const previousHistory = JSON.parse(JSON.stringify(getGameEntryHistory())) as GameEntry[];
         setGameEntryHistoryWithSeenIds(cp.history);
+        if (cp.format === 'text-adventure-checkpoint/1.3' && cp.stateSnapshot) {
+            resetGmBridgeSessions();
+            const restored = restoreCheckpointStateSnapshot(ws, cp.stateSnapshot, cp.history, {
+                authorizationCurrent: () => isModCanonicalAuthorizationCurrent(authorization),
+                writeGameState: state => writeGameStateToDisk(getGameStatePath() ?? '', state, true),
+            });
+            if (!restored) {
+                setGameEntryHistoryWithSeenIds(previousHistory);
+                return false;
+            }
+            replaceHistoryFromDisk();
+            sendCurrentState(0, true);
+            sendCheckpointList();
+            vscode.window.showInformationMessage(t('extension.info.checkpointRestored', { label: cp.meta.label }));
+            return true;
+        }
         if (!saveHistoryToDisk()) return false;
         resetGmBridgeSessions();
         const gm = findLastGmEntry(getGameEntryHistory());

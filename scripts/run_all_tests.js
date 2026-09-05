@@ -174,6 +174,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_cross_ledger_partial_failure.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_runtime_turn_result_acceptance.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_accepted_turn_side_effect_deferral.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_checkpoint_complete_state_snapshot.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_runtime_accepted_replay_guard.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_turn_ledger_valid_noop.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_ledger_sanitization.js', consumesCompiledOutput: true },

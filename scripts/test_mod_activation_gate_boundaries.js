@@ -19,6 +19,7 @@ const replayGuard = require('../out/acceptedTurnReplayGuard');
 const realStateManager = require('../out/stateManager');
 const realWorkspacePaths = require('../out/workspacePaths');
 const checkpointCombat = require('../out/checkpointCombatCore');
+const checkpointSnapshot = require('../out/checkpointSnapshot');
 restoreVscode();
 
 let assertions = 0;
@@ -159,7 +160,10 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
             const priorScope = replayGuard.ensureAcceptedTurnScope(root);
             await activation.evaluateModActivationGate({ ...input, workspaceRoot: root });
             const auth = await activation.acquireModCanonicalAuthorization(root);
-            const saved = checkpoint.saveCheckpointFile(root, originalHistory.slice(0, 2), 'restore test', { modAuthorization: auth });
+            const saved = checkpoint.saveCheckpointFile(root, originalHistory.slice(0, 2), 'restore test', {
+                gameState: { schemaVersion: 2, entries: originalHistory.slice(0, 2), status: {}, options: [] },
+                modAuthorization: auth,
+            });
             check(saved, `${action}/${failure} checkpoint fixture saves`);
             const sync = loadBoundary('gameStateSync.js', {
                 vscode: createVscodeStub(),
@@ -180,6 +184,7 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
                 './workspacePaths': { ...realWorkspacePaths, getWorkspacePath: () => root, getGameStatePath: () => statePath },
                 './checkpoint': checkpoint,
                 './checkpointCombatCore': checkpointCombat,
+                './checkpointSnapshot': checkpointSnapshot,
                 './entryId': { isValidEntryId: () => true },
                 './i18n': { t: key => key },
                 './mods/modActivationGateHost': activation,
@@ -204,7 +209,12 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
             if (failure === 'none') {
                 equal(replayGuard.getAcceptedTurnRestoreRepairLatchOutcome(root), undefined, 'successful matching restore has no repair latch');
                 check(messages.length === 1 && errors.length === 0, 'successful matching restore reports success');
-                equal(JSON.parse(fs.readFileSync(statePath)).entries[0].id, 'gm-1', 'successful matching restore persists target state');
+                const restoredEntries = JSON.parse(fs.readFileSync(statePath)).entries;
+                if (action === 'checkpoint') {
+                    equal(restoredEntries.map(entry => entry.id), ['user-1', 'gm-1'], 'complete checkpoint restore persists the exact saved entry set');
+                } else {
+                    equal(restoredEntries[0].id, 'gm-1', 'successful matching restore persists target state');
+                }
             } else {
                 equal(replayGuard.getAcceptedTurnRestoreRepairLatchOutcome(root)?.kind, 'repairRequired', `${action}/${failure} rejected write installs a real repair latch`);
                 equal(messages.length, 0, `${action}/${failure} rejected write never reports success`);
@@ -370,6 +380,32 @@ async function main() {
         await checkpointHandlers.handleRestoreCheckpoint('cp-1');
         equal(restoreTransactions, 0, 'lock mismatch restore stops before timeline rotation/restore transaction');
         equal(restoreWrites, 0, 'lock mismatch restore performs zero history/state writes');
+        const matchingCp = {
+            ...cp,
+            modLockSnapshot: resolved.lock,
+            modLockFingerprint: resolved.lock.aggregateHash,
+        };
+        const busyHandlers = loadBoundary('checkpointHandlers.js', {
+            vscode,
+            './workspacePaths': { getWorkspacePath: () => workspaceRoot, getGameStatePath: () => path.join(workspaceRoot, 'game_state.json') },
+            './checkpoint': { loadCheckpointFile: () => matchingCp },
+            './mods/modActivationGateHost': activation,
+            './mods/modActivationGateCore': restoreCore,
+            './acceptedTurnReplayGuard': { runAcceptedTurnTimelineRestoreTransaction: async () => { restoreTransactions++; return {}; } },
+        });
+        busyHandlers.initCheckpointHandlers({
+            getPanel: () => undefined,
+            isGameOverActive: () => false,
+            mutationGate: {
+                run: async () => ({
+                    status: 'busy', code: 'WORLD_MUTATION_IN_PROGRESS',
+                    owner: { actionKind: 'shopkeeper_trade', requestId: 'existing-request', elapsedMs: 1 },
+                }),
+            },
+        });
+        await busyHandlers.handleRestoreCheckpoint('cp-1');
+        equal(restoreTransactions, 0, 'workspace mutation contention stops restore before timeline epoch rotation');
+        equal(restoreWrites, 0, 'workspace mutation contention performs zero history/state writes');
         const legacy = { ...cp, format: 'text-adventure-checkpoint/1.0' };
         delete legacy.modLockSnapshot;
         delete legacy.modLockFingerprint;

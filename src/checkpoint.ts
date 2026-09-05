@@ -15,6 +15,15 @@ import {
     type ModCanonicalAuthorization,
 } from './mods/modActivationGateHost';
 import { validateModLock, type ModLock } from './mods/modProfileCore';
+import { migrateGameState } from './migrateGameState';
+import { sanitizeGameStateForPersist } from './gameStateSanitize';
+import { validateGameState } from './validateGameState';
+import {
+    captureCheckpointStateSnapshot,
+    isCheckpointStateSnapshotCurrent,
+    parseCheckpointStateSnapshot,
+    type CheckpointStateSnapshot,
+} from './checkpointSnapshot';
 
 export type { CombatBattleHistoryEntry };
 export {
@@ -31,8 +40,8 @@ export interface CheckpointMeta {
 }
 
 export interface CheckpointFile {
-    /** 1.0: history. 1.1: combat history. 1.2: exact MOD-lock evidence. */
-    format: 'text-adventure-checkpoint/1.0' | 'text-adventure-checkpoint/1.1' | 'text-adventure-checkpoint/1.2';
+    /** 1.0: history. 1.1: combat history. 1.2: MOD evidence. 1.3: complete mutable-state snapshot. */
+    format: 'text-adventure-checkpoint/1.0' | 'text-adventure-checkpoint/1.1' | 'text-adventure-checkpoint/1.2' | 'text-adventure-checkpoint/1.3';
     meta: CheckpointMeta;
     history: GameEntry[];
     /**
@@ -44,6 +53,8 @@ export interface CheckpointFile {
     modLockSnapshot?: ModLock;
     /** Exact aggregateHash of modLockSnapshot. */
     modLockFingerprint?: string;
+    /** Complete enumerated mutable-state snapshot. Required in 1.3 and absent from legacy formats. */
+    stateSnapshot?: CheckpointStateSnapshot;
 }
 
 export interface GmSnapshot {
@@ -60,6 +71,24 @@ export interface GmSnapshot {
     summary?: string;
     gameOver?: unknown;
     combatBattleHistory?: CombatBattleHistoryEntry[];
+}
+
+const MAX_CHECKPOINT_FILE_BYTES = 64 * 1024 * 1024;
+
+export function serializeCheckpointForStorage(value: unknown): string | undefined {
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch {
+        return undefined;
+    }
+}
+
+function readCheckpointJson(filePath: string): unknown {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_CHECKPOINT_FILE_BYTES) {
+        throw new Error('checkpoint file is not a bounded regular file');
+    }
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
 }
 
 export function getCheckpointsDir(ws: string): string {
@@ -156,7 +185,7 @@ export function listCheckpointMetas(ws: string): CheckpointMeta[] {
             continue;
         }
         try {
-            const data = parseCheckpointFile(JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as unknown);
+            const data = parseCheckpointFile(readCheckpointJson(path.join(dir, file)));
             if (data?.meta.id) {
                 metas.push(data.meta);
             }
@@ -208,6 +237,23 @@ export function saveCheckpointFile(
         turnLabel: gm.content.slice(0, 60).replace(/\s+/g, ' ').trim()
     };
 
+    let rawGameState = options?.gameState;
+    if (!rawGameState) {
+        try {
+            const statePath = path.join(ws, 'game_state.json');
+            const raw = JSON.parse(fs.readFileSync(statePath, 'utf8')) as unknown;
+            if (isRecord(raw)) rawGameState = raw;
+        } catch {
+            return undefined;
+        }
+    }
+    if (!rawGameState) return undefined;
+    const migrated = migrateGameState(rawGameState).state as Record<string, unknown>;
+    const snapshotGameState = sanitizeGameStateForPersist(migrated);
+    if (validateGameState(snapshotGameState).length > 0) return undefined;
+    const stateSnapshot = captureCheckpointStateSnapshot(ws, snapshotGameState);
+    if (!stateSnapshot) return undefined;
+
     let combatBattleHistory = options?.combatBattleHistory
         ? options.combatBattleHistory.map((e) => ({ ...e }))
         : extractCombatBattleHistoryForCheckpoint(options?.gameState);
@@ -234,13 +280,10 @@ export function saveCheckpointFile(
         ? JSON.parse(JSON.stringify(validatedLock.value)) as ModLock
         : undefined;
     const payload: CheckpointFile = {
-        format: modLockSnapshot
-            ? 'text-adventure-checkpoint/1.2'
-            : combatBattleHistory && combatBattleHistory.length > 0
-                ? 'text-adventure-checkpoint/1.1'
-                : 'text-adventure-checkpoint/1.0',
+        format: 'text-adventure-checkpoint/1.3',
         meta,
         history: JSON.parse(JSON.stringify(history)),
+        stateSnapshot,
         ...(combatBattleHistory && combatBattleHistory.length > 0
             ? { combatBattleHistory: JSON.parse(JSON.stringify(combatBattleHistory)) }
             : {}),
@@ -256,11 +299,14 @@ export function saveCheckpointFile(
         && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
         return undefined;
     }
+    if (!isCheckpointStateSnapshotCurrent(ws, stateSnapshot, options?.gameState === undefined)) return undefined;
     fs.mkdirSync(dir, { recursive: true });
     if (options?.modAuthorization
         && !isModCanonicalAuthorizationCurrent(options.modAuthorization)) {
         return undefined;
     }
+    const serializedPayload = serializeCheckpointForStorage(payload);
+    if (!serializedPayload || Buffer.byteLength(serializedPayload, 'utf8') > MAX_CHECKPOINT_FILE_BYTES) return undefined;
     writeJsonAtomic(path.join(dir, `${id}.json`), payload);
     return meta;
 }
@@ -274,7 +320,7 @@ export function loadCheckpointFile(ws: string, checkpointId: string): Checkpoint
         return undefined;
     }
     try {
-        return parseCheckpointFile(JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown);
+        return parseCheckpointFile(readCheckpointJson(filePath));
     } catch {
         return undefined;
     }
@@ -287,7 +333,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Validates the format-level contract while preserving legacy 1.0/1.1 payload compatibility. */
 export function parseCheckpointFile(value: unknown): CheckpointFile | undefined {
     if (!isRecord(value)
-        || !['text-adventure-checkpoint/1.0', 'text-adventure-checkpoint/1.1', 'text-adventure-checkpoint/1.2'].includes(String(value.format))
+        || !['text-adventure-checkpoint/1.0', 'text-adventure-checkpoint/1.1', 'text-adventure-checkpoint/1.2', 'text-adventure-checkpoint/1.3'].includes(String(value.format))
         || !isRecord(value.meta)
         || !isValidCheckpointId(value.meta.id as string)
         || typeof value.meta.label !== 'string'
@@ -304,9 +350,32 @@ export function parseCheckpointFile(value: unknown): CheckpointFile | undefined 
             || value.modLockFingerprint !== lock.value.aggregateHash) {
             return undefined;
         }
+    } else if (value.format === 'text-adventure-checkpoint/1.3') {
+        const snapshot = parseCheckpointStateSnapshot(value.stateSnapshot);
+        if (!snapshot || validateGameState(snapshot.gameState).length > 0) return undefined;
+        const hasLock = value.modLockSnapshot !== undefined || value.modLockFingerprint !== undefined;
+        const snapshotFingerprints = new Set<string>();
+        const snapshotEntries = Array.isArray(snapshot.gameState.entries) ? snapshot.gameState.entries : [];
+        for (const entry of snapshotEntries) {
+            if (!isRecord(entry) || !Object.prototype.hasOwnProperty.call(entry, 'modContext')) continue;
+            const context = parseModContext(entry.modContext);
+            if (!context) return undefined;
+            snapshotFingerprints.add(context.lockFingerprint);
+        }
+        if (snapshotFingerprints.size > 0 && !hasLock) return undefined;
+        if (hasLock) {
+            const lock = validateModLock(value.modLockSnapshot);
+            if (!lock.ok
+                || typeof value.modLockFingerprint !== 'string'
+                || value.modLockFingerprint !== lock.value.aggregateHash
+                || [...snapshotFingerprints].some(fingerprint => fingerprint !== lock.value.aggregateHash)) {
+                return undefined;
+            }
+        }
     } else if (value.modLockSnapshot !== undefined || value.modLockFingerprint !== undefined) {
         return undefined;
     }
+    if (value.format !== 'text-adventure-checkpoint/1.3' && value.stateSnapshot !== undefined) return undefined;
     return value as unknown as CheckpointFile;
 }
 

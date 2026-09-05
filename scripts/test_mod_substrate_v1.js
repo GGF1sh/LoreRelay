@@ -571,12 +571,41 @@ async function main() {
             sender: 'Game Master',
             content: 'verified history',
             modContext: historyContext,
-        }], 'MOD checkpoint', { modLockSnapshot: activationResolved.lock, modAuthorization: checkpointAuthorization });
-        check(checkpointMeta, 'checkpoint 1.2 save succeeds with a verified lock snapshot');
+        }], 'MOD checkpoint', {
+            gameState: { schemaVersion: 2, entries: [] },
+            modLockSnapshot: activationResolved.lock,
+            modAuthorization: checkpointAuthorization,
+        });
+        check(checkpointMeta, 'checkpoint 1.3 save succeeds with a verified lock snapshot');
         const loadedCheckpoint = checkpoint.loadCheckpointFile(checkpointRoot, checkpointMeta.id);
-        equal(loadedCheckpoint.format, 'text-adventure-checkpoint/1.2', 'modded checkpoint uses format 1.2');
+        equal(loadedCheckpoint.format, 'text-adventure-checkpoint/1.3', 'modded checkpoint uses complete-state format 1.3');
         equal(loadedCheckpoint.modLockFingerprint, activationResolved.lock.aggregateHash, 'checkpoint fingerprint binds the complete snapshot');
         equal(loadedCheckpoint.history[0].modContext, historyContext, 'checkpoint history preserves coarse MOD provenance');
+        const hiddenSnapshotEvidence = JSON.parse(JSON.stringify(loadedCheckpoint));
+        delete hiddenSnapshotEvidence.modLockSnapshot;
+        delete hiddenSnapshotEvidence.modLockFingerprint;
+        hiddenSnapshotEvidence.stateSnapshot.gameState.entries = [{
+            id: 'snapshot-mod', role: 'gm', sender: 'Game Master', content: 'snapshot MOD', modContext: historyContext,
+        }];
+        equal(checkpoint.parseCheckpointFile(hiddenSnapshotEvidence), undefined, 'checkpoint parser rejects MOD provenance hidden only inside a 1.3 state snapshot');
+        equal(activationCore.assessModCheckpointRestore({
+            activeDecision: {
+                mode: 'unmodded', contributionsActive: false, canonicalWritesAllowed: true,
+                providerRequestsAllowed: true, blockers: [], warnings: [],
+            },
+            checkpoint: hiddenSnapshotEvidence,
+        }).allowed, false, 'restore gate rejects snapshot-only MOD provenance without top-level lock evidence');
+        const mismatchedSnapshotEvidence = JSON.parse(JSON.stringify(loadedCheckpoint));
+        mismatchedSnapshotEvidence.stateSnapshot.gameState.entries = [{
+            id: 'snapshot-other', role: 'gm', sender: 'Game Master', content: 'snapshot mismatch',
+            modContext: { ...historyContext, lockFingerprint: `sha256:${'0'.repeat(64)}` },
+        }];
+        equal(checkpoint.parseCheckpointFile(mismatchedSnapshotEvidence), undefined, 'checkpoint parser rejects snapshot provenance that disagrees with the top-level lock');
+        equal(activationCore.assessModCheckpointRestore({
+            activeDecision: activated.decision,
+            activeLock: activationResolved.lock,
+            checkpoint: mismatchedSnapshotEvidence,
+        }).code, 'CHECKPOINT_MOD_FIELDS_INVALID', 'restore gate rejects a snapshot fingerprint mismatch before active-lock comparison');
         equal(activationCore.assessModCheckpointRestore({
             activeDecision: activated.decision,
             activeLock: activationResolved.lock,
@@ -618,8 +647,19 @@ async function main() {
         equal(unmodded.decision.mode, 'unmodded', 'no profile, lock, or provenance preserves unmodded startup');
         const legacyMeta = checkpoint.saveCheckpointFile(unmoddedRoot, [{
             id: 'turn-legacy', role: 'gm', sender: 'Game Master', content: 'legacy',
-        }], 'Legacy checkpoint');
-        equal(checkpoint.loadCheckpointFile(unmoddedRoot, legacyMeta.id).format, 'text-adventure-checkpoint/1.0', 'unmodded checkpoint remains byte-contract compatible format 1.0');
+        }], 'Complete checkpoint', { gameState: { schemaVersion: 2, entries: [] } });
+        equal(checkpoint.loadCheckpointFile(unmoddedRoot, legacyMeta.id).format, 'text-adventure-checkpoint/1.3', 'new unmodded checkpoint uses complete-state format 1.3');
+        const hiddenEvidenceDir = path.join(unmoddedRoot, '.text-adventure', 'checkpoints');
+        const hiddenEvidenceFile = JSON.parse(JSON.stringify(hiddenSnapshotEvidence));
+        hiddenEvidenceFile.meta.id = 'cp-9999999999999';
+        fs.writeFileSync(path.join(hiddenEvidenceDir, `${hiddenEvidenceFile.meta.id}.json`), JSON.stringify(hiddenEvidenceFile), 'utf8');
+        const hiddenEvidenceOpen = await activationHost.evaluateModActivationGate({
+            globalStorageRoot,
+            workspaceRoot: unmoddedRoot,
+            currentLoreRelayVersion: '1.84.32',
+            adultSessionAllowed: false,
+        });
+        equal(hiddenEvidenceOpen.decision.mode, 'safe-required', 'campaign evidence scan detects MOD provenance inside a 1.3 state snapshot');
 
         const malformedEvidenceRoot = path.join(tempRoot, 'malformed-evidence-campaign');
         fs.mkdirSync(malformedEvidenceRoot, { recursive: true });

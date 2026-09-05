@@ -1,6 +1,6 @@
 # CHECKPOINT-COMPLETE-STATE-R2
 
-Status: REPAIR_VERIFYING
+Status: VERIFIED_PR_PENDING
 
 Risk: High — save data, restore authority, multi-file rollback
 
@@ -56,13 +56,10 @@ latch; this slice does not claim filesystem-level atomic rename across multiple 
 
 ## Verification
 
-- Independent review: the GPT-6 Pro R2 finding on main was the single review stage for this lane.
-- Focused: complete-state snapshot `39/39`; MOD activation boundaries `132`; MOD substrate `191`.
-- Test Console plan: 19 selected commands passed; the pre-existing synchronized writer-lease race
-  was timing-flaky in the plan and passed on the same HEAD in isolated verification. No R2 command
-  or assertion failed.
-- Final unchanged executable tree: full suite `344/344`; Combat `736/736`.
-- PR exact-head Code Review found two P1 boundary gaps. The repair now measures the exact indented
+- Review: the GPT-6 Pro R2 finding was the independent discovery stage. The automatically triggered
+  PR exact-head Code Review found two P1 boundary gaps. The repair measures the exact indented
   checkpoint serialization written to disk, and rejects/detects MOD provenance hidden in or
-  inconsistent with a 1.3 authoritative state snapshot. Direct repair regressions pass; the prior
-  full-suite result is superseded because executable code changed.
+  inconsistent with a 1.3 authoritative state snapshot.
+- Repair focused: complete-state snapshot `41/41`; MOD activation boundaries `132`; MOD substrate
+  `196`; Test Console plan `19/19` selected tests and `22/22` commands.
+- Final unchanged executable tree after repair: full suite `344/344`; Combat `736/736`.

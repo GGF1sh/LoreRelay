@@ -5,7 +5,7 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { randomBytes, timingSafeEqual } from 'crypto';
 import type { MapOverlaySnapshot } from './mapOverlayCore';
 import { buildWorkspaceMapOverlay } from './mapOverlayBridge';
 import type { GameEntry, GameState, HiddenDiceEntry } from './types/GameState';
@@ -53,14 +53,17 @@ interface WsConnection {
     authTimer?: NodeJS.Timeout;
 }
 
-interface RemotePlayerState {
-    entries: Array<Pick<GameEntry, 'id' | 'role' | 'sender' | 'content' | 'image'>>;
+interface LogicalMediaRef { readonly id: string; }
+
+// Logical snapshots contain only opaque references, never filesystem paths or signed URLs.
+interface RemotePlayerState<Media = string> {
+    entries: Array<Pick<GameEntry, 'id' | 'role' | 'sender' | 'content'> & { image?: Media }>;
     status?: GameState['status'];
     options?: string[];
     theme?: string;
     gameOver?: GameState['gameOver'];
-    latestImage?: string;
-    background?: string;
+    latestImage?: Media;
+    background?: Media;
     hiddenDice?: HiddenDiceEntry[];
     locale: string;
     /** FoW-safe map overlay snapshot (M2 choke point). */
@@ -70,12 +73,15 @@ interface RemotePlayerState {
 let deps: RemotePlayServerDeps | undefined;
 let httpServer: http.Server | undefined;
 let sessionToken = '';
+let spectatorToken = '';
+let mediaSigningSecret = '';
+const mediaFiles = new Map<string, string>();
 let listenPort = 0;
 let listenHost = '0.0.0.0';
 let wss: WebSocketServer | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 const wsClients = new Map<string, WsConnection>();
-let lastBroadcastState: RemotePlayerState | undefined;
+let lastBroadcastState: RemotePlayerState<LogicalMediaRef> | undefined;
 let gmBusyFlag = false;
 let remoteInputLocked = false;
 let remoteInputLockTimer: NodeJS.Timeout | undefined;
@@ -171,10 +177,6 @@ function getConfig() {
     };
 }
 
-function normalizeRole(value: unknown, fallback: RemotePlayRole): RemotePlayRole {
-    return value === 'spectator' ? 'spectator' : value === 'player' ? 'player' : fallback;
-}
-
 function isLocalhostBind(host: string): boolean {
     return host === '127.0.0.1' || host === 'localhost' || host === '::1';
 }
@@ -198,23 +200,17 @@ function getAccessBaseUrls(port: number, bindHost: string): string[] {
     return [...new Set(urls)];
 }
 
-function maskToken(token: string): string {
-    if (!token || token.length < 8) {
-        return '****';
-    }
-    return `${token.slice(0, 4)}…${token.slice(-4)}`;
-}
-
 function buildAccessUrl(base: string, role?: RemotePlayRole): string {
     const sep = base.includes('?') ? '&' : '?';
-    let url = `${base}${sep}token=${encodeURIComponent(sessionToken)}`;
+    const token = role === 'spectator' ? spectatorToken : sessionToken;
+    let url = `${base}${sep}token=${encodeURIComponent(token)}`;
     if (role === 'spectator') {
         url += '&role=spectator';
     }
     return url;
 }
 
-function resolveMediaHttpUrl(imagePath: string | undefined): string | undefined {
+function registerMedia(imagePath: string | undefined): LogicalMediaRef | undefined {
     if (!imagePath || !sessionToken) {
         return undefined;
     }
@@ -222,21 +218,36 @@ function resolveMediaHttpUrl(imagePath: string | undefined): string | undefined 
     if (!isAllowedImagePath(normalized)) {
         return undefined;
     }
-    const cfg = getConfig();
-    // Short-TTL HMAC URL — session token is never embedded in image URLs.
-    return buildSignedMediaPath(normalized, sessionToken, cfg.mediaUrlTtlSec);
+    for (const [id, file] of mediaFiles) {
+        if (file === normalized) { return { id }; }
+    }
+    const id = randomBytes(16).toString('hex');
+    mediaFiles.set(id, normalized);
+    return { id };
 }
 
-function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemotePlayerState {
+function materializeRemotePlayerState(snapshot: RemotePlayerState<LogicalMediaRef>): RemotePlayerState {
+    const ttl = getConfig().mediaUrlTtlSec;
+    const url = (ref: LogicalMediaRef | undefined): string | undefined =>
+        ref && mediaFiles.has(ref.id) ? buildSignedMediaPath(ref.id, mediaSigningSecret, ttl) : undefined;
+    return {
+        ...snapshot,
+        entries: snapshot.entries.map(({ image, ...entry }) => ({ ...entry, image: url(image) })),
+        latestImage: url(snapshot.latestImage),
+        background: url(snapshot.background),
+    };
+}
+
+function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemotePlayerState<LogicalMediaRef> {
     const locale = getConfiguredLocale();
     const mappedEntries = entries.map((entry) => {
-        const row: RemotePlayerState['entries'][number] = {
+        const row: RemotePlayerState<LogicalMediaRef>['entries'][number] = {
             id: entry.id,
             role: entry.role,
             sender: entry.sender,
             content: entry.content
         };
-        const imageUrl = resolveMediaHttpUrl(entry.image);
+        const imageUrl = registerMedia(entry.image);
         if (imageUrl) {
             row.image = imageUrl;
         }
@@ -266,8 +277,8 @@ function buildRemotePlayerState(state: GameState, entries: GameEntry[]): RemoteP
         options: Array.isArray(state.options) ? [...state.options] : undefined,
         theme: state.theme,
         gameOver: state.gameOver,
-        latestImage: resolveMediaHttpUrl(state.latestImage),
-        background: resolveMediaHttpUrl(state.background),
+        latestImage: registerMedia(state.latestImage),
+        background: registerMedia(state.background),
         hiddenDice,
         locale,
         mapOverlay: buildWorkspaceMapOverlay(currentLocationId),
@@ -336,16 +347,27 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
         });
         return;
     }
-    let msg: Record<string, unknown>;
+    let parsed: unknown;
     try {
-        msg = JSON.parse(raw);
+        parsed = JSON.parse(raw);
     } catch {
         sendToClient(client, { type: 'error', message: 'Invalid JSON' }, true);
         return;
     }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        sendToClient(client, { type: 'error', message: 'Invalid message' }, true);
+        return;
+    }
+    const msg = parsed as Record<string, unknown>;
+    if (typeof msg.type !== 'string') {
+        sendToClient(client, { type: 'error', message: 'Invalid message type' }, true);
+        return;
+    }
 
     if (!client.authenticated) {
-        if (msg.type === 'auth' && tokensMatch(msg.token, sessionToken)) {
+        const role = tokensMatch(msg.token, sessionToken) ? 'player'
+            : tokensMatch(msg.token, spectatorToken) ? 'spectator' : undefined;
+        if (msg.type === 'auth' && role) {
             const cfg = getConfig();
             if (countAuthenticatedClients() >= cfg.maxClients) {
                 sendToClient(client, { type: 'error', message: 'Max clients exceeded' }, true, () => {
@@ -353,7 +375,7 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
                 });
                 return;
             }
-            client.role = normalizeRole(msg.role, cfg.defaultRole);
+            client.role = role;
             client.authenticated = true;
             if (client.authTimer) {
                 clearTimeout(client.authTimer);
@@ -367,7 +389,7 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
                 role: client.role
             }, true);
             if (lastBroadcastState) {
-                sendToClient(client, { type: 'state', state: lastBroadcastState, gmBusy: gmBusyFlag }, true);
+                sendToClient(client, { type: 'state', state: materializeRemotePlayerState(lastBroadcastState), gmBusy: gmBusyFlag }, true);
             }
             log(`Client authenticated (${client.id}, role=${client.role}). Active: ${wsClients.size}`);
             notifyHostRemotePlayStatus();
@@ -420,14 +442,15 @@ async function handleWsMessage(client: WsConnection, raw: string): Promise<void>
             d.getPanel()?.webview.postMessage({ type: 'remoteInput', text });
             try {
                 await d.onPlayerInput(text, authorsNote);
-            } catch (e) {
-                log(`Remote input failed: ${e instanceof Error ? e.message : String(e)}`);
+            } catch {
+                log('Remote input failed');
             } finally {
                 releaseRemoteInputLock();
             }
             break;
         }
         default:
+            sendToClient(client, { type: 'error', message: 'Unsupported message type' });
             break;
     }
 }
@@ -471,16 +494,15 @@ function serveMedia(reqUrl: URL, res: http.ServerResponse): void {
     const expRaw = reqUrl.searchParams.get('exp') || '';
     const sig = reqUrl.searchParams.get('sig') || '';
     const exp = Number.parseInt(expRaw, 10);
-    const auth = verifyMediaSignature(file, exp, sig, sessionToken);
+    const auth = verifyMediaSignature(file, exp, sig, mediaSigningSecret);
     if (!auth.ok) {
         res.writeHead(auth.reason === 'expired' ? 403 : 401);
         res.end(auth.reason === 'expired' ? 'Expired' : 'Unauthorized');
         return;
     }
-    // searchParams.get() already URL-decodes; calling decodeURIComponent again would
-    // enable double-encoded traversal sequences (%252F → %2F → /). Normalize directly.
-    const normalized = path.normalize(file);
-    const realPath = resolveAllowedImagePath(normalized);
+    // The signed file field is an opaque ID. Revalidate the server-owned path on every GET.
+    const registeredPath = mediaFiles.get(file);
+    const realPath = registeredPath ? resolveAllowedImagePath(registeredPath) : undefined;
     if (!realPath) {
         res.writeHead(403);
         res.end('Forbidden');
@@ -513,12 +535,13 @@ export function rotateRemotePlayToken(): string {
     if (!httpServer) {
         throw new Error('Remote play is not running');
     }
-    const previous = sessionToken;
     sessionToken = randomBytes(16).toString('hex');
+    spectatorToken = randomBytes(16).toString('hex');
+    mediaSigningSecret = randomBytes(32).toString('hex');
     for (const client of [...wsClients.values()]) {
         closeClient(client, 1008, 'Token rotated');
     }
-    log(`Remote play token rotated (${maskToken(previous)} → ${maskToken(sessionToken)})`);
+    log('Remote play credentials and media signing key rotated');
     return sessionToken;
 }
 
@@ -558,6 +581,8 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
     const d = requireDeps();
     const cfg = getConfig();
     sessionToken = randomBytes(16).toString('hex');
+    spectatorToken = randomBytes(16).toString('hex');
+    mediaSigningSecret = randomBytes(32).toString('hex');
     listenPort = cfg.port;
     listenHost = cfg.bindAddress;
 
@@ -591,7 +616,12 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
         wsClients.set(client.id, client);
 
         socket.on('message', (data) => {
-            void handleWsMessage(client, data.toString());
+            void Promise.resolve().then(() => handleWsMessage(client, data.toString())).catch(() => {
+                // Never serialize the exception: dependency errors may contain credentials.
+                // Contain failures in reporting too, so this terminal catch cannot reject.
+                try { log('Remote WebSocket message failed'); } catch { /* best effort */ }
+                try { closeClient(client, 1011, 'Message handling failed'); } catch { /* best effort */ }
+            });
         });
         socket.on('close', () => closeClient(client));
         socket.on('error', () => closeClient(client));
@@ -619,10 +649,10 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
                 res.writeHead(404);
                 res.end('Not Found');
             }
-        } catch (e) {
+        } catch {
             res.writeHead(500);
             res.end('Server Error');
-            log(`HTTP error: ${e}`);
+            log('Remote HTTP request failed');
         }
     });
 
@@ -644,9 +674,11 @@ export async function startRemotePlayServer(): Promise<RemotePlayStatus> {
         httpServer!.listen(listenPort, listenHost, () => resolve());
         httpServer!.on('error', reject);
     });
+    const address = httpServer.address();
+    if (address && typeof address !== 'string') { listenPort = address.port; }
 
     const bases = getAccessBaseUrls(listenPort, listenHost);
-    log(`Remote play started on ${listenHost}:${listenPort} (token=${maskToken(sessionToken)})`);
+    log(`Remote play started on ${listenHost}:${listenPort}`);
     for (const base of bases) {
         log(`  → ${base}`);
     }
@@ -668,6 +700,9 @@ export function stopRemotePlayServer(): void {
         httpServer = undefined;
     }
     sessionToken = '';
+    spectatorToken = '';
+    mediaSigningSecret = '';
+    mediaFiles.clear();
     listenPort = 0;
     lastBroadcastState = undefined;
     gmBusyFlag = false;
@@ -681,7 +716,7 @@ export function pushGameStateToRemoteClients(state: GameState, entries: GameEntr
     }
     const remoteState = buildRemotePlayerState(state, entries);
     lastBroadcastState = remoteState;
-    broadcast({ type: 'state', state: remoteState, gmBusy: gmBusyFlag });
+    broadcast({ type: 'state', state: materializeRemotePlayerState(remoteState), gmBusy: gmBusyFlag });
 }
 
 export function notifyRemoteGmBusy(busy: boolean): void {

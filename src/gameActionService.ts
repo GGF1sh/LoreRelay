@@ -124,6 +124,11 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
     function safeValid(context: TrustedActionExecutionContext, cap: ActionCapability) {
         try { return valid(context, cap); } catch { return false; }
     }
+    function readStable(context: TrustedActionExecutionContext): T {
+        const lease = bindings.mutationGate.acquire(context.workspaceId, { actionKind: 'action_read', requestId: randomUUID() });
+        if (lease.status !== 'acquired') throw new Error('rejected_busy');
+        try { return bindings.read(); } finally { lease.lease.release(); }
+    }
     return {
         // A caller must hold this in-process factory, not merely possess JSON with
         // the same fields. Public methods check object identity in the WeakMap.
@@ -142,11 +147,11 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
         },
         readPlayerView(context: TrustedActionExecutionContext) {
             if (!safeValid(context, 'action.list')) throw new Error('rejected_forbidden');
-            return copy(bindings.playerView(bindings.read()));
+            return copy(bindings.playerView(readStable(context)));
         },
         queryAvailable(context: TrustedActionExecutionContext) {
             if (!safeValid(context, 'action.list')) throw new Error('rejected_forbidden');
-            return available(context, bindings.read());
+            return available(context, readStable(context));
         },
         preview(context: TrustedActionExecutionContext, raw: unknown) {
             if (!safeValid(context, 'action.preview')) return { ok: false as const, classification: 'rejected_forbidden' as const };
@@ -156,7 +161,7 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             const normalized = parameters(raw.actionId, raw.parameters);
             if (!normalized) return { ok: false as const, classification: 'rejected_invalid' as const };
             try {
-                const state = bindings.read();
+                const state = readStable(context);
                 const projection = available(context, state);
                 if (raw.expectedActionSetHash !== undefined && raw.expectedActionSetHash !== projection.actionSetHash)
                     return { ok: false as const, classification: 'rejected_stale' as const };
@@ -173,7 +178,8 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
                     expires: now() + 120_000, approved: false });
                 return { ok: true as const, actionId, parameters: copy(normalized), quote: copy(quoted.quote),
                     actionSetHash: projection.actionSetHash, confirmationToken };
-            } catch { return { ok: false as const, classification: 'rejected_forbidden' as const }; }
+            } catch (error) { return { ok: false as const, classification: error instanceof Error && error.message === 'rejected_busy'
+                ? 'rejected_busy' as const : 'rejected_forbidden' as const }; }
         },
         /** Called only by a trusted adapter after the user selects confirm, or by
          * the fixture runner after validating all scripted-confirmation conditions. */
@@ -185,8 +191,8 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             return true;
         },
         async execute(context: TrustedActionExecutionContext, raw: unknown): Promise<GameActionReceipt> {
-            const actionId = object(raw) && typeof raw.actionId === 'string' ? raw.actionId : '';
-            const requestId = object(raw) && typeof raw.requestId === 'string' ? raw.requestId : '';
+            const actionId = object(raw) && typeof raw.actionId === 'string' && raw.actionId.length <= 64 ? raw.actionId : '';
+            const requestId = object(raw) && typeof raw.requestId === 'string' && raw.requestId.length <= 128 ? raw.requestId : '';
             const reject = (kind: GameActionClassification, result = {}) => receipt(actionId, requestId, kind, result);
             if (!safeValid(context, 'action.execute')) return reject('rejected_forbidden');
             if (!object(raw) || !exact(raw, ['actionId', 'requestId', 'parameters', 'expectedActionSetHash', 'confirmationToken'])
@@ -198,7 +204,11 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             const key = requestKey(context, requestId);
             const fingerprint = hashGameActionValue([actionId, normalized]);
             const prior = requests.get(key);
-            if (prior) return prior.fingerprint === fingerprint ? copy(await prior.promise) : reject('rejected_invalid');
+            if (prior) {
+                if (prior.fingerprint !== fingerprint) return reject('rejected_invalid');
+                const result = await prior.promise;
+                return safeValid(context, 'receipt.read') && key === requestKey(context, requestId) ? copy(result) : reject('rejected_forbidden');
+            }
             if (requests.size >= 1024) return reject('outcome_unknown');
             const handle = typeof raw.confirmationToken === 'string' ? handles.get(raw.confirmationToken) : undefined;
             if (!handle) return reject('outcome_unknown');
@@ -252,11 +262,13 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > 30_000) return receipt('', requestId, 'rejected_invalid');
             const prior = requests.get(requestKey(context, requestId));
             if (!prior) return { classification: 'outcome_unknown' };
+            const originalScope = scopeKey();
             let timer: ReturnType<typeof setTimeout> | undefined;
             try {
-                return copy(await Promise.race([prior.promise, new Promise<{ classification: 'outcome_unknown' }>(resolve => {
+                const result = await Promise.race([prior.promise, new Promise<{ classification: 'outcome_unknown' }>(resolve => {
                     timer = setTimeout(() => resolve({ classification: 'outcome_unknown' }), timeoutMs);
-                })]));
+                })]);
+                return safeValid(context, 'receipt.read') && originalScope === scopeKey() ? copy(result) : receipt('', requestId, 'rejected_forbidden');
             } finally { if (timer) clearTimeout(timer); }
         },
         inspect(context: TrustedActionExecutionContext) {

@@ -19,7 +19,7 @@
     { "id": "duplicate_unchanged", "op": "assert_state", "check": "unchanged", "from": "after_buy" },
     { "id": "different_quantity", "op": "expect_rejection", "phase": "execute", "previewFrom": "buy_quote", "request": { "requestId": "qa_buy_0001", "parameters": { "op": "buy", "marketLocationId": "north_farm", "commodityId": "wheat", "qty": 2 } }, "classification": "rejected_invalid" },
     { "id": "unknown_item", "op": "expect_rejection", "phase": "preview", "request": { "actionId": "commerce:trade", "parameters": { "op": "buy", "marketLocationId": "north_farm", "commodityId": "missing", "qty": 1 } }, "classification": "rejected_invalid" },
-    { "id": "insufficient_funds", "op": "expect_rejection", "phase": "preview", "request": { "actionId": "commerce:trade", "parameters": { "op": "buy", "marketLocationId": "north_farm", "commodityId": "wheat", "qty": 999 } }, "classification": "rejected_invalid" },
+    { "id": "insufficient_funds", "op": "expect_rejection", "phase": "preview", "request": { "actionId": "commerce:trade", "parameters": { "op": "buy", "marketLocationId": "north_farm", "commodityId": "wheat", "qty": 2 } }, "classification": "rejected_invalid" },
     { "id": "hidden_destination", "op": "expect_rejection", "phase": "preview", "request": { "actionId": "commerce:travel", "parameters": { "destinationId": "south_port" } }, "classification": "rejected_invalid" },
     { "id": "travel_quote", "op": "preview", "actionId": "commerce:travel", "parameters": { "destinationId": "elda_shop" } },
     { "id": "travel", "op": "execute", "previewFrom": "travel_quote", "requestId": "qa_travel_0001", "confirmed": true },

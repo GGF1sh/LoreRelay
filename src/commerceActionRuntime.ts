@@ -19,6 +19,7 @@ import { loadExistingAcceptedTurnScope, getAcceptedTurnRestoreRepairLatchOutcome
 import { acquireModCanonicalAuthorization, isModCanonicalAuthorizationCurrent } from './mods/modActivationGateHost';
 import type { GameState } from './types/GameState';
 import type { WorldIntent, JsonValue } from './worldIntentCore';
+import { validateGameState } from './validateGameState';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function readJson(file: string): unknown {
@@ -33,7 +34,7 @@ function readCommerceSnapshot(workspaceId: string) {
     const forge = loadWorldForge();
     const rawForge = loadWorldForgeDocument();
     const rules = loadGameRules();
-    if (!game || !Array.isArray(game.entries) || !world || !forge || !rawForge) throw new Error('state_unavailable');
+    if (!game || validateGameState(game).length || !world || !forge || !rawForge) throw new Error('state_unavailable');
     const commerceForge = resolveCommerceForge(forge, rawForge);
     const commerce = getOrInitPlayerCommerce(clone(game));
     commerce.playerRole = resolveDefaultPlayerRole(rules.playerRole, commerce.playerRole);
@@ -139,7 +140,7 @@ function execute(action: GameActionId, parameters: Record<string, unknown>, requ
 
 /** The runner and Webview both call this production binding, with the same owners.
  * No import of extension.ts and no alternate persistence implementation. */
-export async function createCommerceActionRuntime(mutationGate: DeterministicWorkspaceMutationGate) {
+async function buildCommerceActionRuntime(mutationGate: DeterministicWorkspaceMutationGate) {
     const workspaceId = getWorkspacePath();
     if (!workspaceId) throw new Error('workspace_unavailable');
     const authorization = await acquireModCanonicalAuthorization(workspaceId);
@@ -163,4 +164,21 @@ export async function createCommerceActionRuntime(mutationGate: DeterministicWor
         inspect: state => ({ game: state.game, world: state.world, ...(state.npc ? { npc: state.npc } : {}) }),
     };
     return { service: createGameActionService(bindings), authorized, workspaceId };
+}
+
+const runtimes = new WeakMap<DeterministicWorkspaceMutationGate, Map<string, Promise<Awaited<ReturnType<typeof buildCommerceActionRuntime>>>>>();
+export async function createCommerceActionRuntime(mutationGate: DeterministicWorkspaceMutationGate) {
+    const workspaceId = getWorkspacePath();
+    if (!workspaceId) throw new Error('workspace_unavailable');
+    let workspaces = runtimes.get(mutationGate);
+    if (!workspaces) { workspaces = new Map(); runtimes.set(mutationGate, workspaces); }
+    const prior = workspaces.get(workspaceId);
+    if (prior) {
+        const runtime = await prior;
+        if (runtime.authorized()) return runtime;
+    }
+    const pending = buildCommerceActionRuntime(mutationGate);
+    workspaces.set(workspaceId, pending);
+    try { return await pending; }
+    catch (error) { if (workspaces.get(workspaceId) === pending) workspaces.delete(workspaceId); throw error; }
 }

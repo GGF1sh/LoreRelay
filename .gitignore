@@ -15,6 +15,7 @@ bgm.json
 
 # NOAI soak deterministic fixtures are versioned test data, not live play files
 !scripts/noai_soak_scenarios/**/game_state.json
+!fixtures/action-scenarios/**/game_state.json
 
 # Player workspace data (ST compat, saga, memory)
 characters/

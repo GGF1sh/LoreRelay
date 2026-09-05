@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "entries": [],
+  "options": [],
+  "commerce": {
+    "credits": 20,
+    "cargo": [],
+    "transportId": "wagon",
+    "playerRole": "merchant",
+    "food": 30
+  },
+  "world": {
+    "discoveredRegionIds": [
+      "r_north",
+      "r_central"
+    ],
+    "currentLocationId": "north_farm",
+    "visitedLocationIds": [
+      "north_farm"
+    ]
+  }
+}

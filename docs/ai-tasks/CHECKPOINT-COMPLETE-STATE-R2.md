@@ -1,6 +1,6 @@
 # CHECKPOINT-COMPLETE-STATE-R2
 
-Status: IMPLEMENTED_VERIFYING
+Status: VERIFIED_PR_PENDING
 
 Risk: High — save data, restore authority, multi-file rollback
 
@@ -53,3 +53,12 @@ This does not restore arbitrary workspace files, runtime authority, pending/proc
 artifacts, media caches, immutable scenario/world definitions, or external provider sessions. A
 process crash during multi-file publication remains fail-closed through the durable restore repair
 latch; this slice does not claim filesystem-level atomic rename across multiple independent files.
+
+## Verification
+
+- Independent review: the GPT-6 Pro R2 finding on main was the single review stage for this lane.
+- Focused: complete-state snapshot `39/39`; MOD activation boundaries `132`; MOD substrate `191`.
+- Test Console plan: 19 selected commands passed; the pre-existing synchronized writer-lease race
+  was timing-flaky in the plan and passed on the same HEAD in isolated verification. No R2 command
+  or assertion failed.
+- Final unchanged executable tree: full suite `344/344`; Combat `736/736`.

@@ -1,6 +1,7 @@
 # GAME-ACTION-DRIVER-V1-COMMERCE
 
-Status: implementation in progress. Risk: **High**.
+Status: implemented; High Risk local verification passed. Risk: **High**.
+Integration evidence and final exact-head/main CI: [PR #100](https://github.com/GGF1sh/LoreRelay/pull/100).
 Base: `32529df244937f3858064a6ecd2c0785eb8ed9ab`.
 Branch: `feat/GAME-ACTION-DRIVER-V1-COMMERCE`.
 Contract: [Automation Control Plane V1](LORERELAY-AUTOMATION-CONTROL-PLANE-V1.md).
@@ -90,6 +91,19 @@ expired confirmation, epoch change, partial/unknown outcomes and bounded wait.
   replacement is displayed, and a second explicit confirmation advances turn 0→1.
   Zero page exceptions. The service test exhausts one caller's 1024-request capacity,
   verifies another caller can execute, then closes/reopens without losing capacity.
-- Final repair Test Console, local full suite and exact-head CI pending.
+- Final repair Test Console at `d660c5415020f869b7bf2f81c31f1636dc998d99`:
+  complete plan, zero unknown files; **29 passed, 0 failed, 0 skipped**, including
+  26 focused tests plus compile/boundaries. Artifact directory:
+  `.test-runs/2026-09-05T16-18-06-610Z-d660c541`.
+- One local full suite on the final executable tree at the same commit:
+  **345/345 passed**, 171.8 seconds. Included Combat manifest execution:
+  **16 groups, 736 tests, 736 passed, 0 failed**. No Combat implementation changed.
+  Log: `.test-runs/commerce-full-suite.log`. Subsequent evidence-only documentation
+  updates do not change the tested executable tree or require another full suite.
+- CI run `33977448283` at that exact code commit passed both validate-and-smoke and
+  coverage. All three independent review threads received repair evidence and were
+  resolved. Final documentation-head CI and post-merge main CI are recorded in PR #100.
+- Human Play remains unperformed. The owner explicitly permits this slice to be
+  implemented before Human Play; fixture/renderer automation does not replace it.
 
 Exclusions and threat boundaries remain those in the linked architecture contract.

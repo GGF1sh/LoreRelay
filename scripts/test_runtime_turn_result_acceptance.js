@@ -302,6 +302,53 @@ function makeStatePatchMocks(tempDir, options = {}) {
     let ledgerCalls = 0;
     let lastCommitState;
     let lastCommitConfig;
+    let simulationCalls = 0;
+    let revisionReadCount = 0;
+    const sideEffectEvents = [];
+    let worldDeferralActive = false;
+    let npcDeferralActive = false;
+
+    const worldStateMock = {
+        beginWorldStateWriteDeferral() {
+            if (worldDeferralActive) return false;
+            worldDeferralActive = true;
+            sideEffectEvents.push('world-begin');
+            return true;
+        },
+        commitWorldStateWriteDeferral() {
+            if (!worldDeferralActive) return false;
+            worldDeferralActive = false;
+            sideEffectEvents.push('world-publish');
+            return true;
+        },
+        rollbackWorldStateWriteDeferral() {
+            worldDeferralActive = false;
+            sideEffectEvents.push('world-rollback');
+        },
+        loadWorldState() { return undefined; },
+        saveWorldState() { sideEffectEvents.push('world-stage'); return true; },
+    };
+
+    const npcRegistryMock = {
+        applyNpcMemoryUpdates() {},
+        beginNpcRegistryWriteDeferral() {
+            if (npcDeferralActive) return false;
+            npcDeferralActive = true;
+            sideEffectEvents.push('npc-begin');
+            return true;
+        },
+        commitNpcRegistryWriteDeferral() {
+            if (!npcDeferralActive) return false;
+            npcDeferralActive = false;
+            sideEffectEvents.push('npc-publish');
+            return true;
+        },
+        rollbackNpcRegistryWriteDeferral() {
+            npcDeferralActive = false;
+            sideEffectEvents.push('npc-rollback');
+        },
+        loadNpcRegistry() { return { npcs: {} }; },
+    };
 
     return {
         statePath,
@@ -309,6 +356,8 @@ function makeStatePatchMocks(tempDir, options = {}) {
         get ledgerCalls() { return ledgerCalls; },
         get lastCommitState() { return lastCommitState; },
         get lastCommitConfig() { return lastCommitConfig; },
+        get simulationCalls() { return simulationCalls; },
+        sideEffectEvents,
         mocks: {
             vscode: createVscodeStub(),
             './worldForge': { isWorldForgeEnabled() { return false; }, loadWorldForge() { return undefined; } },
@@ -349,6 +398,7 @@ function makeStatePatchMocks(tempDir, options = {}) {
             './i18n': { t(key) { return key; } },
             './stateManager': {
                 commitGameState(value, config) {
+                    sideEffectEvents.push('game-commit');
                     commitCalls++;
                     lastCommitState = value;
                     lastCommitConfig = config;
@@ -357,7 +407,14 @@ function makeStatePatchMocks(tempDir, options = {}) {
                         : { ok: true, action: 'write' };
                 },
             },
-            './workspaceStateQueueCore': { readStateRevision() { return 0; } },
+            './workspaceStateQueueCore': {
+                readStateRevision() {
+                    const revisions = Array.isArray(options.stateRevisions) ? options.stateRevisions : undefined;
+                    return revisions
+                        ? (revisions[Math.min(revisionReadCount++, revisions.length - 1)] ?? 0)
+                        : 0;
+                },
+            },
             './livingWorldCommercePersist': { flushScheduledCommercePersist() {} },
             './gameRules': {
                 loadGameRules() {
@@ -373,22 +430,28 @@ function makeStatePatchMocks(tempDir, options = {}) {
                     };
                 },
             },
-            './worldState': {
-                loadWorldState() { return undefined; },
-                saveWorldState() {},
-            },
-            './npcRegistry': {
-                applyNpcMemoryUpdates() {},
-                loadNpcRegistry() { return { npcs: {} }; },
-            },
+            './worldState': worldStateMock,
+            './npcRegistry': npcRegistryMock,
             './factionReputationCore': {
                 applyPlayerReputationToFactions(factions) { return factions; },
                 deriveQuestCompletionDeltas() { return []; },
                 parseReputationOps() { return []; },
             },
             './migrateGameState': { CURRENT_SCHEMA_VERSION: 2 },
-            './narrativeTimePassageCore': { clampElapsedWorldTurns() { return 0; } },
-            './worldSimPersist': { persistWorldSimulationSteps() { return { ok: true }; } },
+            './narrativeTimePassageCore': {
+                clampElapsedWorldTurns(value) {
+                    return typeof options.elapsedWorldTurns === 'number'
+                        ? options.elapsedWorldTurns
+                        : (typeof value === 'number' ? value : 0);
+                },
+            },
+            './worldSimPersist': {
+                persistWorldSimulationSteps() {
+                    simulationCalls++;
+                    sideEffectEvents.push('world-stage');
+                    return { ok: true };
+                },
+            },
             './livingWorldTurnOps': { applyLivingWorldTurnOps(turnResult, state) { return state; } },
             './domainTurnOps': {
                 applyDomainTurnOps(turnResult, state) { return state; },
@@ -468,6 +531,8 @@ function loadStatePatchHarness(options = {}) {
         get ledgerCalls() { return setup.ledgerCalls; },
         get lastCommitState() { return setup.lastCommitState; },
         get lastCommitConfig() { return setup.lastCommitConfig; },
+        get simulationCalls() { return setup.simulationCalls; },
+        get sideEffectEvents() { return setup.sideEffectEvents; },
     };
 }
 
@@ -929,14 +994,44 @@ async function runAsyncCases() {
 
     {
         const commitHarness = loadStatePatchHarness({
+            elapsedWorldTurns: 1,
             commitGameState() {
                 return { ok: false, action: 'skip', reason: ['conflict'] };
             },
         });
-        const rejected = commitHarness.module.processTurnResult(baseTurnResult('turn-commit-fail'));
+        const rejected = commitHarness.module.processTurnResult({
+            ...baseTurnResult('turn-commit-fail'),
+            elapsedWorldTurns: 1,
+        });
         assert(rejected === false, 'canonical commit failure returns false');
         assert(commitHarness.commitCalls === 1, 'canonical commit failure reaches commit exactly once');
         assert(commitHarness.ledgerCalls === 0, 'canonical commit failure does not run post-commit ledgers');
+        assert(commitHarness.simulationCalls === 1, 'commit failure may compute one deferred world simulation');
+        assert(!commitHarness.sideEffectEvents.includes('world-publish'), 'commit failure never publishes deferred world state');
+        assert(!commitHarness.sideEffectEvents.includes('npc-publish'), 'commit failure never publishes deferred NPC state');
+        assert(commitHarness.sideEffectEvents.includes('world-rollback'), 'commit failure rolls back deferred world state');
+        assert(commitHarness.sideEffectEvents.includes('npc-rollback'), 'commit failure rolls back deferred NPC state');
+    }
+
+    // R1: a fresh game_state revision reapply must not execute elapsed-world simulation twice.
+    {
+        const harness = loadStatePatchHarness({
+            elapsedWorldTurns: 1,
+            stateRevisions: [0, 1],
+        });
+        const accepted = harness.module.processTurnResult({
+            ...baseTurnResult('turn-revision-race'),
+            elapsedWorldTurns: 1,
+        });
+        assert(Boolean(accepted), 'fresh-revision turn remains Accepted');
+        assert(harness.simulationCalls === 1, 'fresh-revision reapply computes elapsed-world simulation exactly once');
+        const commitIndex = harness.sideEffectEvents.indexOf('game-commit');
+        const worldPublishIndex = harness.sideEffectEvents.indexOf('world-publish');
+        const npcPublishIndex = harness.sideEffectEvents.indexOf('npc-publish');
+        assert(
+            commitIndex >= 0 && worldPublishIndex > commitIndex && npcPublishIndex > commitIndex,
+            `world side-ledgers publish only after game_state commit (${harness.sideEffectEvents.join('|')})`
+        );
     }
 
     // 9. restart with failed file and transient condition cleared reprocesses same bytes.

@@ -29,6 +29,37 @@ const MEMORY_COMPRESS_THRESHOLD_MARGIN = 2;
 let cachePath = '';
 let cacheMtime = 0;
 let cachedRegistry: NpcRegistry | undefined;
+let writeDeferralActive = false;
+let deferredRegistry: NpcRegistry | undefined;
+
+export function beginNpcRegistryWriteDeferral(): boolean {
+    if (writeDeferralActive) { return false; }
+    writeDeferralActive = true;
+    deferredRegistry = undefined;
+    return true;
+}
+
+export function commitNpcRegistryWriteDeferral(): boolean {
+    if (!writeDeferralActive) { return false; }
+    const pending = deferredRegistry;
+    writeDeferralActive = false;
+    deferredRegistry = undefined;
+    if (!pending) { return true; }
+    try {
+        saveNpcRegistry(pending);
+        return true;
+    } catch (e) {
+        console.error('[npcRegistry] deferred registry publication failed', e);
+        clearNpcRegistryCache();
+        return false;
+    }
+}
+
+export function rollbackNpcRegistryWriteDeferral(): void {
+    writeDeferralActive = false;
+    deferredRegistry = undefined;
+    clearNpcRegistryCache();
+}
 
 function getNpcRegistryPath(): string | undefined {
     const ws = getWorkspacePath();
@@ -55,6 +86,9 @@ export function clearNpcRegistryCache(): void {
 }
 
 export function loadNpcRegistry(): NpcRegistry {
+    if (writeDeferralActive && deferredRegistry) {
+        return deferredRegistry;
+    }
     const registryPath = getNpcRegistryPath();
     if (!registryPath || !fs.existsSync(registryPath)) {
         return { format: 'lorerelay-npc-registry/1.0', npcs: {} };
@@ -76,6 +110,10 @@ export function loadNpcRegistry(): NpcRegistry {
 }
 
 export function saveNpcRegistry(registry: NpcRegistry): void {
+    if (writeDeferralActive) {
+        deferredRegistry = registry;
+        return;
+    }
     const registryPath = getNpcRegistryPath();
     if (!registryPath) { return; }
     writeJsonAtomic(registryPath, registry);

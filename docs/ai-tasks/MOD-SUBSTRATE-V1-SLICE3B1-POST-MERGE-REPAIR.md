@@ -2,7 +2,7 @@
 
 ## Status
 
-`NON_GUI_VERIFICATION_COMPLETE_GUI_SMOKE_PENDING`
+`GUI_SMOKE_PASS_STANDARD_CLOSE_PENDING`
 
 Base: `dab625b1b93f3b3207d5b2bb24f2ecf7b26654c7`
 
@@ -50,16 +50,20 @@ Explicitly excluded: campaign fork lifecycle, update, uninstall, installer chang
 
 ## Computer Use terminal gate
 
-- The native `@oai/sky` entry point is available and enumerated the intended extension-development VS Code window exactly once.
-- Read-only capture identified `[拡張機能開発ホスト] ⚔️ LoreRelay - campaign-empty - Visual Studio Code` at `1698,182 / 1105x1001`.
-- Current monitor geometry is:
-  - monitor 1: `0,0 / 3440x1440`;
-  - monitor 2: `1265,-1080 / 1536x864`.
-- Because the target window is on monitor 1 and the authorized smoke is monitor-2-only, no click, focus change, keyboard input, or window movement was performed.
-- Pending action: after the extension-development host is moved fully onto monitor 2, verify only the adult MOD enabled-to-disabled flow without changing the executable tree or rerunning tests.
+- PASS using the native `@oai/sky` entry point and a fresh extension-development host launched explicitly from this repair worktree.
+- The smoke used the existing harmless `smoke.adult @ 1.0.0` package in `campaign-empty`.
+- The enabled adult package initially exposed `Disable`. Activating it required no new adult approval, removed the enabled draft state, invalidated the prior preview, and changed the action to `Authorize & enable adult MOD`.
+- No production or executable file changed during the smoke, and the broader MOD Manager flow was not repeated.
+- The earlier blocked monitor placement is superseded by this passing run; the user explicitly authorized either monitor and VS Code launch/restart for completion.
+
+## PR verification
+
+- Draft PR: `#95`.
+- PR HEAD before this documentation-only completion update: `b654b7aad339387e81dcafb5ce62ad8c222641dd`.
+- CI run `33896261800` / run number `866`: PASS for `validate-and-smoke` and `coverage` against that HEAD.
+- The final documentation-only HEAD must receive its own CI before Ready and Standard Close.
 
 ## Remaining gates
 
-- Narrow native Computer Use smoke for adult enabled-to-disabled only, on monitor 2.
-- Exact-head PR CI.
-- After the smoke passes: Ready and Standard Close.
+- Exact-head PR CI after this documentation-only update.
+- Ready and Standard Close.

@@ -107,3 +107,24 @@ expired confirmation, epoch change, partial/unknown outcomes and bounded wait.
   implemented before Human Play; fixture/renderer automation does not replace it.
 
 Exclusions and threat boundaries remain those in the linked architecture contract.
+
+## Authorized additional repair
+
+The owner explicitly authorized an additional repair after Ready-triggered review
+`5122050051` reported two new findings at `443596f2`. Scope remains those two findings:
+
+- P1 `3941266290`: move the pure publication projection to
+  `publishedMarketLocationsCore.ts`, update its import, impact rule and registry.
+- P2 `3941266292`: ignore selected-destination preview responses whose destination
+  no longer matches the pending selection; they cannot replace the initial catalog.
+  The behavioral regression executes the real response function for delayed success,
+  delayed failure, initial catalog and current quote. Rendered Chromium verification
+  retains a selectable catalog after a held response and enables confirmation after
+  a fresh preview; no canonical mutation and no page exceptions.
+
+Additional-repair Test Console: **29 passed, 0 failed, 0 skipped**, focused **26/26**,
+complete plan with no unknown files. Fingerprint:
+`178f3ca3cd8cc32cc2d8f1f3176cd55c7e688bb8411e639721602ff6a51c8df2`.
+Artifacts: `.test-runs/2026-09-05T16-43-49-035Z-443596f2` and
+`.test-runs/travel-preview-race.json`. The final new-tree full suite, exact-head CI,
+review resolution and merge/main CI evidence are maintained in PR #100.

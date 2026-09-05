@@ -10202,6 +10202,9 @@ function finishMarketTravelPreview(msg) {
     const confirm = _playerActionHub.querySelector('#market-travel-confirm');
     if (!select || !review || !previewBtn || !confirm) { return; }
     const requestedDestination = _marketTravelPreviewDestinationId;
+    // A selected quote can arrive after selection changed or the hub reopened.
+    // It must never be interpreted as the initial destination catalog.
+    if (msg.destinationId && msg.destinationId !== requestedDestination) { return; }
     if (requestedDestination && msg.destinationId !== requestedDestination) { return; }
     if (!msg.ok) {
         review.setAttribute('data-state', 'error');

@@ -2,7 +2,7 @@ import { buildFogPayload, normalizeFogWorldState } from './fogOfWarCore';
 import type { GameStateWorld } from './types/GameState';
 import type { WorldForge } from './worldForgeCore';
 
-/** Same persisted FoW authority as World View; no separate discovery state. */
+/** Pure projection of the same persisted FoW authority as World View. */
 export function publishedMarketLocationIds(forge: WorldForge, world: GameStateWorld | undefined): ReadonlySet<string> {
     const fog = buildFogPayload(normalizeFogWorldState(world, forge, world?.currentLocationId), forge);
     const discovered = new Set(fog.discoveredRegionIds);

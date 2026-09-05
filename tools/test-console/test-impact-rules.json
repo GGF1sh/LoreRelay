@@ -3,7 +3,7 @@
   "rules": [
     {
       "id": "commerce-action-driver",
-      "patterns": ["src/gameActionService.ts", "src/commerceAction*.ts", "src/publishedMarketLocations.ts", "scripts/action_scenario_fixture.js", "scripts/run_action_scenario.js", "scripts/action_scenarios/**", "fixtures/action-scenarios/**"],
+      "patterns": ["src/gameActionService.ts", "src/commerceAction*.ts", "src/publishedMarketLocationsCore.ts", "scripts/action_scenario_fixture.js", "scripts/run_action_scenario.js", "scripts/action_scenarios/**", "fixtures/action-scenarios/**"],
       "tests": ["test_game_action_commerce.js", "test_market_travel_core.js", "test_end_day_world_progression.js", "test_shopkeeper_repair.js", "test_playable_v0_player_action_hub.js"],
       "boundaries": ["compile", "symbol-registry"],
       "reason": "Commerce action authority, production persistence, confirmation, replay and fixture isolation changed."

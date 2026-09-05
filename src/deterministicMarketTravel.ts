@@ -9,7 +9,7 @@ import { readStateRevision } from './workspaceStateQueueCore';
 import type { GameState } from './types/GameState';
 import type { CommerceForge } from './livingWorldTypes';
 import type { WorldForge, WorldLocation } from './worldForgeCore';
-import { publishedMarketLocationIds } from './publishedMarketLocations';
+import { publishedMarketLocationIds } from './publishedMarketLocationsCore';
 
 export type MarketTravelFailureCode =
     | 'CONFIRMATION_REQUIRED' | 'COMMERCE_OFF' | 'NO_FORGE' | 'NO_GAME_STATE'

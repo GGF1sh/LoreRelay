@@ -127,7 +127,8 @@ check('end-day requires an explicit preview then confirmation', () => {
     assert(ui.includes("type: 'endDayPreview'"), 'end-day must request a read-only preview');
     const wire = fnBody(ui, 'wireHubEndDaySection');
     assert(wire.includes('!_endDayPreviewReady'), 'end-day confirm must require a ready preview');
-    assert(wire.includes("type: 'endDayCommit'") && wire.includes('confirmed: true'), 'end-day confirm must post an explicit endDayCommit');
+    assert(wire.includes("type: 'endDayCommit'") && wire.includes('confirmationToken: _endDayConfirmationToken'), 'end-day confirm must bind the displayed Host quote');
+    assert(!wire.includes('confirmed: true'), 'a Boolean must not substitute for confirmation authority');
 });
 
 // ---- 6. Stale response / request correlation retained ----

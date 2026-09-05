@@ -2912,43 +2912,11 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
                 applied: result.applied,
             });
         },
-        handleLivingWorldDirectTrade: async (raw: unknown) => {
-            const doc = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
-            const op = doc.op === 'buy' || doc.op === 'sell' ? doc.op : '';
-            const marketLocationId = typeof doc.marketLocationId === 'string' ? doc.marketLocationId : '';
-            const commodityId = typeof doc.commodityId === 'string' ? doc.commodityId : '';
-            const qty = typeof doc.qty === 'number' ? doc.qty : Number(doc.qty);
-            if (!op || !marketLocationId || !commodityId || !Number.isFinite(qty)) {
-                panel?.webview.postMessage({
-                    type: 'livingWorldDirectTradeResult',
-                    ok: false,
-                    reason: 'INVALID',
-                });
-                return;
-            }
-            const { executeLivingWorldDirectTrade } = await import('./livingWorldCommerceUi');
-            const result = executeLivingWorldDirectTrade({
-                op,
-                marketLocationId,
-                commodityId,
-                qty,
-            });
-            if (!result.ok) {
-                panel?.webview.postMessage({
-                    type: 'livingWorldDirectTradeResult',
-                    ok: false,
-                    reason: result.reason,
-                    code: result.code,
-                    message: result.message,
-                });
-                return;
-            }
-            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
-            panel?.webview.postMessage({
-                type: 'livingWorldDirectTradeResult',
-                ok: true,
-                trade: result.trade,
-            });
+        // Retired transport: market-card buttons now open the confirmed Action Hub.
+        // Old Webviews receive a safe rejection, never an unguarded canonical write.
+        handleLivingWorldDirectTrade: async () => {
+            panel?.webview.postMessage({ type: 'livingWorldDirectTradeResult', ok: false,
+                reason: 'CONFIRMATION_REQUIRED', message: '暮らすから取引内容を確認して、確定してください。' });
         },
         handleShopkeeperTradePreview: raw => commerceActionWebview.preview('commerce:trade', raw),
         handleShopkeeperDirectTrade: raw => commerceActionWebview.execute('commerce:trade', raw),

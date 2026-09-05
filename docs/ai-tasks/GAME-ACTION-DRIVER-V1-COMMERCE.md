@@ -56,7 +56,40 @@ expired confirmation, epoch change, partial/unknown outcomes and bounded wait.
 - Existing dirty primary checkout preserved. The dedicated worktree is reused.
 - Previous phase stopped at its explicit exploration budget; no product blocker was
   established. Continuation authorizes the three bounded seam questions and delivery.
-- Focused tests, Test Console, independent implementation review, final full suite,
-  PR/exact-head CI, merge and post-merge CI: pending. No new Human Play evidence.
+- Test Console at `a132c9d867c771f373f04f3e720bdc29acc82f3a`: complete plan,
+  zero unknown files; **28 passed, 0 failed, 0 skipped** (25 focused plus boundaries).
+  The Console does not select a full suite here; High Risk independently requires it.
+- `test_game_action_commerce.js` passes against real production persistence owners.
+  It verifies preview byte invariance, disk-reloaded credits/cargo/stock, travel/day,
+  forged contexts and authority fields, delegated capabilities, consent separation,
+  foreign handles/receipts, stale canonical and timeline witnesses, replay and
+  retention expiry, shared-gate busy, wait timeout without release, partial writes,
+  exceptions after commit, and the human adapter's refresh-warning classification.
+- The fixed merchant scenario passes twice with identical gameplay digest. CLI
+  workspace/script/eval/path inputs are rejected. The fixture starts at 20 credits;
+  buying one wheat costs 9 and leaves 11. The insufficient-funds case verifies the
+  actual `INSUFFICIENT_CREDITS` code (not merely any rejection).
+- Rendered functional smoke: Chromium `152.0.7977.76`, actual built Webview HTML/JS/CSS
+  and Japanese locale, connected in the test process to the production human adapter
+  and owned fixture. Actual buttons execute purchase, published travel and end day;
+  20→11 credits, `north_farm`→`elda_shop`, world turn 0→1, zero page exceptions.
+  Local artifacts: `.test-runs/commerce-rendered-smoke.json` and
+  `.test-runs/commerce-rendered-smoke.png`. This test exposes no server game-control
+  endpoint and adds no live Extension QA bridge to the product.
+- Windows native Computer Use initialization failed before any input with
+  `windows sandbox failed: helper_unknown_error: apply deny-read ACLs`. The Chromium
+  test is not a live Extension Host smoke and is not Human Play evidence.
+- Draft [PR #100](https://github.com/GGF1sh/LoreRelay/pull/100), independent review
+  requested once at `a132c9d`. Review `5121942838` completed with one P1 and two P2
+  findings. One repair pass routes legacy market cards to the same preview/confirm
+  UI (the retired transport rejects without writing), renews stale end-day previews,
+  and scopes request capacity/cleanup to each trusted caller. The obsolete CI
+  assertion requiring `confirmed: true` now checks the Host confirmation token.
+- Repair regression: rendered market-card Buy opens a read-only quote; confirmation
+  persists 20→11 credits. A day quote created before travel is rejected stale, its
+  replacement is displayed, and a second explicit confirmation advances turn 0→1.
+  Zero page exceptions. The service test exhausts one caller's 1024-request capacity,
+  verifies another caller can execute, then closes/reopens without losing capacity.
+- Final repair Test Console, local full suite and exact-head CI pending.
 
 Exclusions and threat boundaries remain those in the linked architecture contract.

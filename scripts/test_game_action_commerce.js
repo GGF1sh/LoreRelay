@@ -196,6 +196,22 @@ async function main() {
     for (let i = 0; i < 33; i++) await commit(bounded, caller, day);
     assert.equal((await bounded.execute(caller, saved.raw)).classification, 'outcome_unknown');
     assert.equal(changes, 34);
+    for (let i = 34; i < 1024; i++) {
+        time += 120001; // expire confirmation handles while retaining request tombstones
+        await commit(bounded, caller, day);
+    }
+    const capped = preview(bounded, caller, day);
+    bounded.confirm(caller, capped.confirmationToken, 'scripted');
+    assert.equal((await bounded.execute(caller, request(capped))).classification, 'outcome_unknown');
+    const otherCaller = bounded.createTrustedSession('human-player');
+    await commit(bounded, otherCaller, day); // one caller's cap must not starve another
+    bounded.close(caller);
+    const reopened = bounded.createTrustedSession('qa-runner');
+    await commit(bounded, reopened, day);
+    assert.equal((await bounded.execute(caller, saved.raw)).classification, 'rejected_forbidden');
+    assert.equal(changes, 1026);
+    const extension = fs.readFileSync(path.join(ROOT, 'src/extension.ts'), 'utf8');
+    assert(!extension.includes('executeLivingWorldDirectTrade'), 'Webview transport must not reach the lower trade owner directly');
     console.log('Commerce Action Driver: production persistence, trust, privacy, replay, stale, busy, timeout and fixture CLI passed.');
 }
 main().catch(error => { console.error(error.stack); process.exitCode = 1; });

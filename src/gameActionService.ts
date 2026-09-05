@@ -104,7 +104,7 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
         context: TrustedActionExecutionContext; scope: string; actionId: GameActionId; parameters: Record<string, unknown>;
         quote: Record<string, unknown>; witness: string; hash: string; expires: number; approved: boolean; used?: string;
     }>();
-    const requests = new Map<string, { fingerprint: string; promise: Promise<GameActionReceipt>; receipt?: GameActionReceipt; diagnostic?: Record<string, unknown> }>();
+    const requests = new Map<string, { context: TrustedActionExecutionContext; fingerprint: string; promise: Promise<GameActionReceipt>; receipt?: GameActionReceipt; diagnostic?: Record<string, unknown> }>();
     // Tombstones retain request identities after receipt eviction. At the session cap,
     // fail closed instead of forgetting identities and risking a second mutation.
     const completed: string[] = [];
@@ -144,6 +144,10 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             const registered = contexts.get(context);
             if (registered) registered.closed = true;
             for (const [key, handle] of handles) if (handle.context === context) handles.delete(key);
+            for (const [key, entry] of requests) if (entry.context === context) requests.delete(key);
+            for (let index = completed.length - 1; index >= 0; index--) {
+                if (!requests.has(completed[index])) completed.splice(index, 1);
+            }
         },
         readPlayerView(context: TrustedActionExecutionContext) {
             if (!safeValid(context, 'action.list')) throw new Error('rejected_forbidden');
@@ -209,7 +213,7 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
                 const result = await prior.promise;
                 return safeValid(context, 'receipt.read') && key === requestKey(context, requestId) ? copy(result) : reject('rejected_forbidden');
             }
-            if (requests.size >= 1024) return reject('outcome_unknown');
+            if ([...requests.values()].filter(entry => entry.context === context).length >= 1024) return reject('outcome_unknown');
             const handle = typeof raw.confirmationToken === 'string' ? handles.get(raw.confirmationToken) : undefined;
             if (!handle) return reject('outcome_unknown');
             if (handle.context !== context) return reject('rejected_forbidden');
@@ -217,8 +221,8 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             if (handle.scope !== scopeKey() || handle.expires <= now() || handle.used) return reject('rejected_stale');
             if (!handle.approved) return reject('rejected_forbidden');
             const admittedScope = scopeKey();
-            const entry: { fingerprint: string; promise: Promise<GameActionReceipt>; receipt?: GameActionReceipt; diagnostic?: Record<string, unknown> }
-                = { fingerprint, promise: Promise.resolve(reject('outcome_unknown')) };
+            const entry: { context: TrustedActionExecutionContext; fingerprint: string; promise: Promise<GameActionReceipt>; receipt?: GameActionReceipt; diagnostic?: Record<string, unknown> }
+                = { context, fingerprint, promise: Promise.resolve(reject('outcome_unknown')) };
             requests.set(key, entry);
             // Publish the promise before calling any supplied implementation.
             entry.promise = Promise.resolve().then(async () => {
@@ -242,6 +246,7 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
                     });
                 const result = mutation.status === 'completed' ? mutation.value : mutation.status === 'busy'
                     ? reject('rejected_busy') : reject(started ? 'outcome_unknown' : 'rejected_forbidden');
+                if (requests.get(key) !== entry) return copy(result); // caller closed while work was admitted
                 entry.receipt = copy(result);
                 completed.push(key);
                 while (completed.length > 32) {

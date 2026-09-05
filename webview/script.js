@@ -9579,16 +9579,7 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
     buyBtn.className = 'world-market-trade-btn';
     buyBtn.textContent = T('webview.world.tradeBuy');
     buyBtn.addEventListener('click', () => {
-        const qty = parseInt(qtyInput.value, 10) || 1;
-        vscode.postMessage({
-            type: 'livingWorldDirectTrade',
-            op: 'buy',
-            marketLocationId: market.locationId,
-            commodityId: quote.commodityId,
-            qty,
-        });
-        buyBtn.disabled = true;
-        sellBtn.disabled = true;
+        openTradeConfirmation('buy', buyBtn);
     });
 
     const sellBtn = document.createElement('button');
@@ -9596,17 +9587,24 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
     sellBtn.className = 'world-market-trade-btn';
     sellBtn.textContent = T('webview.world.tradeSell');
     sellBtn.addEventListener('click', () => {
-        const qty = parseInt(qtyInput.value, 10) || 1;
-        vscode.postMessage({
-            type: 'livingWorldDirectTrade',
-            op: 'sell',
-            marketLocationId: market.locationId,
-            commodityId: quote.commodityId,
-            qty,
-        });
-        buyBtn.disabled = true;
-        sellBtn.disabled = true;
+        openTradeConfirmation('sell', sellBtn);
     });
+
+    function openTradeConfirmation(op, initiator) {
+        const qty = Number(qtyInput.value);
+        if (_hubMutationInFlight || !Number.isInteger(qty) || qty < 1 || qty > 999) { return; }
+        openPlayerActionHub(initiator);
+        if (!_playerActionHub || !_hubMarket || _hubMarket.locationId !== market.locationId) { return; }
+        const commodity = _playerActionHub.querySelector('#shopkeeper-commodity');
+        const quantity = _playerActionHub.querySelector('#shopkeeper-qty');
+        const operation = _playerActionHub.querySelector(`input[name="shopkeeper-op"][value="${op}"]`);
+        if (!commodity || !quantity || !operation) { return; }
+        commodity.value = quote.commodityId;
+        quantity.value = String(qty);
+        operation.checked = true;
+        hubInvalidateTradePreview();
+        _playerActionHub.querySelector('#shopkeeper-review-btn')?.click();
+    }
 
     trade.appendChild(qtyInput);
     trade.appendChild(buyBtn);
@@ -10365,7 +10363,9 @@ function finishEndDay(msg) {
         review.textContent = `${failure.message || '日を終えたことを確認できませんでした。'} ${failure.nextStep || ''}`.trim();
         _endDayPreviewReady = false;
         _endDayConfirmationToken = null;
+        _endDayLoaded = false;
         confirm.disabled = true;
+        if (msg.classification === 'rejected_stale') { hubLoadEndDay(); }
         return;
     }
     const r = msg.receipt || {};
@@ -10379,6 +10379,7 @@ function finishEndDay(msg) {
         review.textContent += ' 表示の更新を確認できなかったため、画面を再読込してください。';
     }
     _endDayPreviewReady = false;
+    _endDayLoaded = false;
     confirm.disabled = true;
     hubRecomputeMarket();
     renderHubHeader();

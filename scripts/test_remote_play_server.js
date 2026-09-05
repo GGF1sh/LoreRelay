@@ -16,6 +16,7 @@ const logs = [];
 let inputCount = 0;
 let inputFailure;
 let unexpectedFailure;
+let defaultRole = 'player';
 
 // ── vscode モック ─────────────────────────────────────────────
 // remotePlayServer 内で参照されるすべての vscode API を最小限にモック
@@ -30,7 +31,7 @@ const mockVscode = {
             get: (key, def) => {
                 if (key === 'remotePlay.port')        return 0;
                 if (key === 'remotePlay.bindAddress') return '127.0.0.1';
-                if (key === 'remotePlay.defaultRole') return 'player';
+                if (key === 'remotePlay.defaultRole') return defaultRole;
                 if (key === 'remotePlay.maxClients')  return 8;
                 if (key === 'remotePlay.inputCooldownMs') return 1500;
                 if (key === 'workspaceFolder')        return '';
@@ -136,6 +137,26 @@ async function trustBoundaryRegression(status) {
         assert.equal(inputCount, 2);
         ok('R3: server-owned roles, spectator escalation denied, zero spectator input, both player inputs work');
 
+        defaultRole = 'spectator';
+        const readOnlyDefault = rps.getRemotePlayStatus();
+        assert.equal(readOnlyDefault.token, spectator);
+        assert.equal(new URL(readOnlyDefault.urls[0]).searchParams.get('token'), spectator);
+        for (const role of [undefined, 'player']) {
+            const client = await connect(status.port);
+            clients.push(client);
+            client.send({ type: 'auth', token: readOnlyDefault.token, role });
+            assert.equal((await client.next()).role, 'spectator');
+            client.send({ type: 'freeInput', text: 'default must stay read only' });
+            assert.equal((await client.next()).message, 'Spectator mode (read-only)');
+            await client.close();
+        }
+        assert.equal(inputCount, 2);
+        const explicitPlayer = await open(status.token);
+        await explicitPlayer.close();
+        defaultRole = 'player';
+        assert.equal(rps.getRemotePlayStatus().token, status.token);
+        ok('R3 review repair: configured spectator default shares read-only capability; explicit player capability stays player');
+
         const cases = ['{', 'null', '[]', '"foo"', '123', 'true', '{}', '{"type":null}', '{"type":123}', '{"type":"unknown"}'];
         for (const authed of [false, true]) {
             for (const raw of cases) {
@@ -208,8 +229,13 @@ async function trustBoundaryRegression(status) {
         checkWire(fresh, [status.token, spectator]);
         assert.notEqual(fresh.latestImage, oldUrl);
         assert.equal((await get(base + fresh.latestImage)).status, 200);
-        const newPlayer = rps.rotateRemotePlayToken();
+        defaultRole = 'spectator';
+        const rotatedDefault = rps.rotateRemotePlayToken();
         newSpectator = new URL(rps.getRemotePlayStatus().spectatorUrls[0]).searchParams.get('token');
+        assert.equal(rotatedDefault, newSpectator);
+        assert.equal(rps.getRemotePlayStatus().token, newSpectator);
+        defaultRole = 'player';
+        const newPlayer = rps.getRemotePlayStatus().token;
         assert.notEqual(newSpectator, spectator);
         assert.equal(await late.closed, 1008);
         assert.equal((await get(base + fresh.latestImage)).status, 401);
@@ -240,6 +266,7 @@ async function trustBoundaryRegression(status) {
     } finally {
         Date.now = realNow;
         inputFailure = unexpectedFailure = undefined;
+        defaultRole = 'player';
         for (const client of clients) await client.close();
         process.off('unhandledRejection', onRejection);
     }

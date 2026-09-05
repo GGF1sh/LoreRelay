@@ -542,12 +542,15 @@ export function rotateRemotePlayToken(): string {
         closeClient(client, 1008, 'Token rotated');
     }
     log('Remote play credentials and media signing key rotated');
-    return sessionToken;
+    return getRemotePlayStatus().token;
 }
 
 export function getRemotePlayStatus(): RemotePlayStatus {
     const bases = httpServer ? getAccessBaseUrls(listenPort, listenHost) : [];
-    const playerUrls = bases.map((b) => buildAccessUrl(b, 'player'));
+    // The configured default chooses which capability the host shares. It never
+    // changes the authority of a credential already issued to a client.
+    const defaultRole = getConfig().defaultRole;
+    const defaultUrls = bases.map((b) => buildAccessUrl(b, defaultRole));
     const spectatorUrls = bases.map((b) => buildAccessUrl(b, 'spectator'));
     const clients: RemotePlayClientInfo[] = [];
     for (const client of wsClients.values()) {
@@ -558,8 +561,8 @@ export function getRemotePlayStatus(): RemotePlayStatus {
     return {
         running: Boolean(httpServer),
         port: listenPort,
-        token: sessionToken,
-        urls: playerUrls,
+        token: defaultRole === 'spectator' ? spectatorToken : sessionToken,
+        urls: defaultUrls,
         spectatorUrls,
         clientCount: clients.length,
         clients

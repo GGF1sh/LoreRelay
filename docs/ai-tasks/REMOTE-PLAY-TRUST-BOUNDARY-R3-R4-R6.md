@@ -20,7 +20,9 @@ Test Console plan inspected after the repair. Existing server tests lacked the r
 
 Focused coverage includes player input, spectator escalation and input denial, both old credentials rejected after rotation, malformed JSON/shapes/types before and after auth, unexpected dependency failure at the socket boundary, secret-free logs, live/late/reconnect/current-key media requests, expiry and old-key rejection, credential/signing-key separation, wire path redaction, and filesystem revalidation.
 
-Final full-suite and GitHub integration results are recorded below when available. Full suite is required by the High risk policy even though the Console's inferred plan does not request it. Only one full-suite execution per unchanged executable tree.
+`npm test` on executable commit `a95b4ee2302cf2a207084167805085b24601369a`: **PASS, 344/344**, including 16 combat groups / 736 tests, 0 failures, 164.7 seconds. Executed exactly once; subsequent changes to this record are documentation only. Log: `.test-runs/full-suite.log` in the task worktree. This includes unchanged signature verifier, media-path validation, and map FoW coverage.
+
+GitHub integration: [PR #98](https://github.com/GGF1sh/LoreRelay/pull/98). Exact-head and post-merge CI are checked live as part of Standard Close; the final task response reports their exact SHAs and results. Full suite was required by the High risk policy even though the Console's inferred plan did not request it.
 
 ## Scope and close
 

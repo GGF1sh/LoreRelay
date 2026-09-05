@@ -68,8 +68,8 @@ async function main() {
     assert(ui.includes("msg.requestId !== _shopkeeperPendingRequestId"), 'stale response correlation guard missing');
     assert(bundle.includes('shopkeeperDirectTrade') && bundle.includes('暮らす'), 'committed shipped bundle lacks repair');
     assert(![ui, bundle, report].some((text) => text.includes('証らす')), 'old copy remains');
-    assert(extension.includes('persistence.gameAttempted') && extension.includes('persistence.worldAttempted'));
-    assert(!/ok:\s*true[\s\S]{0,300}persisted:\s*true[\s\S]{0,100}flushScheduledCommercePersist/.test(extension));
+    // The extracted service's real persistence failures are covered by
+    // test_game_action_commerce.js, rather than extension.ts source ordering.
     console.log('shopkeeper repair tests passed.');
 }
 

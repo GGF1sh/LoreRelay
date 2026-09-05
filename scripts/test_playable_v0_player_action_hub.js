@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
+const vm = require('vm');
 
 const root = path.join(__dirname, '..');
 const uiPath = path.join(root, 'webview', 'modules', '85-world.js');
@@ -127,7 +128,8 @@ check('end-day requires an explicit preview then confirmation', () => {
     assert(ui.includes("type: 'endDayPreview'"), 'end-day must request a read-only preview');
     const wire = fnBody(ui, 'wireHubEndDaySection');
     assert(wire.includes('!_endDayPreviewReady'), 'end-day confirm must require a ready preview');
-    assert(wire.includes("type: 'endDayCommit'") && wire.includes('confirmed: true'), 'end-day confirm must post an explicit endDayCommit');
+    assert(wire.includes("type: 'endDayCommit'") && wire.includes('confirmationToken: _endDayConfirmationToken'), 'end-day confirm must bind the displayed Host quote');
+    assert(!wire.includes('confirmed: true'), 'a Boolean must not substitute for confirmation authority');
 });
 
 // ---- 6. Stale response / request correlation retained ----
@@ -254,6 +256,30 @@ check('module and bundle stay equivalent after EOL normalization', () => {
     const normModule = ui.replace(/\r\n/g, '\n').trimEnd();
     const normBundle = bundle.replace(/\r\n/g, '\n');
     assert(normBundle.includes(normModule), 'bundle must contain the 85-world.js module verbatim (EOL-normalized)');
+});
+
+check('delayed selected travel quotes cannot replace the destination catalog', () => {
+    const elements = Object.fromEntries(['destination', 'review', 'preview', 'confirm', 'dev'].map(name =>
+        [`#market-travel-${name}`, { innerHTML: 'published catalog', textContent: '', disabled: false,
+            setAttribute() {}, focus() {} }]));
+    const context = { _playerActionHub: { querySelector: id => elements[id] },
+        _marketTravelPreviewDestinationId: null, _marketTravelPreviewReady: false,
+        _marketTravelConfirmationToken: null, _hubMutationInFlight: null, _playerActionHubSection: 'trade',
+        _worldViewMsg: {}, escapeHtml: String, hubLocationName: () => 'origin' };
+    vm.createContext(context);
+    vm.runInContext(fnBody(ui, 'finishMarketTravelPreview'), context);
+    const before = JSON.stringify(elements);
+    context.finishMarketTravelPreview({ ok: true, destinationId: 'elda_shop', confirmationToken: 'old' });
+    context.finishMarketTravelPreview({ ok: false, destinationId: 'elda_shop', message: 'old failure' });
+    assert.strictEqual(JSON.stringify(elements), before, 'obsolete selected responses must not touch the UI');
+    assert.strictEqual(context._marketTravelConfirmationToken, null);
+    context.finishMarketTravelPreview({ ok: true, destinations: [{ id: 'elda_shop', name: 'Shop' }] });
+    assert(elements['#market-travel-destination'].innerHTML.includes('elda_shop'));
+    assert.strictEqual(elements['#market-travel-destination'].disabled, false);
+    context._marketTravelPreviewDestinationId = 'elda_shop';
+    context.finishMarketTravelPreview({ ok: true, destinationId: 'elda_shop', confirmationToken: 'fresh' });
+    assert.strictEqual(context._marketTravelConfirmationToken, 'fresh');
+    assert.strictEqual(elements['#market-travel-confirm'].disabled, false);
 });
 
 if (failed) {

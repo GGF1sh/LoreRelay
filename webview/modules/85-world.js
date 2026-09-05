@@ -108,6 +108,9 @@ window.addEventListener('DOMContentLoaded', () => {
         if (msg.type === 'shopkeeperDirectTradeResult') {
             finishShopkeeperTrade(msg);
         }
+        if (msg.type === 'shopkeeperTradePreviewResult') {
+            finishShopkeeperTradePreview(msg);
+        }
         if (msg.type === 'marketTravelPreviewResult') {
             finishMarketTravelPreview(msg);
         }
@@ -2286,16 +2289,7 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
     buyBtn.className = 'world-market-trade-btn';
     buyBtn.textContent = T('webview.world.tradeBuy');
     buyBtn.addEventListener('click', () => {
-        const qty = parseInt(qtyInput.value, 10) || 1;
-        vscode.postMessage({
-            type: 'livingWorldDirectTrade',
-            op: 'buy',
-            marketLocationId: market.locationId,
-            commodityId: quote.commodityId,
-            qty,
-        });
-        buyBtn.disabled = true;
-        sellBtn.disabled = true;
+        openTradeConfirmation('buy', buyBtn);
     });
 
     const sellBtn = document.createElement('button');
@@ -2303,17 +2297,24 @@ function appendMarketTradeControls(row, market, quote, commerceUiEnabled, curren
     sellBtn.className = 'world-market-trade-btn';
     sellBtn.textContent = T('webview.world.tradeSell');
     sellBtn.addEventListener('click', () => {
-        const qty = parseInt(qtyInput.value, 10) || 1;
-        vscode.postMessage({
-            type: 'livingWorldDirectTrade',
-            op: 'sell',
-            marketLocationId: market.locationId,
-            commodityId: quote.commodityId,
-            qty,
-        });
-        buyBtn.disabled = true;
-        sellBtn.disabled = true;
+        openTradeConfirmation('sell', sellBtn);
     });
+
+    function openTradeConfirmation(op, initiator) {
+        const qty = Number(qtyInput.value);
+        if (_hubMutationInFlight || !Number.isInteger(qty) || qty < 1 || qty > 999) { return; }
+        openPlayerActionHub(initiator);
+        if (!_playerActionHub || !_hubMarket || _hubMarket.locationId !== market.locationId) { return; }
+        const commodity = _playerActionHub.querySelector('#shopkeeper-commodity');
+        const quantity = _playerActionHub.querySelector('#shopkeeper-qty');
+        const operation = _playerActionHub.querySelector(`input[name="shopkeeper-op"][value="${op}"]`);
+        if (!commodity || !quantity || !operation) { return; }
+        commodity.value = quote.commodityId;
+        quantity.value = String(qty);
+        operation.checked = true;
+        hubInvalidateTradePreview();
+        _playerActionHub.querySelector('#shopkeeper-review-btn')?.click();
+    }
 
     trade.appendChild(qtyInput);
     trade.appendChild(buyBtn);
@@ -2340,16 +2341,20 @@ let _hubMarket = null;           // canonical current-market snapshot for 取引
 let _shopkeeperInFlight = false;
 let _shopkeeperPendingRequestId = null;
 let _shopkeeperPreviewReady = false;
+let _shopkeeperPreviewId = null;
+let _shopkeeperConfirmationToken = null;
 
 /* 旅 — zero-turn travel (P4) */
 let _marketTravelPendingRequestId = null;
 let _marketTravelPreviewDestinationId = null;
 let _marketTravelPreviewReady = false;
+let _marketTravelConfirmationToken = null;
 let _marketTravelLoaded = false;
 
 /* 一日を終える — end-day world progression (P3) */
 let _endDayPendingRequestId = null;
 let _endDayPreviewReady = false;
+let _endDayConfirmationToken = null;
 let _endDayLoaded = false;
 
 function createHubRequestId(prefix) {
@@ -2679,6 +2684,8 @@ function hubDisableTradeInputs(disabled) {
 /* Any change to commodity, operation, or quantity invalidates the old preview. */
 function hubInvalidateTradePreview() {
     _shopkeeperPreviewReady = false;
+    _shopkeeperPreviewId = null;
+    _shopkeeperConfirmationToken = null;
     if (!_playerActionHub) { return; }
     const confirm = _playerActionHub.querySelector('#shopkeeper-confirm-btn');
     if (confirm) { confirm.disabled = true; }
@@ -2732,9 +2739,12 @@ function wireHubTradeInputs() {
         review.textContent = op === 'buy'
             ? `${T('webview.world.actionHubTradeBuy')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`
             : `${T('webview.world.actionHubTradeSell')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`;
-        _shopkeeperPreviewReady = true;
-        confirm.disabled = false;
-        confirm.focus();
+        _shopkeeperPreviewReady = false;
+        _shopkeeperConfirmationToken = null;
+        _shopkeeperPreviewId = createHubRequestId('quote');
+        confirm.disabled = true;
+        vscode.postMessage({ type: 'shopkeeperTradePreview', previewId: _shopkeeperPreviewId,
+            op, marketLocationId: _hubMarket.locationId, commodityId, qty });
     });
 
     hubRenderTradeProjection();
@@ -2756,6 +2766,7 @@ function wireHubTradeInputs() {
         vscode.postMessage({
             type: 'shopkeeperDirectTrade',
             requestId: _shopkeeperPendingRequestId,
+            confirmationToken: _shopkeeperConfirmationToken,
             op,
             marketLocationId: _hubMarket.locationId,
             commodityId,
@@ -2766,6 +2777,21 @@ function wireHubTradeInputs() {
 
 function wireHubTradeSection() {
     hubRenderTradeBody();
+}
+
+function finishShopkeeperTradePreview(msg) {
+    if (!_playerActionHub || !_shopkeeperPreviewId || msg.previewId !== _shopkeeperPreviewId || _hubMutationInFlight) { return; }
+    const review = _playerActionHub.querySelector('#shopkeeper-review');
+    const confirm = _playerActionHub.querySelector('#shopkeeper-confirm-btn');
+    if (!review || !confirm) { return; }
+    _shopkeeperPreviewReady = msg.ok === true && typeof msg.confirmationToken === 'string';
+    _shopkeeperConfirmationToken = _shopkeeperPreviewReady ? msg.confirmationToken : null;
+    confirm.disabled = !_shopkeeperPreviewReady;
+    review.setAttribute('data-state', _shopkeeperPreviewReady ? 'preview' : 'error');
+    review.textContent = _shopkeeperPreviewReady
+        ? `${T(msg.op === 'buy' ? 'webview.world.actionHubTradeBuy' : 'webview.world.actionHubTradeSell')}: ${msg.commodityId} × ${msg.qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(msg.total)}`
+        : `${msg.message || '取引内容を確認できませんでした。'} ${msg.nextStep || ''}`.trim();
+    if (_shopkeeperPreviewReady) { confirm.focus(); }
 }
 
 function finishShopkeeperTrade(msg) {
@@ -2806,7 +2832,9 @@ function finishShopkeeperTrade(msg) {
     }
     review.setAttribute('data-state', 'error');
     review.textContent = `${reject.message || '取引を実行できませんでした。'} ${reject.nextStep || ''}`.trim();
-    if (confirm) { confirm.disabled = !_shopkeeperPreviewReady; }
+    _shopkeeperPreviewReady = false;
+    _shopkeeperConfirmationToken = null;
+    if (confirm) { confirm.disabled = true; }
 }
 
 /* --- 旅 (zero-turn travel) section --- */
@@ -2872,7 +2900,7 @@ function wireHubTravelSection() {
         const review = _playerActionHub.querySelector('#market-travel-review');
         review.setAttribute('data-state', 'submitting');
         review.textContent = '移動を保存中...';
-        vscode.postMessage({ type: 'marketTravelCommit', requestId: _marketTravelPendingRequestId, destinationId: select.value, confirmed: true });
+        vscode.postMessage({ type: 'marketTravelCommit', requestId: _marketTravelPendingRequestId, destinationId: select.value, confirmationToken: _marketTravelConfirmationToken });
     });
 }
 
@@ -2884,6 +2912,9 @@ function finishMarketTravelPreview(msg) {
     const confirm = _playerActionHub.querySelector('#market-travel-confirm');
     if (!select || !review || !previewBtn || !confirm) { return; }
     const requestedDestination = _marketTravelPreviewDestinationId;
+    // A selected quote can arrive after selection changed or the hub reopened.
+    // It must never be interpreted as the initial destination catalog.
+    if (msg.destinationId && msg.destinationId !== requestedDestination) { return; }
     if (requestedDestination && msg.destinationId !== requestedDestination) { return; }
     if (!msg.ok) {
         review.setAttribute('data-state', 'error');
@@ -2910,7 +2941,8 @@ function finishMarketTravelPreview(msg) {
         if (options.length > 0 && _playerActionHubSection === 'travel') { select.focus(); }
         return;
     }
-    _marketTravelPreviewReady = true;
+    _marketTravelConfirmationToken = typeof msg.confirmationToken === 'string' ? msg.confirmationToken : null;
+    _marketTravelPreviewReady = !!_marketTravelConfirmationToken;
     const dest = msg.destination || {};
     const origin = msg.current || {};
     review.setAttribute('data-state', 'preview');
@@ -2921,7 +2953,7 @@ function finishMarketTravelPreview(msg) {
         dev.textContent = `elapsedWorldTurns=${msg.elapsedWorldTurns} / reachabilityBasis=${msg.reachabilityBasis || 'known_market_location'} / systemsNotAdvanced=${systems}`;
     }
     previewBtn.disabled = !!_hubMutationInFlight;
-    confirm.disabled = !!_hubMutationInFlight;
+    confirm.disabled = !!_hubMutationInFlight || !_marketTravelPreviewReady;
     if (!confirm.disabled) { confirm.focus(); }
 }
 
@@ -2941,6 +2973,8 @@ function finishMarketTravel(msg) {
             review.setAttribute('data-state', 'busy');
         } else {
             review.setAttribute('data-state', 'error');
+            _marketTravelPreviewReady = false;
+            _marketTravelConfirmationToken = null;
         }
         review.textContent = `${failure.message || '移動を保存できませんでした。'} ${failure.nextStep || ''}`.trim();
         if (previewBtn) { previewBtn.disabled = !select || !select.value; }
@@ -2995,7 +3029,7 @@ function wireHubEndDaySection() {
         const review = _playerActionHub.querySelector('#end-day-review');
         review.setAttribute('data-state', 'submitting');
         review.textContent = '一日を進めています…';
-        vscode.postMessage({ type: 'endDayCommit', requestId: _endDayPendingRequestId, confirmed: true });
+        vscode.postMessage({ type: 'endDayCommit', requestId: _endDayPendingRequestId, confirmationToken: _endDayConfirmationToken });
     });
 }
 
@@ -3010,14 +3044,15 @@ function finishEndDayPreview(msg) {
         confirm.disabled = true;
         return;
     }
-    _endDayPreviewReady = true;
+    _endDayConfirmationToken = typeof msg.confirmationToken === 'string' ? msg.confirmationToken : null;
+    _endDayPreviewReady = !!_endDayConfirmationToken;
     const systems = Array.isArray(msg.systems) ? msg.systems.join('、') : '世界の変化';
     const consumption = Array.isArray(msg.fixedResourceConsumption) && msg.fixedResourceConsumption.length > 0
         ? msg.fixedResourceConsumption.map((x) => `${x.resource} ${x.amount}`).join('、')
         : '固定消費なし';
     review.setAttribute('data-state', 'preview');
     review.textContent = `確認（確定前）: ${msg.currentWorldTurn} → ${msg.targetWorldTurn}ターン / 進む変化: ${systems} / ${consumption}`;
-    confirm.disabled = !!_hubMutationInFlight;
+    confirm.disabled = !!_hubMutationInFlight || !_endDayPreviewReady;
     if (!confirm.disabled) { confirm.focus(); }
 }
 
@@ -3039,23 +3074,25 @@ function finishEndDay(msg) {
         }
         review.setAttribute('data-state', 'error');
         review.textContent = `${failure.message || '日を終えたことを確認できませんでした。'} ${failure.nextStep || ''}`.trim();
-        confirm.disabled = !_endDayPreviewReady;
+        _endDayPreviewReady = false;
+        _endDayConfirmationToken = null;
+        _endDayLoaded = false;
+        confirm.disabled = true;
+        if (msg.classification === 'rejected_stale') { hubLoadEndDay(); }
         return;
     }
     const r = msg.receipt || {};
-    const eventKinds = Array.isArray(r.eventCategories) && r.eventCategories.length > 0 ? r.eventCategories.join('、') : 'なし';
     const markets = Array.isArray(r.marketChanges) && r.marketChanges.length > 0
         ? r.marketChanges.map((change) => `${change.commodityId}: 在庫 ${change.stockDelta >= 0 ? '+' : ''}${change.stockDelta}`).join('、')
         : '目立つ変化なし';
     review.setAttribute('data-state', 'success');
-    review.textContent = r.quiet
-        ? `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / 大きな出来事はありませんでした。`
-        : `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / 出来事 ${r.eventCount}件（${eventKinds}）/ 市場 ${markets}`;
+    review.textContent = `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / 市場 ${markets}`;
     if (msg.refreshFailed) {
         review.setAttribute('data-state', 'success-stale');
         review.textContent += ' 表示の更新を確認できなかったため、画面を再読込してください。';
     }
     _endDayPreviewReady = false;
+    _endDayLoaded = false;
     confirm.disabled = true;
     hubRecomputeMarket();
     renderHubHeader();

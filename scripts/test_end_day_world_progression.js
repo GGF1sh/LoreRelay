@@ -101,7 +101,7 @@ async function main() {
     const extension = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
     assert(ui.includes("msg.requestId !== _endDayPendingRequestId"), 'stale response guard missing');
     assert(bundle.includes('endDayCommit') && bundle.includes('一日を終える'), 'shipped bundle lacks P3');
-    assert(extension.includes('endDayRequestGate') && extension.includes('executeEndDay'));
+    // Shared production orchestration is exercised by test_game_action_commerce.js.
     const hostSource = fs.readFileSync(path.join(root, 'src', 'endDayWorldProgression.ts'), 'utf8');
     assert(!/import .*?(Relay|agentic|gmBridge|imageGeneration|narration)/i.test(hostSource), 'P3 host must not import AI paths');
     console.log('end-day world progression tests passed.');

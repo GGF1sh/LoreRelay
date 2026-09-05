@@ -211,9 +211,8 @@ async function main() {
     const ui = fs.readFileSync(path.join(root, 'webview', 'modules', '85-world.js'), 'utf8');
     const bundle = fs.readFileSync(path.join(root, 'webview', 'script.js'), 'utf8');
     const report = fs.readFileSync(path.join(root, 'docs', 'ai-tasks', 'NOAI-PLAY-P3-END-DAY-WORLD-PROGRESSION.md'), 'utf8');
-    assert(extension.includes("{ actionKind: 'shopkeeper_trade', requestId }") && extension.includes("{ actionKind: 'end_day', requestId }"));
-    assert(extension.indexOf("actionKind: 'shopkeeper_trade'") < extension.indexOf('executeLivingWorldDirectTrade(intent)'));
-    assert(extension.indexOf("actionKind: 'end_day'") < extension.indexOf('executeEndDay(requestId, confirmed)'));
+    // Real human/agent contention through the extracted service is exercised by
+    // test_game_action_commerce.js; the extension no longer owns these bodies.
     assert(!extension.slice(extension.indexOf('panel.onDidDispose'), extension.indexOf('disposeGameStateWatcher')).includes('deterministicWorkspaceMutationGate.dispose'));
     assert(ui.includes("reject.code === 'WORLD_MUTATION_IN_PROGRESS'") && ui.includes("failure.code === 'WORLD_MUTATION_IN_PROGRESS'"));
     assert(bundle.includes('WORLD_MUTATION_IN_PROGRESS'), 'shipped script.js lacks shared BUSY handling');

@@ -126,9 +126,10 @@ export interface WebviewHandlerDeps {
     handleLivingWorldMarketDebug(raw: unknown): Promise<void>;
     handleLivingWorldDirectTrade(raw: unknown): Promise<void>;
     handleShopkeeperDirectTrade(raw: unknown): Promise<void>;
+    handleShopkeeperTradePreview(raw: unknown): Promise<void>;
     handleMarketTravelPreview(raw: unknown): Promise<void>;
     handleMarketTravelCommit(raw: unknown): Promise<void>;
-    handleEndDayPreview(): Promise<void>;
+    handleEndDayPreview(raw: unknown): Promise<void>;
     handleEndDayCommit(raw: unknown): Promise<void>;
     handleLivingWorldSetPlayerRole(raw: unknown): Promise<void>;
     handleStartParlor(characterId?: string): Promise<void>;
@@ -706,6 +707,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         case 'shopkeeperDirectTrade':
             await deps.handleShopkeeperDirectTrade(message);
             break;
+        case 'shopkeeperTradePreview':
+            await deps.handleShopkeeperTradePreview(message);
+            break;
         case 'marketTravelPreview':
             await deps.handleMarketTravelPreview(message);
             break;
@@ -713,7 +717,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             await deps.handleMarketTravelCommit(message);
             break;
         case 'endDayPreview':
-            await deps.handleEndDayPreview();
+            await deps.handleEndDayPreview(message);
             break;
         case 'endDayCommit':
             await deps.handleEndDayCommit(message);

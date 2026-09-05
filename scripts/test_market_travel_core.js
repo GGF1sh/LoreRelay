@@ -38,7 +38,7 @@ function deferred() {
 function createHarness(options = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noai-play-p4-'));
     const gamePath = path.join(dir, 'game_state.json');
-    const game = options.game || { entries: [], world: { currentLocationId: 'north_farm' }, commerce: { credits: 100, food: 8, cargo: [], transportId: 'wagon' } };
+    const game = options.game || { entries: [], world: { currentLocationId: 'north_farm', discoveredRegionIds: ['r_north', 'r_south'] }, commerce: { credits: 100, food: 8, cargo: [], transportId: 'wagon' } };
     fs.writeFileSync(gamePath, JSON.stringify(game, null, 2));
     let world = options.world === undefined
         ? { worldTurn: 7, factions: {}, regions: {}, recentChanges: [], markets: { north_farm: { wheat: { stock: 10, priceIndex: 1 } }, south_port: { spice: { stock: 6, priceIndex: 1.1 } } } }

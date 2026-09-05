@@ -35,7 +35,10 @@ export function assessModCheckpointRestore(input: {
         return { allowed: false, code: 'ACTIVE_CAMPAIGN_SAFE_MODE' };
     }
 
-    const isModCheckpoint = input.checkpoint.format === 'text-adventure-checkpoint/1.2';
+    const hasModFields = input.checkpoint.modLockSnapshot !== undefined
+        || input.checkpoint.modLockFingerprint !== undefined;
+    const isModCheckpoint = input.checkpoint.format === 'text-adventure-checkpoint/1.2'
+        || (input.checkpoint.format === 'text-adventure-checkpoint/1.3' && hasModFields);
     if (!isModCheckpoint) {
         return input.activeDecision.mode === 'unmodded'
             ? { allowed: true, code: 'UNMODDED_LEGACY_CHECKPOINT' }

@@ -571,10 +571,14 @@ async function main() {
             sender: 'Game Master',
             content: 'verified history',
             modContext: historyContext,
-        }], 'MOD checkpoint', { modLockSnapshot: activationResolved.lock, modAuthorization: checkpointAuthorization });
-        check(checkpointMeta, 'checkpoint 1.2 save succeeds with a verified lock snapshot');
+        }], 'MOD checkpoint', {
+            gameState: { schemaVersion: 2, entries: [] },
+            modLockSnapshot: activationResolved.lock,
+            modAuthorization: checkpointAuthorization,
+        });
+        check(checkpointMeta, 'checkpoint 1.3 save succeeds with a verified lock snapshot');
         const loadedCheckpoint = checkpoint.loadCheckpointFile(checkpointRoot, checkpointMeta.id);
-        equal(loadedCheckpoint.format, 'text-adventure-checkpoint/1.2', 'modded checkpoint uses format 1.2');
+        equal(loadedCheckpoint.format, 'text-adventure-checkpoint/1.3', 'modded checkpoint uses complete-state format 1.3');
         equal(loadedCheckpoint.modLockFingerprint, activationResolved.lock.aggregateHash, 'checkpoint fingerprint binds the complete snapshot');
         equal(loadedCheckpoint.history[0].modContext, historyContext, 'checkpoint history preserves coarse MOD provenance');
         equal(activationCore.assessModCheckpointRestore({
@@ -618,8 +622,8 @@ async function main() {
         equal(unmodded.decision.mode, 'unmodded', 'no profile, lock, or provenance preserves unmodded startup');
         const legacyMeta = checkpoint.saveCheckpointFile(unmoddedRoot, [{
             id: 'turn-legacy', role: 'gm', sender: 'Game Master', content: 'legacy',
-        }], 'Legacy checkpoint');
-        equal(checkpoint.loadCheckpointFile(unmoddedRoot, legacyMeta.id).format, 'text-adventure-checkpoint/1.0', 'unmodded checkpoint remains byte-contract compatible format 1.0');
+        }], 'Complete checkpoint', { gameState: { schemaVersion: 2, entries: [] } });
+        equal(checkpoint.loadCheckpointFile(unmoddedRoot, legacyMeta.id).format, 'text-adventure-checkpoint/1.3', 'new unmodded checkpoint uses complete-state format 1.3');
 
         const malformedEvidenceRoot = path.join(tempRoot, 'malformed-evidence-campaign');
         fs.mkdirSync(malformedEvidenceRoot, { recursive: true });

@@ -299,7 +299,8 @@ function readJsonEvidence(filePath: string, maximumBytes = MAX_MOD_EVIDENCE_FILE
             potentialModEvidence: text.includes('modContext')
                 || text.includes('modLockFingerprint')
                 || text.includes('modLockSnapshot')
-                || text.includes('text-adventure-checkpoint/1.2'),
+                || text.includes('text-adventure-checkpoint/1.2')
+                || text.includes('text-adventure-checkpoint/1.3'),
         };
     }
 }
@@ -363,7 +364,7 @@ function readDocumentEvidence(cache: CampaignEvidenceCache, filePath: string, ki
         || Object.prototype.hasOwnProperty.call(record, 'modLockFingerprint')
         || Object.prototype.hasOwnProperty.call(record, 'modLockSnapshot'))) {
         modEvidencePresent = true;
-        if (record.format === 'text-adventure-checkpoint/1.2'
+        if ((record.format === 'text-adventure-checkpoint/1.2' || record.format === 'text-adventure-checkpoint/1.3')
             && typeof record.modLockFingerprint === 'string'
             && /^sha256:[a-f0-9]{64}$/.test(record.modLockFingerprint)) {
             checkpoints.add(record.modLockFingerprint);

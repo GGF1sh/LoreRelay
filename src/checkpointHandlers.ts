@@ -43,6 +43,7 @@ import {
     type ModCanonicalAuthorization,
 } from './mods/modActivationGateHost';
 import type { ModOpenDecision } from './mods/modSafeModeCore';
+import { restoreCheckpointStateSnapshot } from './checkpointSnapshot';
 
 const UNMODDED_OPEN_DECISION: ModOpenDecision = {
     mode: 'unmodded',
@@ -391,7 +392,24 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         return;
     }
     await runTimelineRestore(ws, 'restore-checkpoint', async () => {
+        const previousHistory = JSON.parse(JSON.stringify(getGameEntryHistory())) as GameEntry[];
         setGameEntryHistoryWithSeenIds(cp.history);
+        if (cp.format === 'text-adventure-checkpoint/1.3' && cp.stateSnapshot) {
+            resetGmBridgeSessions();
+            const restored = restoreCheckpointStateSnapshot(ws, cp.stateSnapshot, cp.history, {
+                authorizationCurrent: () => isModCanonicalAuthorizationCurrent(authorization),
+                writeGameState: state => writeGameStateToDisk(getGameStatePath() ?? '', state, true),
+            });
+            if (!restored) {
+                setGameEntryHistoryWithSeenIds(previousHistory);
+                return false;
+            }
+            replaceHistoryFromDisk();
+            sendCurrentState(0, true);
+            sendCheckpointList();
+            vscode.window.showInformationMessage(t('extension.info.checkpointRestored', { label: cp.meta.label }));
+            return true;
+        }
         if (!saveHistoryToDisk()) return false;
         resetGmBridgeSessions();
         const gm = findLastGmEntry(getGameEntryHistory());

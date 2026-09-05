@@ -1,6 +1,6 @@
 # TURN-WORLD-ATOMICITY-R1
 
-- Status: `IMPLEMENTING`
+- Status: `VERIFIED_PR_PENDING`
 - Risk: High — Accepted Turn authority, concurrent revision handling, cross-ledger persistence
 - Base: `2a9ecd3cbb6ae1654228434b47c4bbbeef9aecbd`
 - Branch: `fix/TURN-WORLD-ATOMICITY-R1`
@@ -29,10 +29,11 @@ This also overlaps the existing `CHATGPT-20260706-002` finding; the GPT-6 Pro re
 
 ## Verification
 
-- Focused host regression: `scripts/test_runtime_turn_result_acceptance.js`
-- Real filesystem deferral regression: `scripts/test_accepted_turn_side_effect_deferral.js`
-- Test Console plan before broader verification
-- One full suite on the final unchanged executable tree
-- Existing GPT-6 Pro review is the independent pre-repair review; do not create a review chain
+- Focused host regression: `scripts/test_runtime_turn_result_acceptance.js` — PASS
+- Real filesystem deferral regression: `scripts/test_accepted_turn_side_effect_deferral.js` — 14/14 PASS
+- Test Console plan `2026-09-05T06-31-08-262Z-7e8550fc-verify.json` — 18/18 commands, focused 15/15 PASS
+- Final unchanged executable tree: `npm test` — 343/343 suites PASS; Combat 736/736 PASS
+- Compile, validation, UTF-8, simulation batch, and Symbol Registry checks — PASS
+- Existing GPT-6 Pro review is the independent pre-repair review; no additional review chain was created
 
 > Before planning verification, follow `docs/DEVELOPMENT_VERIFICATION_POLICY.md`. Do not escalate beyond its risk tier without a concrete reason.

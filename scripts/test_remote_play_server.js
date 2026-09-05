@@ -10,6 +10,13 @@ const http = require('http');
 const os   = require('os');
 const fs   = require('fs');
 const path = require('path');
+const assert = require('node:assert/strict');
+const WebSocket = require('ws');
+const logs = [];
+let inputCount = 0;
+let inputFailure;
+let unexpectedFailure;
+let defaultRole = 'player';
 
 // ── vscode モック ─────────────────────────────────────────────
 // remotePlayServer 内で参照されるすべての vscode API を最小限にモック
@@ -22,9 +29,9 @@ const mockVscode = {
         workspaceFolders: [{ uri: { fsPath: WS_PATH }, name: 'test' }],
         getConfiguration: () => ({
             get: (key, def) => {
-                if (key === 'remotePlay.port')        return 47291; // テスト用固定ポート
+                if (key === 'remotePlay.port')        return 0;
                 if (key === 'remotePlay.bindAddress') return '127.0.0.1';
-                if (key === 'remotePlay.defaultRole') return 'player';
+                if (key === 'remotePlay.defaultRole') return defaultRole;
                 if (key === 'remotePlay.maxClients')  return 8;
                 if (key === 'remotePlay.inputCooldownMs') return 1500;
                 if (key === 'workspaceFolder')        return '';
@@ -34,7 +41,7 @@ const mockVscode = {
         onDidChangeConfiguration: () => ({ dispose: () => {} }),
     },
     window: {
-        createOutputChannel: () => ({ appendLine: () => {}, show: () => {}, dispose: () => {} }),
+        createOutputChannel: () => ({ appendLine: (line) => logs.push(line), show: () => {}, dispose: () => {} }),
         showWarningMessage:   (...a) => Promise.resolve(undefined),
         showInformationMessage: (...a) => Promise.resolve(undefined),
         showErrorMessage:     (...a) => Promise.resolve(undefined),
@@ -71,6 +78,200 @@ function get(url) {
     });
 }
 
+// Real loopback sockets; queue messages so welcome + cached state cannot race the test.
+async function connect(port) {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?role=player`);
+    const queue = [];
+    let waiter;
+    ws.on('message', data => {
+        const msg = JSON.parse(data.toString());
+        if (waiter) { const deliver = waiter; waiter = undefined; deliver(msg); }
+        else { queue.push(msg); }
+    });
+    const next = () => queue.length ? Promise.resolve(queue.shift()) : new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { waiter = undefined; reject(new Error('WS response timeout')); }, 3000);
+        waiter = msg => { clearTimeout(timer); resolve(msg); };
+    });
+    const closed = new Promise(resolve => ws.once('close', code => resolve(code)));
+    ws.on('error', () => {});
+    assert.equal((await next()).type, 'authRequired');
+    return { ws, next, closed, send: msg => ws.send(JSON.stringify(msg)), close: async () => { ws.close(); await closed; } };
+}
+
+async function trustBoundaryRegression(status) {
+    const base = `http://127.0.0.1:${status.port}`;
+    const spectator = new URL(status.spectatorUrls[0]).searchParams.get('token');
+    assert.notEqual(spectator, status.token);
+    const clients = [];
+    const rejections = [];
+    const onRejection = reason => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    const realNow = Date.now;
+    let now = realNow();
+    Date.now = () => now;
+    const open = async (token, role = 'player') => {
+        const client = await connect(status.port);
+        clients.push(client);
+        client.send({ type: 'auth', token, role });
+        assert.equal((await client.next()).role, token === spectator || token === newSpectator ? 'spectator' : 'player');
+        return client;
+    };
+    let newSpectator;
+    try {
+        const player = await open(status.token, 'spectator'); // Hint cannot override server authority.
+        for (const role of ['spectator', 'player', null, { role: 'player' }]) {
+            const viewer = await open(spectator, role);
+            for (const type of ['selectOption', 'freeInput']) {
+                viewer.send({ type, text: 'escalate', role: 'player', token: status.token });
+                assert.equal((await viewer.next()).message, 'Spectator mode (read-only)');
+            }
+            await viewer.close();
+        }
+        assert.equal(inputCount, 0);
+        for (const type of ['selectOption', 'freeInput']) {
+            now += 2000;
+            player.send({ type, text: 'allowed' });
+            assert.equal((await player.next()).type, 'inputAccepted');
+            assert.equal((await player.next()).type, 'remoteInput');
+        }
+        assert.equal(inputCount, 2);
+        ok('R3: server-owned roles, spectator escalation denied, zero spectator input, both player inputs work');
+
+        defaultRole = 'spectator';
+        const readOnlyDefault = rps.getRemotePlayStatus();
+        assert.equal(readOnlyDefault.token, spectator);
+        assert.equal(new URL(readOnlyDefault.urls[0]).searchParams.get('token'), spectator);
+        for (const role of [undefined, 'player']) {
+            const client = await connect(status.port);
+            clients.push(client);
+            client.send({ type: 'auth', token: readOnlyDefault.token, role });
+            assert.equal((await client.next()).role, 'spectator');
+            client.send({ type: 'freeInput', text: 'default must stay read only' });
+            assert.equal((await client.next()).message, 'Spectator mode (read-only)');
+            await client.close();
+        }
+        assert.equal(inputCount, 2);
+        const explicitPlayer = await open(status.token);
+        await explicitPlayer.close();
+        defaultRole = 'player';
+        assert.equal(rps.getRemotePlayStatus().token, status.token);
+        ok('R3 review repair: configured spectator default shares read-only capability; explicit player capability stays player');
+
+        const cases = ['{', 'null', '[]', '"foo"', '123', 'true', '{}', '{"type":null}', '{"type":123}', '{"type":"unknown"}'];
+        for (const authed of [false, true]) {
+            for (const raw of cases) {
+                const client = authed ? await open(status.token) : await connect(status.port);
+                if (!authed) clients.push(client);
+                client.ws.send(raw);
+                assert.equal((await client.next()).type, 'error');
+                if (authed) {
+                    client.send({ type: 'ping' });
+                    assert.equal((await client.next()).type, 'pong');
+                }
+                await client.close();
+            }
+        }
+        for (const authed of [false, true]) {
+            const client = authed ? await open(status.token) : await connect(status.port);
+            if (!authed) clients.push(client);
+            client.ws.send('x'.repeat(4001));
+            assert.equal((await client.next()).message, 'Message too large');
+            assert.equal(await client.closed, 1009);
+        }
+        inputFailure = new Error(`PRIVATE ${status.token} ${spectator}`);
+        now += 2000;
+        player.send({ type: 'freeInput', text: 'provider failure' });
+        assert.equal((await player.next()).type, 'inputAccepted');
+        assert.equal((await player.next()).type, 'remoteInput');
+        inputFailure = undefined;
+        unexpectedFailure = new Error(`PRIVATE ${status.token} ${spectator}`);
+        now += 2000;
+        player.send({ type: 'freeInput', text: 'unexpected boundary failure' });
+        assert.equal(await player.closed, 1011);
+        unexpectedFailure = undefined;
+        assert(logs.includes('Remote input failed'));
+        assert(logs.includes('Remote WebSocket message failed'));
+        assert(!logs.join('\n').includes(status.token));
+        assert(!logs.join('\n').includes(spectator));
+        ok('R4: malformed shapes/types pre/post auth, size limit, dependency rejection and final event catch; logs redacted');
+
+        const imagePath = path.join(WS_PATH, 'private-scene.png');
+        fs.writeFileSync(imagePath, 'image fixture');
+        const scene = { latestImage: imagePath, background: imagePath, options: ['Continue'] };
+        const entries = [{ id: 'e', role: 'gm', sender: 'GM', content: 'Scene', image: imagePath }];
+        const viewer = await open(spectator);
+        rps.pushGameStateToRemoteClients(scene, entries);
+        const wire = (await viewer.next()).state;
+        function checkWire(state, credentials) {
+            const raw = JSON.stringify(state);
+            assert(!raw.includes('private-scene.png'));
+            assert(!raw.includes(JSON.stringify(WS_PATH).slice(1, -1)));
+            for (const token of credentials) assert(!raw.includes(token));
+            for (const url of [state.latestImage, state.background, state.entries[0].image]) {
+                const parsed = new URL(url, base);
+                assert.match(parsed.searchParams.get('file'), /^[a-f0-9]{32}$/);
+                assert.equal(parsed.searchParams.has('token'), false);
+            }
+        }
+        checkWire(wire, [status.token, spectator]);
+        for (const url of [wire.latestImage, wire.background, wire.entries[0].image]) {
+            assert.equal((await get(base + url)).status, 200);
+        }
+        const oldUrl = wire.latestImage;
+        const forged = buildSignedMediaPath(new URL(oldUrl, base).searchParams.get('file'), spectator, 300);
+        assert.equal((await get(base + forged)).status, 401);
+        assert.equal((await get(base + buildSignedMediaPath(new URL(oldUrl, base).searchParams.get('file'), status.token, 300))).status, 401);
+        now += 301000;
+        assert.equal((await get(base + oldUrl)).status, 403);
+        await viewer.close();
+        const late = await open(spectator);
+        const fresh = (await late.next()).state;
+        checkWire(fresh, [status.token, spectator]);
+        assert.notEqual(fresh.latestImage, oldUrl);
+        assert.equal((await get(base + fresh.latestImage)).status, 200);
+        defaultRole = 'spectator';
+        const rotatedDefault = rps.rotateRemotePlayToken();
+        newSpectator = new URL(rps.getRemotePlayStatus().spectatorUrls[0]).searchParams.get('token');
+        assert.equal(rotatedDefault, newSpectator);
+        assert.equal(rps.getRemotePlayStatus().token, newSpectator);
+        defaultRole = 'player';
+        const newPlayer = rps.getRemotePlayStatus().token;
+        assert.notEqual(newSpectator, spectator);
+        assert.equal(await late.closed, 1008);
+        assert.equal((await get(base + fresh.latestImage)).status, 401);
+        for (const token of [status.token, spectator]) {
+            const stale = await connect(status.port);
+            clients.push(stale);
+            stale.send({ type: 'auth', token, role: 'player' });
+            assert.equal((await stale.next()).message, 'Unauthorized');
+            assert.equal(await stale.closed, 1008);
+        }
+        for (const token of [newPlayer, newSpectator]) {
+            const current = await open(token);
+            const state = (await current.next()).state;
+            checkWire(state, [status.token, spectator, newPlayer, newSpectator]);
+            assert.equal((await get(base + state.latestImage)).status, 200);
+            await current.close();
+        }
+        const current = await open(newPlayer);
+        const retainedUrl = (await current.next()).state.latestImage;
+        rps.pushGameStateToRemoteClients({ latestImage: path.join(WS_PATH, '..', 'outside.png') }, []);
+        assert.equal((await current.next()).state.latestImage, undefined);
+        // Registered paths are checked again at serve time, not trusted forever.
+        fs.renameSync(imagePath, imagePath + '.moved');
+        assert.equal((await get(base + retainedUrl)).status, 403);
+        ok('R6: live/reconnect/rotation URLs valid, old URLs expired/invalid, opaque wire IDs, credentials cannot sign media');
+        await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(rejections, []);
+    } finally {
+        Date.now = realNow;
+        inputFailure = unexpectedFailure = undefined;
+        defaultRole = 'player';
+        for (const client of clients) await client.close();
+        process.off('unhandledRejection', onRejection);
+    }
+}
+
 // ── テスト本体 ───────────────────────────────────────────────
 async function run() {
     // 1. 起動前: status は running=false
@@ -102,9 +303,9 @@ async function run() {
     rps.initRemotePlayServer({
         extensionPath: WS_PATH,
         getPanel: () => undefined,
-        onPlayerInput: async () => {},
+        onPlayerInput: async () => { inputCount++; if (inputFailure) throw inputFailure; },
         isGameOverActive: () => false,
-        isGmBusy: () => false,
+        isGmBusy: () => { if (unexpectedFailure) throw unexpectedFailure; return false; },
         subscriptions: [],
     });
 
@@ -201,8 +402,8 @@ async function run() {
         // 9. /media 有効署名・存在しないファイル → 403
         {
             const r = await get(signedMediaUrl('nofile.png'));
-            if (r.status !== 400 && r.status !== 403 && r.status !== 404) {
-                fail(`/media valid signature invalid file: expected 400/403/404, got ${r.status}`);
+            if (r.status !== 401) {
+                fail(`/media player credential cannot sign files: expected 401, got ${r.status}`);
             } else {
                 ok(`/media valid signature invalid file: ${r.status} (file rejected)`);
             }
@@ -211,8 +412,8 @@ async function run() {
         // 9b. /media パストラバーサル試行 → 403 (traversal outside workspace)
         {
             const r = await get(signedMediaUrl('../../evil.png'));
-            if (r.status !== 403 && r.status !== 404) {
-                fail(`/media path traversal: expected 403/404, got ${r.status}`);
+            if (r.status !== 401) {
+                fail(`/media path traversal: expected 401, got ${r.status}`);
             } else {
                 ok(`/media path traversal (../../evil.png): ${r.status} (traversal blocked)`);
             }
@@ -222,8 +423,8 @@ async function run() {
         {
             const doubleEncoded = '%252F..%252Fevil.png';
             const r = await get(signedMediaUrl(doubleEncoded));
-            if (r.status !== 403 && r.status !== 404 && r.status !== 400) {
-                fail(`/media double-encoded traversal: expected 400/403/404, got ${r.status}`);
+            if (r.status !== 401) {
+                fail(`/media double-encoded traversal: expected 401, got ${r.status}`);
             } else {
                 ok(`/media double-encoded traversal: ${r.status} (blocked)`);
             }
@@ -279,6 +480,8 @@ async function run() {
             }
         }
     }
+
+    await trustBoundaryRegression(rps.getRemotePlayStatus());
 
     // 10. rotateRemotePlayToken でトークンが変わる
     {

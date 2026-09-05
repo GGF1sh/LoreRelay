@@ -262,7 +262,7 @@ async function run() {
         ws.on('message', (data) => {
             const msg = JSON.parse(data.toString());
             if (msg.type === 'authRequired') {
-                ws.send(JSON.stringify({ type: 'auth', token: token, role: 'spectator' }));
+                ws.send(JSON.stringify({ type: 'auth', token: new URL(status.spectatorUrls[0]).searchParams.get('token'), role: 'player' }));
             } else if (msg.type === 'welcome') {
                 welcomed = true;
                 ws.send(JSON.stringify({ type: 'freeInput', text: 'should be rejected' }));

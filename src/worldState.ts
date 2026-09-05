@@ -66,6 +66,44 @@ const WORLD_STATE_FILENAME = 'world_state.json';
 let cachePath = '';
 let cacheMtime = 0;
 let cachedState: WorldState | undefined | null = undefined; // null = file checked, doesn't exist
+let writeDeferralActive = false;
+let deferredState: WorldState | undefined;
+
+/**
+ * Defer world_state publication while an Accepted Turn is still pre-commit.
+ * The extension host is single-threaded and Accepted Turn application is
+ * single-flight, so a process-local lease is sufficient to keep every
+ * synchronous world mutation in the same commit boundary.
+ */
+export function beginWorldStateWriteDeferral(): boolean {
+    if (writeDeferralActive) { return false; }
+    writeDeferralActive = true;
+    deferredState = undefined;
+    return true;
+}
+
+/** Publish the latest deferred world snapshot after game_state is durable. */
+export function commitWorldStateWriteDeferral(): boolean {
+    if (!writeDeferralActive) { return false; }
+    const pending = deferredState;
+    writeDeferralActive = false;
+    deferredState = undefined;
+    if (!pending) { return true; }
+    try {
+        return saveWorldState(pending);
+    } catch (e) {
+        console.error('[worldState] deferred world publication failed', e);
+        clearWorldStateCache();
+        return false;
+    }
+}
+
+/** Discard every pre-commit world mutation and force the next read from disk. */
+export function rollbackWorldStateWriteDeferral(): void {
+    writeDeferralActive = false;
+    deferredState = undefined;
+    clearWorldStateCache();
+}
 
 function getWorldStatePath(): string | undefined {
     const ws = getWorkspacePath();
@@ -111,6 +149,9 @@ export function readWorldStateSnapshotReadOnly(): {
 }
 
 export function loadWorldState(): WorldState | undefined {
+    if (writeDeferralActive && deferredState) {
+        return deferredState;
+    }
     const statePath = getWorldStatePath();
     if (!statePath) {
         clearWorldStateCache();
@@ -274,6 +315,10 @@ function writeWorldStateToDisk(statePath: string, state: WorldState): void {
 }
 
 export function saveWorldState(state: WorldState): boolean {
+    if (writeDeferralActive) {
+        deferredState = state;
+        return true;
+    }
     const statePath = getWorldStatePath();
     if (!statePath) { return false; }
     if (isWorldStateWriteCircuitOpen()) {
@@ -357,6 +402,10 @@ export function ensureWorldStateExists(forge: WorldForge): WorldState {
 /** 新規生成・上書き時に world_state.json を forge から再構築する。 */
 export function resetWorldStateFromForge(forge: WorldForge, createBackup = false): WorldState {
     const initial = buildInitialWorldState(forge);
+    if (writeDeferralActive) {
+        deferredState = initial;
+        return initial;
+    }
     const statePath = getWorldStatePath();
     if (!statePath) {
         return initial;

@@ -29,8 +29,20 @@ import { commitGameState } from './stateManager';
 import { readStateRevision } from './workspaceStateQueueCore';
 import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import { loadGameRules } from './gameRules';
-import { loadWorldState, saveWorldState } from './worldState';
-import { applyNpcMemoryUpdates, loadNpcRegistry } from './npcRegistry';
+import {
+    beginWorldStateWriteDeferral,
+    commitWorldStateWriteDeferral,
+    loadWorldState,
+    rollbackWorldStateWriteDeferral,
+    saveWorldState,
+} from './worldState';
+import {
+    applyNpcMemoryUpdates,
+    beginNpcRegistryWriteDeferral,
+    commitNpcRegistryWriteDeferral,
+    loadNpcRegistry,
+    rollbackNpcRegistryWriteDeferral,
+} from './npcRegistry';
 import type { NpcMemoryUpdate } from './npcRegistryCore';
 import {
     applyPlayerReputationToFactions,
@@ -646,7 +658,7 @@ export function applyTurnResultToGameState(
         turnResult.elapsedWorldTurns,
         ABSOLUTE_MAX_BULK_WORLD_STEPS
     );
-    if (elapsedWorldTurns > 0) {
+    if (persistWorld && elapsedWorldTurns > 0) {
         const simResult = persistWorldSimulationSteps(elapsedWorldTurns, ABSOLUTE_MAX_BULK_WORLD_STEPS);
         if (!simResult.ok) {
             console.warn(`[statePatch] elapsedWorldTurns skipped (reapply): ${simResult.reason}`);
@@ -694,8 +706,15 @@ export function processTurnResult(
         return false;
     }
 
+    let worldDeferralOpen = false;
+    let npcDeferralOpen = false;
     try {
         flushScheduledCommercePersist();
+        worldDeferralOpen = beginWorldStateWriteDeferral();
+        npcDeferralOpen = beginNpcRegistryWriteDeferral();
+        if (!worldDeferralOpen || !npcDeferralOpen) {
+            throw new Error('Accepted Turn side-effect deferral is already active');
+        }
         let state = readGameStateRecord(statePath);
         const baseRevision = readStateRevision(state);
         const beforeHash = hashGameState(state);
@@ -835,6 +854,18 @@ export function processTurnResult(
             return false;
         }
 
+        const worldPublished = commitWorldStateWriteDeferral();
+        worldDeferralOpen = false;
+        const npcPublished = commitNpcRegistryWriteDeferral();
+        npcDeferralOpen = false;
+        if (!worldPublished || !npcPublished) {
+            console.error(
+                '[statePatch] Accepted game_state committed but deferred world side-ledger publication failed;',
+                'the Accepted witness prevents retry from advancing the world twice.',
+                { worldPublished, npcPublished }
+            );
+        }
+
         if (acceptedTurnContext) {
             try {
                 const wsPath = getWorkspacePath();
@@ -956,5 +987,12 @@ export function processTurnResult(
         console.error('Error processing turn result', e);
         vscode.window.showErrorMessage(t('extension.error.gameStateLoad'));
         return false;
+    } finally {
+        if (worldDeferralOpen) {
+            rollbackWorldStateWriteDeferral();
+        }
+        if (npcDeferralOpen) {
+            rollbackNpcRegistryWriteDeferral();
+        }
     }
 }

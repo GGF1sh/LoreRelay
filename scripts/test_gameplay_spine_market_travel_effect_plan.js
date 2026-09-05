@@ -148,7 +148,7 @@ function productionPreviewFacts() {
     const gamePath = path.join(dir, 'game_state.json');
     fs.writeFileSync(gamePath, JSON.stringify({
         entries: [],
-        world: { currentLocationId: 'a' },
+        world: { currentLocationId: 'a', discoveredRegionIds: ['north', 'south'] },
         commerce: { credits: 0, food: 30, cargo: [], transportId: 'wagon' },
     }));
     let writeCalls = 0;

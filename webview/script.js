@@ -10124,7 +10124,9 @@ function finishShopkeeperTrade(msg) {
     }
     review.setAttribute('data-state', 'error');
     review.textContent = `${reject.message || '取引を実行できませんでした。'} ${reject.nextStep || ''}`.trim();
-    if (confirm) { confirm.disabled = !_shopkeeperPreviewReady; }
+    _shopkeeperPreviewReady = false;
+    _shopkeeperConfirmationToken = null;
+    if (confirm) { confirm.disabled = true; }
 }
 
 /* --- 旅 (zero-turn travel) section --- */
@@ -10260,6 +10262,8 @@ function finishMarketTravel(msg) {
             review.setAttribute('data-state', 'busy');
         } else {
             review.setAttribute('data-state', 'error');
+            _marketTravelPreviewReady = false;
+            _marketTravelConfirmationToken = null;
         }
         review.textContent = `${failure.message || '移動を保存できませんでした。'} ${failure.nextStep || ''}`.trim();
         if (previewBtn) { previewBtn.disabled = !select || !select.value; }
@@ -10359,18 +10363,17 @@ function finishEndDay(msg) {
         }
         review.setAttribute('data-state', 'error');
         review.textContent = `${failure.message || '日を終えたことを確認できませんでした。'} ${failure.nextStep || ''}`.trim();
-        confirm.disabled = !_endDayPreviewReady;
+        _endDayPreviewReady = false;
+        _endDayConfirmationToken = null;
+        confirm.disabled = true;
         return;
     }
     const r = msg.receipt || {};
-    const eventKinds = Array.isArray(r.eventCategories) && r.eventCategories.length > 0 ? r.eventCategories.join('、') : 'なし';
     const markets = Array.isArray(r.marketChanges) && r.marketChanges.length > 0
         ? r.marketChanges.map((change) => `${change.commodityId}: 在庫 ${change.stockDelta >= 0 ? '+' : ''}${change.stockDelta}`).join('、')
         : '目立つ変化なし';
     review.setAttribute('data-state', 'success');
-    review.textContent = r.quiet
-        ? `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / 大きな出来事はありませんでした。`
-        : `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / 出来事 ${r.eventCount}件（${eventKinds}）/ 市場 ${markets}`;
+    review.textContent = `一日が終わりました。ターン ${r.worldTurn?.before} → ${r.worldTurn?.after} / 市場 ${markets}`;
     if (msg.refreshFailed) {
         review.setAttribute('data-state', 'success-stale');
         review.textContent += ' 表示の更新を確認できなかったため、画面を再読込してください。';

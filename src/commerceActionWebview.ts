@@ -24,6 +24,12 @@ export function createCommerceActionWebviewAdapter(
     let pending: Promise<{ runtime: Runtime; context: ReturnType<Runtime['service']['createTrustedSession']> }> | undefined;
     let generation = 0;
     async function session() {
+        if (pending) {
+            const prior = await pending;
+            if (prior.runtime.authorized()) return prior;
+            prior.runtime.service.close(prior.context);
+            pending = undefined;
+        }
         if (!pending) pending = createCommerceActionRuntime(gate).then(runtime => ({ runtime,
             context: runtime.service.createTrustedSession('human-player') })).catch(error => { pending = undefined; throw error; });
         return pending;

@@ -108,6 +108,9 @@ window.addEventListener('DOMContentLoaded', () => {
         if (msg.type === 'shopkeeperDirectTradeResult') {
             finishShopkeeperTrade(msg);
         }
+        if (msg.type === 'shopkeeperTradePreviewResult') {
+            finishShopkeeperTradePreview(msg);
+        }
         if (msg.type === 'marketTravelPreviewResult') {
             finishMarketTravelPreview(msg);
         }
@@ -2340,16 +2343,20 @@ let _hubMarket = null;           // canonical current-market snapshot for 取引
 let _shopkeeperInFlight = false;
 let _shopkeeperPendingRequestId = null;
 let _shopkeeperPreviewReady = false;
+let _shopkeeperPreviewId = null;
+let _shopkeeperConfirmationToken = null;
 
 /* 旅 — zero-turn travel (P4) */
 let _marketTravelPendingRequestId = null;
 let _marketTravelPreviewDestinationId = null;
 let _marketTravelPreviewReady = false;
+let _marketTravelConfirmationToken = null;
 let _marketTravelLoaded = false;
 
 /* 一日を終える — end-day world progression (P3) */
 let _endDayPendingRequestId = null;
 let _endDayPreviewReady = false;
+let _endDayConfirmationToken = null;
 let _endDayLoaded = false;
 
 function createHubRequestId(prefix) {
@@ -2679,6 +2686,8 @@ function hubDisableTradeInputs(disabled) {
 /* Any change to commodity, operation, or quantity invalidates the old preview. */
 function hubInvalidateTradePreview() {
     _shopkeeperPreviewReady = false;
+    _shopkeeperPreviewId = null;
+    _shopkeeperConfirmationToken = null;
     if (!_playerActionHub) { return; }
     const confirm = _playerActionHub.querySelector('#shopkeeper-confirm-btn');
     if (confirm) { confirm.disabled = true; }
@@ -2732,9 +2741,12 @@ function wireHubTradeInputs() {
         review.textContent = op === 'buy'
             ? `${T('webview.world.actionHubTradeBuy')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`
             : `${T('webview.world.actionHubTradeSell')} (${T('webview.world.actionHubTradeProjection')}): ${name} × ${qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(projection.total)}`;
-        _shopkeeperPreviewReady = true;
-        confirm.disabled = false;
-        confirm.focus();
+        _shopkeeperPreviewReady = false;
+        _shopkeeperConfirmationToken = null;
+        _shopkeeperPreviewId = createHubRequestId('quote');
+        confirm.disabled = true;
+        vscode.postMessage({ type: 'shopkeeperTradePreview', previewId: _shopkeeperPreviewId,
+            op, marketLocationId: _hubMarket.locationId, commodityId, qty });
     });
 
     hubRenderTradeProjection();
@@ -2756,6 +2768,7 @@ function wireHubTradeInputs() {
         vscode.postMessage({
             type: 'shopkeeperDirectTrade',
             requestId: _shopkeeperPendingRequestId,
+            confirmationToken: _shopkeeperConfirmationToken,
             op,
             marketLocationId: _hubMarket.locationId,
             commodityId,
@@ -2766,6 +2779,21 @@ function wireHubTradeInputs() {
 
 function wireHubTradeSection() {
     hubRenderTradeBody();
+}
+
+function finishShopkeeperTradePreview(msg) {
+    if (!_playerActionHub || !_shopkeeperPreviewId || msg.previewId !== _shopkeeperPreviewId || _hubMutationInFlight) { return; }
+    const review = _playerActionHub.querySelector('#shopkeeper-review');
+    const confirm = _playerActionHub.querySelector('#shopkeeper-confirm-btn');
+    if (!review || !confirm) { return; }
+    _shopkeeperPreviewReady = msg.ok === true && typeof msg.confirmationToken === 'string';
+    _shopkeeperConfirmationToken = _shopkeeperPreviewReady ? msg.confirmationToken : null;
+    confirm.disabled = !_shopkeeperPreviewReady;
+    review.setAttribute('data-state', _shopkeeperPreviewReady ? 'preview' : 'error');
+    review.textContent = _shopkeeperPreviewReady
+        ? `${T(msg.op === 'buy' ? 'webview.world.actionHubTradeBuy' : 'webview.world.actionHubTradeSell')}: ${msg.commodityId} × ${msg.qty} / ${T('webview.world.actionHubTradeTotal')} ${formatMarketNumber(msg.total)}`
+        : `${msg.message || '取引内容を確認できませんでした。'} ${msg.nextStep || ''}`.trim();
+    if (_shopkeeperPreviewReady) { confirm.focus(); }
 }
 
 function finishShopkeeperTrade(msg) {
@@ -2872,7 +2900,7 @@ function wireHubTravelSection() {
         const review = _playerActionHub.querySelector('#market-travel-review');
         review.setAttribute('data-state', 'submitting');
         review.textContent = '移動を保存中...';
-        vscode.postMessage({ type: 'marketTravelCommit', requestId: _marketTravelPendingRequestId, destinationId: select.value, confirmed: true });
+        vscode.postMessage({ type: 'marketTravelCommit', requestId: _marketTravelPendingRequestId, destinationId: select.value, confirmationToken: _marketTravelConfirmationToken });
     });
 }
 
@@ -2910,7 +2938,8 @@ function finishMarketTravelPreview(msg) {
         if (options.length > 0 && _playerActionHubSection === 'travel') { select.focus(); }
         return;
     }
-    _marketTravelPreviewReady = true;
+    _marketTravelConfirmationToken = typeof msg.confirmationToken === 'string' ? msg.confirmationToken : null;
+    _marketTravelPreviewReady = !!_marketTravelConfirmationToken;
     const dest = msg.destination || {};
     const origin = msg.current || {};
     review.setAttribute('data-state', 'preview');
@@ -2921,7 +2950,7 @@ function finishMarketTravelPreview(msg) {
         dev.textContent = `elapsedWorldTurns=${msg.elapsedWorldTurns} / reachabilityBasis=${msg.reachabilityBasis || 'known_market_location'} / systemsNotAdvanced=${systems}`;
     }
     previewBtn.disabled = !!_hubMutationInFlight;
-    confirm.disabled = !!_hubMutationInFlight;
+    confirm.disabled = !!_hubMutationInFlight || !_marketTravelPreviewReady;
     if (!confirm.disabled) { confirm.focus(); }
 }
 
@@ -2995,7 +3024,7 @@ function wireHubEndDaySection() {
         const review = _playerActionHub.querySelector('#end-day-review');
         review.setAttribute('data-state', 'submitting');
         review.textContent = '一日を進めています…';
-        vscode.postMessage({ type: 'endDayCommit', requestId: _endDayPendingRequestId, confirmed: true });
+        vscode.postMessage({ type: 'endDayCommit', requestId: _endDayPendingRequestId, confirmationToken: _endDayConfirmationToken });
     });
 }
 
@@ -3010,14 +3039,15 @@ function finishEndDayPreview(msg) {
         confirm.disabled = true;
         return;
     }
-    _endDayPreviewReady = true;
+    _endDayConfirmationToken = typeof msg.confirmationToken === 'string' ? msg.confirmationToken : null;
+    _endDayPreviewReady = !!_endDayConfirmationToken;
     const systems = Array.isArray(msg.systems) ? msg.systems.join('、') : '世界の変化';
     const consumption = Array.isArray(msg.fixedResourceConsumption) && msg.fixedResourceConsumption.length > 0
         ? msg.fixedResourceConsumption.map((x) => `${x.resource} ${x.amount}`).join('、')
         : '固定消費なし';
     review.setAttribute('data-state', 'preview');
     review.textContent = `確認（確定前）: ${msg.currentWorldTurn} → ${msg.targetWorldTurn}ターン / 進む変化: ${systems} / ${consumption}`;
-    confirm.disabled = !!_hubMutationInFlight;
+    confirm.disabled = !!_hubMutationInFlight || !_endDayPreviewReady;
     if (!confirm.disabled) { confirm.focus(); }
 }
 

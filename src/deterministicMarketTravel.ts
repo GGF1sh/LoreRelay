@@ -9,6 +9,7 @@ import { readStateRevision } from './workspaceStateQueueCore';
 import type { GameState } from './types/GameState';
 import type { CommerceForge } from './livingWorldTypes';
 import type { WorldForge, WorldLocation } from './worldForgeCore';
+import { publishedMarketLocationIds } from './publishedMarketLocations';
 
 export type MarketTravelFailureCode =
     | 'CONFIRMATION_REQUIRED' | 'COMMERCE_OFF' | 'NO_FORGE' | 'NO_GAME_STATE'
@@ -161,7 +162,8 @@ export function previewMarketTravel(destinationId?: string, deps: MarketTravelHo
     }
     const locations = byId(forge);
     const current = locationLabel(locations.get(currentId), currentId);
-    const destinations = enumerateDestinations(forge, commerce, currentId);
+    const published = publishedMarketLocationIds(forge, game.world);
+    const destinations = enumerateDestinations(forge, commerce, currentId).filter(destination => published.has(destination.id));
     if (!destinations.length) {
         return failure('NO_DESTINATIONS', '移動できる別の市場がありません。', '別の市場を含む world_forge.json を読み込んでください。');
     }

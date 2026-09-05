@@ -408,7 +408,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
     resetChronicleSessionPending();
     initOocSidekick(() => panel);
-    initCheckpointHandlers({ getPanel, isGameOverActive });
+    initCheckpointHandlers({ getPanel, isGameOverActive, mutationGate: deterministicWorkspaceMutationGate });
     initGmBridgeRunner({
         getPanel,
         buildGrokPrompt,

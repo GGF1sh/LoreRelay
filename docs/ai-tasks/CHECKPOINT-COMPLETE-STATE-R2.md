@@ -1,7 +1,9 @@
 # CHECKPOINT-COMPLETE-STATE-R2
 
-Status: IMPLEMENTED_VERIFYING  
-Risk: High — save data, restore authority, multi-file rollback  
+Status: IMPLEMENTED_VERIFYING
+
+Risk: High — save data, restore authority, multi-file rollback
+
 Base: `5a47cbf1df4ecba33085e2c5768e006876efeeb5`
 
 ## Finding confirmed
@@ -28,6 +30,9 @@ rebuild, while mutable side ledgers remain at their later point in time. This ov
   authorization failure rolls changed files back to their exact pre-restore JSON values. The
   surrounding accepted-turn timeline transaction still installs its repair latch when restore or
   rollback cannot complete; old writer leases and epochs are never copied from the checkpoint.
+- Timeline restore also acquires the host-scoped deterministic workspace mutation gate used by
+  direct commerce and travel mutations, so a competing canonical mutation is rejected before
+  epoch rotation or any checkpoint write.
 - Formats 1.0, 1.1, and 1.2 remain readable and retain their legacy history-oriented behavior.
   Only 1.3 claims the enumerated complete-state contract.
 
@@ -39,6 +44,7 @@ rebuild, while mutable side ledgers remain at their later point in time. This ov
 - final game-state publication failure and MOD authorization drift roll earlier writes back;
 - malformed or incomplete snapshots, unexpected file names, and capture-time drift fail closed;
 - MOD-lock matching remains required for modded 1.3 checkpoints;
+- workspace mutation contention stops before timeline rotation and performs no canonical write;
 - legacy 1.0/1.1/1.2 parsing and restore behavior remains compatible.
 
 ## Scope boundary

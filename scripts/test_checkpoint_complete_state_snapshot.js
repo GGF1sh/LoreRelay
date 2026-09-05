@@ -12,6 +12,7 @@ Module._load = function checkpointSnapshotLoad(request, parent, isMain) {
     return originalLoad.call(this, request, parent, isMain);
 };
 const snapshotCore = require('../out/checkpointSnapshot.js');
+const checkpoint = require('../out/checkpoint.js');
 Module._load = originalLoad;
 
 let assertions = 0;
@@ -149,6 +150,17 @@ try {
     } finally {
         fs.readFileSync = originalReadFileSync;
     }
+
+    const saveRoot = path.join(root, 'save-load');
+    fs.mkdirSync(saveRoot);
+    writeJson(path.join(saveRoot, 'game_state.json'), gameState);
+    writeJson(path.join(saveRoot, 'world_state.json'), { marker: 'checkpoint-world' });
+    const savedMeta = checkpoint.saveCheckpointFile(saveRoot, gameState.entries, 'complete save');
+    equal(Boolean(savedMeta), true, 'production checkpoint save captures live game state');
+    const loaded = checkpoint.loadCheckpointFile(saveRoot, savedMeta.id);
+    equal(loaded.format, 'text-adventure-checkpoint/1.3', 'production save/load uses checkpoint 1.3');
+    equal(loaded.stateSnapshot.gameState.commerce, gameState.commerce, 'production save/load preserves commerce');
+    equal(loaded.stateSnapshot.ledgers['world_state.json'].value, { marker: 'checkpoint-world' }, 'production save/load preserves world ledger');
 } finally {
     fs.rmSync(root, { recursive: true, force: true });
 }

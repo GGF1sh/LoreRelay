@@ -380,6 +380,32 @@ async function main() {
         await checkpointHandlers.handleRestoreCheckpoint('cp-1');
         equal(restoreTransactions, 0, 'lock mismatch restore stops before timeline rotation/restore transaction');
         equal(restoreWrites, 0, 'lock mismatch restore performs zero history/state writes');
+        const matchingCp = {
+            ...cp,
+            modLockSnapshot: resolved.lock,
+            modLockFingerprint: resolved.lock.aggregateHash,
+        };
+        const busyHandlers = loadBoundary('checkpointHandlers.js', {
+            vscode,
+            './workspacePaths': { getWorkspacePath: () => workspaceRoot, getGameStatePath: () => path.join(workspaceRoot, 'game_state.json') },
+            './checkpoint': { loadCheckpointFile: () => matchingCp },
+            './mods/modActivationGateHost': activation,
+            './mods/modActivationGateCore': restoreCore,
+            './acceptedTurnReplayGuard': { runAcceptedTurnTimelineRestoreTransaction: async () => { restoreTransactions++; return {}; } },
+        });
+        busyHandlers.initCheckpointHandlers({
+            getPanel: () => undefined,
+            isGameOverActive: () => false,
+            mutationGate: {
+                run: async () => ({
+                    status: 'busy', code: 'WORLD_MUTATION_IN_PROGRESS',
+                    owner: { actionKind: 'shopkeeper_trade', requestId: 'existing-request', elapsedMs: 1 },
+                }),
+            },
+        });
+        await busyHandlers.handleRestoreCheckpoint('cp-1');
+        equal(restoreTransactions, 0, 'workspace mutation contention stops restore before timeline epoch rotation');
+        equal(restoreWrites, 0, 'workspace mutation contention performs zero history/state writes');
         const legacy = { ...cp, format: 'text-adventure-checkpoint/1.0' };
         delete legacy.modLockSnapshot;
         delete legacy.modLockFingerprint;

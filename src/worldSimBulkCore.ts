@@ -17,6 +17,7 @@ export const BULK_WORLD_SIM_YIELD_EVERY_STEPS = 5;
 
 export interface BulkWorldSimOptions {
     worldPacing?: WorldPacingSettings;
+    commerceEnabled?: boolean;
     steps: number;
     enableNpcRegistry: boolean;
     maxSteps?: number;
@@ -106,7 +107,7 @@ function runBulkWorldSimulationLoop(
     const startTurn = current.worldTurn ?? 0;
 
     for (let i = 0; i < steps; i++) {
-        const { state: next, stepEvents } = runSimulationStep(forge, current, options.worldPacing);
+        const { state: next, stepEvents } = runSimulationStep(forge, current, options.worldPacing, options.commerceEnabled ?? true);
         totalEvents += stepEvents.length;
         collectNotableEvents(notable, stepEvents);
         if (options.enableNpcRegistry && reg && stepEvents.length > 0) {
@@ -181,7 +182,7 @@ export async function runBulkWorldSimulationAsync(
     const startTurn = current.worldTurn ?? 0;
 
     for (let i = 0; i < steps; i++) {
-        const { state: next, stepEvents } = runSimulationStep(forge, current, options.worldPacing);
+        const { state: next, stepEvents } = runSimulationStep(forge, current, options.worldPacing, options.commerceEnabled ?? true);
         totalEvents += stepEvents.length;
         collectNotableEvents(notable, stepEvents);
         if (options.enableNpcRegistry && reg && stepEvents.length > 0) {

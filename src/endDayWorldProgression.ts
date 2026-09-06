@@ -139,18 +139,18 @@ export function executeEndDay(requestId: string, confirmed: boolean, deps: EndDa
 
     const registry = rules.enableNpcRegistry === true ? deps.loadNpcRegistry() : undefined;
     let stepEvents: WorldChangeEvent[] = [];
-    let marketBefore: MarketStateMap | undefined;
+    const marketBefore = (worldBefore as typeof worldBefore & { markets?: MarketStateMap }).markets;
     let marketAfter: MarketStateMap | undefined;
     let result: ReturnType<typeof runBulkWorldSimulation>;
     try {
         result = deps.runBulkWorldSimulation(forge, worldBefore, registry, {
             steps: 1,
             worldPacing: normalizeWorldPacing(rules.worldPacing),
+            commerceEnabled: rules.enableCommerce === true,
             maxSteps: 1,
             enableNpcRegistry: rules.enableNpcRegistry === true,
             afterStep: (state, events, nextRegistry) => {
                 stepEvents = events;
-                marketBefore = (state as typeof state & { markets?: MarketStateMap }).markets;
                 const next = deps.applyLivingWorldAfterSimulationStep(forge, state, nextRegistry, events);
                 marketAfter = (next as typeof next & { markets?: MarketStateMap }).markets;
                 return next;

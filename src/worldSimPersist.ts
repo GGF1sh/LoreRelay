@@ -81,6 +81,7 @@ export function persistWorldSimulationSteps(
     try {
         const result = runBulkWorldSimulation(forge, state, registry, {
             worldPacing: normalizeWorldPacing(rules.worldPacing),
+            commerceEnabled: rules.enableCommerce === true,
             steps: clamped,
             enableNpcRegistry: enableNpc,
             maxSteps,
@@ -130,6 +131,7 @@ export async function persistWorldSimulationStepsAsync(
     try {
         const result = await runBulkWorldSimulationAsync(forge, state, registry, {
             worldPacing: normalizeWorldPacing(rules.worldPacing),
+            commerceEnabled: rules.enableCommerce === true,
             steps: clamped,
             enableNpcRegistry: enableNpc,
             maxSteps,

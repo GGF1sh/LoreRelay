@@ -50,7 +50,12 @@ export interface WorldStepOutcome {
  * 計算するだけでディスクへは書かない。`persistWorldStepOutcome()` で保存する。
  */
 export function computeOneWorldStep(forge: WorldForge, state: WorldState, rules = loadGameRules()): WorldStepOutcome {
-    const { state: stepped, stepEvents } = runSimulationStep(forge, state, normalizeWorldPacing(rules.worldPacing));
+    const { state: stepped, stepEvents } = runSimulationStep(
+        forge,
+        state,
+        normalizeWorldPacing(rules.worldPacing),
+        rules.enableCommerce === true
+    );
     let next = stepped;
 
     // Propagate only this step's events — re-processing recentChanges would inflate needs
@@ -149,7 +154,12 @@ export interface SimulationStepResult {
  * 1 シミュレーションステップを実行して新しい WorldState を返す。
  * 元の state は変更しない（ディープクローン）。
  */
-export function runSimulationStep(forge: WorldForge, state: WorldState, pacing?: WorldPacingSettings): SimulationStepResult {
+export function runSimulationStep(
+    forge: WorldForge,
+    state: WorldState,
+    pacing?: WorldPacingSettings,
+    commerceEnabled = true
+): SimulationStepResult {
     const next: WorldState = JSON.parse(JSON.stringify(state)) as WorldState;
     next.worldTurn = (state.worldTurn ?? 0) + 1;
     next.lastUpdated = new Date().toISOString();
@@ -167,7 +177,7 @@ export function runSimulationStep(forge: WorldForge, state: WorldState, pacing?:
         tickFaction(faction, forge, next, newEvents, pacing);
     }
     if (pacing) {
-        tickFactionFoodSupply(forge, next, pacing, newEvents);
+        tickFactionFoodSupply(forge, next, pacing, newEvents, commerceEnabled);
         tickFactionConflicts(forge, next, pacing, newEvents);
     }
 

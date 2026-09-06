@@ -86,7 +86,13 @@ export function parseFactionConflicts(raw: unknown): Record<string, FactionConfl
 
 /** Called once on a detached world copy. Supply uses previously committed market stock.
  * Current-day production/recovery then runs through the existing Living World tick. */
-export function tickFactionFoodSupply(forge: WorldForge, state: WorldState, pacing: WorldPacingSettings, events: WorldChangeEvent[]) {
+export function tickFactionFoodSupply(
+    forge: WorldForge,
+    state: WorldState,
+    pacing: WorldPacingSettings,
+    events: WorldChangeEvent[],
+    commerceEnabled = true
+) {
     const previous = state.factionFoodStatus ?? {};
     const statuses: Record<string, FactionFoodStatus> = {};
     const jobs: Array<{ id: string; supply: FactionFoodSupply; demand: number; target: number; received: number }> = [];
@@ -95,7 +101,10 @@ export function tickFactionFoodSupply(forge: WorldForge, state: WorldState, paci
         const target = state.factions[f.id];
         if (!target) continue;
         const s = f.foodSupply;
-        if (pacing.foodDemandMultiplier === 0) { statuses[f.id] = { status: 'paused', demand: 0, received: 0 }; continue; }
+        if (!commerceEnabled || pacing.foodDemandMultiplier === 0) {
+            statuses[f.id] = { status: 'paused', demand: 0, received: 0 };
+            continue;
+        }
         // Parser validates the commodity role against the authored commerce document.
         const market = s && state.markets?.[s.marketLocationId]?.[s.commodityId];
         if (!s || !market || !Number.isFinite(market.stock) || market.stock < 0) { statuses[f.id] = { status: 'unconfigured', demand: 0, received: 0 }; continue; }
@@ -136,6 +145,7 @@ export function tickFactionConflicts(forge: WorldForge, state: WorldState, pacin
     const next: Record<string, FactionConflictState> = {};
     const pairs = new Map<string, [string, string]>();
     const activeFactions = new Set<string>();
+    const activeEnemies = new Map<string, Set<string>>();
     for (const f of forge.factions) for (const enemy of f.enemies ?? []) {
         if (!validId(f.id) || !validId(enemy) || f.id === enemy || !state.factions[enemy] || !state.factions[f.id]) continue;
         const [a, b] = [f.id, enemy].sort(); pairs.set(`${a}|${b}`, [a, b]);
@@ -151,6 +161,10 @@ export function tickFactionConflicts(forge: WorldForge, state: WorldState, pacin
         if (phase !== old?.phase) since = state.worldTurn;
         if (phase === 'active') {
             activeFactions.add(a); activeFactions.add(b);
+            if (!activeEnemies.has(a)) activeEnemies.set(a, new Set());
+            if (!activeEnemies.has(b)) activeEnemies.set(b, new Set());
+            activeEnemies.get(a)!.add(b);
+            activeEnemies.get(b)!.add(a);
             const difference = left.power - right.power;
             if (difference > 10) { left.power = Math.min(100, left.power + .5); right.power = Math.max(0, right.power - 1); }
             else if (difference < -10) { right.power = Math.min(100, right.power + .5); left.power = Math.max(0, left.power - 1); }
@@ -166,8 +180,17 @@ export function tickFactionConflicts(forge: WorldForge, state: WorldState, pacin
     }
     state.factionConflicts = next;
     for (const id of activeFactions) {
-        const resources = state.factions[id].resources;
+        const faction = state.factions[id];
+        const resources = faction.resources;
         if (typeof resources?.weapons === 'number') resources.weapons = Math.max(0, resources.weapons - 1);
+        const enemies = [...(activeEnemies.get(id) ?? [])]
+            .map(enemyId => state.factions[enemyId]?.power)
+            .filter((power): power is number => typeof power === 'number' && Number.isFinite(power));
+        if (enemies.length > 0) {
+            const averageEnemyPower = enemies.reduce((sum, power) => sum + power, 0) / enemies.length;
+            if (faction.power > averageEnemyPower + 5) faction.morale = Math.min(100, (faction.morale ?? 50) + 2);
+            else if (faction.power < averageEnemyPower - 5) faction.morale = Math.max(0, (faction.morale ?? 50) - 2);
+        }
     }
 }
 

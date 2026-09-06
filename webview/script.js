@@ -250,8 +250,17 @@ function findGalleryIndexByImagePath(imagePath) {
   const extra = document.getElementById('presentation-extra-actions');
   document.querySelectorAll('#header-secondary-body button').forEach(button => {
     if (button.textContent.trim().length <= 3 && button.title) {
-      const label = document.createElement('span'); label.className = 'presentation-setting-label';
-      label.textContent = button.title; button.appendChild(label);
+      const refreshLabel = () => {
+        let label = button.querySelector('.presentation-setting-label');
+        if (!label) {
+          label = document.createElement('span'); label.className = 'presentation-setting-label';
+          button.appendChild(label);
+        }
+        if (label.textContent !== button.title) label.textContent = button.title;
+      };
+      refreshLabel();
+      // Locale bundles update titles; profile changes can replace the icon's textContent.
+      new MutationObserver(refreshLabel).observe(button, { attributes: true, attributeFilter: ['title'], childList: true, subtree: true });
     }
   });
   for (const id of ['qr-summary', 'qr-genimage', 'qr-loadpack', 'qr-archive', 'qr-export', 'qr-forcespeak', 'qr-questflow', 'qr-relations', 'undo-btn', 'regen-btn', 'img-btn']) {

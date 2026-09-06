@@ -9045,7 +9045,7 @@ body[data-presentation] .start-hub-presets-label { text-align: left; margin: 20p
   body[data-presentation="cinematic"] #chat-area { background: transparent; }
   body[data-presentation="cinematic"] #chat-log { flex: 0 1 42vh; margin-top: auto; background: color-mix(in srgb, var(--ui-surface) 93%, transparent); border-top: 1px solid var(--ui-border); }
   body[data-presentation="cinematic"] #status-area, body[data-presentation="cinematic"] #resizer { display: none; }
-  body[data-presentation="cinematic"].presentation-details-open #status-area { display: block; }
+  body[data-presentation="cinematic"].presentation-details-open #status-area { display: flex; }
   body[data-presentation="cinematic"] #presentation-details-btn { display: inline-flex; }
   body[data-presentation="cinematic"] #presentation-history-btn { display: inline-flex; }
   body[data-presentation="cinematic"].presentation-history-open #chat-log { flex: 1 1 auto; }

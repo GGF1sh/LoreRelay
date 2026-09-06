@@ -36,6 +36,8 @@
 
 ## 証拠の取得方法と残った範囲
 
+PR #105の独立レビューで、演出詳細の`display: block`を`flex`へ戻し、動的設定ラベルをtitle/locale/profileの更新に追従させた。修正後のTest Consoleは再び30/30（focused 28/28）。この2点の追加実画面確認ではElectron画面自体は描画されたがCDPが内側Webview frameを公開せず、DOM検証できなかったため未確認とする。上の幅別・テーマ別画像はレビュー修正前の取得証拠である。
+
 既存 `scripts/run_live_extension_qa.js` の隔離workspace・user-data・extensions所有権を使った。追加したフックはテストプロセス内だけの依存注入であり、QA IPC/CLIの操作語彙を増やしていない。一時的なPlaywrightは実Electronへのlocalhost CDP接続とDOM操作/画面取得にのみ使用した。別Chromiumで再現した画面ではない。Playwrightを製品依存に追加していない。
 
 画像の周囲にあるExplorer・Chat・拡張無効化通知は実VS Codeの外枠。これをLoreRelay自身のUIとして評価していない。全画面のスクリーンショットと限定DOMの結果を併用した。

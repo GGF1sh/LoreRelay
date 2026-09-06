@@ -298,6 +298,8 @@ function conflictEventDedupeKey(ev: RelationshipEventLike): string {
 }
 
 export interface RelationshipEvolveInput {
+    /** Omitted preserves legacy callers. Host explicitly selects the paced behavior. */
+    relationshipPace?: 'stopped' | 'slow' | 'standard' | 'fast';
     registry: RelationshipRegistryLike;
     positions: RelationshipPositionsLike;
     relationships: NpcRelationshipMap;
@@ -340,6 +342,14 @@ export function evolveRelationships(input: RelationshipEvolveInput): Relationshi
     // ペアごとに寄与を蓄積(dominant reason = 単一寄与の絶対値が最大のもの)
     const contrib = new Map<string, { delta: number; reason: NpcRelationshipReason; mag: number }>();
     const add = (a: string, b: string, delta: number, reason: NpcRelationshipReason): void => {
+        if (input.relationshipPace === 'stopped') return;
+        if (input.relationshipPace) {
+            if (reason === 'co_location') {
+                const before = getAffinity(input.relationships, a, b);
+                const step = input.relationshipPace === 'slow' ? 1 : input.relationshipPace === 'fast' ? 3 : 2;
+                delta = Math.max(0, Math.min(step, AFFINITY_FRIEND - before));
+            } else delta *= input.relationshipPace === 'slow' ? .5 : input.relationshipPace === 'fast' ? 1.5 : 1;
+        }
         if (a === b || delta === 0) { return; }
         const key = pairKey(a, b);
         const prev = contrib.get(key);

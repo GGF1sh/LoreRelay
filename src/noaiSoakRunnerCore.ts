@@ -646,6 +646,8 @@ export function createSoakRng(seed: string): SoakRng {
 // ---------------------------------------------------------------------------
 
 export interface PolicyDecisionContext {
+    /** Measured acquisition unit costs; analysis-only, never canonical game state. */
+    acquisitionCosts?: Record<string, number>;
     forge: CommerceForge;
     markets: MarketStateMap;
     commerce: PlayerCommerceState;
@@ -661,8 +663,8 @@ export interface PolicyDecisionContext {
 
 /** Deterministic per-policy tuning. No values are read from scenario JSON. */
 const POLICY_TUNING = {
-    merchant_balanced: { buyStep: 3, sellStep: 3, sellPriceIndexFloor: 1.0, cargoFillTarget: 0.5, probeEvery: 0 },
-    merchant_stress: { buyStep: 6, sellStep: 6, sellPriceIndexFloor: 0.9, cargoFillTarget: 0.6, probeEvery: 3 },
+    merchant_balanced: { buyStep: 3, sellStep: 3, cargoFillTarget: 0.5, probeEvery: 0 },
+    merchant_stress: { buyStep: 6, sellStep: 6, cargoFillTarget: 0.6, probeEvery: 3 },
 } as const;
 
 function commodityById(forge: CommerceForge, id: string): CommodityDef | undefined {
@@ -761,7 +763,7 @@ export function decideTradeIntents(policyId: NoaiSoakPolicyId, ctx: PolicyDecisi
                     continue;
                 }
                 const quote = quoteMarketPrice(ctx.forge, ctx.markets, pair.marketLocationId, pair.commodityId);
-                if (!quote || quote.priceIndex < tuning.sellPriceIndexFloor) {
+                if (!quote || quote.unitPrice < (ctx.acquisitionCosts?.[commodityId] ?? 0)) {
                     continue;
                 }
                 if (!bestSell || quote.unitPrice > bestSell.unitPrice) {
@@ -797,7 +799,7 @@ export function decideTradeIntents(policyId: NoaiSoakPolicyId, ctx: PolicyDecisi
     return ops.slice(0, ctx.maxOpsPerTurn);
 }
 
-const ROUTE_TUNING = { buyStep: 3, sellStep: 3, sellPriceIndexFloor: 1.0, cargoFillTarget: 0.5 } as const;
+const ROUTE_TUNING = { buyStep: 3, sellStep: 3, cargoFillTarget: 0.5 } as const;
 
 /** Unique market location ids in forge document order (first listed is the default start). */
 export function listedMarketLocationIds(forge: CommerceForge): string[] {
@@ -889,7 +891,7 @@ function highestSellTarget(ctx: PolicyDecisionContext): RouteTradeTarget | undef
                 continue;
             }
             const quote = quoteMarketPrice(ctx.forge, ctx.markets, pair.marketLocationId, pair.commodityId);
-            if (!quote || quote.priceIndex < ROUTE_TUNING.sellPriceIndexFloor) {
+            if (!quote || quote.unitPrice < (ctx.acquisitionCosts?.[commodityId] ?? 0)) {
                 continue;
             }
             if (!best || quote.unitPrice > best.unitPrice

@@ -1,6 +1,7 @@
 // Pure game_rules normalization (no vscode/fs). Shared by load, save, and tests.
 
 import { CHARACTER_ID_PATTERN } from './characterId';
+import { normalizeWorldPacing, type WorldPacingSettings } from './worldPacingCore';
 
 export type AiParticipationPolicy = 'always' | 'onDemand' | 'simulationOnly';
 export type MerchantTravelMode = 'instant_free' | 'world_time';
@@ -29,6 +30,7 @@ export interface GameRules {
     travelEncounterDensity?: 'low' | 'medium' | 'high';
     /** World-wide default economy scarcity tier. Default normal preserves legacy numbers. */
     economyProfile?: EconomyProfile;
+    worldPacing?: WorldPacingSettings;
     /**
      * Per-resource-category (commodity role) tier overrides, e.g.
      * { "staple": "barren", "material": "abundant" } for a mineral-rich but
@@ -105,6 +107,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
     enableTravelEncounters: false,
     travelEncounterDensity: 'medium',
     economyProfile: 'normal',
+    worldPacing: normalizeWorldPacing({}),
     enableCommerce: false,
     enableCommerceUi: false,
     enableStoryCombat: false,
@@ -309,6 +312,7 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
         enableTravelEncounters: asOptionalBool(src.enableTravelEncounters, base.enableTravelEncounters),
         travelEncounterDensity,
         economyProfile,
+        worldPacing: normalizeWorldPacing(src.worldPacing, base.worldPacing),
         economyResourceProfiles,
         economyCommodityProfiles,
         economyResourceModifiers,

@@ -68,6 +68,8 @@ export interface GameActionBindings<T> {
     witness(state: T): string;
     execute(action: GameActionId, parameters: Record<string, unknown>, internalRequestId: string): GameActionMutationOutcome;
     inspect(state: T): Record<string, unknown>;
+    /** Host log only. Never returned through a Player receipt. */
+    diagnostic?(entry: { actionId: string; requestId: string; stage: string; error?: string }): void;
     now?: () => number;
 }
 
@@ -229,9 +231,13 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
                 const result = await prior.promise;
                 return safeValid(context, 'receipt.read') && key === requestKey(context, requestId) ? copy(result) : reject('rejected_forbidden');
             }
-            if ([...requests.values()].filter(entry => entry.context === context).length >= 1024) return reject('outcome_unknown');
+            const diagnose = (stage: string, error?: unknown) => {
+                try { bindings.diagnostic?.({ actionId, requestId, stage,
+                    ...(error === undefined ? {} : { error: error instanceof Error ? error.stack ?? error.message : String(error) }) }); } catch { /* logging cannot change execution */ }
+            };
+            if ([...requests.values()].filter(entry => entry.context === context).length >= 1024) { diagnose('request_retention_limit'); return reject('outcome_unknown'); }
             const handle = typeof raw.confirmationToken === 'string' ? handles.get(raw.confirmationToken) : undefined;
-            if (!handle) return reject('outcome_unknown');
+            if (!handle) { diagnose('confirmation_not_found', `handles=${handles.size}; tokenType=${typeof raw.confirmationToken}; tokenLength=${typeof raw.confirmationToken === 'string' ? raw.confirmationToken.length : 0}`); return reject('outcome_unknown'); }
             if (handle.context !== context) return reject('rejected_forbidden');
             if (handle.actionId !== actionId || hashGameActionValue(handle.parameters) !== hashGameActionValue(normalized)) return reject('rejected_invalid');
             if (handle.scope !== scopeKey() || handle.expires <= now() || handle.used) return reject('rejected_stale');
@@ -261,6 +267,7 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
                         entry.diagnostic = outcome.diagnostic;
                         return receipt(actionId, requestId, outcome.classification, outcome.result);
                     });
+                if (mutation.status === 'failed') diagnose(started ? 'execution_threw' : 'validation_threw', mutation.error);
                 const result = mutation.status === 'completed' ? mutation.value : mutation.status === 'busy'
                     ? reject('rejected_busy') : reject(started ? 'outcome_unknown' : 'rejected_forbidden');
                 for (const observer of admittedObservers) {

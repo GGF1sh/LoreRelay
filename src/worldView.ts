@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { projectWorldPacing } from './worldPacingCore';
 import * as vscode from 'vscode';
 import { loadWorldForge, loadWorldForgeDocument, isWorldForgeEnabled } from './worldForge';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
@@ -903,6 +904,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
+        worldPacing: simEnabled ? projectWorldPacing(forge, worldState, fog.discoveredRegionIds) : null,
         worldName: forge.meta.worldName,
         theme: forge.meta.theme ?? '',
         overmapThemeKey,

@@ -24,6 +24,8 @@ const args = baseArgs.concat([
     '--target', 'ES2020',
     '--strict',
     '--skipLibCheck',
+    '--resolveJsonModule',
+    '--esModuleInterop',
 ]);
 const useShell = cmd === 'npx' && process.platform === 'win32';
 const compiled = spawnSync(cmd, args, { stdio: 'inherit', shell: useShell });

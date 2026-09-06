@@ -235,6 +235,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_entity_identity_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_entity_reference_inventory_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_world_state.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_world_pacing_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_world_state_warning_buffer.js', consumesCompiledOutput: true },
 
     { category: 'unit', file: 'test_debug_trace_core.js', consumesCompiledOutput: true },

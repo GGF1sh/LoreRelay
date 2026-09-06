@@ -1,6 +1,7 @@
 // Persist world simulation steps (no debug-setting gate). Used by debug sandbox, Inspector, turn_result.
 
 import { loadGameRules } from './gameRules';
+import { normalizeWorldPacing } from './worldPacingCore';
 import { loadWorldForge } from './worldForge';
 import { ensureWorldStateExists, saveWorldState } from './worldState';
 import { loadNpcRegistry, saveNpcRegistry } from './npcRegistry';
@@ -79,6 +80,7 @@ export function persistWorldSimulationSteps(
 
     try {
         const result = runBulkWorldSimulation(forge, state, registry, {
+            worldPacing: normalizeWorldPacing(rules.worldPacing),
             steps: clamped,
             enableNpcRegistry: enableNpc,
             maxSteps,
@@ -127,6 +129,7 @@ export async function persistWorldSimulationStepsAsync(
 
     try {
         const result = await runBulkWorldSimulationAsync(forge, state, registry, {
+            worldPacing: normalizeWorldPacing(rules.worldPacing),
             steps: clamped,
             enableNpcRegistry: enableNpc,
             maxSteps,

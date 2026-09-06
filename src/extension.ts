@@ -7,6 +7,7 @@ import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
 import { loadGameRules, saveGameRules, clearGameRulesCache, type GameRules } from './gameRules';
 import { setEventExcluded } from './gameRulesCore';
+import { worldPacingPreset } from './worldPacingCore';
 import { isValidDomainEventId } from './domainCore';
 import { isValidGuildEventId } from './guildCore';
 import { isValidPetitionId } from './domainAudienceCore';
@@ -1958,7 +1959,8 @@ function sendGameRules(): void {
     if (!panel) return;
     const rules = loadGameRules();
     const eventCatalog = getEventManagementCatalog();
-    panel.webview.postMessage({ type: 'gameRules', rules, eventCatalog });
+    panel.webview.postMessage({ type: 'gameRules', rules, eventCatalog,
+        pacingPresets: Object.fromEntries((['stable', 'changing', 'demanding'] as const).map(id => [id, worldPacingPreset(id)])) });
 }
 
 function isDebugTraceVisible(): boolean {

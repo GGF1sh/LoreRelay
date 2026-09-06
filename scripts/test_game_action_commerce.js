@@ -177,11 +177,39 @@ async function main() {
         assert.equal(service.inspect(qa).game.commerce.credits, quote.creditsAfter);
         adapter.dispose();
     });
+    // The real router must not reacquire MOD authorization between preview and execute.
+    // The adapter remains the authority owner for all six Commerce messages.
+    await withFixture(async (fixture) => {
+        const messages = [];
+        const adapter = fixture.modules.createWebview(fixture.gate, value => messages.push(value), async () => {});
+        const deps = { authorizeCanonicalMutation: async () => { throw new Error('outer authorization invalidates the preview runtime'); } };
+        deps.sendChronicle = async () => fixture.modules.readChronicle(fixture.workspace);
+        deps.sendGitTimelineStatus = async () => fixture.modules.readGitTimeline();
+        for (const [action, prefix, previewType, executeType] of [
+            [trade, 'Shopkeeper', 'shopkeeperTradePreview', 'shopkeeperDirectTrade'],
+            [travel, 'MarketTravel', 'marketTravelPreview', 'marketTravelCommit'],
+            [day, 'EndDay', 'endDayPreview', 'endDayCommit'],
+        ]) {
+            deps[`handle${prefix}${prefix === 'Shopkeeper' ? 'TradePreview' : 'Preview'}`] = msg => adapter.preview(action.actionId, msg);
+            deps[`handle${prefix}${prefix === 'Shopkeeper' ? 'DirectTrade' : 'Commit'}`] = msg => adapter.execute(action.actionId, msg);
+            await fixture.modules.routeWebview({ type: previewType, ...(action === trade ? { previewId: nextId() } : {}), ...action.parameters }, deps);
+            const quote = messages.pop(); assert.equal(quote.ok, true, JSON.stringify(quote));
+            const stateBeforeReads = fs.readFileSync(path.join(fixture.workspace, 'game_state.json'), 'utf8');
+            await fixture.modules.routeWebview({ type: 'requestGitTimeline' }, deps);
+            await fixture.modules.routeWebview({ type: 'requestChronicle' }, deps);
+            assert.equal(fs.readFileSync(path.join(fixture.workspace, 'game_state.json'), 'utf8'), stateBeforeReads);
+            await fixture.modules.routeWebview({ type: executeType, requestId: nextId(), confirmationToken: quote.confirmationToken, ...action.parameters }, deps);
+            assert.equal(messages.pop().classification, 'committed');
+        }
+        await assert.rejects(fixture.modules.routeWebview({ type: 'freeInput', text: 'blocked' }, deps), /outer authorization/);
+        adapter.dispose();
+    });
     // Expiry and bounded replay retention are independent of gameplay clocks.
     const { createGameActionService } = require('../out/gameActionService');
     const { createDeterministicWorkspaceMutationGate } = require('../out/deterministicWorkspaceMutationGate');
     let time = 0; let changes = 0;
     const bounded = createGameActionService({ mutationGate: createDeterministicWorkspaceMutationGate(), now: () => time,
+        diagnostic: () => { throw new Error('diagnostics must not change an action result'); },
         scope: () => ({ workspaceId: 'fixture', campaignId: 'fixture', timelineEpoch: 'epoch', authorizationGeneration: 1 }),
         authorized: () => true, read: () => changes, playerView: () => ({}),
         actions: () => [{ actionId: 'commerce:end_day', version: 1, available: true, parameters: {}, estimate: {} }],

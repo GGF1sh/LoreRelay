@@ -1,4 +1,51 @@
 /* 90-game-rules.css */
+
+/* Keep settings within the drawer, including a narrow split editor. */
+#game-rules-panel .img-gen-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+#game-rules-panel .img-gen-row > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.world-pacing-controls {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding-block: 12px;
+  border-block: 1px solid var(--glass-border);
+}
+#game-rules-panel .world-pacing-controls .img-gen-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+}
+#game-rules-panel .world-pacing-controls label {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.world-pacing-controls p { margin: 0; font-size: 12px; line-height: 1.45; }
+.world-pacing-controls select,
+.world-pacing-controls input:not([type="checkbox"]) {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid var(--vscode-input-border, var(--glass-border));
+  border-radius: 6px;
+  background: var(--vscode-input-background, #202027);
+  color: var(--vscode-input-foreground, var(--text));
+  font: inherit;
+}
+.world-pacing-controls input[type="checkbox"] {
+  justify-self: start;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+.world-pacing-controls :is(input, select):focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--accent));
+  outline-offset: 2px;
+}
 /* Reuses .img-gen-panel and .img-gen-input from 80-image-gen.css */
 
 #game-rules-wrap {

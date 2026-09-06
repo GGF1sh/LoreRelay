@@ -1,6 +1,7 @@
 // LW-W1 host bridge: world-kit tick + GM prompt wiring (vscode allowed).
 
 import type { WorldForge } from './worldForgeCore';
+import { normalizeWorldPacing } from './worldPacingCore';
 import type { FactionWorldState, WorldState } from './worldStateCore';
 import type { NpcRegistry } from './npcRegistryCore';
 import type { GameRules } from './gameRules';
@@ -366,6 +367,7 @@ export function tickLivingWorldAfterSim(
             state.worldTurn
         );
         const evolved = evolveRelationships({
+            relationshipPace: normalizeWorldPacing(rules.worldPacing).relationshipPace,
             registry: agencyRegistry,
             positions: ext.npcPositions ?? {},
             relationships: ext.npcRelationships ?? {},

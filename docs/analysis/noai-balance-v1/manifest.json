@@ -1,0 +1,7 @@
+{
+  "base": "89f109a236660f110fdee375bb4d6368465f4390",
+  "coreRuns": 66,
+  "hostCases": 8,
+  "observationsSha256": "b114ad1ea9bf6164edac9677e31ff9385e2f7470e359f4cdaef9e8c1619150c1",
+  "note": "Raw QA fixtures; not player-only evidence. Repeated action decisions deduplicated to first observation per world turn. Up to 1001 frames per run."
+}

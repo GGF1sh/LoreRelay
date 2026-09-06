@@ -1,0 +1,5 @@
+const fs=require('fs'),path=require('path');
+const source=path.join(__dirname,'pacing-fixtures','supply_recovery'),fixture=path.join(__dirname,'pacing-fixtures','supply_surplus'),dir=path.join(__dirname,'pacing-surplus');fs.mkdirSync(fixture,{recursive:true});fs.mkdirSync(dir,{recursive:true});
+for(const file of ['game_state.json','world_state.json','world_forge.json','game_rules.json'])fs.copyFileSync(path.join(source,file),path.join(fixture,file));
+const fp=path.join(fixture,'world_forge.json'),forge=JSON.parse(fs.readFileSync(fp));for(const s of forge.commerce.resourceFlows.productionSources)s.baseOutputPerTick=3;fs.writeFileSync(fp,JSON.stringify(forge,null,2));
+for(const policy of ['observe_only','merchant_route']){const s=JSON.parse(fs.readFileSync(path.join(__dirname,'pacing-extra',`pacing_supply_recovery_${policy}.json`)));s.id=`pacing_supply_surplus_${policy}`;s.workspace.fixturePath=path.relative(process.cwd(),fixture).replaceAll('\\','/');fs.writeFileSync(path.join(dir,s.id+'.json'),JSON.stringify(s,null,2));}

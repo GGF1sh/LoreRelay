@@ -1,5 +1,6 @@
 import type { LocationVehicleAccess } from './vehicleCore';
 import { parseLocationVehicleAccess } from './vehicleCore';
+import { parseFactionFoodSupply, type FactionFoodSupply } from './worldPacingCore';
 
 export type GenerationMethod = 'manual' | 'ai-generated';
 export type RegionType = 'wilderness' | 'urban' | 'dungeon' | 'ruins' | 'ocean' | 'mountains' | 'forest' | 'other';
@@ -64,6 +65,7 @@ export interface FactionResources {
 }
 
 export interface Faction {
+    foodSupply?: FactionFoodSupply;
     id: string;
     name: string;
     type: FactionType;
@@ -277,6 +279,8 @@ function parseFaction(raw: unknown): Faction | undefined {
         name,
         type: VALID_FACTION_TYPES.has(r.type as FactionType) ? (r.type as FactionType) : 'neutral'
     };
+    const foodSupply = parseFactionFoodSupply(r.foodSupply);
+    if (foodSupply) faction.foodSupply = foodSupply;
     if (r.power !== undefined) {
         const pw = asNumber(r.power);
         if (pw !== undefined) { faction.power = Math.max(0, Math.min(100, pw)); }
@@ -384,6 +388,13 @@ export function parseWorldForge(raw: unknown): WorldForge | undefined {
     const factions = Array.isArray(doc.factions)
         ? doc.factions.slice(0, MAX_PARSE_FACTIONS).map(parseFaction).filter((x): x is Faction => x !== undefined)
         : [];
+    const commerce = doc.commerce as { commodities?: Array<{ id?: string; role?: string }>; markets?: Array<{ locationId?: string; commodityIds?: string[] }> } | undefined;
+    for (const f of factions) if (f.foodSupply) {
+        const s = f.foodSupply;
+        if (!commerce || !Array.isArray(commerce.commodities) || !Array.isArray(commerce.markets)
+            || !commerce.commodities.some(c => c?.id === s.commodityId && c.role === 'staple')
+            || !commerce.markets.some(m => m?.locationId === s.marketLocationId && Array.isArray(m.commodityIds) && m.commodityIds.includes(s.commodityId))) delete f.foodSupply;
+    }
 
     const loreRaw = doc.loreHistory;
     const loreHistory = parseLoreHistory(Array.isArray(loreRaw) ? loreRaw.slice(0, MAX_PARSE_LORE) : loreRaw);

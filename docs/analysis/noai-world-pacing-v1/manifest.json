@@ -1,0 +1,8 @@
+{
+  "base": "a22ad88094b33bdca9426f2effdef19f7e59b489",
+  "main": "89f109a236660f110fdee375bb4d6368465f4390",
+  "runs": 30,
+  "hostNpcTurns": 120,
+  "observationsSha256": "a9aaf83f85296577cc07f69d64e3dd54e1d629ce224c63f1214ce1ea652247b8",
+  "note": "Synthetic fixtures, QA information. Core runner differs from real Host. Three seeds are deterministic replication labels. Merchant comparisons use first300 world turns; only demanding idle is extended to1000."
+}

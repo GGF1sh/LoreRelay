@@ -311,6 +311,37 @@ function renderWorldView(msg) {
 
     // 派閥カード
     renderFactions(msg.factions || [], msg.factionStates || null, msg.enableFactionReputation === true);
+    let pacing = document.getElementById('world-pacing-status');
+    if (!pacing) {
+        const anchor = document.getElementById('world-factions-list');
+        if (anchor) { pacing = document.createElement('section'); pacing.id = 'world-pacing-status'; anchor.before(pacing); }
+    }
+    if (pacing) {
+        pacing.replaceChildren();
+        pacing.hidden = !msg.worldPacing;
+        if (msg.worldPacing) {
+            const title = document.createElement('h3'); title.textContent = T('webview.gameRules.worldPacing'); pacing.append(title);
+            for (const r of msg.worldPacing.regions || []) {
+                const labels = {
+                    unconfigured: T('webview.gameRules.foodStatus_unconfigured'),
+                    unconfirmed: T('webview.gameRules.foodStatus_unconfirmed'),
+                    paused: T('webview.gameRules.foodStatus_paused'),
+                    supplied: T('webview.gameRules.foodStatus_supplied'),
+                    shortage: T('webview.gameRules.foodStatus_shortage'),
+                };
+                const line = document.createElement('p'); line.textContent = `${r.name}${r.supplyMarketName ? ` (${r.supplyMarketName})` : ''}: ${labels[r.status] || labels.unconfirmed}`; pacing.append(line);
+            }
+            for (const c of msg.worldPacing.conflicts || []) {
+                const labels = {
+                    active: T('webview.gameRules.conflictStatus_active'),
+                    resting: T('webview.gameRules.conflictStatus_resting'),
+                    exhausted: T('webview.gameRules.conflictStatus_exhausted'),
+                    paused: T('webview.gameRules.conflictStatus_paused'),
+                };
+                const line = document.createElement('p'); line.textContent = `${c.factionA} / ${c.factionB}: ${labels[c.phase] || ''}`; pacing.append(line);
+            }
+        }
+    }
 
     renderWorldMapItems(msg.mapItems || []);
 }

@@ -18,6 +18,16 @@
       <div id="chat-header">
         <span class="header-icon">⚔️</span>
         <span class="header-title" data-i18n="webview.chat.header">Adventure Log</span>
+        <label class="presentation-switch"><span data-i18n="webview.presentation.display">Display</span>
+          <select id="presentation-select" disabled>
+            <option value="story" data-i18n="webview.presentation.story">Story</option>
+            <option value="management" data-i18n="webview.presentation.management">Management</option>
+            <option value="cinematic" data-i18n="webview.presentation.cinematic">Cinematic</option>
+          </select>
+        </label>
+        <button id="primary-action-btn" type="button" class="glass-btn presentation-action" hidden data-i18n="webview.presentation.actions">Actions</button>
+        <button id="presentation-details-btn" type="button" class="glass-btn" aria-controls="status-area" aria-expanded="false" data-i18n="webview.presentation.details">Details</button>
+        <button id="presentation-history-btn" type="button" class="glass-btn" aria-controls="chat-log" aria-expanded="false" data-i18n="webview.presentation.history">History</button>
         <button type="button" id="status-drawer-toggle" class="glass-btn lr-drawer-toggle" hidden aria-expanded="false" aria-controls="status-area" data-i18n-title="webview.responsive.openStatus" title="Open status panel">
           <span class="lr-drawer-toggle-label" aria-hidden="true">☰</span>
         </button>
@@ -85,6 +95,7 @@
           </div>
         </details>
       </div>
+      <div id="presentation-context" role="status" hidden></div>
       <div id="chat-log"></div>
       <div id="start-hub" class="start-hub hidden">
         <div id="genesis-hero" class="genesis-hero">
@@ -98,12 +109,12 @@
         <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
         <div id="start-hub-resume-row" class="start-hub-options hidden">
           <button type="button" id="start-hub-resume-btn" class="start-hub-btn start-hub-btn-primary">
-            <span class="start-hub-btn-icon">Home</span>
+            <span class="start-hub-btn-icon" aria-hidden="true">↩</span>
             <span class="start-hub-btn-label" data-i18n="webview.startHub.resumeTitle">現在のセッションに戻る</span>
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.resumeDesc">進行状況を失わず、今のチャットに戻ります。</span>
           </button>
         </div>
-        <div class="start-hub-presets-label" data-i18n="webview.startHub.demoLabel">はじめての方:</div>
+        <div class="start-hub-presets-label" data-i18n="webview.presentation.existing">Use a character or world</div>
         <div class="start-hub-options">
           <button type="button" id="start-hub-parlor-btn" class="start-hub-btn start-hub-btn-primary">
             <span class="start-hub-btn-icon">🎭</span>
@@ -141,6 +152,7 @@
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.scavengerDemoDesc">廃墟探索・サルベージ・鑑定ループ（Campaign Kit + Commerce）。</span>
           </button>
         </div>
+        <details class="start-hub-secondary"><summary data-i18n="webview.presentation.otherStarts">Other ways to begin</summary>
         <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
         <div class="start-hub-options">
           <button type="button" id="start-hub-world-genesis-btn" class="start-hub-btn start-hub-btn-primary">
@@ -180,6 +192,8 @@
             <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterImportDesc">SillyTavernカード（PNG/JSON）や既存のcharacter.jsonを読み込む。</span>
           </button>
         </div>
+        </details>
+        <details class="start-hub-secondary"><summary data-i18n="webview.presentation.demos">Demos and developer tools</summary><div id="start-hub-demo-options" class="start-hub-options"></div></details>
         <section id="world-genesis-setup" class="world-genesis-setup hidden" aria-labelledby="world-genesis-title">
           <div class="world-genesis-header">
             <button type="button" id="world-genesis-back-btn" class="glass-btn" data-i18n="webview.worldGenesis.back">戻る</button>
@@ -254,6 +268,7 @@
         <input type="text" id="authors-note-input" data-i18n-placeholder="webview.authorsNote.placeholder" placeholder="Author's Note (steers next GM turn only)" />
       </div>
       <div id="quick-reply-bar">
+        <details id="presentation-action-tools"><summary data-i18n="webview.presentation.tools">Tools</summary><div id="presentation-extra-actions"></div></details>
         <button class="qr-btn" id="qr-undo"       data-i18n="webview.quickReply.undo">⏪ Undo</button>
         <button class="qr-btn" id="qr-retry"      data-i18n="webview.quickReply.retry">🔄 Retry</button>
         <button class="qr-btn" id="qr-checkpoint" data-i18n="webview.quickReply.checkpoint">💾 Checkpoint</button>
@@ -284,6 +299,7 @@
     <div id="status-area" role="complementary" data-i18n-aria-label="webview.responsive.statusDrawer" aria-label="Adventure Status">
       <!-- タブヘッダー -->
       <div id="status-tabs" class="tabs-header">
+        <details id="presentation-tool-tabs"><summary data-i18n="webview.presentation.tools">Tools</summary></details>
         <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
         <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
         <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">Inspector</span></button>
@@ -1682,6 +1698,16 @@
           <div class="genesis-summary-title" data-i18n="webview.genesis.summary.title">確認：この設定で世界を作ります</div>
 
           <div class="genesis-summary-rows" id="genesis-summary-rows"></div>
+          <div id="genesis-presentation-preview" class="genesis-presentation-preview" data-preset="story">
+            <label for="genesis-presentation-select" data-i18n="webview.presentation.recommendation">Recommended display · change any time</label>
+            <select id="genesis-presentation-select">
+              <option value="story" data-i18n="webview.presentation.story">Story</option>
+              <option value="management" data-i18n="webview.presentation.management">Management</option>
+              <option value="cinematic" data-i18n="webview.presentation.cinematic">Cinematic</option>
+            </select>
+            <div class="presentation-sketch" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p id="genesis-presentation-description"></p>
+          </div>
 
           <div class="genesis-summary-block">
             <div class="genesis-summary-block-label" data-i18n="webview.genesis.summary.systems">有効になる主要システム</div>

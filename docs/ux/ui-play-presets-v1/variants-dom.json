@@ -1,0 +1,47 @@
+[
+  {
+    "profile": "parlor",
+    "theme": "Light Modern",
+    "dom": {
+      "body": "vscode-light profile-parlor",
+      "preset": "cinematic",
+      "width": 1200,
+      "visibleTabs": [],
+      "presentationLabel": "表示\n          \n            物語\n            管理\n            演出\n          \n        "
+    }
+  },
+  {
+    "status": "observed",
+    "fixtureId": "lifecycle_v1"
+  },
+  {
+    "profile": "inworld",
+    "theme": "Default High Contrast",
+    "dom": {
+      "body": "vscode-high-contrast profile-inworld",
+      "preset": "cinematic",
+      "width": 1200,
+      "visibleTabs": [],
+      "presentationLabel": "表示\n          \n            物語\n            管理\n            演出\n          \n        "
+    }
+  },
+  {
+    "status": "observed",
+    "fixtureId": "lifecycle_v1"
+  },
+  {
+    "profile": "campaign",
+    "theme": "Dark Modern",
+    "dom": {
+      "body": "vscode-dark profile-campaign",
+      "preset": "cinematic",
+      "width": 1200,
+      "visibleTabs": [],
+      "presentationLabel": "表示\n          \n            物語\n            管理\n            演出\n          \n        "
+    }
+  },
+  {
+    "status": "observed",
+    "fixtureId": "lifecycle_v1"
+  }
+]

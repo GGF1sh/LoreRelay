@@ -1993,5 +1993,20 @@
   "webview.responsive.statusDrawer": "冒险状态",
   "webview.responsive.moreControls": "更多控件",
   "webview.world.logisticsLightboxMaximize": "最大化物流视图",
-  "webview.world.logisticsLightboxRestore": "还原物流视图大小"
+  "webview.world.logisticsLightboxRestore": "还原物流视图大小",
+  "webview.presentation.display": "显示",
+  "webview.presentation.history": "历史",
+  "webview.presentation.story": "故事",
+  "webview.presentation.management": "管理",
+  "webview.presentation.cinematic": "演出",
+  "webview.presentation.actions": "行动",
+  "webview.presentation.details": "详情",
+  "webview.presentation.tools": "工具",
+  "webview.presentation.existing": "使用角色或世界",
+  "webview.presentation.otherStarts": "其他开始方式",
+  "webview.presentation.demos": "演示与开发工具",
+  "webview.presentation.recommendation": "推荐显示方式 · 随时可更改",
+  "webview.presentation.storyDescription": "阅读故事并选择下一步行动，详细状态就在旁边。",
+  "webview.presentation.managementDescription": "在对话旁比较已启用的资源、人物和世界信息。",
+  "webview.presentation.cinematicDescription": "突出背景和角色，没有图片也能舒适阅读。"
 }

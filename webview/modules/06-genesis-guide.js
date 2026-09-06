@@ -29,6 +29,19 @@
   const summaryPortraitCaption = document.getElementById('genesis-summary-portrait-caption');
 
   const stepNav = document.getElementById('genesis-guide-nav');
+  const presentationSelect = document.getElementById('genesis-presentation-select');
+  const presentationPreview = document.getElementById('genesis-presentation-preview');
+  let presentationOverride;
+  function renderPresentationPreview() {
+    const preference = window.LoreRelay.presentation.current();
+    const selected = presentationOverride || (preference.saved ? preference.preset : window.LoreRelay.presentation.recommend(state.answers));
+    presentationSelect.value = selected;
+    presentationPreview.dataset.preset = selected;
+    document.getElementById('genesis-presentation-description').textContent = T(`webview.presentation.${selected}Description`);
+  }
+  presentationSelect.addEventListener('change', () => {
+    presentationOverride = presentationSelect.value; renderPresentationPreview();
+  });
   const backBtn = document.getElementById('genesis-back-btn');
   const nextBtn = document.getElementById('genesis-next-btn');
   const skipToSummaryBtn = document.getElementById('genesis-skip-summary-btn');
@@ -380,6 +393,7 @@
   }
 
   function renderSummary() {
+    renderPresentationPreview();
     const answers = state.answers;
     const preview = resolvePreview(answers);
     const hint = preview.assetHint || {};
@@ -450,6 +464,7 @@
   }
 
   function openGenesisGuide() {
+    presentationOverride = undefined;
     state.open = true;
     state.stepIndex = 0;
     state.answers = Object.assign({}, DEFAULTS);
@@ -501,6 +516,7 @@
   });
 
   restartBtn.addEventListener('click', () => {
+    presentationOverride = undefined;
     state.stepIndex = 0;
     state.answers = Object.assign({}, DEFAULTS);
     state.touched = {};
@@ -556,6 +572,7 @@
     startBtn.disabled = true;
     vscode.postMessage({
       type: 'genesisApplyProfile',
+      ...(presentationOverride ? { uiPresentation: presentationOverride } : {}),
       answers: Object.assign({}, state.answers),
       freeformNotes: notesInput ? notesInput.value.slice(0, 2000) : '',
       previewProfileId: preview.profileId,

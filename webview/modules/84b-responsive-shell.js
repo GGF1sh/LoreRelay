@@ -133,12 +133,7 @@ function lrShellApplyDom() {
   if (!root) { return; }
   root.setAttribute('data-lr-shell', lrShellState.mode);
   root.setAttribute('data-lr-drawer', lrShellState.drawerOpen ? 'open' : 'closed');
-  // A closed <details> suppresses its non-summary content. In wide mode the
-  // summary is intentionally hidden and the body is flattened into the header,
-  // so keep the disclosure open or Electron will collapse every toolbar item.
-  if (headerSecondary && lrShellState.mode === 'wide') {
-    headerSecondary.setAttribute('open', '');
-  }
+  // Secondary settings remain an explicit disclosure at every viewport width.
   if (resizer) {
     const wide = lrShellState.mode === 'wide';
     resizer.hidden = !wide;

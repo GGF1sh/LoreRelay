@@ -1993,5 +1993,20 @@
   "webview.responsive.statusDrawer": "Adventure Status",
   "webview.responsive.moreControls": "More controls",
   "webview.world.logisticsLightboxMaximize": "Maximize logistics view",
-  "webview.world.logisticsLightboxRestore": "Restore logistics view size"
+  "webview.world.logisticsLightboxRestore": "Restore logistics view size",
+  "webview.presentation.display": "Display",
+  "webview.presentation.story": "Story",
+  "webview.presentation.management": "Management",
+  "webview.presentation.cinematic": "Cinematic",
+  "webview.presentation.actions": "Actions",
+  "webview.presentation.details": "Details",
+  "webview.presentation.history": "History",
+  "webview.presentation.tools": "Tools",
+  "webview.presentation.existing": "Use a character or world",
+  "webview.presentation.otherStarts": "Other ways to begin",
+  "webview.presentation.demos": "Demos and developer tools",
+  "webview.presentation.recommendation": "Recommended display · change any time",
+  "webview.presentation.storyDescription": "Read the story and choose your next action. Details stay close by.",
+  "webview.presentation.managementDescription": "Compare available resources, people and world information beside the conversation.",
+  "webview.presentation.cinematicDescription": "Give the background and characters room. Read comfortably even without artwork."
 }

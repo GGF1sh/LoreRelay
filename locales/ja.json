@@ -1993,5 +1993,20 @@
   "webview.responsive.statusDrawer": "冒険ステータス",
   "webview.responsive.moreControls": "その他の操作",
   "webview.world.logisticsLightboxMaximize": "物流ビューを最大化",
-  "webview.world.logisticsLightboxRestore": "物流ビューのサイズを戻す"
+  "webview.world.logisticsLightboxRestore": "物流ビューのサイズを戻す",
+  "webview.presentation.display": "表示",
+  "webview.presentation.story": "物語",
+  "webview.presentation.management": "管理",
+  "webview.presentation.cinematic": "演出",
+  "webview.presentation.actions": "行動する",
+  "webview.presentation.details": "詳細",
+  "webview.presentation.history": "履歴",
+  "webview.presentation.tools": "ツール",
+  "webview.presentation.existing": "キャラクター・世界を使う",
+  "webview.presentation.otherStarts": "ほかの始め方",
+  "webview.presentation.demos": "デモ・開発者向け",
+  "webview.presentation.recommendation": "おすすめの表示 — あとから変更できます",
+  "webview.presentation.storyDescription": "物語を読み、次の行動を選ぶ表示です。詳しい状態は隣にまとめます。",
+  "webview.presentation.managementDescription": "会話と並べて、有効な資源・人物・世界の情報を比較できる表示です。",
+  "webview.presentation.cinematicDescription": "背景やキャラクターを広く見せる表示です。画像なしでも読みやすく遊べます。"
 }

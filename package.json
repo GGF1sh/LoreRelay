@@ -57,7 +57,10 @@
     "onCommand:textadventure.applyVehicleStateMigration",
     "onCommand:textadventure.restoreVehicleStateMigrationBackup",
     "onCommand:textadventure.upgradeVehicleStateForGameplaySpine",
-    "onCommand:textadventure.gameplaySpineRepairVehicle"
+    "onCommand:textadventure.gameplaySpineRepairVehicle",
+    "onCommand:textadventure.startActionRecording",
+    "onCommand:textadventure.stopActionRecording",
+    "onCommand:textadventure.exportActionRecording"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -197,6 +200,18 @@
       {
         "command": "textadventure.gameplaySpineRepairVehicle",
         "title": "%command.gameplaySpineRepairVehicle%"
+      },
+      {
+        "command": "textadventure.startActionRecording",
+        "title": "LoreRelay: Commerce録画を開始"
+      },
+      {
+        "command": "textadventure.stopActionRecording",
+        "title": "LoreRelay: Commerce録画を停止"
+      },
+      {
+        "command": "textadventure.exportActionRecording",
+        "title": "LoreRelay: Commerce録画テンプレートを出力"
       }
     ],
     "menus": {

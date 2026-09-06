@@ -281,6 +281,7 @@ import { runGameplaySpineVehicleRepairCommand } from './gameplaySpineVehicleRepa
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createCommerceActionWebviewAdapter } from './commerceActionWebview';
 import { startLiveExtensionQa } from './liveExtensionQaHost';
+import { registerActionRecorder } from './actionRecorderHost';
 import {
     createDeterministicWorkspaceMutationGate,
     type DeterministicWorkspaceMutationLease,
@@ -377,6 +378,7 @@ function getPanel(): vscode.WebviewPanel | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+    registerActionRecorder(context);
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
     modManagerHost = createModManagerHost({

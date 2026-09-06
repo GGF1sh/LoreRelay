@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "rules": [
     {
+      "id": "action-recorder",
+      "patterns": ["src/actionRecorder*.ts", "src/gameActionService.ts", "scripts/run_action_scenario.js", "scripts/action_scenarios/recorded_merchant_v1.json"],
+      "tests": ["test_action_recorder.js", "test_game_action_commerce.js"],
+      "boundaries": ["compile", "symbol-registry"],
+      "reason": "Human action observation, sanitized templates and fixture replay changed."
+    },
+    {
       "id": "live-extension-qa",
       "patterns": ["src/liveExtensionQa*.ts", "src/liveQaProbeHost.ts", "scripts/live_qa_mods_scenario.js", "scripts/run_live_extension_qa.js", ".github/workflows/live-extension-qa.yml"],
       "tests": ["test_live_extension_qa.js", "test_checkpoint_complete_state_snapshot.js", "test_game_action_commerce.js", "test_deterministic_workspace_mutation_gate.js"],

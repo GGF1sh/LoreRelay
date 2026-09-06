@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "id": "recorded_merchant_v1",
+  "fixtureId": "merchant_route_v1",
+  "seed": 7,
+  "limits": {
+    "maxSteps": 12,
+    "timeoutMs": 30000
+  },
+  "steps": [
+    {
+      "id": "recorded_1_preview",
+      "op": "preview",
+      "actionId": "commerce:trade",
+      "parameters": {
+        "op": "buy",
+        "marketLocationId": "north_farm",
+        "commodityId": "wheat",
+        "qty": 1
+      }
+    },
+    {
+      "id": "recorded_1",
+      "op": "execute",
+      "previewFrom": "recorded_1_preview",
+      "requestId": "recorded_1_fresh",
+      "confirmed": true
+    },
+    {
+      "id": "recorded_1_receipt",
+      "op": "wait_receipt",
+      "requestFrom": "recorded_1",
+      "timeoutMs": 5000
+    },
+    {
+      "id": "recorded_1_assert",
+      "op": "assert_receipt",
+      "receiptFrom": "recorded_1_receipt",
+      "classification": "committed"
+    },
+    {
+      "id": "recorded_2_preview",
+      "op": "preview",
+      "actionId": "commerce:travel",
+      "parameters": {
+        "destinationId": "elda_shop"
+      }
+    },
+    {
+      "id": "recorded_2",
+      "op": "execute",
+      "previewFrom": "recorded_2_preview",
+      "requestId": "recorded_2_fresh",
+      "confirmed": true
+    },
+    {
+      "id": "recorded_2_receipt",
+      "op": "wait_receipt",
+      "requestFrom": "recorded_2",
+      "timeoutMs": 5000
+    },
+    {
+      "id": "recorded_2_assert",
+      "op": "assert_receipt",
+      "receiptFrom": "recorded_2_receipt",
+      "classification": "committed"
+    },
+    {
+      "id": "recorded_3_preview",
+      "op": "preview",
+      "actionId": "commerce:end_day",
+      "parameters": {}
+    },
+    {
+      "id": "recorded_3",
+      "op": "execute",
+      "previewFrom": "recorded_3_preview",
+      "requestId": "recorded_3_fresh",
+      "confirmed": true
+    },
+    {
+      "id": "recorded_3_receipt",
+      "op": "wait_receipt",
+      "requestFrom": "recorded_3",
+      "timeoutMs": 5000
+    },
+    {
+      "id": "recorded_3_assert",
+      "op": "assert_receipt",
+      "receiptFrom": "recorded_3_receipt",
+      "classification": "committed"
+    }
+  ]
+}

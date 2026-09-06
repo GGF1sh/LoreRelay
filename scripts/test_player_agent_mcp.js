@@ -118,6 +118,51 @@ async function main() {
         const narrator = createNarratorReader(bindings);
         assert.equal((await narrator.call('execute', {})).classification, 'rejected_forbidden'); narrator.dispose();
     });
+    // Exercise the actual Host command wiring with UI/IPC boundaries substituted.
+    await withFixture(async fixture => {
+        const Module = require('module');
+        for (const destination of ['parlor', 'inworld']) {
+            let profile = 'campaign', approve;
+            const commands = new Map();
+            const disposable = { dispose() {} };
+            const vscode = {
+                commands: { registerCommand: (id, handler) => { commands.set(id, handler); return disposable; } },
+                workspace: { onDidChangeWorkspaceFolders: () => disposable, onDidChangeConfiguration: () => disposable },
+                window: {
+                    createOutputChannel: () => ({ ...disposable, clear() {}, appendLine() {}, show() {} }),
+                    showQuickPick: async items => items, showInputBox: async () => '10',
+                    showWarningMessage: async (_message, _options, label) => label,
+                    showInformationMessage: async () => undefined,
+                },
+            };
+            const original = Module._load;
+            const hostPath = require.resolve('../out/playerAgentHost');
+            delete require.cache[hostPath];
+            Module._load = function(name) {
+                if (name === 'vscode') return vscode;
+                if (name === './commerceActionRuntime') return { createCommerceActionRuntime: async () => fixture.runtime };
+                if (name === './workspacePaths') return { getWorkspacePath: () => fixture.workspace,
+                    getGameStatePath: () => path.join(fixture.workspace, 'game_state.json') };
+                if (name === './experience') return { isParlorMode: () => profile === 'parlor', isInWorldMode: () => profile === 'inworld' };
+                if (name === './playerIpcHost') return { openAgentConnection: async (_role, approval) => {
+                    approve = approval; return { endpoint: 'fixture', secret: 'fixture', dispose() {} };
+                } };
+                return original.apply(this, arguments);
+            };
+            const context = { extensionPath: path.resolve(__dirname, '..'), subscriptions: [] };
+            try { require(hostPath).registerPlayerAgent(context, fixture.gate); }
+            finally { Module._load = original; delete require.cache[hostPath]; }
+            try {
+                await commands.get('textadventure.startPlayerAgent')();
+                const api = await approve(randomUUID());
+                assert((await api.call('preview', day)).ok);
+                profile = destination;
+                assert.equal((await api.call('preview', day)).classification, 'rejected_forbidden');
+                profile = 'campaign';
+                assert.equal((await api.call('preview', day)).classification, 'rejected_forbidden', 'revoked lease cannot revive');
+            } finally { for (const item of context.subscriptions) item.dispose(); }
+        }
+    });
     // Fault injection is confined to a pure service binding; production has no alternate engine.
     for (const classification of ['committed_partial', 'outcome_unknown']) {
         let executions = 0;

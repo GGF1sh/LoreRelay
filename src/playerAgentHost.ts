@@ -25,7 +25,7 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
         const runtime = await createCommerceActionRuntime(gate);
         const scope = hashGameActionValue(runtime.scope());
         const current = () => generations[role] === generation && getWorkspacePath() === workspace && runtime.authorized()
-            && hashGameActionValue(runtime.scope()) === scope;
+            && !isParlorMode() && !isInWorldMode() && hashGameActionValue(runtime.scope()) === scope;
         let allowed: GameActionId[] = [];
         let maximum = 10;
         if (role === 'player') {

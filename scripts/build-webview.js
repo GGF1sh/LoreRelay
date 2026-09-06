@@ -6,6 +6,7 @@ const path = require('path');
 
 const JS_MODULE_ORDER = [
     '00-core.js',
+    '04-ui-presentation.js',
     '05-quickstart.js',
     '06-genesis-guide.js',
     '10-game-state.js',
@@ -83,7 +84,8 @@ const CSS_MODULE_ORDER = [
     '89-vehicles.css',
     '9a-ink-lantern.css',
     '9c-ux-playable-pass.css',
-    '9b-genre-chrome.css'
+    '9b-genre-chrome.css',
+    '9d-ui-presentation.css'
 ];
 
 const webviewDir = path.join(__dirname, '..', 'webview');

@@ -246,16 +246,16 @@ test('1400px resolves to wide mode', () => {
   assert.strictEqual(h.api.getMode(), 'wide');
 });
 
-test('wide mode keeps the secondary header disclosure open', () => {
+test('wide mode leaves secondary settings explicitly collapsed', () => {
   const h = createShellHarness({ width: 1400, includeHeaderSecondary: true });
   assert.strictEqual(h.api.getMode(), 'wide');
-  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), '', 'Wide mode must expose the non-summary toolbar contents');
+  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), null, 'Settings stay collapsed until requested');
 
   h.setWidth(900);
   assert.strictEqual(h.els.headerSecondary.getAttribute('open'), null, 'Entering drawer mode must close the disclosure');
 
   h.setWidth(1400);
-  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), '', 'Returning to wide mode must restore the toolbar contents');
+  assert.strictEqual(h.els.headerSecondary.getAttribute('open'), null, 'Resizing must not open settings');
 });
 
 test('wide header keeps secondary controls in flex layout', () => {

@@ -127,7 +127,8 @@ import {
     getGmBridgeOutputChannel,
     isGmBridgeBusy
 } from './gmBridgeRunner';
-import { isParlorMode, isInWorldMode } from './experience';
+import { isParlorMode, isInWorldMode, getExperienceProfile, onExperienceProfileChanged } from './experience';
+import { createUiPresentationStore } from './uiPresentationCore';
 import {
     initParlorBridge,
     handleParlorPlayerInput,
@@ -322,6 +323,7 @@ let campaignCombatCoordinator: CampaignCombatSessionCoordinator | undefined;
 let bgmWatcher: vscode.FileSystemWatcher | undefined;
 let sfxWatcher: vscode.FileSystemWatcher | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
+let uiPresentation: ReturnType<typeof createUiPresentationStore> | undefined;
 let modManagerHost: ModManagerHost | undefined;
 let openRouterSettingsWarningShown = false;
 const deterministicWorkspaceMutationGate = createDeterministicWorkspaceMutationGate();
@@ -370,6 +372,11 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'getUiPresentation') { uiPresentation?.send(); return; }
+    if (message.type === 'setUiPresentation') {
+        try { await uiPresentation?.set(message); } catch { uiPresentation?.send(); }
+        return;
+    }
     if (modManagerHost?.handles(message.type) && await modManagerHost.handleMessage(message)) return;
     await handleWebviewMessage(message, createWebviewHandlerDeps());
 }
@@ -383,6 +390,14 @@ export function activate(context: vscode.ExtensionContext) {
     registerPlayerAgent(context, deterministicWorkspaceMutationGate);
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
+    uiPresentation = createUiPresentationStore({
+        read: key => context.workspaceState.get(key),
+        write: (key, value) => context.workspaceState.update(key, value),
+        scope: () => ({ key: `uiPresentation.v1:${getWorkspacePath() || ''}:${getExperienceProfile()}`,
+            profile: getExperienceProfile() }),
+        post: value => { void panel?.webview.postMessage(value); },
+    });
+    context.subscriptions.push(onExperienceProfileChanged(() => uiPresentation?.send()));
     modManagerHost = createModManagerHost({
         context,
         getPanel,
@@ -2049,6 +2064,7 @@ async function handleSetEventExcluded(eventId: string, excluded: boolean): Promi
 }
 
 async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
+    const presentationKey = uiPresentation?.key();
     const message = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     const answers = message.answers && typeof message.answers === 'object'
         ? message.answers as Record<string, unknown>
@@ -2082,6 +2098,10 @@ async function handleGenesisApplyProfile(raw: unknown): Promise<void> {
         clearCampaignKitCache();
         clearDiscoveryLedgerCache();
         sendGameRules();
+        if (presentationKey) {
+            try { await uiPresentation?.initialize(presentationKey, answers, message.uiPresentation); }
+            catch { /* presentation persistence cannot change the game-rule outcome */ }
+        }
         panel?.webview.postMessage({
             type: 'genesisProfileApplied',
             ok: true,

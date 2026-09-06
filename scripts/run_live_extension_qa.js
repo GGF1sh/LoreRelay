@@ -124,6 +124,11 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
     void test.catch(() => {});
         await deadline(Promise.race([hello, test.then(() => { throw new Error('qa_host_exited_before_hello'); })]), testDeps.startTimeoutMs || 90000, 'qa_host_start_timeout');
         await request('reopen');
+        if (testDeps.afterReopen) await testDeps.afterReopen({ request, workspace });
+        if (testDeps.observeOnly) {
+            await request('stop'); await deadline(test, 30000, 'qa_shutdown_timeout');
+            return { status: 'observed', fixtureId };
+        }
         if (fixtureId === 'mods_v1') {
             await require('./live_qa_mods_scenario').exercise(request, async () => {
                 const before = session; hello = new Promise(resolve => { nextHost = resolve; });
@@ -174,6 +179,7 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
         assert.notEqual(session, beforeReload, 'reload must use a new Host session');
         await request('reopen');
         assert.deepEqual(await request('inspect'), restored, 'window reload preserves restored state and revision');
+        if (testDeps.afterReload) await testDeps.afterReload({ request, workspace });
         assert.notEqual((await request('execute', execute)).commitStatus, 'committed', 'restart never implies safe retry');
         await request('stop');
         await deadline(test, 30000, 'qa_shutdown_timeout');

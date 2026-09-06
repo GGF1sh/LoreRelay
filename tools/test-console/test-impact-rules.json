@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "rules": [
     {
+      "id": "ui-presentation",
+      "patterns": ["src/uiPresentationCore.ts", "webview/modules/04-ui-presentation.js", "webview/modules/06-genesis-guide.js", "webview/modules/84b-responsive-shell.js", "webview/styles/9d-ui-presentation.css", "scripts/build-webview.js"],
+      "tests": ["test_ui_presentation.js", "test_webview_responsive_narrow.js", "test_webview_bundle.js", "test_world_genesis_setup.js", "validate_webview_html_structure.js"],
+      "boundaries": ["compile", "symbol-registry", "i18n"],
+      "reason": "UI-only preferences, Genesis recommendation and responsive composition share existing gameplay components."
+    },
+    {
       "id": "player-agent-mcp",
       "patterns": ["src/player*.ts", "src/narratorMcp.ts", "src/mcpAdapter.ts", "src/gameActionService.ts", "src/experience.ts", ".vscodeignore"],
       "tests": ["test_player_agent_mcp.js", "test_game_action_commerce.js", "test_action_recorder.js", "test_command_palette_gating.js"],

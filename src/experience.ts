@@ -12,6 +12,13 @@ import {
 let cached: ExperienceConfig | undefined;
 let cachePath = '';
 let cacheMtime = 0;
+const profileListeners = new Set<() => void>();
+
+/** Host listeners observe committed profile transitions, including idle round trips. */
+export function onExperienceProfileChanged(listener: () => void) {
+    profileListeners.add(listener);
+    return { dispose: () => { profileListeners.delete(listener); } };
+}
 
 export function clearExperienceCache(): void {
     cached = undefined;
@@ -68,6 +75,9 @@ export function saveExperienceConfig(patch: Partial<ExperienceConfig>): Experien
         cacheMtime = fs.statSync(filePath).mtimeMs;
     } catch {
         cacheMtime = 0;
+    }
+    if (current.profile !== next.profile) for (const listener of profileListeners) {
+        try { listener(); } catch { /* a listener cannot roll back a committed profile */ }
     }
     return next;
 }

@@ -282,6 +282,7 @@ import { injectPngMetadata } from './utils/pngMetadata';
 import { createCommerceActionWebviewAdapter } from './commerceActionWebview';
 import { startLiveExtensionQa } from './liveExtensionQaHost';
 import { registerActionRecorder } from './actionRecorderHost';
+import { registerPlayerAgent } from './playerAgentHost';
 import {
     createDeterministicWorkspaceMutationGate,
     type DeterministicWorkspaceMutationLease,
@@ -379,6 +380,7 @@ function getPanel(): vscode.WebviewPanel | undefined {
 
 export function activate(context: vscode.ExtensionContext) {
     registerActionRecorder(context);
+    registerPlayerAgent(context, deterministicWorkspaceMutationGate);
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
     modManagerHost = createModManagerHost({

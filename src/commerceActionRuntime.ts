@@ -163,7 +163,7 @@ async function buildCommerceActionRuntime(mutationGate: DeterministicWorkspaceMu
         witness: state => hashGameActionValue({ game: state.game, world: state.world, forge: state.rawForge, rules: state.rules, npc: state.npc }),
         inspect: state => ({ game: state.game, world: state.world, ...(state.npc ? { npc: state.npc } : {}) }),
     };
-    return { service: createGameActionService(bindings), authorized, workspaceId };
+    return { service: createGameActionService(bindings), authorized, workspaceId, scope: bindings.scope };
 }
 
 const runtimes = new WeakMap<DeterministicWorkspaceMutationGate, Map<string, Promise<Awaited<ReturnType<typeof buildCommerceActionRuntime>>>>>();

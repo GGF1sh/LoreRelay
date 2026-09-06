@@ -20,6 +20,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run compile
+      - name: Standard MCP client and local IPC boundaries
+        run: node scripts/test_player_agent_mcp.js
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm run qa:live
       - if: runner.os == 'Windows'

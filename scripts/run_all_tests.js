@@ -215,6 +215,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_noai_soak_runner_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_campaign_combat_soak_core.js', consumesCompiledOutput: true, timeoutMs: 90000 },
     { category: 'unit', file: 'test_shopkeeper_direct_trade_core.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_player_agent_mcp.js', consumesCompiledOutput: true, timeoutMs: 60000 },
     { category: 'unit', file: 'test_action_recorder.js', consumesCompiledOutput: true, timeoutMs: 60000 },
     { category: 'unit', file: 'test_game_action_commerce.js', consumesCompiledOutput: true, timeoutMs: 60000 },
     { category: 'unit', file: 'test_shopkeeper_repair.js', consumesCompiledOutput: true },

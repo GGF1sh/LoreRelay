@@ -13,7 +13,7 @@ export interface GameActionRequest {
     confirmationToken?: string;
 }
 export interface TrustedActionExecutionContext {
-    readonly principal: 'human-player' | 'player-agent' | 'qa-runner';
+    readonly principal: 'human-player' | 'player-agent' | 'qa-runner' | 'narrator';
     readonly capabilities: readonly ActionCapability[];
     readonly workspaceId: string;
 }
@@ -148,7 +148,8 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
         // the same fields. Public methods check object identity in the WeakMap.
         createTrustedSession(principal: TrustedActionExecutionContext['principal'], delegatedActions: boolean = false): TrustedActionExecutionContext {
             const capabilities: ActionCapability[] = ['action.list', 'action.preview', 'receipt.read'];
-            if (principal !== 'player-agent' || delegatedActions) capabilities.push('action.execute');
+            if (principal === 'human-player' || principal === 'qa-runner' || (principal === 'player-agent' && delegatedActions)) capabilities.push('action.execute');
+            if (principal === 'narrator') capabilities.splice(capabilities.indexOf('action.preview'), 1);
             if (principal === 'qa-runner') capabilities.push('qa.inspect');
             const context = Object.freeze({ principal, workspaceId: bindings.scope().workspaceId, capabilities: Object.freeze(capabilities) });
             contexts.set(context, { callerId: randomUUID(), closed: false });
@@ -201,8 +202,9 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
         },
         /** Called only by a trusted adapter after the user selects confirm, or by
          * the fixture runner after validating all scripted-confirmation conditions. */
-        confirm(context: TrustedActionExecutionContext, token: string, mode: 'interactive' | 'scripted'): boolean {
-            if (!safeValid(context, 'action.execute') || (mode === 'scripted' && context.principal !== 'qa-runner')) return false;
+        confirm(context: TrustedActionExecutionContext, token: string, mode: 'interactive' | 'scripted' | 'delegated'): boolean {
+            if (!safeValid(context, 'action.execute') || (mode === 'scripted' && context.principal !== 'qa-runner')
+                || (mode === 'delegated' && context.principal !== 'player-agent')) return false;
             const handle = handles.get(token);
             if (!handle || handle.context !== context || handle.scope !== scopeKey() || handle.expires <= now() || handle.used) return false;
             handle.approved = true;

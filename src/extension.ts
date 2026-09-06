@@ -280,6 +280,7 @@ import { runUpgradeVehicleStateForGameplaySpineCommand } from './gameplaySpineVe
 import { runGameplaySpineVehicleRepairCommand } from './gameplaySpineVehicleRepairRunner';
 import { injectPngMetadata } from './utils/pngMetadata';
 import { createCommerceActionWebviewAdapter } from './commerceActionWebview';
+import { startLiveExtensionQa } from './liveExtensionQaHost';
 import {
     createDeterministicWorkspaceMutationGate,
     type DeterministicWorkspaceMutationLease,
@@ -880,11 +881,16 @@ export function activate(context: vscode.ExtensionContext) {
     const lastCheck = context.globalState.get<number>('lorerelay.lastUpdateCheck', 0);
     const now = Date.now();
     const checkInterval = 24 * 60 * 60 * 1000; // 24 hours
-    if (now - lastCheck > checkInterval) {
+    if (context.extensionMode === vscode.ExtensionMode.Production && now - lastCheck > checkInterval) {
         // NOTE: lastUpdateCheck is saved *inside* checkForUpdates on success,
         // so a network failure will retry on the next VS Code startup.
         void checkForUpdates(true, context);
     }
+    const qaCompletion = startLiveExtensionQa(context, deterministicWorkspaceMutationGate, async () => {
+        panel?.dispose();
+        await vscode.commands.executeCommand('textadventure.openGame');
+    });
+    return qaCompletion ? { qaCompletion } : undefined;
 }
 
 function getNonce(): string {
@@ -2666,8 +2672,8 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         archiveSaga,
         handleUndoLastTurn,
         handleRestoreToTurn,
-        handleSaveCheckpoint,
-        handleRestoreCheckpoint,
+        handleSaveCheckpoint: async label => { await handleSaveCheckpoint(label); },
+        handleRestoreCheckpoint: async id => { await handleRestoreCheckpoint(id); },
         handleDeleteCheckpoint,
         handleRegenerateLastTurn,
         updateSummary,

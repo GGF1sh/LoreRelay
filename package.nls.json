@@ -112,5 +112,9 @@
   "config.textAdventure.worldIntent.vehicleBridgeMode.description": "Developer/operator diagnostic mode for World Intent vs legacy vehicleOps parity. Legacy vehicleOps remain authoritative; off disables parity work.",
   "command.startActionRecording": "Start Commerce Recording",
   "command.stopActionRecording": "Stop Commerce Recording",
-  "command.exportActionRecording": "Export Commerce Recording Template"
+  "command.exportActionRecording": "Export Commerce Recording Template",
+  "command.startPlayerAgent": "Connect Player Agent",
+  "command.stopPlayerAgent": "Stop Player Delegation",
+  "command.startNarrator": "Connect Read-only Narrator",
+  "command.stopNarrator": "Stop Narrator Connection"
 }

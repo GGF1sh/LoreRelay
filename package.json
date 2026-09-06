@@ -60,7 +60,11 @@
     "onCommand:textadventure.gameplaySpineRepairVehicle",
     "onCommand:textadventure.startActionRecording",
     "onCommand:textadventure.stopActionRecording",
-    "onCommand:textadventure.exportActionRecording"
+    "onCommand:textadventure.exportActionRecording",
+    "onCommand:textadventure.startPlayerAgent",
+    "onCommand:textadventure.stopPlayerAgent",
+    "onCommand:textadventure.startNarrator",
+    "onCommand:textadventure.stopNarrator"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -212,6 +216,22 @@
       {
         "command": "textadventure.exportActionRecording",
         "title": "%command.exportActionRecording%"
+      },
+      {
+        "command": "textadventure.startPlayerAgent",
+        "title": "%command.startPlayerAgent%"
+      },
+      {
+        "command": "textadventure.stopPlayerAgent",
+        "title": "%command.stopPlayerAgent%"
+      },
+      {
+        "command": "textadventure.startNarrator",
+        "title": "%command.startNarrator%"
+      },
+      {
+        "command": "textadventure.stopNarrator",
+        "title": "%command.stopNarrator%"
       }
     ],
     "menus": {
@@ -887,6 +907,7 @@
     "domain:balance": "node scripts/domain_balance_harness.js"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.93.0",
     "@types/ws": "^8.18.1",
@@ -895,7 +916,9 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "mermaid": "^11.16.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "4.2.1"
   }
 }

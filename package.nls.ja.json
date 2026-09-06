@@ -109,5 +109,9 @@
   "config.textAdventure.worldIntent.vehicleBridgeMode.description": "World Intent と legacy vehicleOps の診断用 parity モード。canonical は従来の vehicleOps のみ。off で parity 無効。",
   "command.startActionRecording": "Commerce録画を開始",
   "command.stopActionRecording": "Commerce録画を停止",
-  "command.exportActionRecording": "Commerce録画テンプレートを出力"
+  "command.exportActionRecording": "Commerce録画テンプレートを出力",
+  "command.startPlayerAgent": "Player Agentを接続",
+  "command.stopPlayerAgent": "Player操作委譲を停止",
+  "command.startNarrator": "読取専用Narratorを接続",
+  "command.stopNarrator": "Narrator接続を停止"
 }

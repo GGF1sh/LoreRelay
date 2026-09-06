@@ -85,7 +85,8 @@ export function startLiveExtensionQa(context: vscode.ExtensionContext,
                 if (request.op === 'wait_receipt') result = await service.waitReceipt(trusted, args.requestId as string, args.timeoutMs as number);
             }
             switch (request.op) {
-                case 'mod_state': result = { host: mods.readPublishedState() ?? null }; break;
+                case 'mod_state': result = { host: mods.readPublishedState() ?? null,
+                    locale: vscode.workspace.getConfiguration('textAdventure').get('locale', 'en') }; break;
                 case 'rendered_state': result = await probe(); break;
                 case 'ui_action': result = await probe(args); break;
                 case 'adult_denial':

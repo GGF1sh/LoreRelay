@@ -56,9 +56,6 @@ async function exercise(request, reload) {
         await pause();
     }
     await click('header-secondary-toggle');
-    const selection = await request('ui_action', { controlId: 'locale-select', event: 'select', value: 'en' });
-    assert.equal(selection.rendered.actionAccepted, true);
-    assert.equal(selection.rendered.controls['locale-select'].selected, 'en');
     await click('mod-manager-btn');
     await state(s => s.safeMode && s.packages.length === 1);
     assert.deepEqual(await request('adult_denial'), { denied: true });
@@ -66,6 +63,14 @@ async function exercise(request, reload) {
     await state(s => s.canCommit);
     await click('mod-manager-commit');
     await state(s => !s.safeMode && !s.preview);
+    await click('mod-manager-close');
+    const selection = await request('ui_action', { controlId: 'locale-select', event: 'select', value: 'ja' });
+    assert.equal(selection.rendered.actionAccepted, true);
+    assert.equal(selection.rendered.controls['locale-select'].selected, 'ja');
+    for (let i = 0; i < 50 && (await request('mod_state')).locale !== 'ja'; i++) await pause();
+    assert.equal((await request('mod_state')).locale, 'ja', 'production locale handler updates Host configuration');
+    await click('mod-manager-btn');
+    await state(s => !s.safeMode);
     await click('qa-mod-general-toggle');
     await state(s => s.packages[0].enabled);
     await click('mod-manager-resolve');
@@ -88,7 +93,9 @@ async function exercise(request, reload) {
     }
     await click('header-secondary-toggle');
     await click('mod-manager-btn');
-    await state(s => !s.safeMode && s.packages[0].enabled);
+    const afterReload = await state(s => !s.safeMode && s.packages[0].enabled);
+    assert.equal((await request('mod_state')).locale, 'ja', 'Host locale survives reload');
+    assert.equal(afterReload.dom.rendered.controls['locale-select'].selected, 'ja', 'locale bundle restores DOM selection');
     await click('qa-mod-general-toggle');
     await state(s => !s.packages[0].enabled);
     await click('mod-manager-resolve');

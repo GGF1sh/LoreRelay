@@ -6022,7 +6022,7 @@ function escapeHtml(str) {
       let actionAccepted = false;
       if (message.action && ((panel?.dataset.semanticRevision || null) === message.expectedRevision
         || ['header-secondary-toggle', 'mod-manager-btn', 'mod-manager-rescan'].includes(message.action.controlId))) {
-        const allowed = ['header-secondary-toggle', 'locale-select', 'mod-manager-btn', 'mod-manager-rescan', 'mod-manager-resolve', 'mod-manager-commit', 'qa-mod-general-toggle'];
+        const allowed = ['mod-manager-close', 'header-secondary-toggle', 'locale-select', 'mod-manager-btn', 'mod-manager-rescan', 'mod-manager-resolve', 'mod-manager-commit', 'qa-mod-general-toggle'];
         const target = allowed.includes(message.action.controlId) ? document.getElementById(message.action.controlId) : null;
         if (message.action.event === 'click' && visible(target) && !target.disabled) {
           target.click(); actionAccepted = true;

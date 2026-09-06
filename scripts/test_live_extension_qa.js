@@ -53,6 +53,9 @@ async function failureWorker() {
     let child;
     await assert.rejects(runLifecycle({ resolveExecutable: async () => process.execPath, startTimeoutMs: 100,
         spawnHost: (_executable, _args, options) => {
+            assert.equal(options.env.TEMP, fs.realpathSync.native(os.tmpdir()));
+            assert.equal(options.env.TMP, options.env.TEMP);
+            assert.equal(options.env.TMPDIR, options.env.TEMP);
             child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], options);
             return child;
         },

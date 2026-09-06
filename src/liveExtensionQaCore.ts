@@ -28,7 +28,7 @@ export function parseLiveQaRequest(value: unknown): LiveQaRequest | undefined {
     if (v.op === 'ui_action' && args.controlId === 'locale-select' && args.event === 'select'
         && ['en', 'ja'].includes(String(args.value))) return v as unknown as LiveQaRequest;
     if (v.op === 'ui_action' && (args.event !== 'click' || args.value !== undefined || ![
-        'header-secondary-toggle', 'mod-manager-btn', 'mod-manager-rescan', 'mod-manager-resolve', 'mod-manager-commit',
+        'header-secondary-toggle', 'mod-manager-close', 'mod-manager-btn', 'mod-manager-rescan', 'mod-manager-resolve', 'mod-manager-commit',
         'qa-mod-general-toggle',
     ].includes(String(args.controlId)))) return;
     return v as unknown as LiveQaRequest;

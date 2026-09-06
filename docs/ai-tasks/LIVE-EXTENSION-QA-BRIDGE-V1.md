@@ -96,3 +96,9 @@ collapsed header menu and the empty-directory mismatch; the owner's additional
 repair/continuation authorization was used to resolve both. No fake renderer is
 claimed as real Host evidence. Final focused, independent review, full-suite and
 integration evidence is recorded in the 2B PR. Human Play remains unperformed.
+
+PR #102 independent review found one P2: selecting the default locale did not prove
+the Host configuration round-trip. The repair selects `ja`, waits for the production
+Host setting, and verifies the Host and actual DOM after reload. Windows CI also
+exposed an 8.3 temporary-path alias; the runner now uses native realpath and passes
+that canonical TEMP/TMP/TMPDIR into its child. Production path checks stay strict.

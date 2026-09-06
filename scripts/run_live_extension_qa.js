@@ -25,7 +25,8 @@ async function terminateUnconnectedHost(child) {
 // Injected functions are test-process dependencies, never CLI/request fields.
 async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
     if (!['lifecycle_v1', 'mods_v1'].includes(fixtureId)) throw new Error('unknown_fixture');
-    const temp = fs.realpathSync(os.tmpdir());
+    // Native realpath expands Windows 8.3 aliases before VS Code and async fs see the path.
+    const temp = fs.realpathSync.native(os.tmpdir());
     const owned = fs.mkdtempSync(path.join(temp, 'lorerelay-live-qa-'));
     const workspace = path.join(owned, 'workspace');
     const secret = randomBytes(32).toString('hex');
@@ -111,7 +112,7 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
         `--shared-data-dir=${path.join(owned, 'shared-data')}`, `--extensions-dir=${path.join(owned, 'extensions')}`, '--disable-extensions', '--skip-welcome',
         '--skip-release-notes', '--disable-gpu', '--disable-workspace-trust', '--no-sandbox'], {
         windowsHide: true, detached: process.platform !== 'win32', shell: false, env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined,
-            VSCODE_IPC_HOOK_CLI: undefined, LORERELAY_QA_SECRET: secret, LORERELAY_QA_ENDPOINT: endpoint },
+            VSCODE_IPC_HOOK_CLI: undefined, TEMP: temp, TMP: temp, TMPDIR: temp, LORERELAY_QA_SECRET: secret, LORERELAY_QA_ENDPOINT: endpoint },
     });
     child.stdout.on('data', bytes => process.stderr.write(bytes));
     child.stderr.on('data', bytes => process.stderr.write(bytes));

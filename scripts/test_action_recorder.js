@@ -37,6 +37,17 @@ async function play(recording) {
     } finally { subscription?.dispose(); fixture.close(); }
 }
 async function main() {
+    const forge = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/action-scenarios/merchant_route_v1/world_forge.json'), 'utf8'));
+    for (const market of forge.commerce.markets) {
+        const recorder = createActionRecorder(); recorder.start();
+        recorder.observe(action('commerce:travel', { destinationId: market.locationId }));
+        assert.equal(resolveRecordedActionTemplate(recorder.template(), 'catalog_market').steps[0].parameters.destinationId, market.locationId);
+    }
+    for (const commodity of forge.commerce.commodities) {
+        const recorder = createActionRecorder(); recorder.start();
+        recorder.observe(action('commerce:trade', { ...trade.parameters, commodityId: commodity.id }));
+        assert.equal(resolveRecordedActionTemplate(recorder.template(), 'catalog_commodity').steps[0].parameters.commodityId, commodity.id);
+    }
     const baseline = await play(false);
     const recorded = await play(true);
     assert.deepEqual(recorded.view, baseline.view, 'Recorder and throwing observer do not change gameplay');

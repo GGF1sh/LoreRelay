@@ -54,3 +54,9 @@ command-palette localization contract, which the initial focused selection misse
 The repair uses package NLS keys in all four bundles and adds command palette gating
 to the Recorder impact rule. The targeted gating check passes. Final evidence is
 recorded on the PR rather than requiring a post-verification code change.
+
+Ready review identified an incomplete fixture-reference vocabulary. The bounded
+repair adds all three fixture markets and all three commodities; a regression
+iterates the fixture definition and verifies each binding. It does not enumerate
+hidden destinations to Player tools. Change-only Test Console: 7/7, focused 4/4.
+The changed executable tree receives a fresh final full suite and exact-head CI.

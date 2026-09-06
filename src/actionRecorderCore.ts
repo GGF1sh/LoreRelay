@@ -7,7 +7,7 @@ interface RecordedAction {
     numbers: Record<string, number>; manualReviewRequired: boolean;
 }
 const knownFixtureValues: Record<ReferenceKind, readonly string[]> = {
-    market: ['north_farm', 'elda_shop'], commodity: ['wheat'],
+    market: ['north_farm', 'elda_shop', 'south_port'], commodity: ['wheat', 'steel', 'spice'],
 };
 /** Memory-only recording. Every stored field is built from an explicit public allowlist. */
 export function createActionRecorder(onLimit: () => void = () => {}) {

@@ -121,8 +121,10 @@ async function main() {
     // Exercise the actual Host command wiring with UI/IPC boundaries substituted.
     await withFixture(async fixture => {
         const Module = require('module');
+        const experience = require('../out/experience');
         for (const destination of ['parlor', 'inworld']) {
-            let profile = 'campaign', approve;
+            experience.saveExperienceConfig({ profile: 'campaign' });
+            let approve, approved;
             const commands = new Map();
             const disposable = { dispose() {} };
             const vscode = {
@@ -143,9 +145,9 @@ async function main() {
                 if (name === './commerceActionRuntime') return { createCommerceActionRuntime: async () => fixture.runtime };
                 if (name === './workspacePaths') return { getWorkspacePath: () => fixture.workspace,
                     getGameStatePath: () => path.join(fixture.workspace, 'game_state.json') };
-                if (name === './experience') return { isParlorMode: () => profile === 'parlor', isInWorldMode: () => profile === 'inworld' };
                 if (name === './playerIpcHost') return { openAgentConnection: async (_role, approval) => {
-                    approve = approval; return { endpoint: 'fixture', secret: 'fixture', dispose() {} };
+                    approve = async session => (approved = await approval(session));
+                    return { endpoint: 'fixture', secret: 'fixture', dispose() { approved?.dispose(); } };
                 } };
                 return original.apply(this, arguments);
             };
@@ -156,10 +158,17 @@ async function main() {
                 await commands.get('textadventure.startPlayerAgent')();
                 const api = await approve(randomUUID());
                 assert((await api.call('preview', day)).ok);
-                profile = destination;
+                experience.saveExperienceConfig({ profile: destination });
                 assert.equal((await api.call('preview', day)).classification, 'rejected_forbidden');
-                profile = 'campaign';
+                experience.saveExperienceConfig({ profile: 'campaign' });
                 assert.equal((await api.call('preview', day)).classification, 'rejected_forbidden', 'revoked lease cannot revive');
+                await commands.get('textadventure.startPlayerAgent')();
+                const idle = await approve(randomUUID());
+                const quote = await idle.call('preview', day);
+                assert(quote.ok);
+                experience.saveExperienceConfig({ profile: destination });
+                experience.saveExperienceConfig({ profile: 'campaign' });
+                assert.equal((await idle.call('execute', request(quote))).classification, 'rejected_forbidden', 'idle round trip revokes without an intervening agent call');
             } finally { for (const item of context.subscriptions) item.dispose(); }
         }
     });

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { createCommerceActionRuntime } from './commerceActionRuntime';
 import { getWorkspacePath, getGameStatePath } from './workspacePaths';
-import { isParlorMode, isInWorldMode } from './experience';
+import { isParlorMode, isInWorldMode, onExperienceProfileChanged } from './experience';
 import { hashGameActionValue, type GameActionId } from './gameActionService';
 import { createPlayerDelegation, createNarratorReader } from './playerDelegationCore';
 import { openAgentConnection } from './playerIpcHost';
@@ -67,6 +67,7 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
         stop(role); void vscode.window.showWarningMessage('LoreRelay: 接続を開始できません。campaignの状態を確認してください。');
     });
     context.subscriptions.push(output, { dispose: stopAll },
+        onExperienceProfileChanged(stopAll),
         vscode.workspace.onDidChangeWorkspaceFolders(stopAll),
         vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('textAdventure.workspaceFolder')) stopAll(); }),
         vscode.commands.registerCommand('textadventure.startPlayerAgent', () => startSafely('player')),

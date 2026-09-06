@@ -34,6 +34,8 @@ Preview alone does not approve a handle. Execute checks live delegation, then us
 the shared service's caller/scope/epoch/quote/witness/expiry-bound opaque handle.
 Stop, disconnect, reload and workspace changes revoke pending authority. Revocation
 does not cancel a started mutation or forcibly release the shared workspace gate.
+Committed experience-profile transitions synchronously stop both connections, so
+an idle Campaign → Parlor/In-World → Campaign round trip cannot revive a delegation.
 No uncertain, partial, stale or busy result triggers automatic replay. A transport
 timeout is `outcome_unknown`; query its receipt while the same session remains live.
 

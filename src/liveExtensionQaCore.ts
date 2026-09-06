@@ -2,7 +2,7 @@
 export const LIVE_QA_OPERATIONS = [
     'read_player_view', 'query_available', 'preview', 'execute', 'wait_receipt',
     'inspect', 'checkpoint_list', 'checkpoint_save', 'checkpoint_restore',
-    'reopen', 'reload', 'stop',
+    'reopen', 'reload', 'stop', 'mod_state', 'rendered_state', 'ui_action', 'adult_denial',
 ] as const;
 export type LiveQaOperation = typeof LIVE_QA_OPERATIONS[number];
 export interface LiveQaRequest {
@@ -20,9 +20,16 @@ export function parseLiveQaRequest(value: unknown): LiveQaRequest | undefined {
     const fields = v.op === 'preview' ? ['actionId', 'parameters', 'expectedActionSetHash']
         : v.op === 'execute' ? ['actionId', 'requestId', 'parameters', 'expectedActionSetHash', 'confirmationToken']
         : v.op === 'wait_receipt' ? ['requestId', 'timeoutMs']
-        : v.op === 'checkpoint_restore' ? ['checkpointId'] : [];
+        : v.op === 'checkpoint_restore' ? ['checkpointId']
+        : v.op === 'ui_action' ? ['controlId', 'event', 'value'] : [];
     if (Object.keys(args).some(key => !fields.includes(key))) return;
     if (v.op === 'checkpoint_restore' && (typeof args.checkpointId !== 'string'
         || !/^[a-zA-Z0-9_-]{1,128}$/.test(args.checkpointId))) return;
+    if (v.op === 'ui_action' && args.controlId === 'locale-select' && args.event === 'select'
+        && ['en', 'ja'].includes(String(args.value))) return v as unknown as LiveQaRequest;
+    if (v.op === 'ui_action' && (args.event !== 'click' || args.value !== undefined || ![
+        'header-secondary-toggle', 'mod-manager-btn', 'mod-manager-rescan', 'mod-manager-resolve', 'mod-manager-commit',
+        'qa-mod-general-toggle',
+    ].includes(String(args.controlId)))) return;
     return v as unknown as LiveQaRequest;
 }

@@ -67,3 +67,32 @@ state with fixed-control UI actions. Recorder follows with explicit recording an
 sanitized fixture templates. Player/MCP follows with explicit campaign pairing,
 bounded delegation and separate player/QA/narration information planes. None of
 these later interfaces is part of 2A.
+
+## Slice 2B: MOD Manager and actual rendering
+
+Base: `224598d5960cea11f46d965a1845fcd4c4d13ee8` (#101, both post-merge workflows passed).
+The fixed `mods_v1` catalog creates only synthetic general/adult manifests in an
+empty isolated workspace. The runner uses the same real Development Host and now
+also isolates VS Code's shared-data directory. IPC listener startup is inside the
+owned cleanup region (the deferred #101 P2).
+
+Host inspection returns a detached copy of the last public MOD Manager publication;
+it does not discover, initialize or recover. A separate real-Webview probe reports
+visibility, selected locale, enabled controls, package rows, preview and notice.
+Host session, panel generation, probe ID and public publication revision correlate
+responses. Missing, replaced or not-yet-rendered panels are explicitly unconfirmed.
+Fixed click/select controls invoke normal DOM events. Adult visibility/approval,
+arbitrary selectors, JavaScript, command names and paths are not exposed.
+
+The real Host exposed a production empty-campaign mismatch: opening the panel lists
+characters and creates an empty `characters` directory, which MOD eligibility rejected.
+Only an ordinary empty characters directory is now accepted; any content still
+requires a campaign fork. Unit coverage checks both sides and detached inspection.
+
+Windows actual Host passed Safe Mode recovery, resolve/apply, enable/disable,
+adult denial and metadata redaction, DOM/Host agreement, panel reopen/generation,
+locale selection and reload consistency. Initial real-host attempts exposed a
+collapsed header menu and the empty-directory mismatch; the owner's additional
+repair/continuation authorization was used to resolve both. No fake renderer is
+claimed as real Host evidence. Final focused, independent review, full-suite and
+integration evidence is recorded in the 2B PR. Human Play remains unperformed.

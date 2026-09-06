@@ -11,11 +11,14 @@ import { listCheckpointMetas } from './checkpoint';
 import { handleSaveCheckpoint, handleRestoreCheckpoint } from './checkpointHandlers';
 import { getWorkspacePath } from './workspacePaths';
 import type { DeterministicWorkspaceMutationGate } from './deterministicWorkspaceMutationGate';
+import type { ModManagerHost } from './mods/modManagerHost';
+import { createLiveQaProbe } from './liveQaProbeHost';
 
 type Runtime = Awaited<ReturnType<typeof createCommerceActionRuntime>>;
 /** Only a development/test Host with a runner-owned fixture can instantiate this bridge. */
 export function startLiveExtensionQa(context: vscode.ExtensionContext,
-    gate: DeterministicWorkspaceMutationGate, reopen: () => Promise<void>) {
+    gate: DeterministicWorkspaceMutationGate, reopen: () => Promise<void>,
+    getPanel: () => vscode.WebviewPanel | undefined, mods: ModManagerHost) {
     if (context.extensionMode === vscode.ExtensionMode.Production || !process.env.LORERELAY_QA_SECRET) return;
     const secret = process.env.LORERELAY_QA_SECRET;
     const endpoint = process.env.LORERELAY_QA_ENDPOINT;
@@ -30,8 +33,9 @@ export function startLiveExtensionQa(context: vscode.ExtensionContext,
     if (fs.lstatSync(markerPath).isSymbolicLink() || fs.statSync(markerPath).size > 4096) throw new Error('qa_owner_invalid');
     const owner = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
     if (owner.secretHash !== createHash('sha256').update(secret).digest('hex')
-        || owner.fixtureId !== 'lifecycle_v1' || owner.endpoint !== endpoint) throw new Error('qa_owner_invalid');
+        || !['lifecycle_v1', 'mods_v1'].includes(owner.fixtureId) || owner.endpoint !== endpoint) throw new Error('qa_owner_invalid');
     const session = randomUUID();
+    const probe = createLiveQaProbe(session, getPanel, () => mods.readPublishedState());
     let runtime: Runtime | undefined;
     let caller: ReturnType<Runtime['service']['createTrustedSession']> | undefined;
     let closed = false;
@@ -66,17 +70,28 @@ export function startLiveExtensionQa(context: vscode.ExtensionContext,
         if (busy) { send({ id: request.id, session, ok: false, code: 'rejected_busy' }); return; }
         busy = true;
         try {
-            const { service, caller: trusted } = await current();
+            if (getWorkspacePath() !== workspace || closed) throw new Error('qa_session_closed');
             const args = request.args;
             let result: unknown;
-            switch (request.op) {
-                case 'read_player_view': result = service.readPlayerView(trusted); break;
-                case 'query_available': result = service.queryAvailable(trusted); break;
-                case 'preview': result = service.preview(trusted, args); break;
-                case 'execute':
+            if (['read_player_view', 'query_available', 'preview', 'execute', 'wait_receipt'].includes(request.op)) {
+                const { service, caller: trusted } = await current();
+                if (request.op === 'read_player_view') result = service.readPlayerView(trusted);
+                if (request.op === 'query_available') result = service.queryAvailable(trusted);
+                if (request.op === 'preview') result = service.preview(trusted, args);
+                if (request.op === 'execute') {
                     if (typeof args.confirmationToken === 'string') service.confirm(trusted, args.confirmationToken, 'scripted');
-                    result = await service.execute(trusted, args); break;
-                case 'wait_receipt': result = await service.waitReceipt(trusted, args.requestId as string, args.timeoutMs as number); break;
+                    result = await service.execute(trusted, args);
+                }
+                if (request.op === 'wait_receipt') result = await service.waitReceipt(trusted, args.requestId as string, args.timeoutMs as number);
+            }
+            switch (request.op) {
+                case 'mod_state': result = { host: mods.readPublishedState() ?? null }; break;
+                case 'rendered_state': result = await probe(); break;
+                case 'ui_action': result = await probe(args); break;
+                case 'adult_denial':
+                    if (owner.fixtureId !== 'mods_v1' || mods.readPublishedState()?.adultVisible !== false) throw new Error('qa_adult_denial_precondition');
+                    await mods.handleMessage({ type: 'authorizeAdultMod', id: 'qa.adult', version: '1.0.0', source: 'workspace' });
+                    result = { denied: mods.adultSessionApprovals(workspace!).length === 0 }; break;
                 case 'inspect': {
                     const lease = gate.acquire(workspace!, { actionKind: 'qa_inspect', requestId: request.id });
                     if (lease.status !== 'acquired') throw new Error('rejected_busy');

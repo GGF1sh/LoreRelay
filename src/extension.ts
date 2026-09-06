@@ -889,7 +889,7 @@ export function activate(context: vscode.ExtensionContext) {
     const qaCompletion = startLiveExtensionQa(context, deterministicWorkspaceMutationGate, async () => {
         panel?.dispose();
         await vscode.commands.executeCommand('textadventure.openGame');
-    });
+    }, () => panel, modManagerHost!);
     return qaCompletion ? { qaCompletion } : undefined;
 }
 

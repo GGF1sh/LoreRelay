@@ -316,6 +316,12 @@ async function main() {
         await host.handleMessage({ type: 'requestModManagerState' });
         let uiState = lastState(messages);
         eq(uiState.campaignEmpty, true, 'empty campaign is eligible');
+        fs.mkdirSync(path.join(workspaceRoot, 'characters'));
+        await host.handleMessage({ type: 'requestModManagerState' });
+        eq(lastState(messages).campaignEmpty, true, 'normal panel empty characters directory is still empty');
+        const snapshot = host.readPublishedState();
+        snapshot.packages.length = 0;
+        ok(host.readPublishedState().packages.length > 0, 'published inspection returns a detached read-only snapshot');
         ok(uiState.packages.some(item => item.id === 'general.manager'), 'general metadata is listed');
         ok(!JSON.stringify(uiState).includes('adult.manager'), 'hidden adult id is absent from UI state');
         ok(!JSON.stringify(uiState).includes('Adult metadata sentinel'), 'hidden adult name is absent from UI state');
@@ -336,6 +342,9 @@ async function main() {
         eq(profileCore.parseModLockBytes(fs.readFileSync(path.join(workspaceRoot, '.text-adventure/mod-lock.json'))).ok, true, 'manager commits strict lock');
 
         const existingWorkspace = folder(path.join(temp, 'ui-existing'), { 'game_state.json': '{}' });
+        workspaceRoot = folder(path.join(temp, 'character-lineage'), { 'characters/person.json': '{}' });
+        await host.handleMessage({ type: 'requestModManagerState' });
+        eq(lastState(messages).campaignEmpty, false, 'nonempty characters directory is campaign lineage');
         workspaceRoot = existingWorkspace;
         messages = [];
         await host.handleMessage({ type: 'requestModManagerState' });

@@ -544,6 +544,20 @@ try {
         assert.ok(!report.telemetry.rejectCounts || !report.telemetry.rejectCounts.WRONG_LOCATION, 'must not teleport-trade');
         const game = JSON.parse(fs.readFileSync(path.join(runDir, 'workspace', 'game_state.json'), 'utf-8'));
         assert.ok(game.world && typeof game.world.currentLocationId === 'string' && game.world.currentLocationId, 'must persist currentLocationId');
+        assert.ok(!fs.existsSync(path.join(runDir, 'balance.json')), 'observation is opt-in');
+        const observed = spawnSync(process.execPath, [path.join(root, 'scripts', 'run_noai_soak.js'),
+            '--scenario', 'noai_unit_route', '--observe-balance'], {
+            cwd: root, env: { ...process.env, NOAI_SOAK_SCENARIO_DIR: tempScenarioDir }, encoding: 'utf-8',
+        });
+        assert.strictEqual(observed.status, 0, observed.stderr);
+        const observedDir = fs.readdirSync(scenarioTemp).find(name => name !== path.basename(runDir));
+        const observedReport = JSON.parse(fs.readFileSync(path.join(scenarioTemp, observedDir, 'report.json'), 'utf8'));
+        assert.strictEqual(observedReport.finalCanonicalHash, report.finalCanonicalHash, 'read-only observation preserves canonical outcome');
+        const balance = JSON.parse(fs.readFileSync(path.join(scenarioTemp, observedDir, 'balance.json'), 'utf8'));
+        assert.strictEqual(balance.frames.length, observedReport.telemetry.finalWorldTurn + 1);
+        assert.strictEqual(balance.truncated, false);
+        assert.strictEqual(balance.frames[0].worldTurn, 0);
+        assert.ok(balance.frames.at(-1).actionCounts.end_day > 0);
     });
 } finally {
     fs.rmSync(tempScenarioDir, { recursive: true, force: true });

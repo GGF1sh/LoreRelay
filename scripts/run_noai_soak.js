@@ -124,6 +124,8 @@ function parseArgs(argv) {
         const token = argv[i];
         if (token === '--list') {
             args.list = true;
+        } else if (token === '--observe-balance') {
+            args.observeBalance = true;
         } else if (token === '--keep-temp') {
             args.keepTemp = true;
         } else if (token === '--no-keep-failed') {
@@ -558,6 +560,19 @@ function runScenario(scenario, mode, options) {
         const rng = createSoakRng(scenario.seed);
         const startWorldTurn = worldState.worldTurn || 0;
         const acc = createTelemetryAccumulator(scenario.telemetry, startWorldTurn);
+        // Opt-in fixture analysis only: detached copies, no mutation or policy input.
+        const balanceFrames = [];
+        const recordBalance = (turn, events = []) => {
+            if (!options.observeBalance || balanceFrames.length >= 1001) return;
+            if (balanceFrames.at(-1)?.worldTurn === worldState.worldTurn) return;
+            balanceFrames.push(JSON.parse(JSON.stringify({ turn, worldTurn: worldState.worldTurn,
+                credits: commerce?.credits ?? gameStateDoc?.commerce?.credits ?? null,
+                cargo: commerce?.cargo ?? gameStateDoc?.commerce?.cargo ?? [], currentLocationId,
+                actionCounts: acc.actionCounts, rejectedActions: acc.rejectedActions,
+                markets: marketHolder.markets, factions: worldState.factions, regions: worldState.regions,
+                globalEvents: worldState.globalEvents, relationships: worldState.npcRelationships,
+                factionRelationships: worldState.npcFactionRelationships, registry, events })));
+        };
 
         const persistState = () => {
             // Match production saveGameRules(): persist normalized rules in this
@@ -593,6 +608,7 @@ function runScenario(scenario, mode, options) {
         const initialSnap = captureSnapshot(ws, 'start', worldState.worldTurn || 0);
         snapshots.push(initialSnap);
         report.initialCanonicalHash = initialSnap.aggregateHash.value;
+        recordBalance(0);
         let lastAggHash = initialSnap.aggregateHash.value;
 
         const limits = scenario.limits;
@@ -612,6 +628,7 @@ function runScenario(scenario, mode, options) {
         const playerOwnsWorldTick = soakPolicyOwnsWorldTick(scenario.policyId, scenario.worldSim);
 
         for (let t = 1; t <= scenario.horizon.turns; t++) {
+            const balanceEvents = [];
             if (deadline && Date.now() > deadline) {
                 report.failureClass = 'timeout';
                 firstFailure = { turn: t, detail: `scenario exceeded timeoutMs=${limits.timeoutMs}` };
@@ -744,6 +761,7 @@ function runScenario(scenario, mode, options) {
                     maxSteps: Math.min(stepsPerCadence, limits.maxStepsPerChunk),
                     afterStep: (state, stepEvents) => {
                         recordSimEvents(acc, stepEvents);
+                        if (options.observeBalance) balanceEvents.push(...stepEvents);
                         chunkEvents += stepEvents.length;
                         if (commerceForge && marketHolder.markets && Object.keys(marketHolder.markets).length) {
                             const tick = mods.tickMarketRecovery(commerceForge, marketHolder.markets, {
@@ -799,6 +817,7 @@ function runScenario(scenario, mode, options) {
                 markets: marketHolder.markets,
                 recentChangesLen: Array.isArray(worldState.recentChanges) ? worldState.recentChanges.length : 0,
             });
+            recordBalance(t, balanceEvents);
         }
 
         // Final persist + snapshot + invariants.
@@ -810,6 +829,10 @@ function runScenario(scenario, mode, options) {
             snapshots[snapshots.length - 1] = finalSnap;
         }
         report.finalCanonicalHash = finalSnap.aggregateHash.value;
+        if (options.observeBalance) writeJson(path.join(plan.runDir, 'balance.json'), {
+            schemaVersion: 1, scenario, frameLimit: 1001, frames: balanceFrames,
+            truncated: (acc.finalWorldTurn - startWorldTurn) > 1000,
+        });
 
         report.saveReloadParity = verifySaveReloadParity(ws, plan, mods);
         const finalInvCtx = buildInvariantContext(scenario, ws, worldState, marketHolder.markets, gameStateDoc, forgeRead.data, rulesRead, worldState.worldTurn || 0, 0, acc, report.saveReloadParity);
@@ -1082,7 +1105,7 @@ function main() {
     const results = [];
     for (const scenario of scenarios) {
         console.log(`\n--- [noai-soak] ${scenario.id} ---`);
-        const runOptions = { keepTemp: args.keepTemp, noKeepFailed: args.noKeepFailed };
+        const runOptions = { keepTemp: args.keepTemp || args.observeBalance, noKeepFailed: args.noKeepFailed, observeBalance: args.observeBalance };
         if (scenario.determinism && scenario.determinism.enabled && scenario.determinism.compareRuns >= 2) {
             const baseline = runScenario(scenario, args.mode, { ...runOptions, keepTemp: true });
             const repeat = runScenario(scenario, args.mode, { ...runOptions, keepTemp: true });

@@ -27,6 +27,9 @@ function loadModules() {
             createRuntime: require('../out/commerceActionRuntime').createCommerceActionRuntime,
             createGate: require('../out/deterministicWorkspaceMutationGate').createDeterministicWorkspaceMutationGate,
             createWebview: require('../out/commerceActionWebview').createCommerceActionWebviewAdapter,
+            routeWebview: require('../out/webviewHandlers').handleWebviewMessage,
+            readChronicle: require('../out/chronicleLoader').buildChronicleForWorkspace,
+            readGitTimeline: require('../out/gitManager').getGitTimelineStatus,
             validateGameState: require('../out/validateGameState').validateGameState,
         };
         return modules;

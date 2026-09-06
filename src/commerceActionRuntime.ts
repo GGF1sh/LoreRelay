@@ -20,6 +20,7 @@ import { acquireModCanonicalAuthorization, isModCanonicalAuthorizationCurrent } 
 import type { GameState } from './types/GameState';
 import type { WorldIntent, JsonValue } from './worldIntentCore';
 import { validateGameState } from './validateGameState';
+import { projectWorldPacing } from './worldPacingCore';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function readJson(file: string): unknown {
@@ -157,9 +158,13 @@ async function buildCommerceActionRuntime(mutationGate: DeterministicWorkspaceMu
         },
         read: () => readCommerceSnapshot(workspaceId),
         playerView: state => ({ currentLocationId: state.game.world?.currentLocationId, worldTurn: state.world.worldTurn,
+            worldPacing: state.rules.enableEmergentSimulation ? projectWorldPacing(state.forge, state.world,
+                state.forge.geography.locations.filter(location => location.id === state.game.world?.currentLocationId
+                    || state.travel.ok && state.travel.destinations.some(d => d.id === location.id)).flatMap(l => l.regionId ? [l.regionId] : [])) : null,
             commerce: { credits: state.commerce.credits, cargo: state.commerce.cargo.map(item => ({ commodityId: item.commodityId, qty: item.qty })),
                 food: state.commerce.food, transportId: state.commerce.transportId } }),
         actions: projectActions, quote, execute,
+        diagnostic: entry => console.error('[GameAction]', JSON.stringify(entry)),
         witness: state => hashGameActionValue({ game: state.game, world: state.world, forge: state.rawForge, rules: state.rules, npc: state.npc }),
         inspect: state => ({ game: state.game, world: state.world, ...(state.npc ? { npc: state.npc } : {}) }),
     };

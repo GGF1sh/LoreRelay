@@ -106,6 +106,8 @@ function loadExecutionModules() {
             initializeMarketState: require(path.join(ROOT, 'out', 'commerceCore.js')).initializeMarketState,
             applyTradeOp: require(path.join(ROOT, 'out', 'commerceCore.js')).applyTradeOp,
             tickMarketRecovery: require(path.join(ROOT, 'out', 'worldSimCommerceCore.js')).tickMarketRecovery,
+            computeEconomyFlowTick: require(path.join(ROOT, 'out', 'economyFlowCore.js')).computeEconomyFlowTick,
+            applyEconomyFlowMarketDeltas: require(path.join(ROOT, 'out', 'economyFlowCore.js')).applyEconomyFlowMarketDeltas,
             resolveEconomyProfileParams: require(path.join(ROOT, 'out', 'worldSimCommerceCore.js')).resolveEconomyProfileParams,
         };
         return executionModules;
@@ -562,6 +564,7 @@ function runScenario(scenario, mode, options) {
         const acc = createTelemetryAccumulator(scenario.telemetry, startWorldTurn);
         // Opt-in fixture analysis only: detached copies, no mutation or policy input.
         const balanceFrames = [];
+        const acquisitionCosts = {};
         const recordBalance = (turn, events = []) => {
             if (!options.observeBalance || balanceFrames.length >= 1001) return;
             if (balanceFrames.at(-1)?.worldTurn === worldState.worldTurn) return;
@@ -569,7 +572,8 @@ function runScenario(scenario, mode, options) {
                 credits: commerce?.credits ?? gameStateDoc?.commerce?.credits ?? null,
                 cargo: commerce?.cargo ?? gameStateDoc?.commerce?.cargo ?? [], currentLocationId,
                 actionCounts: acc.actionCounts, rejectedActions: acc.rejectedActions,
-                markets: marketHolder.markets, factions: worldState.factions, regions: worldState.regions,
+                  markets: marketHolder.markets, factions: worldState.factions, regions: worldState.regions,
+                  foodStatus: worldState.factionFoodStatus, conflicts: worldState.factionConflicts,
                 globalEvents: worldState.globalEvents, relationships: worldState.npcRelationships,
                 factionRelationships: worldState.npcFactionRelationships, registry, events })));
         };
@@ -654,6 +658,7 @@ function runScenario(scenario, mode, options) {
                     maxOpsPerTurn: limits.maxOpsPerTurn,
                     currentLocationId,
                     lastAcceptedKind,
+                    acquisitionCosts,
                 };
                 const intents = decidePlayerIntents(scenario.policyId, ctx);
                 const playerEvents = [];
@@ -713,6 +718,11 @@ function runScenario(scenario, mode, options) {
                         };
                         const res = mods.applyTradeOp(commerceForge, marketHolder.markets, commerce, op);
                         if (res.ok) {
+                            const heldBefore = commerce.cargo.find(c => c.commodityId === op.commodityId)?.qty ?? 0;
+                            const heldAfter = res.commerce.cargo.find(c => c.commodityId === op.commodityId)?.qty ?? 0;
+                            if (op.op === 'buy' && heldAfter > heldBefore) acquisitionCosts[op.commodityId] =
+                                ((acquisitionCosts[op.commodityId] ?? 0) * heldBefore + commerce.credits - res.commerce.credits) / heldAfter;
+                            if (heldAfter === 0) delete acquisitionCosts[op.commodityId];
                             marketHolder.markets = res.markets;
                             commerce = res.commerce;
                             acceptedSeq++;
@@ -755,7 +765,10 @@ function runScenario(scenario, mode, options) {
             if (shouldTickWorld) {
                 let chunkEvents = 0;
                 const stepsPerCadence = scenario.worldSim.stepsPerCadence;
+                worldState = { ...worldState, markets: marketHolder.markets };
                 const result = mods.runBulkWorldSimulation(forge, worldState, registry, {
+                    // The opt-in authored rules use the same pacing core as Host days.
+                    worldPacing: rules.worldPacing,
                     steps: stepsPerCadence,
                     enableNpcRegistry: scenario.worldSim.enableNpcRegistry === true && !!registry,
                     maxSteps: Math.min(stepsPerCadence, limits.maxStepsPerChunk),
@@ -763,7 +776,12 @@ function runScenario(scenario, mode, options) {
                         recordSimEvents(acc, stepEvents);
                         if (options.observeBalance) balanceEvents.push(...stepEvents);
                         chunkEvents += stepEvents.length;
+                        marketHolder.markets = state.markets ?? marketHolder.markets;
                         if (commerceForge && marketHolder.markets && Object.keys(marketHolder.markets).length) {
+                            if (commerceForge.resourceFlows) {
+                                const flow = mods.computeEconomyFlowTick({ definition: commerceForge.resourceFlows, forge: commerceForge, markets: marketHolder.markets });
+                                marketHolder.markets = mods.applyEconomyFlowMarketDeltas(marketHolder.markets, flow.marketDeltas);
+                            }
                             const tick = mods.tickMarketRecovery(commerceForge, marketHolder.markets, {
                                 worldTurn: state.worldTurn || 0,
                                 recoveryPerTick: scenario.worldSim.recoveryPerTick,
@@ -772,6 +790,7 @@ function runScenario(scenario, mode, options) {
                                 stepEvents,
                             });
                             marketHolder.markets = tick.markets;
+                            state.markets = tick.markets;
                         }
                         return state;
                     },

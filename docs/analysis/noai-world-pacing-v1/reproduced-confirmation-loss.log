@@ -1,0 +1,3 @@
+2026-09-06 18:50:03.722 [error] [Extension Host] [QA routing diagnostic] requestGitTimeline
+2026-09-06 18:50:03.723 [error] [Extension Host] [QA routing diagnostic] requestChronicle
+2026-09-06 18:50:03.756 [error] [Extension Host] [GameAction] {"actionId":"commerce:trade","requestId":"8e916691-84e0-4d21-a17a-578dd33ab91d","stage":"confirmation_not_found","error":"handles=0; tokenType=string; tokenLength=36"}

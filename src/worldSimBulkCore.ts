@@ -6,6 +6,7 @@ import type { WorldState } from './worldStateCore';
 import type { NpcRegistry } from './npcRegistryCore';
 import type { WorldChangeEvent, WorldChangeSeverity } from './worldEventLogCore';
 import { runSimulationStep } from './emergentSimulator';
+import type { WorldPacingSettings } from './worldPacingCore';
 import { applyEventsToNpcRegistry } from './npcBridgeCore';
 import { generateQuestHooks } from './questGeneratorCore';
 
@@ -15,6 +16,7 @@ export const ABSOLUTE_MAX_BULK_WORLD_STEPS = 100;
 export const BULK_WORLD_SIM_YIELD_EVERY_STEPS = 5;
 
 export interface BulkWorldSimOptions {
+    worldPacing?: WorldPacingSettings;
     steps: number;
     enableNpcRegistry: boolean;
     maxSteps?: number;
@@ -104,7 +106,7 @@ function runBulkWorldSimulationLoop(
     const startTurn = current.worldTurn ?? 0;
 
     for (let i = 0; i < steps; i++) {
-        const { state: next, stepEvents } = runSimulationStep(forge, current);
+        const { state: next, stepEvents } = runSimulationStep(forge, current, options.worldPacing);
         totalEvents += stepEvents.length;
         collectNotableEvents(notable, stepEvents);
         if (options.enableNpcRegistry && reg && stepEvents.length > 0) {
@@ -179,7 +181,7 @@ export async function runBulkWorldSimulationAsync(
     const startTurn = current.worldTurn ?? 0;
 
     for (let i = 0; i < steps; i++) {
-        const { state: next, stepEvents } = runSimulationStep(forge, current);
+        const { state: next, stepEvents } = runSimulationStep(forge, current, options.worldPacing);
         totalEvents += stepEvents.length;
         collectNotableEvents(notable, stepEvents);
         if (options.enableNpcRegistry && reg && stepEvents.length > 0) {

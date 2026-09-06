@@ -4530,6 +4530,34 @@ window.addEventListener('message', (event) => {
     };
 
     let saveTimeout = null;
+    const pacingPreset = document.getElementById('gr-pacing-preset');
+    const pacingInputs = { foodDemandMultiplier: document.getElementById('gr-food-demand'),
+        conflictEnabled: document.getElementById('gr-conflict-enabled'), conflictActiveDays: document.getElementById('gr-conflict-active'),
+        conflictRestDays: document.getElementById('gr-conflict-rest'), relationshipPace: document.getElementById('gr-relationship-pace') };
+    let pacingPresets = {};
+    let hasEconomyOverrides = false;
+    function readPacing() {
+        return Object.fromEntries(Object.entries(pacingInputs).map(([key, input]) => [key,
+            input.type === 'checkbox' ? input.checked : input.tagName === 'SELECT' ? input.value : Number(input.value)]));
+    }
+    function showPacing(value) {
+        for (const [key, input] of Object.entries(pacingInputs)) if (value?.[key] !== undefined) {
+            if (input.type === 'checkbox') input.checked = value[key]; else input.value = value[key];
+        }
+    }
+    function matchPacing() {
+        const value = readPacing();
+        pacingPreset.value = !hasEconomyOverrides && Object.keys(pacingPresets).find(id => {
+            const p = pacingPresets[id];
+            return p.economyProfile === inputs.economyProfile.value && Object.keys(value).every(k => value[k] === p.worldPacing[k]);
+        }) || 'custom';
+    }
+    pacingPreset.addEventListener('change', () => {
+        const p = pacingPresets[pacingPreset.value]; if (!p) return;
+        inputs.economyProfile.value = p.economyProfile; showPacing(p.worldPacing); triggerSave();
+    });
+    Object.values(pacingInputs).forEach(input => input.addEventListener('change', () => { matchPacing(); triggerSave(); }));
+    inputs.economyProfile.addEventListener('change', matchPacing);
 
     function openPanel() {
         rulesPanel.classList.remove('hidden');
@@ -4557,6 +4585,7 @@ window.addEventListener('message', (event) => {
 
     function triggerSave() {
         const rules = {
+            worldPacing: readPacing(),
             enableRpgMechanics: inputs.enableRpgMechanics.checked,
             enableStoryCombat: inputs.enableStoryCombat ? inputs.enableStoryCombat.checked : false,
             defaultMaxHp: parseInt(inputs.defaultMaxHp.value, 10) || 100,
@@ -4610,6 +4639,10 @@ window.addEventListener('message', (event) => {
         const message = event.data;
         if (message.type === 'gameRules' && message.rules) {
             const rules = message.rules;
+            pacingPresets = message.pacingPresets || pacingPresets;
+            pacingPreset.disabled = Object.keys(pacingPresets).length === 0;
+            showPacing(rules.worldPacing);
+            hasEconomyOverrides = [rules.economyResourceProfiles, rules.economyCommodityProfiles, rules.economyResourceModifiers].some(v => v && Object.keys(v).length > 0);
             if (rules.enableRpgMechanics !== undefined) inputs.enableRpgMechanics.checked = rules.enableRpgMechanics;
             if (rules.enableStoryCombat !== undefined && inputs.enableStoryCombat) inputs.enableStoryCombat.checked = rules.enableStoryCombat;
             if (rules.defaultMaxHp !== undefined) inputs.defaultMaxHp.value = rules.defaultMaxHp;
@@ -4628,6 +4661,7 @@ window.addEventListener('message', (event) => {
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
             if (rules.economyProfile !== undefined && inputs.economyProfile) inputs.economyProfile.value = rules.economyProfile;
+            matchPacing();
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
             if (rules.enableDomainMode !== undefined && inputs.enableDomainMode) inputs.enableDomainMode.checked = rules.enableDomainMode;
@@ -7778,6 +7812,37 @@ function renderWorldView(msg) {
 
     // 派閥カード
     renderFactions(msg.factions || [], msg.factionStates || null, msg.enableFactionReputation === true);
+    let pacing = document.getElementById('world-pacing-status');
+    if (!pacing) {
+        const anchor = document.getElementById('world-factions-list');
+        if (anchor) { pacing = document.createElement('section'); pacing.id = 'world-pacing-status'; anchor.before(pacing); }
+    }
+    if (pacing) {
+        pacing.replaceChildren();
+        pacing.hidden = !msg.worldPacing;
+        if (msg.worldPacing) {
+            const title = document.createElement('h3'); title.textContent = T('webview.gameRules.worldPacing'); pacing.append(title);
+            for (const r of msg.worldPacing.regions || []) {
+                const labels = {
+                    unconfigured: T('webview.gameRules.foodStatus_unconfigured'),
+                    unconfirmed: T('webview.gameRules.foodStatus_unconfirmed'),
+                    paused: T('webview.gameRules.foodStatus_paused'),
+                    supplied: T('webview.gameRules.foodStatus_supplied'),
+                    shortage: T('webview.gameRules.foodStatus_shortage'),
+                };
+                const line = document.createElement('p'); line.textContent = `${r.name}${r.supplyMarketName ? ` (${r.supplyMarketName})` : ''}: ${labels[r.status] || labels.unconfirmed}`; pacing.append(line);
+            }
+            for (const c of msg.worldPacing.conflicts || []) {
+                const labels = {
+                    active: T('webview.gameRules.conflictStatus_active'),
+                    resting: T('webview.gameRules.conflictStatus_resting'),
+                    exhausted: T('webview.gameRules.conflictStatus_exhausted'),
+                    paused: T('webview.gameRules.conflictStatus_paused'),
+                };
+                const line = document.createElement('p'); line.textContent = `${c.factionA} / ${c.factionB}: ${labels[c.phase] || ''}`; pacing.append(line);
+            }
+        }
+    }
 
     renderWorldMapItems(msg.mapItems || []);
 }

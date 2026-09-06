@@ -43,6 +43,34 @@
     };
 
     let saveTimeout = null;
+    const pacingPreset = document.getElementById('gr-pacing-preset');
+    const pacingInputs = { foodDemandMultiplier: document.getElementById('gr-food-demand'),
+        conflictEnabled: document.getElementById('gr-conflict-enabled'), conflictActiveDays: document.getElementById('gr-conflict-active'),
+        conflictRestDays: document.getElementById('gr-conflict-rest'), relationshipPace: document.getElementById('gr-relationship-pace') };
+    let pacingPresets = {};
+    let hasEconomyOverrides = false;
+    function readPacing() {
+        return Object.fromEntries(Object.entries(pacingInputs).map(([key, input]) => [key,
+            input.type === 'checkbox' ? input.checked : input.tagName === 'SELECT' ? input.value : Number(input.value)]));
+    }
+    function showPacing(value) {
+        for (const [key, input] of Object.entries(pacingInputs)) if (value?.[key] !== undefined) {
+            if (input.type === 'checkbox') input.checked = value[key]; else input.value = value[key];
+        }
+    }
+    function matchPacing() {
+        const value = readPacing();
+        pacingPreset.value = !hasEconomyOverrides && Object.keys(pacingPresets).find(id => {
+            const p = pacingPresets[id];
+            return p.economyProfile === inputs.economyProfile.value && Object.keys(value).every(k => value[k] === p.worldPacing[k]);
+        }) || 'custom';
+    }
+    pacingPreset.addEventListener('change', () => {
+        const p = pacingPresets[pacingPreset.value]; if (!p) return;
+        inputs.economyProfile.value = p.economyProfile; showPacing(p.worldPacing); triggerSave();
+    });
+    Object.values(pacingInputs).forEach(input => input.addEventListener('change', () => { matchPacing(); triggerSave(); }));
+    inputs.economyProfile.addEventListener('change', matchPacing);
 
     function openPanel() {
         rulesPanel.classList.remove('hidden');
@@ -70,6 +98,7 @@
 
     function triggerSave() {
         const rules = {
+            worldPacing: readPacing(),
             enableRpgMechanics: inputs.enableRpgMechanics.checked,
             enableStoryCombat: inputs.enableStoryCombat ? inputs.enableStoryCombat.checked : false,
             defaultMaxHp: parseInt(inputs.defaultMaxHp.value, 10) || 100,
@@ -123,6 +152,10 @@
         const message = event.data;
         if (message.type === 'gameRules' && message.rules) {
             const rules = message.rules;
+            pacingPresets = message.pacingPresets || pacingPresets;
+            pacingPreset.disabled = Object.keys(pacingPresets).length === 0;
+            showPacing(rules.worldPacing);
+            hasEconomyOverrides = [rules.economyResourceProfiles, rules.economyCommodityProfiles, rules.economyResourceModifiers].some(v => v && Object.keys(v).length > 0);
             if (rules.enableRpgMechanics !== undefined) inputs.enableRpgMechanics.checked = rules.enableRpgMechanics;
             if (rules.enableStoryCombat !== undefined && inputs.enableStoryCombat) inputs.enableStoryCombat.checked = rules.enableStoryCombat;
             if (rules.defaultMaxHp !== undefined) inputs.defaultMaxHp.value = rules.defaultMaxHp;
@@ -141,6 +174,7 @@
             if (rules.enableCommerce !== undefined && inputs.enableCommerce) inputs.enableCommerce.checked = rules.enableCommerce;
             if (rules.enableCommerceUi !== undefined && inputs.enableCommerceUi) inputs.enableCommerceUi.checked = rules.enableCommerceUi;
             if (rules.economyProfile !== undefined && inputs.economyProfile) inputs.economyProfile.value = rules.economyProfile;
+            matchPacing();
             if (rules.playerRole !== undefined && inputs.playerRole) inputs.playerRole.value = rules.playerRole;
             if (rules.enableNpcAgency !== undefined && inputs.enableNpcAgency) inputs.enableNpcAgency.checked = rules.enableNpcAgency;
             if (rules.enableDomainMode !== undefined && inputs.enableDomainMode) inputs.enableDomainMode.checked = rules.enableDomainMode;

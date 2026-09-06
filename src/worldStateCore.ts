@@ -6,6 +6,7 @@ import {
     isValidEventId,
 } from './worldEventLogCore';
 import { canonicalizeAffinityPairMap, pairKey } from './npcRelationshipCore';
+import { parseFactionFoodStatuses, parseFactionConflicts, type FactionFoodStatus, type FactionConflictState } from './worldPacingCore';
 
 export type { WorldChangeEvent };
 
@@ -58,6 +59,8 @@ export interface GlobalEvent {
 }
 
 export interface WorldState {
+    factionFoodStatus?: Record<string, FactionFoodStatus>;
+    factionConflicts?: Record<string, FactionConflictState>;
     format: string;
     lastUpdated?: string;
     worldTurn: number;
@@ -572,6 +575,8 @@ export function parseWorldState(raw: unknown): WorldState | undefined {
         lastVisitTurnByLocation: parseTurnByLocation(doc.lastVisitTurnByLocation),
         marketSnapshotByLocation: parseLocationSnapshotMap(doc.marketSnapshotByLocation),
         npcRelationships: parseNpcRelationships(doc.npcRelationships),
+        factionFoodStatus: parseFactionFoodStatuses(doc.factionFoodStatus),
+        factionConflicts: parseFactionConflicts(doc.factionConflicts),
         npcFactionRelationships: parseNpcFactionRelationships(doc.npcFactionRelationships),
         npcFactionCohesion: parseNpcFactionCohesion(doc.npcFactionCohesion),
         npcMilestones: parseNpcMilestones(doc.npcMilestones),

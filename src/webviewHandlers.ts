@@ -183,6 +183,7 @@ const SAFE_MODE_READ_OR_ABORT_WEBVIEW_MESSAGES = new Set([
     'loadLorebook', 'loadMemory', 'loadParty', 'loadWorld',
     'requestCombatAbilityWorkshop', 'requestCombatLab', 'requestImageGenConfig',
     'requestParlorSettings', 'requestState', 'requestWorldGenesisSetup',
+    'requestGitTimeline', 'requestChronicle',
 ]);
 
 /**
@@ -197,7 +198,11 @@ async function confirmDestructive(message: string, confirmLabel: string): Promis
 
 /** Webview からの postMessage を type 別にルーティングする。 */
 export async function handleWebviewMessage(message: WebviewMessage, deps: WebviewHandlerDeps): Promise<void> {
-    if (!SAFE_MODE_READ_OR_ABORT_WEBVIEW_MESSAGES.has(message.type)) {
+    // These six routes own MOD authorization, caller consent and mutation exclusion
+    // in Shared Game Action Service. Re-acquiring here revokes its preview handle.
+    const commerceOwnsAuthorization = ['shopkeeperTradePreview', 'shopkeeperDirectTrade',
+        'marketTravelPreview', 'marketTravelCommit', 'endDayPreview', 'endDayCommit'].includes(message.type);
+    if (!commerceOwnsAuthorization && !SAFE_MODE_READ_OR_ABORT_WEBVIEW_MESSAGES.has(message.type)) {
         const workspaceRoot = deps.authorizeCanonicalMutation ? undefined : getWorkspacePath();
         const authorization = !deps.authorizeCanonicalMutation && workspaceRoot
             ? await acquireModCanonicalAuthorization(workspaceRoot)

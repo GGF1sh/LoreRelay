@@ -13,6 +13,7 @@ import { recordSplitBrainRisk } from './workspaceWriteHealth';
 import type { GameState } from './types/GameState';
 import type { WorldChangeEvent } from './worldEventLogCore';
 import type { MarketStateMap } from './livingWorldTypes';
+import { normalizeWorldPacing } from './worldPacingCore';
 
 export type EndDayFailureCode =
     | 'CONFIRMATION_REQUIRED' | 'SIM_OFF' | 'NO_FORGE' | 'NO_WORLD' | 'NO_GAME_STATE'
@@ -144,6 +145,7 @@ export function executeEndDay(requestId: string, confirmed: boolean, deps: EndDa
     try {
         result = deps.runBulkWorldSimulation(forge, worldBefore, registry, {
             steps: 1,
+            worldPacing: normalizeWorldPacing(rules.worldPacing),
             maxSteps: 1,
             enableNpcRegistry: rules.enableNpcRegistry === true,
             afterStep: (state, events, nextRegistry) => {

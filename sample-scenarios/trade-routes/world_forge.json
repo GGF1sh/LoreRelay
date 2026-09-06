@@ -75,6 +75,7 @@
   "factions": [
     {
       "id": "faction_merchants",
+      "foodSupply": { "marketLocationId": "north_farm", "commodityId": "wheat", "dailyDemand": 1, "reserveTarget": 14 },
       "name": "Crossroads Merchants",
       "type": "guild",
       "power": 45,
@@ -85,6 +86,7 @@
     },
     {
       "id": "faction_smiths",
+      "foodSupply": { "marketLocationId": "elda_shop", "commodityId": "wheat", "dailyDemand": 1, "reserveTarget": 14 },
       "name": "Marcus' Smithy",
       "type": "guild",
       "power": 30,
@@ -95,6 +97,7 @@
     },
     {
       "id": "faction_port",
+      "foodSupply": { "marketLocationId": "south_port", "commodityId": "wheat", "dailyDemand": 1, "reserveTarget": 14 },
       "name": "Port Buyers",
       "type": "neutral",
       "power": 40,
@@ -118,7 +121,7 @@
   },
   "commerce": {
     "commodities": [
-      { "id": "wheat", "name": "Wheat", "basePrice": 10, "weight": 1 },
+      { "id": "wheat", "name": "Wheat", "basePrice": 10, "weight": 1, "role": "staple" },
       { "id": "steel", "name": "Steel", "basePrice": 45, "weight": 2 },
       { "id": "spice", "name": "Spice", "basePrice": 80, "weight": 1 }
     ],

@@ -24,6 +24,7 @@ import { flushDebugTraceHostUpdate, ensureDebugTraceLiveRun } from './debugTrace
 import { captureNpcNeedDivergenceDeepTrace, resolveDeepTraceEmitGateFlags } from './debugTraceEmitHost';
 import { livingWorldEnabled, tickLivingWorldAfterSim } from './livingWorldBridge';
 import { loadWorldForgeDocument } from './worldForge';
+import { normalizeWorldPacing, tickFactionFoodSupply, tickFactionConflicts, type WorldPacingSettings } from './worldPacingCore';
 
 /** Apply Tier-1/Tier-2 living world tick after a simulation step (host only — needs workspace). */
 export function applyLivingWorldAfterSimulationStep(
@@ -49,7 +50,7 @@ export interface WorldStepOutcome {
  * 計算するだけでディスクへは書かない。`persistWorldStepOutcome()` で保存する。
  */
 export function computeOneWorldStep(forge: WorldForge, state: WorldState, rules = loadGameRules()): WorldStepOutcome {
-    const { state: stepped, stepEvents } = runSimulationStep(forge, state);
+    const { state: stepped, stepEvents } = runSimulationStep(forge, state, normalizeWorldPacing(rules.worldPacing));
     let next = stepped;
 
     // Propagate only this step's events — re-processing recentChanges would inflate needs
@@ -148,7 +149,7 @@ export interface SimulationStepResult {
  * 1 シミュレーションステップを実行して新しい WorldState を返す。
  * 元の state は変更しない（ディープクローン）。
  */
-export function runSimulationStep(forge: WorldForge, state: WorldState): SimulationStepResult {
+export function runSimulationStep(forge: WorldForge, state: WorldState, pacing?: WorldPacingSettings): SimulationStepResult {
     const next: WorldState = JSON.parse(JSON.stringify(state)) as WorldState;
     next.worldTurn = (state.worldTurn ?? 0) + 1;
     next.lastUpdated = new Date().toISOString();
@@ -163,7 +164,11 @@ export function runSimulationStep(forge: WorldForge, state: WorldState): Simulat
 
     // 各派閥の内部ティック
     for (const faction of forge.factions) {
-        tickFaction(faction, forge, next, newEvents);
+        tickFaction(faction, forge, next, newEvents, pacing);
+    }
+    if (pacing) {
+        tickFactionFoodSupply(forge, next, pacing, newEvents);
+        tickFactionConflicts(forge, next, pacing, newEvents);
     }
 
     // グローバルイベントの進行
@@ -187,7 +192,8 @@ function tickFaction(
     faction: Faction,
     forge: WorldForge,
     state: WorldState,
-    worldEvents: WorldChangeEvent[]
+    worldEvents: WorldChangeEvent[],
+    pacing?: WorldPacingSettings
 ): void {
     const fs = state.factions[faction.id];
     if (!fs) { return; }
@@ -195,16 +201,16 @@ function tickFaction(
     const events: string[] = [];
 
     // 資源消費・再生
-    tickResources(faction, fs, state.worldTurn, events, worldEvents);
+    tickResources(faction, fs, state.worldTurn, events, worldEvents, pacing !== undefined);
 
     // 敵対派閥との摩擦
-    tickEnemyFriction(faction, fs, forge, state, events, worldEvents);
+    if (!pacing) tickEnemyFriction(faction, fs, forge, state, events, worldEvents);
 
     // 友好派閥のボーナス
     tickAllyBonus(faction, fs, state);
 
     // モラル更新
-    updateMorale(faction, fs, state);
+    if (!pacing) updateMorale(faction, fs, state);
 
     // パワーを 0-100 にクランプ
     fs.power = clamp(fs.power, 0, 100);
@@ -217,12 +223,13 @@ function tickResources(
     fs: FactionWorldState,
     worldTurn: number,
     events: string[],
-    worldEvents: WorldChangeEvent[]
+    worldEvents: WorldChangeEvent[],
+    suppliedFood = false
 ): void {
     if (!fs.resources) { return; }
 
     // 食料消費（派閥規模に比例）
-    if (typeof fs.resources.food === 'number') {
+    if (!suppliedFood && typeof fs.resources.food === 'number') {
         const foodBefore = fs.resources.food;
         const consumed = Math.max(1, Math.round(fs.resources.food * 0.06));
         fs.resources.food = Math.max(0, fs.resources.food - consumed);
@@ -246,7 +253,7 @@ function tickResources(
     }
 
     // 武器在庫はゆっくり消耗（活発な戦闘がある敵対派閥のみ）
-    if (typeof fs.resources.weapons === 'number' && faction.type === 'hostile') {
+    if (!suppliedFood && typeof fs.resources.weapons === 'number' && faction.type === 'hostile') {
         fs.resources.weapons = Math.max(0, fs.resources.weapons - 1);
     }
 

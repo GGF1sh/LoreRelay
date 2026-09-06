@@ -1,0 +1,1652 @@
+[
+  {
+    "id": "pacing_changing_a_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1145,
+    "actions": {
+      "observe": 0,
+      "buy": 77,
+      "sell": 74,
+      "travel": 149,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 41,
+          "priceIndex": 2.25
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 29,
+          "priceIndex": 1.7500000000000007
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 13,
+          "priceIndex": 2.000000000000001
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_a_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 1
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_b_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1145,
+    "actions": {
+      "observe": 0,
+      "buy": 77,
+      "sell": 74,
+      "travel": 149,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 41,
+          "priceIndex": 2.25
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 29,
+          "priceIndex": 1.7500000000000007
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 13,
+          "priceIndex": 2.000000000000001
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_b_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 1
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_custom_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1145,
+    "actions": {
+      "observe": 0,
+      "buy": 77,
+      "sell": 74,
+      "travel": 149,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 41,
+          "priceIndex": 2.25
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 29,
+          "priceIndex": 1.7500000000000007
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 13,
+          "priceIndex": 2.000000000000001
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_custom_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 1
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_c_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1145,
+    "actions": {
+      "observe": 0,
+      "buy": 77,
+      "sell": 74,
+      "travel": 149,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 41,
+          "priceIndex": 2.25
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 29,
+          "priceIndex": 1.7500000000000007
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 13,
+          "priceIndex": 2.000000000000001
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_changing_c_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 1
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_a_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 2751,
+    "actions": {
+      "observe": 0,
+      "buy": 145,
+      "sell": 52,
+      "travel": 103,
+      "end_day": 300
+    },
+    "shortageDays": 271,
+    "lastShortage": 300,
+    "fullShortageDays": 271,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 1
+    },
+    "maxStock": 48,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_a_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 273,
+    "lastShortage": 300,
+    "fullShortageDays": 273,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 0
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_b_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 2751,
+    "actions": {
+      "observe": 0,
+      "buy": 145,
+      "sell": 52,
+      "travel": 103,
+      "end_day": 300
+    },
+    "shortageDays": 271,
+    "lastShortage": 300,
+    "fullShortageDays": 271,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 1
+    },
+    "maxStock": 48,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_b_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 273,
+    "lastShortage": 300,
+    "fullShortageDays": 273,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 0
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_custom_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1223,
+    "actions": {
+      "observe": 0,
+      "buy": 77,
+      "sell": 73,
+      "travel": 150,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 13,
+      "faction_smiths": 13,
+      "faction_port": 13
+    },
+    "maxStock": 49,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 30,
+          "priceIndex": 1.7500000000000007
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 20,
+          "priceIndex": 1.7000000000000004
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 28,
+          "priceIndex": 1.15
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_custom_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 13,
+      "faction_smiths": 13,
+      "faction_port": 13
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 1.15
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1.15
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_c_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 2751,
+    "actions": {
+      "observe": 0,
+      "buy": 145,
+      "sell": 52,
+      "travel": 103,
+      "end_day": 300
+    },
+    "shortageDays": 271,
+    "lastShortage": 300,
+    "fullShortageDays": 271,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 1
+    },
+    "maxStock": 48,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_c_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 273,
+    "lastShortage": 300,
+    "fullShortageDays": 273,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 0
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_demanding_long_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 1000,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 273,
+    "lastShortage": 300,
+    "fullShortageDays": 973,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 0
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 37,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 1,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 42,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_a_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1085,
+    "actions": {
+      "observe": 0,
+      "buy": 78,
+      "sell": 74,
+      "travel": 148,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 40,
+      "faction_smiths": 40,
+      "faction_port": 40
+    },
+    "maxStock": 259,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 259,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_a_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 40,
+      "faction_smiths": 40,
+      "faction_port": 40
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_b_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1085,
+    "actions": {
+      "observe": 0,
+      "buy": 78,
+      "sell": 74,
+      "travel": 148,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 40,
+      "faction_smiths": 40,
+      "faction_port": 40
+    },
+    "maxStock": 259,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 259,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_b_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 40,
+      "faction_smiths": 40,
+      "faction_port": 40
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_custom_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1085,
+    "actions": {
+      "observe": 0,
+      "buy": 78,
+      "sell": 74,
+      "travel": 148,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 48,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_custom_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 12,
+      "faction_smiths": 12,
+      "faction_port": 12
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_c_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1085,
+    "actions": {
+      "observe": 0,
+      "buy": 78,
+      "sell": 74,
+      "travel": 148,
+      "end_day": 300
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 40,
+      "faction_smiths": 40,
+      "faction_port": 40
+    },
+    "maxStock": 259,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 259,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stable_c_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 0,
+    "lastShortage": null,
+    "fullShortageDays": 0,
+    "food": {
+      "faction_merchants": 40,
+      "faction_smiths": 40,
+      "faction_port": 40
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 0.93
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 0.93
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 0.93
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 0.93
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_stock_long_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 1000,
+    "credits": 1439,
+    "actions": {
+      "observe": 0,
+      "buy": 75,
+      "sell": 71,
+      "travel": 154,
+      "end_day": 300
+    },
+    "shortageDays": 5,
+    "lastShortage": 6,
+    "fullShortageDays": 5,
+    "food": {
+      "faction_merchants": 11,
+      "faction_smiths": 11,
+      "faction_port": 11
+    },
+    "maxStock": 688,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 49,
+          "priceIndex": 1.1500000000000028
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1.1500000000000037
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 163,
+          "priceIndex": 1.1500000000000046
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_supply_recovery_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 3881,
+    "actions": {
+      "observe": 0,
+      "buy": 77,
+      "sell": 74,
+      "travel": 149,
+      "end_day": 300
+    },
+    "shortageDays": 78,
+    "lastShortage": 298,
+    "fullShortageDays": 78,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 11
+    },
+    "maxStock": 42,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 3,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 3,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 42,
+          "priceIndex": 5.4
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_supply_recovery_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 1,
+    "lastShortage": 1,
+    "fullShortageDays": 1,
+    "food": {
+      "faction_merchants": 0,
+      "faction_smiths": 0,
+      "faction_port": 0
+    },
+    "maxStock": 40,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 3,
+          "priceIndex": 5.5
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 3,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 3,
+          "priceIndex": 5.5
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_supply_surplus_merchant_route",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 1439,
+    "actions": {
+      "observe": 0,
+      "buy": 75,
+      "sell": 71,
+      "travel": 154,
+      "end_day": 300
+    },
+    "shortageDays": 5,
+    "lastShortage": 6,
+    "fullShortageDays": 5,
+    "food": {
+      "faction_merchants": 11,
+      "faction_smiths": 11,
+      "faction_port": 11
+    },
+    "maxStock": 163,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 49,
+          "priceIndex": 1.1500000000000028
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1.1500000000000037
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 163,
+          "priceIndex": 1.1500000000000046
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  },
+  {
+    "id": "pacing_supply_surplus_observe_only",
+    "ok": true,
+    "worldTurn": 300,
+    "fullWorldTurn": 300,
+    "credits": 500,
+    "actions": {
+      "observe": 300,
+      "buy": 0,
+      "sell": 0,
+      "travel": 0,
+      "end_day": 0
+    },
+    "shortageDays": 1,
+    "lastShortage": 1,
+    "fullShortageDays": 1,
+    "food": {
+      "faction_merchants": 11,
+      "faction_smiths": 11,
+      "faction_port": 11
+    },
+    "maxStock": 50,
+    "finalMarkets": {
+      "north_farm": {
+        "wheat": {
+          "stock": 50,
+          "priceIndex": 1.150000000000001
+        }
+      },
+      "elda_shop": {
+        "wheat": {
+          "stock": 35,
+          "priceIndex": 1.150000000000002
+        },
+        "steel": {
+          "stock": 35,
+          "priceIndex": 1.15
+        }
+      },
+      "south_port": {
+        "wheat": {
+          "stock": 40,
+          "priceIndex": 1.1500000000000028
+        },
+        "steel": {
+          "stock": 40,
+          "priceIndex": 1.15
+        },
+        "spice": {
+          "stock": 40,
+          "priceIndex": 1.15
+        }
+      }
+    }
+  }
+]

@@ -102,3 +102,10 @@ the Host configuration round-trip. The repair selects `ja`, waits for the produc
 Host setting, and verifies the Host and actual DOM after reload. Windows CI also
 exposed an 8.3 temporary-path alias; the runner now uses native realpath and passes
 that canonical TEMP/TMP/TMPDIR into its child. Production path checks stay strict.
+
+Windows CI then exposed a lifecycle acknowledgement race: destroying IPC immediately
+after write could lose the stop acknowledgement despite normal Host exit. The
+additional repair waits for the socket write callback and ends it gracefully. Real
+Windows lifecycle passed. The previous tree full suite was 345/346 because the
+unchanged synchronized stale-takeover test had no winner; its focused rerun passed.
+The final executable tree must receive its own full-suite evidence.

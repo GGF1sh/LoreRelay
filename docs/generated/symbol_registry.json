@@ -22707,7 +22707,7 @@
       "name": "ready",
       "kind": "messageType",
       "sourcePath": "src/liveExtensionQaHost.ts",
-      "line": 142,
+      "line": 146,
       "signature": "type: \"ready\" (received)",
       "public": "protocol",
       "boundary": "host-webview",

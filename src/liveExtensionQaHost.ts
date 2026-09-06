@@ -117,8 +117,12 @@ export function startLiveExtensionQa(context: vscode.ExtensionContext,
                     const lease = gate.acquire(workspace!, { actionKind: 'qa_lifecycle', requestId: request.id });
                     if (lease.status !== 'acquired') throw new Error('rejected_busy');
                     try {
-                        send({ id: request.id, session, ok: true, result: { lifecycle: request.op + '_admitted' } });
-                        if (request.op === 'stop') dispose();
+                        // Do not destroy IPC before the lifecycle admission is flushed.
+                        // Windows may otherwise exit normally while its caller times out.
+                        await new Promise<void>((resolve, reject) => socket.write(JSON.stringify({
+                            id: request.id, session, ok: true, result: { lifecycle: request.op + '_admitted' },
+                        }) + '\n', error => error ? reject(error) : resolve()));
+                        if (request.op === 'stop') socket.end();
                         await vscode.commands.executeCommand(request.op === 'reload' ? 'workbench.action.reloadWindow' : 'workbench.action.quit');
                     } finally { lease.lease.release(); }
                     return;

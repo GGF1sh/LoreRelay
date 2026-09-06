@@ -5969,6 +5969,9 @@ function escapeHtml(str) {
       const action = document.createElement('button');
       action.type = 'button';
       action.className = 'glass-btn';
+      card.dataset.modId = item.id;
+      card.dataset.enabled = String(item.enabled === true);
+      if (item.id === 'qa.general' && item.contentRating === 'general') action.id = 'qa-mod-general-toggle';
       if (item.contentRating === 'adult') {
         action.textContent = item.enabled
           ? label('webview.modManager.disable', 'Disable')
@@ -5997,6 +6000,7 @@ function escapeHtml(str) {
       }
     }
     if (commitBtn) commitBtn.disabled = managerState.canCommit !== true;
+    if (panel) panel.dataset.semanticRevision = managerState.semanticRevision || '';
   }
 
   document.getElementById('mod-manager-btn')?.addEventListener('click', open);
@@ -6012,6 +6016,39 @@ function escapeHtml(str) {
   })));
   window.addEventListener('message', event => {
     const message = event.data || {};
+    if (message.type === 'liveQaProbe') {
+      const visible = element => !!element && element.getClientRects().length > 0
+        && getComputedStyle(element).visibility !== 'hidden' && getComputedStyle(element).display !== 'none';
+      let actionAccepted = false;
+      if (message.action && ((panel?.dataset.semanticRevision || null) === message.expectedRevision
+        || ['header-secondary-toggle', 'mod-manager-btn', 'mod-manager-rescan'].includes(message.action.controlId))) {
+        const allowed = ['mod-manager-close', 'header-secondary-toggle', 'locale-select', 'mod-manager-btn', 'mod-manager-rescan', 'mod-manager-resolve', 'mod-manager-commit', 'qa-mod-general-toggle'];
+        const target = allowed.includes(message.action.controlId) ? document.getElementById(message.action.controlId) : null;
+        if (message.action.event === 'click' && visible(target) && !target.disabled) {
+          target.click(); actionAccepted = true;
+        }
+        if (message.action.event === 'select' && target?.id === 'locale-select'
+          && ['en', 'ja'].includes(message.action.value) && visible(target) && !target.disabled) {
+          target.value = message.action.value; target.dispatchEvent(new Event('change', { bubbles: true })); actionAccepted = true;
+        }
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const controls = {};
+        for (const id of ['header-secondary-toggle', 'locale-select', 'mod-manager-btn', 'mod-manager-resolve', 'mod-manager-commit', 'qa-mod-general-toggle']) {
+          const el = document.getElementById(id);
+          controls[id] = { visible: visible(el), enabled: !!el && !el.disabled, ...(id === 'locale-select' ? { selected: el?.value } : {}) };
+        }
+        vscode.postMessage({ type: 'liveQaProbeResult', session: message.session,
+          generation: message.generation, probeId: message.probeId, rendered: {
+            ready: document.readyState === 'complete', revision: panel?.dataset.semanticRevision || null,
+            visible: visible(panel), safeMode: visible(safeEl), adultVisible: adultToggle?.checked === true,
+            packages: Array.from(packagesEl?.querySelectorAll('.mod-manager-card') || []).slice(0, 100).map(card => ({
+              id: card.dataset.modId, enabled: card.dataset.enabled === 'true', visible: visible(card),
+            })), controls, previewVisible: visible(previewEl),
+            notice: (noticeEl?.textContent || '').slice(0, 1024), actionAccepted,
+          } });
+      }));
+    }
     if (message.type === 'modManagerState') { managerState = message; render(); }
     if (message.type === 'modManagerNotice' && noticeEl) {
       noticeEl.textContent = label(`webview.modManager.notice.${message.code}`, String(message.code || ''));

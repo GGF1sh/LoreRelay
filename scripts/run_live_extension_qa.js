@@ -23,13 +23,17 @@ async function terminateUnconnectedHost(child) {
     }
 }
 // Injected functions are test-process dependencies, never CLI/request fields.
-async function runLifecycle(testDeps = {}) {
-    const temp = fs.realpathSync(os.tmpdir());
+async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
+    if (!['lifecycle_v1', 'mods_v1'].includes(fixtureId)) throw new Error('unknown_fixture');
+    // Native realpath expands Windows 8.3 aliases before VS Code and async fs see the path.
+    const temp = fs.realpathSync.native(os.tmpdir());
     const owned = fs.mkdtempSync(path.join(temp, 'lorerelay-live-qa-'));
     const workspace = path.join(owned, 'workspace');
     const secret = randomBytes(32).toString('hex');
     const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\lorerelay-qa-${randomUUID()}` : path.join(owned, 'bridge.sock');
     fs.mkdirSync(workspace);
+    if (fixtureId === 'mods_v1') require('./live_qa_mods_scenario').seed(workspace);
+    else {
     fs.writeFileSync(path.join(workspace, '.lorerelay-qa-fixture.json'), JSON.stringify({ fixtureId: 'lifecycle_v1' }));
     for (const file of ['game_state.json', 'world_state.json', 'game_rules.json', 'world_forge.json']) {
         fs.copyFileSync(path.join(ROOT, 'fixtures/action-scenarios/merchant_route_v1', file), path.join(workspace, file));
@@ -39,13 +43,14 @@ async function runLifecycle(testDeps = {}) {
     game.entries = [{ id: 'qa-gm-1', role: 'gm', sender: 'GM', content: 'Catalog-owned QA opening.' }];
     fs.writeFileSync(gamePath, JSON.stringify(game));
     fs.writeFileSync(path.join(workspace, 'game_history.json'), JSON.stringify(game.entries));
+    }
     const profile = path.join(owned, 'user-data');
     fs.mkdirSync(path.join(profile, 'User'), { recursive: true });
     fs.writeFileSync(path.join(profile, 'User/settings.json'), JSON.stringify({
         'telemetry.telemetryLevel': 'off', 'update.mode': 'none', 'extensions.autoUpdate': false,
         'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false,
     }));
-    fs.writeFileSync(path.join(owned, 'owner.json'), JSON.stringify({ fixtureId: 'lifecycle_v1', endpoint,
+    fs.writeFileSync(path.join(owned, 'owner.json'), JSON.stringify({ fixtureId, endpoint,
         secretHash: createHash('sha256').update(secret).digest('hex') }), { mode: 0o600 });
     let connection; let session; let nextHost;
     let hello = new Promise(resolve => { nextHost = resolve; });
@@ -67,7 +72,7 @@ async function runLifecycle(testDeps = {}) {
                 if (!authenticated) {
                     if (message.type !== 'hello' || message.secret !== secret || typeof message.workspace !== 'string'
                         || path.relative(message.workspace, workspace) !== ''
-                        || message.fixtureId !== 'lifecycle_v1' || typeof message.session !== 'string') { socket.destroy(); return; }
+                        || message.fixtureId !== fixtureId || typeof message.session !== 'string') { socket.destroy(); return; }
                     authenticated = true; connection = socket; session = message.session;
                     socket.write(JSON.stringify({ type: 'ready', secret, session }) + '\n');
                     nextHost(session); continue;
@@ -78,7 +83,7 @@ async function runLifecycle(testDeps = {}) {
             }
         });
     });
-    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(endpoint, resolve); });
+
     const deadline = (promise, ms, label) => {
         let timer;
         return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label)), ms); })])
@@ -99,13 +104,15 @@ async function runLifecycle(testDeps = {}) {
     let child;
     let test;
     try {
+    await new Promise((resolve, reject) => { server.once('error', reject);
+        (testDeps.listen || ((server, endpoint, resolve) => server.listen(endpoint, resolve)))(server, endpoint, resolve); });
     const executable = await (testDeps.resolveExecutable || (() => process.env.LORERELAY_QA_VSCODE
         || downloadAndUnzipVSCode({ version: '1.136.1' })))();
     child = (testDeps.spawnHost || spawn)(executable, [workspace, `--extensionDevelopmentPath=${ROOT}`, `--user-data-dir=${profile}`,
-        `--extensions-dir=${path.join(owned, 'extensions')}`, '--disable-extensions', '--skip-welcome',
+        `--shared-data-dir=${path.join(owned, 'shared-data')}`, `--extensions-dir=${path.join(owned, 'extensions')}`, '--disable-extensions', '--skip-welcome',
         '--skip-release-notes', '--disable-gpu', '--disable-workspace-trust', '--no-sandbox'], {
         windowsHide: true, detached: process.platform !== 'win32', shell: false, env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined,
-            VSCODE_IPC_HOOK_CLI: undefined, LORERELAY_QA_SECRET: secret, LORERELAY_QA_ENDPOINT: endpoint },
+            VSCODE_IPC_HOOK_CLI: undefined, TEMP: temp, TMP: temp, TMPDIR: temp, LORERELAY_QA_SECRET: secret, LORERELAY_QA_ENDPOINT: endpoint },
     });
     child.stdout.on('data', bytes => process.stderr.write(bytes));
     child.stderr.on('data', bytes => process.stderr.write(bytes));
@@ -117,6 +124,15 @@ async function runLifecycle(testDeps = {}) {
     void test.catch(() => {});
         await deadline(Promise.race([hello, test.then(() => { throw new Error('qa_host_exited_before_hello'); })]), testDeps.startTimeoutMs || 90000, 'qa_host_start_timeout');
         await request('reopen');
+        if (fixtureId === 'mods_v1') {
+            await require('./live_qa_mods_scenario').exercise(request, async () => {
+                const before = session; hello = new Promise(resolve => { nextHost = resolve; });
+                await request('reload'); await deadline(hello, 90000, 'qa_reload_timeout');
+                assert.notEqual(session, before); await request('reopen');
+            });
+            await request('stop'); await deadline(test, 30000, 'qa_shutdown_timeout');
+            return { status: 'passed', fixtureId, checks: ['real MOD Manager', 'actual DOM', 'Safe Mode', 'adult denial', 'reload coherence'] };
+        }
         const initial = await request('inspect');
         const checkpoint = await request('checkpoint_save');
         assert(checkpoint?.id, 'real checkpoint save must return its persisted identity');
@@ -164,6 +180,7 @@ async function runLifecycle(testDeps = {}) {
         return { status: 'passed', fixtureId: 'lifecycle_v1', checks: ['real Host commerce', 'readonly preview',
             'duplicate receipt', 'checkpoint complete restore', 'stale epoch', 'panel reopen', 'window reload', 'restart handle rejection'] };
     } finally {
+        if (fixtureId === 'mods_v1') console.error('QA owned fixture entries: ' + JSON.stringify({ root: fs.readdirSync(workspace), control: fs.readdirSync(path.join(workspace, '.text-adventure')) }));
         // Before any authenticated session, no QA mutation could have been admitted.
         if (child && !exited && !session) {
             await terminateUnconnectedHost(child);
@@ -186,10 +203,11 @@ async function runLifecycle(testDeps = {}) {
     }
 }
 async function main() {
-    if (process.argv.slice(2).join(' ') !== '--scenario lifecycle_v1') {
+    const fixtureId = process.argv[3];
+    if (process.argv.length !== 4 || process.argv[2] !== '--scenario' || !['lifecycle_v1', 'mods_v1'].includes(fixtureId)) {
         console.log(JSON.stringify({ status: 'invalid', allowed: '--scenario lifecycle_v1' })); process.exitCode = 2; return;
     }
-    try { console.log(JSON.stringify(await runLifecycle())); }
+    try { console.log(JSON.stringify(await runLifecycle({}, fixtureId))); }
     catch (error) { console.error(error.stack); console.log(JSON.stringify({ status: 'failed' })); process.exitCode = 1; }
 }
 if (require.main === module) void main();

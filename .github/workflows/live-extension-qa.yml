@@ -24,3 +24,8 @@ jobs:
         run: xvfb-run -a npm run qa:live
       - if: runner.os == 'Windows'
         run: npm run qa:live
+
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/run_live_extension_qa.js --scenario mods_v1
+      - if: runner.os == 'Windows'
+        run: node scripts/run_live_extension_qa.js --scenario mods_v1

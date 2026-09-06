@@ -3,7 +3,7 @@
   "rules": [
     {
       "id": "live-extension-qa",
-      "patterns": ["src/liveExtensionQa*.ts", "scripts/run_live_extension_qa.js", ".github/workflows/live-extension-qa.yml"],
+      "patterns": ["src/liveExtensionQa*.ts", "src/liveQaProbeHost.ts", "scripts/live_qa_mods_scenario.js", "scripts/run_live_extension_qa.js", ".github/workflows/live-extension-qa.yml"],
       "tests": ["test_live_extension_qa.js", "test_checkpoint_complete_state_snapshot.js", "test_game_action_commerce.js", "test_deterministic_workspace_mutation_gate.js"],
       "boundaries": ["compile", "symbol-registry"],
       "reason": "Live fixture IPC, production checkpoint ownership and lifecycle boundaries changed; real Host validation runs separately."

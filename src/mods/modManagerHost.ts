@@ -60,6 +60,8 @@ export interface ModManagerMessage {
 }
 
 export interface ModManagerHost {
+    /** Last published public DTO only; never performs recovery or discovery. */
+    readPublishedState(): Record<string, unknown> | undefined;
     handles(type: string): boolean;
     handleMessage(message: ModManagerMessage): Promise<boolean>;
     recoverCurrentWorkspace(): Promise<void>;
@@ -328,6 +330,13 @@ async function campaignEligibility(workspaceRoot: string): Promise<{ empty: bool
         await ordinaryDirectory(workspaceRoot);
         const rootEntries = await fs.readdir(workspaceRoot, { withFileTypes: true });
         for (const entry of rootEntries) {
+            // Opening the normal panel creates this directory while listing characters.
+            // Only an ordinary, genuinely empty directory carries no campaign lineage.
+            if (entry.name === 'characters' && entry.isDirectory() && !entry.isSymbolicLink()) {
+                const directory = path.join(workspaceRoot, entry.name);
+                await ordinaryDirectory(directory);
+                if ((await fs.readdir(directory)).length === 0) continue;
+            }
             if (!['.text-adventure', '.vscode'].includes(entry.name) || !entry.isDirectory() || entry.isSymbolicLink()) {
                 return { empty: false, reason: 'MOD_MANAGER_CAMPAIGN_FORK_REQUIRED' };
             }
@@ -372,7 +381,14 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
     const approvals = (workspaceRoot: string): ModAdultApproval[] => [...sessionMap(workspaceRoot).values()].map(item => ({
         id: item.id, version: item.version, manifestHash: item.manifestHash, contentHash: item.contentHash,
     }));
-    const post = (message: unknown) => { void deps.getPanel()?.webview.postMessage(message); };
+    let published: { workspace: string | undefined; state: Record<string, unknown> } | undefined;
+    const post = (message: Record<string, unknown>) => {
+        if (message.type === 'modManagerState') {
+            message = { ...message, semanticRevision: randomUUID() };
+            published = { workspace: deps.getWorkspacePath(), state: message };
+        }
+        void deps.getPanel()?.webview.postMessage(message);
+    };
     const notice = (code: string) => post({ type: 'modManagerNotice', code });
     const evaluate = async (workspaceRoot: string): Promise<ModActivationGateResult> => evaluateModActivationGate({
         ...roots(workspaceRoot),
@@ -457,6 +473,8 @@ export function createModManagerHost(deps: ModManagerHostDeps): ModManagerHost {
     };
 
     const host: ModManagerHost = {
+        readPublishedState: () => published?.workspace === deps.getWorkspacePath()
+            ? JSON.parse(JSON.stringify(published?.state ?? null)) ?? undefined : undefined,
         handles: type => MANAGER_MESSAGES.has(type),
         adultSessionApprovals: workspaceRoot => approvals(workspaceRoot),
         recoverCurrentWorkspace: async () => {

@@ -28,6 +28,7 @@
   ],
   "activationEvents": [
     "workspaceContains:.lorerelay-qa-fixture.json",
+    "workspaceContains:.vscode/.lorerelay-qa-fixture.json",
     "onCommand:textadventure.openGame",
     "onCommand:textadventure.listImageModels",
     "onCommand:textadventure.scanLocalModels",

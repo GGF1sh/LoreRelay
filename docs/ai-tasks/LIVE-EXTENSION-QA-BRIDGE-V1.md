@@ -52,6 +52,16 @@ a new Host session and cannot make an old confirmation safe to replay.
 
 ## Remaining sequence
 
+PR #101 independent review completed at `a15b8a9` with three P2 findings. One repair
+pins official SDK 2.5.2 (Node >=16, compatible with existing Node 20 CI), includes
+download/spawn setup in cleanup, and terminates/awaits only an unconnected owned
+Host after startup failure. Once connected, a timeout remains non-cancelling and
+retains the fixture/Host rather than interrupting a canonical mutation.
+Failure-worker regression proves prompt exit, closed IPC and owned-directory cleanup
+for download failure and missing handshake. Windows normal lifecycle also passes.
+Repair Test Console: **24/24 passed**, focused **21/21**, zero unknown files;
+fingerprint `8933877366e445b5b7df91118c705e026becb4823fab1a61158e7b4dba17b64d`.
+
 2B adds synthetic MOD fixtures and separately correlated Host/rendered semantic
 state with fixed-control UI actions. Recorder follows with explicit recording and
 sanitized fixture templates. Player/MCP follows with explicit campaign pairing,

@@ -9,7 +9,21 @@ const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
 const { spawn } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 
-async function runLifecycle() {
+async function terminateUnconnectedHost(child) {
+    if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
+    if (process.platform === 'win32') {
+        const code = await new Promise(resolve => {
+            const killer = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe'),
+                ['/PID', String(child.pid), '/T', '/F'], { shell: false, windowsHide: true, stdio: 'ignore' });
+            killer.once('error', () => resolve(-1)); killer.once('exit', resolve);
+        });
+        if (code !== 0 && child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+    } else {
+        try { process.kill(-child.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
+    }
+}
+// Injected functions are test-process dependencies, never CLI/request fields.
+async function runLifecycle(testDeps = {}) {
     const temp = fs.realpathSync(os.tmpdir());
     const owned = fs.mkdtempSync(path.join(temp, 'lorerelay-live-qa-'));
     const workspace = path.join(owned, 'workspace');
@@ -82,23 +96,26 @@ async function runLifecycle() {
         return response.result;
     };
     let exited = false;
-    const executable = process.env.LORERELAY_QA_VSCODE || await downloadAndUnzipVSCode({ version: '1.136.1' });
-    const child = spawn(executable, [workspace, `--extensionDevelopmentPath=${ROOT}`, `--user-data-dir=${profile}`,
+    let child;
+    let test;
+    try {
+    const executable = await (testDeps.resolveExecutable || (() => process.env.LORERELAY_QA_VSCODE
+        || downloadAndUnzipVSCode({ version: '1.136.1' })))();
+    child = (testDeps.spawnHost || spawn)(executable, [workspace, `--extensionDevelopmentPath=${ROOT}`, `--user-data-dir=${profile}`,
         `--extensions-dir=${path.join(owned, 'extensions')}`, '--disable-extensions', '--skip-welcome',
         '--skip-release-notes', '--disable-gpu', '--disable-workspace-trust', '--no-sandbox'], {
-        windowsHide: true, shell: false, env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined,
+        windowsHide: true, detached: process.platform !== 'win32', shell: false, env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined,
             VSCODE_IPC_HOOK_CLI: undefined, LORERELAY_QA_SECRET: secret, LORERELAY_QA_ENDPOINT: endpoint },
     });
     child.stdout.on('data', bytes => process.stderr.write(bytes));
     child.stderr.on('data', bytes => process.stderr.write(bytes));
-    const test = new Promise((resolve, reject) => {
+    test = new Promise((resolve, reject) => {
         child.once('error', reject);
         child.once('exit', code => code === 0 ? resolve() : reject(new Error(`qa_host_exit_${code}`)));
     }).finally(() => { exited = true; });
     // Avoid an unhandled rejection while awaiting an IPC response/startup deadline.
     void test.catch(() => {});
-    try {
-        await deadline(Promise.race([hello, test.then(() => { throw new Error('qa_host_exited_before_hello'); })]), 90000, 'qa_host_start_timeout');
+        await deadline(Promise.race([hello, test.then(() => { throw new Error('qa_host_exited_before_hello'); })]), testDeps.startTimeoutMs || 90000, 'qa_host_start_timeout');
         await request('reopen');
         const initial = await request('inspect');
         const checkpoint = await request('checkpoint_save');
@@ -147,16 +164,25 @@ async function runLifecycle() {
         return { status: 'passed', fixtureId: 'lifecycle_v1', checks: ['real Host commerce', 'readonly preview',
             'duplicate receipt', 'checkpoint complete restore', 'stale epoch', 'panel reopen', 'window reload', 'restart handle rejection'] };
     } finally {
+        // Before any authenticated session, no QA mutation could have been admitted.
+        if (child && !exited && !session) {
+            await terminateUnconnectedHost(child);
+            try { await deadline(test, 10000, 'qa_unconnected_shutdown_timeout'); } catch { /* preserve unconfirmed ownership */ }
+        }
         if (!exited && connection && !connection.destroyed) {
             try { await request('stop'); await deadline(test, 30000, 'qa_shutdown_timeout'); } catch { /* retain ownership artifacts on failure */ }
         }
         for (const entry of pending.values()) clearTimeout(entry.timer);
         for (const socket of sockets) socket.destroy();
         await new Promise(resolve => server.close(resolve));
-        if (exited && fs.realpathSync(owned) === owned && path.dirname(owned) === temp
+        if ((!child || exited) && fs.realpathSync(owned) === owned && path.dirname(owned) === temp
             && path.basename(owned).startsWith('lorerelay-live-qa-') && !fs.lstatSync(owned).isSymbolicLink()) {
             fs.rmSync(owned, { recursive: true });
-        } else console.error('QA environment retained; Host exit was not confirmed.');
+        } else {
+            // A connected timeout is not cancellation; retain its fixture and Host.
+            child?.unref(); child?.stdout.destroy(); child?.stderr.destroy();
+            console.error(`QA environment retained; Host exit was not confirmed: ${owned}`);
+        }
     }
 }
 async function main() {
@@ -167,3 +193,4 @@ async function main() {
     catch (error) { console.error(error.stack); console.log(JSON.stringify({ status: 'failed' })); process.exitCode = 1; }
 }
 if (require.main === module) void main();
+module.exports = { runLifecycle };

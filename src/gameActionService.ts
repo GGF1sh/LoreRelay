@@ -42,6 +42,20 @@ export interface GameActionMutationOutcome {
     result: Record<string, unknown>;
     diagnostic?: Record<string, unknown>;
 }
+export interface GameActionObservation {
+    workspaceId: string;
+    principal: TrustedActionExecutionContext['principal'];
+    actionId: GameActionId;
+    parameters: Record<string, unknown>;
+    classification: GameActionClassification;
+    result: Record<string, unknown>;
+}
+const actionObservers = new Set<(value: GameActionObservation) => void>();
+/** In-process result observation only; callers cannot execute or change a receipt. */
+export function observeGameActionResults(observer: (value: GameActionObservation) => void) {
+    actionObservers.add(observer);
+    return { dispose: () => { actionObservers.delete(observer); } };
+}
 export interface GameActionBindings<T> {
     mutationGate: DeterministicWorkspaceMutationGate;
     scope(): GameActionScope;
@@ -224,6 +238,7 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
             const entry: { context: TrustedActionExecutionContext; fingerprint: string; promise: Promise<GameActionReceipt>; receipt?: GameActionReceipt; diagnostic?: Record<string, unknown> }
                 = { context, fingerprint, promise: Promise.resolve(reject('outcome_unknown')) };
             requests.set(key, entry);
+            const admittedObservers = [...actionObservers];
             // Publish the promise before calling any supplied implementation.
             entry.promise = Promise.resolve().then(async () => {
                 let started = false;
@@ -246,6 +261,12 @@ export function createGameActionService<T>(bindings: GameActionBindings<T>) {
                     });
                 const result = mutation.status === 'completed' ? mutation.value : mutation.status === 'busy'
                     ? reject('rejected_busy') : reject(started ? 'outcome_unknown' : 'rejected_forbidden');
+                for (const observer of admittedObservers) {
+                    if (!actionObservers.has(observer)) continue;
+                    try { observer(copy({ workspaceId: context.workspaceId, principal: context.principal,
+                        actionId: actionId as GameActionId, parameters: normalized,
+                        classification: result.classification, result: result.result })); } catch { /* observation cannot change execution */ }
+                }
                 if (requests.get(key) !== entry) return copy(result); // caller closed while work was admitted
                 entry.receipt = copy(result);
                 completed.push(key);

@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { openActionFixture } = require('./action_scenario_fixture');
 const ROOT = path.resolve(__dirname, '..');
-const CATALOG = Object.freeze({ merchant_route_v1: path.join(__dirname, 'action_scenarios', 'merchant_route_v1.json') });
+const CATALOG = Object.freeze({ recorded_merchant_v1: path.join(__dirname, 'action_scenarios', 'recorded_merchant_v1.json'), merchant_route_v1: path.join(__dirname, 'action_scenarios', 'merchant_route_v1.json') });
 const STEP_FIELDS = {
     read_player_view: ['id', 'op'], query_available: ['id', 'op'],
     preview: ['id', 'op', 'actionId', 'parameters', 'actionSetFrom'],
@@ -29,7 +29,7 @@ function loadScenario(id) {
     if (!validObject(scenario, ['schemaVersion', 'id', 'fixtureId', 'seed', 'limits', 'steps']) || scenario.schemaVersion !== 1
         || scenario.id !== id || scenario.fixtureId !== 'merchant_route_v1' || scenario.seed !== 7
         || !validObject(scenario.limits, ['maxSteps', 'timeoutMs'])
-        || !Number.isSafeInteger(scenario.limits.maxSteps) || scenario.limits.maxSteps < 1 || scenario.limits.maxSteps > 64
+        || !Number.isSafeInteger(scenario.limits.maxSteps) || scenario.limits.maxSteps < 1 || scenario.limits.maxSteps > 512
         || !Number.isSafeInteger(scenario.limits.timeoutMs) || scenario.limits.timeoutMs < 1 || scenario.limits.timeoutMs > 30_000
         || !Array.isArray(scenario.steps) || scenario.steps.length > scenario.limits.maxSteps) throw new Error('input');
     const seen = new Set();
@@ -65,6 +65,11 @@ async function runScenario(id) {
     const results = new Map();
     const snapshots = new Map();
     const pending = [];
+    const requestIds = new Map();
+    const freshRequestId = alias => {
+        if (!requestIds.has(alias)) requestIds.set(alias, crypto.randomUUID());
+        return requestIds.get(alias);
+    };
     const started = Date.now();
     try {
         for (const step of scenario.steps) {
@@ -90,10 +95,10 @@ async function runScenario(id) {
                 // scripted-confirmation-enabled actions. No adult consent surface.
                 assert(['commerce:trade', 'commerce:travel', 'commerce:end_day'].includes(preview.actionId));
                 service.confirm(context, preview.confirmationToken, 'scripted');
-                const promise = service.execute(context, { actionId: preview.actionId, requestId: step.requestId,
+                const promise = service.execute(context, { actionId: preview.actionId, requestId: freshRequestId(step.requestId),
                     parameters: preview.parameters, confirmationToken: preview.confirmationToken });
                 pending.push(promise);
-                value = { requestId: step.requestId };
+                value = { requestId: freshRequestId(step.requestId) };
                 break;
             }
             case 'wait_receipt':
@@ -132,6 +137,7 @@ async function runScenario(id) {
                 const preview = step.previewFrom && results.get(step.previewFrom);
                 const request = { ...(preview ? { actionId: preview.actionId, parameters: preview.parameters,
                     confirmationToken: preview.confirmationToken } : {}), ...step.request };
+                if (typeof request.requestId === 'string') request.requestId = freshRequestId(request.requestId);
                 value = step.phase === 'preview' ? service.preview(context, request) : await service.execute(context, request);
                 assert(value.classification === step.classification && before === digest(service.inspect(context)));
                 break;

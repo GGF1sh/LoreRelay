@@ -109,5 +109,8 @@
   "config.textAdventure.worldForge.defaultNpcCount.description": "Default number of initial NPCs when generating a new World Forge.",
   "config.textAdventure.worldForge.llmEnrich.description": "When enabled, LLM is used to enrich generated world descriptions (experimental).",
   "config.textAdventure.memory.backend.description": "Memory Bank search backend for GM prompt injection.",
-  "config.textAdventure.worldIntent.vehicleBridgeMode.description": "Developer/operator diagnostic mode for World Intent vs legacy vehicleOps parity. Legacy vehicleOps remain authoritative; off disables parity work."
+  "config.textAdventure.worldIntent.vehicleBridgeMode.description": "Developer/operator diagnostic mode for World Intent vs legacy vehicleOps parity. Legacy vehicleOps remain authoritative; off disables parity work.",
+  "command.startActionRecording": "Start Commerce Recording",
+  "command.stopActionRecording": "Stop Commerce Recording",
+  "command.exportActionRecording": "Export Commerce Recording Template"
 }

@@ -57,7 +57,10 @@
     "onCommand:textadventure.applyVehicleStateMigration",
     "onCommand:textadventure.restoreVehicleStateMigrationBackup",
     "onCommand:textadventure.upgradeVehicleStateForGameplaySpine",
-    "onCommand:textadventure.gameplaySpineRepairVehicle"
+    "onCommand:textadventure.gameplaySpineRepairVehicle",
+    "onCommand:textadventure.startActionRecording",
+    "onCommand:textadventure.stopActionRecording",
+    "onCommand:textadventure.exportActionRecording"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -197,6 +200,18 @@
       {
         "command": "textadventure.gameplaySpineRepairVehicle",
         "title": "%command.gameplaySpineRepairVehicle%"
+      },
+      {
+        "command": "textadventure.startActionRecording",
+        "title": "%command.startActionRecording%"
+      },
+      {
+        "command": "textadventure.stopActionRecording",
+        "title": "%command.stopActionRecording%"
+      },
+      {
+        "command": "textadventure.exportActionRecording",
+        "title": "%command.exportActionRecording%"
       }
     ],
     "menus": {

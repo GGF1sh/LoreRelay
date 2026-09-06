@@ -47,6 +47,7 @@ const COMBAT_MANIFEST_ENTRIES = COMBAT_TEST_GROUPS.map((group) => ({
 }));
 
 const MANIFEST = [
+    { category: 'unit', file: 'test_live_extension_qa.js', consumesCompiledOutput: true },
     { category: 'validate', file: 'validate_utf8_docs.js' },
     { category: 'validate', file: 'check_version_consistency.js' },
     { category: 'validate', file: 'check_i18n_keys.js' },

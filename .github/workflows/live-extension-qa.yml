@@ -1,0 +1,26 @@
+name: Live Extension QA
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+jobs:
+  lifecycle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run compile
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run qa:live
+      - if: runner.os == 'Windows'
+        run: npm run qa:live

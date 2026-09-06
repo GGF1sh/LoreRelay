@@ -9,6 +9,7 @@ import {
     listRewindTargets,
     loadCheckpointFile,
     saveCheckpointFile,
+    type CheckpointMeta,
     truncateHistoryOneTurn,
     truncateHistoryToGmEntry
 } from './checkpoint';
@@ -356,7 +357,7 @@ export async function handleRestoreToTurn(entryId: string): Promise<void> {
     });
 }
 
-export async function handleSaveCheckpoint(label?: string): Promise<void> {
+export async function handleSaveCheckpoint(label?: string): Promise<CheckpointMeta | undefined> {
     const ws = getWorkspacePath();
     if (!ws) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
@@ -372,19 +373,24 @@ export async function handleSaveCheckpoint(label?: string): Promise<void> {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
     }
-    const meta = saveCheckpointFile(ws, history, label, {
+    const save = () => saveCheckpointFile(ws, history, label, {
         ...(authorization.mode === 'modded' ? { modLockSnapshot: authorization.lock } : {}),
         modAuthorization: authorization,
     });
+    const gate = requireDeps().mutationGate;
+    const guarded = gate ? await gate.run(ws, { actionKind: 'checkpoint_save', requestId: `checkpoint-${Date.now()}` }, save)
+        : { status: 'completed' as const, value: save() };
+    const meta = guarded.status === 'completed' ? guarded.value : undefined;
     if (!meta) {
         vscode.window.showWarningMessage(t('extension.warning.noHistoryToCheckpoint'));
         return;
     }
     sendCheckpointList();
     vscode.window.showInformationMessage(t('extension.info.checkpointSaved', { label: meta.label }));
+    return meta;
 }
 
-export async function handleRestoreCheckpoint(checkpointId: string): Promise<void> {
+export async function handleRestoreCheckpoint(checkpointId: string): Promise<boolean | undefined> {
     const ws = getWorkspacePath();
     if (!ws) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
@@ -410,7 +416,7 @@ export async function handleRestoreCheckpoint(checkpointId: string): Promise<voi
         vscode.window.showErrorMessage(`LoreRelay: checkpoint restore blocked by MOD activation gate (${restoreDecision.code}).`);
         return;
     }
-    await runTimelineRestore(ws, 'restore-checkpoint', async () => {
+    return runTimelineRestore(ws, 'restore-checkpoint', async () => {
         const previousHistory = JSON.parse(JSON.stringify(getGameEntryHistory())) as GameEntry[];
         setGameEntryHistoryWithSeenIds(cp.history);
         if (cp.format === 'text-adventure-checkpoint/1.3' && cp.stateSnapshot) {

@@ -769,6 +769,7 @@ function runScenario(scenario, mode, options) {
                 const result = mods.runBulkWorldSimulation(forge, worldState, registry, {
                     // The opt-in authored rules use the same pacing core as Host days.
                     worldPacing: rules.worldPacing,
+                    commerceEnabled: rules.enableCommerce === true,
                     steps: stepsPerCadence,
                     enableNpcRegistry: scenario.worldSim.enableNpcRegistry === true && !!registry,
                     maxSteps: Math.min(stepsPerCadence, limits.maxStepsPerChunk),

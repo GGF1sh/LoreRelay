@@ -26,14 +26,14 @@ const { previewEndDay, executeEndDay } = require(hostPath);
 Module._load = originalLoad;
 const { createEndDayRequestGate } = require(gatePath);
 
-function createHarness({ turn = 0, gameOk = true, worldOk = true, throwGame = false } = {}) {
+function createHarness({ turn = 0, gameOk = true, worldOk = true, throwGame = false, commerceEnabled = true, steppedMarketStock = 10, recoveredMarketStock = 12 } = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noai-play-p3-'));
     const gamePath = path.join(dir, 'game_state.json');
     fs.writeFileSync(gamePath, JSON.stringify({ entries: [], world: { currentLocationId: 'market_a' }, commerce: { credits: 30, food: 10, cargo: [], transportId: 'wagon' } }));
     const state = { worldTurn: turn, factions: {}, regions: {}, recentChanges: [], markets: { market_a: { wheat: { stock: 10, priceIndex: 1.2 } } } };
     const calls = { bulk: 0, market: 0, game: 0, world: 0, npc: 0 };
     const deps = {
-        loadGameRules: () => ({ enableEmergentSimulation: true, enableCommerce: true, enableNpcRegistry: false }),
+        loadGameRules: () => ({ enableEmergentSimulation: true, enableCommerce: commerceEnabled, enableNpcRegistry: false }),
         isWorldForgeEnabled: () => true,
         loadWorldForge: () => ({ id: 'forge' }),
         loadWorldForgeDocument: () => ({}),
@@ -46,14 +46,17 @@ function createHarness({ turn = 0, gameOk = true, worldOk = true, throwGame = fa
         readStateRevision: () => 1,
         runBulkWorldSimulation: (_forge, before, _registry, options) => {
             calls.bulk++;
-            const stepped = { ...before, worldTurn: (before.worldTurn || 0) + 1 };
+            assert.equal(options.commerceEnabled, commerceEnabled);
+            const stepped = structuredClone(before);
+            stepped.worldTurn = (before.worldTurn || 0) + 1;
+            stepped.markets.market_a.wheat.stock = steppedMarketStock;
             const events = turn === 100 ? [{ category: 'resource', id: 'event_1' }] : [];
             const after = options.afterStep(stepped, events, undefined);
             return { ok: true, state: after, summary: { startWorldTurn: turn, endWorldTurn: turn + 1, stepsExecuted: 1, totalEventsEmitted: events.length } };
         },
         applyLivingWorldAfterSimulationStep: (_forge, stepped) => {
             calls.market++;
-            return { ...stepped, markets: { market_a: { wheat: { stock: 12, priceIndex: 1.15 } } } };
+            return { ...stepped, markets: { market_a: { wheat: { stock: recoveredMarketStock, priceIndex: 1.15 } } } };
         },
         recordSplitBrainRisk: () => {},
     };
@@ -89,6 +92,15 @@ async function main() {
         assert.equal(receipt.persisted, true); assert.deepEqual(receipt.worldTurn, { before: turn, after: turn + 1 });
         assert.equal(calls.bulk, 1); assert.equal(calls.market, 1); assert.equal(calls.game, 1); assert.equal(calls.world, 1);
         if (turn === 100) assert.deepEqual(receipt.eventCategories, ['resource']);
+    }
+    {
+        const { deps } = createHarness({ steppedMarketStock: 8, recoveredMarketStock: 9 });
+        const receipt = executeEndDay('endday_market_receipt', true, deps);
+        assert.deepEqual(receipt.marketChanges, [{ commodityId: 'wheat', stockDelta: -1, priceIndexDelta: -0.050000000000000044 }]);
+    }
+    {
+        const { deps } = createHarness({ commerceEnabled: false });
+        assert.equal(executeEndDay('endday_commerce_disabled', true, deps).persisted, true);
     }
     for (const opts of [{ gameOk: false }, { worldOk: false }, { gameOk: false, worldOk: false }, { throwGame: true }]) {
         const { deps } = createHarness(opts);

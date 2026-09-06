@@ -105,6 +105,27 @@ if (!result.ok) {
     else { ok('input state not mutated'); }
 }
 
+const commerceForge = structuredClone(FORGE);
+commerceForge.geography.locations = [{ id: 'market', name: 'Market', regionId: 'r1' }];
+commerceForge.factions[0].foodSupply = { marketLocationId: 'market', commodityId: 'grain', dailyDemand: 2, reserveTarget: 6 };
+const commerceState = makeState(10);
+commerceState.factions.f1.resources.food = 5;
+commerceState.markets = { market: { grain: { stock: 7, priceIndex: 1 } } };
+const commerceDisabled = runBulkWorldSimulation(commerceForge, commerceState, undefined, {
+    steps: 1,
+    enableNpcRegistry: false,
+    worldPacing: { foodDemandMultiplier: 1, conflictEnabled: true, conflictActiveDays: 10, conflictRestDays: 20, relationshipPace: 'standard' },
+    commerceEnabled: false,
+});
+if (!commerceDisabled.ok
+    || commerceDisabled.state.markets.market.grain.stock !== 7
+    || commerceDisabled.state.factions.f1.resources.food !== 5
+    || commerceDisabled.state.factionFoodStatus.f1.status !== 'paused') {
+    fail('bulk run must not consume retained market stock when Commerce is disabled');
+} else {
+    ok('bulk run forwards disabled Commerce to paced food demand');
+}
+
 const bad = runBulkWorldSimulation(FORGE, makeState(), undefined, { steps: 0, enableNpcRegistry: false });
 if (bad.ok) { fail('steps 0 should fail'); } else { ok('steps 0 returns INVALID_STEPS'); }
 

@@ -41,6 +41,12 @@ test('stopped or unconnected supply does not silently consume reserves', () => {
  delete forge.factions[0].foodSupply;tickFactionFoodSupply(forge,state,normalizeWorldPacing({}),[]);
  assert.equal(state.factions.a.resources.food,20);assert.equal(state.factionFoodStatus.a.status,'unconfigured');
 });
+test('disabled Commerce pauses market-backed demand without consuming retained stock or reserves', () => {
+ const {forge,state}=base();state.factions.a.resources.food=5;
+ tickFactionFoodSupply(forge,state,normalizeWorldPacing({}),[],false);
+ assert.equal(state.markets.market.grain.stock,7);assert.equal(state.factions.a.resources.food,5);
+ assert.equal(state.factionFoodStatus.a.status,'paused');assert.equal(state.factionFoodStatus.b.status,'paused');
+});
 test('supply parsing requires a valid staple market binding', () => {
  const raw = require('../sample-scenarios/trade-routes/world_forge.json');
  assert(parseWorldForge(raw).factions[0].foodSupply);
@@ -60,6 +66,20 @@ test('exhausted power never farms wins, and stopped conflict does not reset host
  for(let n=0;n<1000;n++){state.worldTurn++;tickFactionConflicts(forge,state,normalizeWorldPacing({}),[]);}
  assert.equal(state.factions.a.power,40);assert.equal(state.factionConflicts['a|b'].phase,'exhausted');
  tickFactionConflicts(forge,state,worldPacingPreset('stable').worldPacing,[]);assert.deepEqual(forge.factions[0].enemies,['b']);
+});
+test('active paced conflict changes morale, while resting and stopped conflict do not', () => {
+ const {forge,state}=base();state.factions.a.power=60;state.factions.b.power=40;state.factions.a.morale=50;state.factions.b.morale=50;
+ const p=normalizeWorldPacing({conflictActiveDays:1,conflictRestDays:2});
+ tickFactionConflicts(forge,state,p,[]);assert.equal(state.factions.a.morale,52);assert.equal(state.factions.b.morale,48);
+ state.worldTurn=2;tickFactionConflicts(forge,state,p,[]);assert.equal(state.factionConflicts['a|b'].phase,'resting');
+ assert.equal(state.factions.a.morale,52);assert.equal(state.factions.b.morale,48);
+ state.worldTurn=3;tickFactionConflicts(forge,state,{...p,conflictEnabled:false},[]);
+ assert.equal(state.factions.a.morale,52);assert.equal(state.factions.b.morale,48);
+});
+test('a faction in multiple active conflicts receives one averaged morale update', () => {
+ const {forge,state}=base();forge.factions.push({id:'c',name:'C',enemies:['a']});forge.factions[0].enemies.push('c');
+ state.factions.a.power=80;state.factions.a.morale=50;state.factions.b.power=40;state.factions.c={power:40,morale:50,resources:{}};
+ tickFactionConflicts(forge,state,normalizeWorldPacing({}),[]);assert.equal(state.factions.a.morale,52);
 });
 test('co-location caps at friendship, events can reach ally, stopping preserves values', () => {
  const common={registry:{a:{locationId:'x'},b:{locationId:'x'}},positions:{},relationshipPace:'standard'};

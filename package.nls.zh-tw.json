@@ -101,5 +101,8 @@
   "config.textAdventure.worldForge.defaultFactionCount.description": "生成新 World Forge 時的預設勢力（Faction）數量。",
   "config.textAdventure.worldForge.defaultNpcCount.description": "生成新 World Forge 時的預設 NPC 數量。",
   "config.textAdventure.worldForge.llmEnrich.description": "在生成 World Forge 時，使用 LLM 自動為各個區域、勢力和 NPC 添加詳細設定與背景故事進行擴展。",
-  "config.textAdventure.memory.backend.description": "NPC 註冊表及世界狀態的語義記憶索引後端。"
+  "config.textAdventure.memory.backend.description": "NPC 註冊表及世界狀態的語義記憶索引後端。",
+  "command.startActionRecording": "開始錄製交易操作",
+  "command.stopActionRecording": "停止錄製交易操作",
+  "command.exportActionRecording": "匯出交易操作錄製範本"
 }

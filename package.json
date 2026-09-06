@@ -203,15 +203,15 @@
       },
       {
         "command": "textadventure.startActionRecording",
-        "title": "LoreRelay: Commerce録画を開始"
+        "title": "%command.startActionRecording%"
       },
       {
         "command": "textadventure.stopActionRecording",
-        "title": "LoreRelay: Commerce録画を停止"
+        "title": "%command.stopActionRecording%"
       },
       {
         "command": "textadventure.exportActionRecording",
-        "title": "LoreRelay: Commerce録画テンプレートを出力"
+        "title": "%command.exportActionRecording%"
       }
     ],
     "menus": {

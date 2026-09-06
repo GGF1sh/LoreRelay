@@ -4,7 +4,7 @@
     {
       "id": "action-recorder",
       "patterns": ["src/actionRecorder*.ts", "src/gameActionService.ts", "scripts/run_action_scenario.js", "scripts/action_scenarios/recorded_merchant_v1.json"],
-      "tests": ["test_action_recorder.js", "test_game_action_commerce.js"],
+      "tests": ["test_action_recorder.js", "test_game_action_commerce.js", "test_command_palette_gating.js"],
       "boundaries": ["compile", "symbol-registry"],
       "reason": "Human action observation, sanitized templates and fixture replay changed."
     },

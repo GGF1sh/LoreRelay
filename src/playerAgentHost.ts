@@ -10,7 +10,7 @@ import { openAgentConnection } from './playerIpcHost';
 import type { DeterministicWorkspaceMutationGate } from './deterministicWorkspaceMutationGate';
 import { buildAiConnectionConfig, type AiConnectionClient } from './aiClientIntegrationCore';
 import { openRemoteAiGateway } from './remoteAiGateway';
-import { configureCodexGm, configureClaudeGm, configureAntigravityGm } from './gmConnectionHost';
+import { configureCodexGm, configureClaudeGm, configureAntigravityGm, configureGrokGm } from './gmConnectionHost';
 
 export function registerPlayerAgent(context: vscode.ExtensionContext, gate: DeterministicWorkspaceMutationGate) {
     const connections = new Map<'player' | 'narrator' | 'companion', Awaited<ReturnType<typeof openAgentConnection>>>();
@@ -97,12 +97,14 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
             { label: 'Gemini CLI', id: 'gemini' as const },
             { label: 'Antigravity CLI — GM', id: 'antigravity-gm' as const },
             { label: 'Grok Build', id: 'grok' as const },
+            { label: 'Grok Build — GM', id: 'grok-gm' as const },
             { label: 'Claude Desktop', id: 'claude-desktop' as const },
             { label: 'Claude Code', id: 'claude-code' as const },
             { label: 'Web・スマホ（読取専用Remote MCP）', id: 'remote' as const },
         ], { title: 'LoreRelay — AI接続', placeHolder: '接続先を選択（設定ファイルは自動変更しません）' });
         if (!client) return;
         if (client.id === 'antigravity-gm') { await configureAntigravityGm(); return; }
+        if (client.id === 'grok-gm') { await configureGrokGm(); return; }
         if (client.id === 'codex' || client.id === 'claude-code') {
             const usage = await vscode.window.showQuickPick(['GMとして使う', 'Player・相談役・観戦者として使う'], { title: `${client.label}の役割` });
             if (!usage) return;

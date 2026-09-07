@@ -18,6 +18,7 @@ const nativeRequire = createRequire(filename);
 const mocks = {
     vscode: { workspace: { onDidChangeWorkspaceFolders: () => ({}), onDidChangeConfiguration: () => ({}) } },
     './codexGmClient': { CodexGmClient: Client },
+    './grokGmClient': { GrokGmClient: Client },
     './claudeGmClient': { ClaudeGmClient: class extends Client { constructor() { super(); claudeStarts++; } } },
     './experience': { onExperienceProfileChanged: () => ({}) },
     './checkpointSnapshot': { CHECKPOINT_MUTABLE_LEDGER_FILES: ledgers },
@@ -84,5 +85,10 @@ const start = async provider => {
     fs.writeFileSync(path.join(workspace, 'world_state.json'), '{"changedAgain":true}'); operation.deliver();
     assert.match((await operation.result).error.message, /stale/);
     assert.equal(claudeStarts, 2); assert.equal(writes, 4, 'Claude shares the same late-candidate guard');
+    operation = await start('grok-acp'); operation.deliver();
+    assert.equal((await operation.result).value, true);
+    operation = await start('grok-acp'); exportsObject.cancelGmConnection(); operation.deliver();
+    assert.match((await operation.result).error.message, /stale/);
+    assert.equal(writes, 5, 'Grok shares admission and cannot commit after cancellation');
     console.log('GM Host adversarial fixture: ledger/settings changes, epoch, late delivery, post-authorization cancel, busy and partial persistence passed. No model used.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

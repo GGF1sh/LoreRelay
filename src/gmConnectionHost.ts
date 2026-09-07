@@ -4,6 +4,7 @@ import * as path from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { CodexGmClient } from './codexGmClient';
 import { AntigravityGmClient } from './antigravityGmClient';
+import { GrokGmClient } from './grokGmClient';
 import { ClaudeGmClient } from './claudeGmClient';
 import { GmCandidateGate, formatGmConnectionError, type GmConnectionWitness, type GmConnectionAdapter, type ConnectedGmProvider } from './gmConnectionCore';
 import { loadExistingAcceptedTurnScope, loadAcceptedTurnLedger } from './acceptedTurnReplayGuard';
@@ -23,7 +24,9 @@ const hostSession = randomUUID();
 const profileKey = 'gmConnection.v2.codex';
 const claudeProfileKey = 'gmConnection.v2.claude';
 const antigravityProfileKey = 'gmConnection.v2.antigravity';
+const grokProfileKey = 'gmConnection.v2.grok';
 function connectionProfileKey(provider: ConnectedGmProvider): string {
+    if (provider === 'grok-acp') return grokProfileKey;
     return provider === 'codex-app-server' ? profileKey : provider === 'antigravity-cli' ? antigravityProfileKey : claudeProfileKey;
 }
 interface Profile { executable: string; model: string }
@@ -56,7 +59,7 @@ export async function runConnectedGmChat(prompt: string, provider: ConnectedGmPr
     let client: GmConnectionAdapter | undefined;
     try {
         client = makeClient(profile, provider); activeClient = client;
-        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
+        if (await client.initialize() !== 'ready') { throw new Error(provider === 'grok-acp' ? 'grok_login_required' : provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
         const text = await client.generate(prompt, () => {});
         if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return { ok: false, text: '' }; }
         return { ok: true, text, model: profile.model };
@@ -68,7 +71,7 @@ export async function runConnectedGmChat(prompt: string, provider: ConnectedGmPr
 
 function connectionDirectories(provider: ConnectedGmProvider) {
     if (!context) { throw new Error('GM connection Host is unavailable'); }
-    const root = path.join(context.globalStorageUri.fsPath, provider === 'codex-app-server' ? 'gm-codex-v2' : provider === 'antigravity-cli' ? 'gm-antigravity-v2' : 'gm-claude-v2');
+    const root = path.join(context.globalStorageUri.fsPath, provider === 'grok-acp' ? 'gm-grok-v2' : provider === 'codex-app-server' ? 'gm-codex-v2' : provider === 'antigravity-cli' ? 'gm-antigravity-v2' : 'gm-claude-v2');
     const profileDirectory = path.join(root, 'profile');
     const workingDirectory = path.join(root, 'work');
     fs.mkdirSync(profileDirectory, { recursive: true });
@@ -78,6 +81,7 @@ function connectionDirectories(provider: ConnectedGmProvider) {
 
 function makeClient(profile: Profile, provider: ConnectedGmProvider): GmConnectionAdapter {
     const options = { ...profile, ...connectionDirectories(provider) };
+    if (provider === 'grok-acp') return new GrokGmClient(options);
     return provider === 'codex-app-server' ? new CodexGmClient(options)
         : provider === 'antigravity-cli' ? new AntigravityGmClient(options) : new ClaudeGmClient(options);
 }
@@ -120,6 +124,49 @@ export async function configureCodexGm(): Promise<void> {
     } catch (error) {
         void vscode.window.showErrorMessage(`Codex GM接続: ${formatGmConnectionError(error)}`);
     } finally { client?.dispose(); if (activeClient === client) activeClient = undefined; }
+}
+
+export async function configureGrokGm(): Promise<void> {
+    if (!context || isGmConnectionBusy()) return;
+    const consent = await vscode.window.showWarningMessage(
+        'GrokをGMとして使用します。入力・会話履歴・GM用の非公開設定をxAIへ送ります。公式アカウントの利用枠を使い、API課金へ自動切替しません。',
+        { modal: true }, 'GMとして接続');
+    if (!consent) return;
+    const previous = context.workspaceState.get<Profile>(grokProfileKey);
+    const model = await vscode.window.showInputBox({ title: 'GMに使うGrokモデルID', value: previous?.model ?? '',
+        validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : '正確なモデルIDを入力してください。' });
+    if (!model || isGmConnectionBusy()) return;
+    const profile = { executable: previous?.executable ?? 'grok', model };
+    const generation = cancellationGeneration, workspace = getWorkspacePath();
+    let client = new GrokGmClient({ ...profile, ...connectionDirectories('grok-acp') });
+    let terminal: vscode.Terminal | undefined;
+    const owner: GmConnectionAdapter = { initialize: () => client.initialize(), generate: (prompt, draft) => client.generate(prompt, draft),
+        dispose: () => { client.dispose(); terminal?.dispose(); } };
+    activeClient = owner;
+    try {
+        let status = await client.initialize();
+        if (status === 'login_required') {
+            const launch = client.loginLaunch();
+            client.dispose();
+            terminal = vscode.window.createTerminal({ name: 'LoreRelay Grok 公式ログイン', shellPath: launch.executable,
+                shellArgs: launch.args, cwd: launch.cwd, env: launch.env, strictEnv: true });
+            terminal.show();
+            while (status !== 'ready') {
+                const check = await vscode.window.showInformationMessage(
+                    '専用ターミナルの公式案内からGrokにログインしてください。完了後に認証状態を確認します。', 'ログインを確認');
+                if (!check || generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+                client = new GrokGmClient({ ...profile, ...connectionDirectories('grok-acp') });
+                status = await client.initialize();
+                if (status !== 'ready') client.dispose();
+            }
+        }
+        if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+        await context.workspaceState.update(grokProfileKey, profile);
+        await vscode.workspace.getConfiguration('textAdventure').update('gmBridge.provider', 'grok-acp', vscode.ConfigurationTarget.Workspace);
+        void vscode.window.showInformationMessage('Grok GM: 認証とモデル設定を確認済み。実モデルの応答は次のゲーム入力で確認します。');
+    } catch (error) {
+        void vscode.window.showErrorMessage(`Grok GM: ${formatGmConnectionError(error)}`);
+    } finally { owner.dispose(); if (activeClient === owner) activeClient = undefined; }
 }
 
 export async function configureAntigravityGm(): Promise<void> {
@@ -230,7 +277,7 @@ export async function runConnectedGmCandidate(prompt: string, normalize: (reply:
     let client: GmConnectionAdapter | undefined;
     try {
         client = makeClient(profile, provider); activeClient = client;
-        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
+        if (await client.initialize() !== 'ready') { throw new Error(provider === 'grok-acp' ? 'grok_login_required' : provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
         const reply = await client.generate(prompt, onDraft);
         const candidate = normalize(reply);
         const isCurrent = () => generation === cancellationGeneration && workspace === getWorkspacePath()

@@ -10,7 +10,7 @@ export type PromptReceiptProvider =
     | 'vscode-lm'
     | 'codex-app-server'
     | 'claude-code-subscription'
-    | 'antigravity-cli'
+    | 'antigravity-cli' | 'grok-acp'
     | 'agentic';
 
 export interface PromptReceiptChunkRecord {

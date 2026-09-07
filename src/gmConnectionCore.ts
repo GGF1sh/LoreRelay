@@ -1,5 +1,5 @@
 import { canonicalizeAcceptedTurnPayload, sha256Hex } from './acceptedTurnReplayGuardCore';
-export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli';
+export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli' | 'grok-acp';
 
 /** Transport-only contract. Adapters never receive canonical paths or persistence callbacks. */
 export interface GmConnectionAdapter {
@@ -13,6 +13,11 @@ export interface GmConnectionAdapter {
 export function formatGmConnectionError(error: unknown): string {
     const code = error instanceof Error ? error.message : '';
     const messages: Record<string, string> = {
+        grok_start_failed: 'Grok Buildを起動できません。公式CLIの導入と実行パスを確認してください。',
+        grok_login_required: 'Grokの公式ログインが必要です。「LoreRelay: AI接続」から接続してください。',
+        grok_model_unverified: 'Grokの指定モデルを確認できませんでした。モデルIDとCLIの対応状況を確認してください。',
+        grok_request_timeout: 'Grokの応答待ちが終了しました。入力を保持し、自動再送は行いません。',
+        grok_invalid_candidate: 'Grokの応答が未完了、または検証できませんでした。ゲームには適用していません。',
         antigravity_start_failed: 'Antigravity CLIを起動できません。公式CLIの導入と実行パスを確認してください。',
         antigravity_login_required: 'Google公式ログインが必要です。「LoreRelay: AI接続」から接続してください。',
         antigravity_auth_unverified: 'Antigravityの認証を確認できません。公式ログインを再確認してください。',

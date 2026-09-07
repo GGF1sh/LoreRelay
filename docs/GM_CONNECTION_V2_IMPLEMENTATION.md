@@ -106,8 +106,8 @@ Protocol references: [Claude CLI](https://code.claude.com/docs/en/cli-reference)
 | --- | --- | --- | --- |
 | 1 Common GM + Codex | Integrated; live acceptance evidence pending | Authentication callback unresolved; no inference claimed | #109 merged; both post-merge CI passed |
 | 2 Claude | Integrated | CLI readiness only; login and inference pending | #110 merged; post-merge CI passed |
-| 3 Antigravity | Implemented; focused/full suite passed | Native readiness only; login/inference pending | PR pending |
-| 4 Grok ACP | Pending | Pending | Pending |
+| 3 Antigravity | Integrated | Native readiness only; login/inference pending | #111 merged; both post-merge CI passed |
+| 4 Grok ACP | Implemented; final verification passed | Native readiness only; login/inference pending | Pending |
 | 5 DeepSeek API | Pending | Pending | Pending |
 | 6 Player/QA comparison and sanitized blog artifacts | Pending | Pending | Pending |
 
@@ -131,3 +131,21 @@ not the normal campaign. The production connection picker is used; no QA approva
 - Official references: https://antigravity.google/docs/cli/headless/ ; https://antigravity.google/docs/cli/install/ ; https://antigravity.google/docs/cli/permissions/ ; https://antigravity.google/docs/subagents
 
 Claude #110 integration: final HEAD 7c16deb9b58da504ba196dde2d19cab0e7ac1c94; merge 10c2710e0da38dfd28c5bbe467917597422d5acd. Exact CI 34149273734 / Live QA 34149273772 passed. Post-merge CI 34149549554 / Live QA 34149549545 passed. Real Claude service acceptance remains pending.
+
+## Grok ACP implementation
+
+- Official native `grok agent stdio` uses JSON-RPC 2.0. The adapter initializes with no filesystem or terminal capability, rejects tool requests and uses a fresh session for one human input. Only a matching session's text followed by `end_turn` becomes a candidate. Cancellation, partial completion, foreign sessions and changed models cannot commit.
+- Dedicated GROK_HOME, platform home and work directories isolate settings and authentication. API keys and backend overrides are excluded. Tools, subagents, memory, compatibility scanners, web search and automatic updater are disabled; permission rules deny all tools and model retries are zero.
+- The connection picker shows transmission consent and requires an explicit model ID. Official `login --device-auth` runs in a dedicated VS Code terminal with strict environment inheritance. A premature readiness check leaves the login terminal alive. Cancellation/workspace invalidation disposes the owned terminal and client. No authentication code is collected by LoreRelay.
+- Readiness requires an authenticated session and a matching reported model. When advertised, cached-token authentication is used; API-key authentication is never selected. Initialize success alone is not authentication success.
+- Actual installed native 1.0.13 (5e9a58528b76), SHA256 bf43dc75f5478a106eab1e86d422c963e4dbe9666cf14dab363733d27bf1e672, returned login_required through the adapter with modelCalled=false. Real login, model response, three turns, stop and rendered GM acceptance remain UNVERIFIED.
+- Bounded adversarial verification covered process isolation, cancellation, timeout, partial response, model changes and shared Host late-candidate rejection. The repair uses ACP's cancelled permission outcome and rejects model-change updates. Focused repair tests passed; final suite evidence is recorded below when complete.
+- Test Console selected 37 focused tests / 40 commands and passed before the bounded repair. Grok protocol, process and shared Host tests passed after repair. No Human Play claim.
+
+References: [official Grok ACP](https://docs.x.ai/build/cli/headless-scripting),
+[official Grok settings](https://docs.x.ai/build/settings/reference),
+[ACP prompt completion and cancellation](https://agentclientprotocol.com/protocol/v1/prompt-turn).
+
+Antigravity #111: final HEAD 2f7359ea008795e75fc3c66de422312dcc9c263f; merge 659ae767fec3685824694ff8114c59e62b088ee1. Exact CI 34150807422 / Live QA 34150807429 and post-merge CI 34151079268 / Live QA 34151079330 passed.
+
+Grok final verification: full suite 372/372, Combat 736/736 (170.0 seconds); real Windows lifecycle_v1 passed. Actual Grok login/inference and rendered GM acceptance remain unverified.

@@ -1,0 +1,63 @@
+const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
+const { PassThrough, Writable } = require('node:stream');
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+const cp = require('node:child_process'), originalSpawn = cp.spawn;
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-grok-'));
+let mode = 'success', kills = 0;
+const launches = [];
+cp.spawn = (exe, args, options) => {
+    const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
+    child.kill = () => { kills++; return true; };
+    const calls = []; launches.push({ args, options, calls });
+    const emit = value => child.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...value }) + '\n');
+    child.stdin = new Writable({ write(chunk, _, done) {
+        const call = JSON.parse(chunk.toString()); calls.push(call); done();
+        queueMicrotask(() => {
+            if (call.method === 'initialize') emit({ id: call.id, result: { protocolVersion: 1 } });
+            if (call.method === 'session/new') {
+                if (mode === 'unauth') emit({ id: call.id, error: { code: -32000, message: 'Authentication required' } });
+                else emit({ id: call.id, result: { sessionId: 's', models: { currentModelId: mode === 'wrong-model' ? 'other' : 'fixture' } } });
+            }
+            if (call.method === 'session/prompt' && mode !== 'pending') {
+                emit({ method: 'session/update', params: { sessionId: 's', update: {
+                    sessionUpdate: mode === 'tools' ? 'tool_call' : 'agent_message_chunk', content: { type: 'text', text: 'candidate' },
+                } } });
+                emit({ id: call.id, result: { stopReason: mode === 'partial' ? 'max_tokens' : 'end_turn' } });
+            }
+        });
+    } });
+    return child;
+};
+const { GrokGmClient } = require('../out/grokGmClient');
+const make = () => new GrokGmClient({ executable: __filename, profileDirectory: path.join(root, 'profile'),
+    workingDirectory: path.join(root, 'work'), model: 'fixture', timeoutMs: 50 });
+(async () => {
+    let client = make(); assert.equal(await client.initialize(), 'ready');
+    assert.equal(await client.generate('fixture context', () => {}), 'candidate');
+    await assert.rejects(client.generate('duplicate', () => {}), /busy_or_closed/);
+    const launch = launches.at(-1);
+    assert.equal(launch.calls.filter(call => call.method === 'session/prompt').length, 1);
+    assert.equal(launch.options.shell, false);
+    assert.equal(launch.options.env.XAI_API_KEY, undefined);
+    assert.equal(launch.options.env.GROK_HOME, path.join(root, 'profile'));
+    assert.equal(launch.options.env.GROK_CLAUDE_MCPS_ENABLED, '0');
+    assert.equal(launch.options.env.GROK_MEMORY, '0');
+    assert.equal(launch.args[launch.args.indexOf('--tools') + 1], '');
+    assert.equal(launch.calls[0].params.clientCapabilities.terminal, false);
+    client.dispose();
+    mode = 'unauth'; client = make(); assert.equal(await client.initialize(), 'login_required');
+    await assert.rejects(client.generate('never send', () => {}));
+    assert(!launches.at(-1).calls.some(call => call.method === 'session/prompt')); client.dispose();
+    mode = 'wrong-model'; client = make(); await assert.rejects(client.initialize(), /model_unverified/); client.dispose();
+    for (mode of ['tools', 'partial']) {
+        client = make(); await client.initialize(); await assert.rejects(client.generate('fixture', () => {})); client.dispose();
+    }
+    mode = 'pending'; client = make(); await client.initialize();
+    const cancelled = assert.rejects(client.generate('fixture', () => {}), /cancelled/);
+    client.dispose(); await cancelled;
+    assert(launches.at(-1).calls.some(call => call.method === 'session/cancel'));
+    client = make(); await client.initialize(); await assert.rejects(client.generate('fixture', () => {}), /timeout/); client.dispose();
+    assert(kills > 0);
+    console.log('Grok process isolation, readiness, one request, model mismatch, tools, partial, cancellation and timeout passed.');
+})().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { cp.spawn = originalSpawn; });

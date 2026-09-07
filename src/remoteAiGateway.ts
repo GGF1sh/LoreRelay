@@ -3,6 +3,7 @@ import * as path from 'path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { createRemoteTunnelWitness } from './remoteTunnelWitness';
 import { CHAT_NATIVE_CARD_HTML, CHAT_NATIVE_CARD_URI } from './chatNativeCard';
+import { buildVoiceCompanionConfig } from './voiceCompanionCore';
 const { McpServer, WebStandardStreamableHTTPServerTransport } = require('@modelcontextprotocol/server');
 const { Client } = require('@modelcontextprotocol/client');
 const { StdioClientTransport } = require('@modelcontextprotocol/client/stdio');
@@ -164,5 +165,14 @@ export async function openRemoteAiGateway(role: 'companion' | 'narrator', endpoi
     const port = (listener.address() as import('net').AddressInfo).port;
     origin ||= `http://127.0.0.1:${port}`;
     if (publicOrigin) tunnel = createRemoteTunnelWitness(publicOrigin, close);
-    return { pairingCode, localPort: port, url: `${origin}/mcp`, close, isClosed: () => closed };
+    return { pairingCode, localPort: port, url: `${origin}/mcp`, close, isClosed: () => closed,
+        issueVoiceConfiguration() {
+            if (closed || paired || Date.now() >= expiry || !tunnel?.isReady()) throw new Error('voice_pairing_unavailable');
+            const voiceExpiry = Date.now() + 30 * 60_000;
+            const config = buildVoiceCompanionConfig(`${origin}/mcp`, bearer, voiceExpiry, role);
+            // This Host-local issuance consumes the same one-time pairing slot.
+            paired = true; expiry = voiceExpiry; lastRequest = Date.now();
+            return config;
+        },
+    };
 }

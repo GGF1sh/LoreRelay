@@ -14,6 +14,7 @@ async function main() {
     const gateway = await openRemoteAiGateway('companion', host.endpoint, host.secret);
     const client = new Client({ name: 'remote-sdk-fixture', version: '1.0.0' });
     const root = gateway.url.replace(/\/mcp$/, '');
+    assert.throws(() => gateway.issueVoiceConfiguration(), /voice_pairing_unavailable/, 'unverified/non-HTTPS endpoint cannot issue Voice credentials');
     const pair = code => fetch(root + '/pair', { method: 'POST', body: JSON.stringify({ code }) });
     try {
         assert.equal((await fetch(gateway.url, { method: 'POST', body: '{}' })).status, 401);

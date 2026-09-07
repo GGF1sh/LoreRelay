@@ -92,3 +92,30 @@ public reads, write rejection, origin rejection, DELETE and Host-disconnect
 invalidation have passed. Actual external client/tunnel and installed Host UI
 verification remain outstanding. Standard clients requiring OAuth discovery
 instead of custom bearer configuration are not yet supported by this preview.
+
+## Grok Voice companion configuration (in progress)
+
+For an unused read-only remote connection whose HTTPS tunnel has been verified,
+open AI connection status, select that connection, and choose **Grok Voice設定を作成**.
+This consumes its one-time pairing slot and displays a Speech-to-Speech
+`session.update` configuration. It permits only public read tools. Normal Host
+approval is still required when the voice service connects.
+
+Creating the configuration does not send it to xAI, open a microphone, or create a
+voice session. Sending it later gives xAI the short-lived read token and access to
+the approved public facts. The xAI Voice API requires separate authentication;
+no xAI API key is embedded. Do not save or commit the generated configuration.
+
+Run `node scripts/serve_voice_client.js` and open its loopback URL for the browser
+client. Enter the Host-generated configuration and a separately issued xAI Voice
+ephemeral token (not a permanent API key). Explicit consent and Start are required.
+The browser sends 24 kHz PCM microphone input after session configuration is
+accepted, plays streamed output, and releases audio resources on Stop. It does not
+automatically reconnect or persist credentials, transcripts, or recordings.
+
+Transport/media behavior has been tested with mocks. A real Chromium test with its
+synthetic microphone also passed AudioWorklet capture, PCM delivery/playback and
+Stop cleanup while replacing the external socket. Physical microphone/speaker,
+xAI session, speech quality, and token issuance integration remain unverified;
+this is not a completed end-to-end Voice integration.
+Reference: https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech .

@@ -348,5 +348,49 @@ No Human Play has been performed by this work.
 - Syntax and existing closed-protocol/failure-worker tests passed. This does not
   resolve the actual cleanup failure. Grok payload approval remains pending.
 
+### Continuation: Voice companion configuration wiring
+
+- Verified current xAI Speech-to-Speech docs: remote MCP uses session.update tools,
+  allowed_tools and Bearer authorization; realtime endpoint can select
+  grok-voice-latest. Added `voiceCompanionCore.ts` generating that read-only config.
+- Host connection status can issue a Voice config only for an unused HTTPS-verified
+  remote connection. Issuance consumes the same pairing slot; it does not introduce
+  a network role-switch endpoint. Only companion/Narrator read tools are listed.
+  User-facing text explains the later disclosure to xAI; generating config sends
+  nothing externally and starts no microphone.
+- Compile, Voice config validation tests and remote SDK tests passed, including
+  refusal to issue Voice config for a non-verified/non-HTTPS connection. Actual
+  successful issuance through an external tunnel, voice session, microphone/audio
+  client, and speech output remain incomplete. No claim of completed Voice support.
+- Source: https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech .
+
+### Continuation: browser Voice client implementation
+
+- Added `integrations/voice-client.html`/`.js` and a fixed-route loopback static
+  server. Browser requires explicit consent and Start, a Host-issued read-only
+  config, and an xAI ephemeral token. No credentials are handled by the static
+  server. No automatic network/microphone activity occurs on page load.
+- Implemented WebSocket session update, read-only tool allowlist, 24 kHz AudioWorklet
+  capture/PCM encoding, streamed PCM playback, speech interruption, bounded queues,
+  expiry and startup timeout, and Stop/disconnect cleanup without reconnection.
+- Mocked transport/media test passed for consent, invalid write tools, configuration,
+  PCM round-trip, microphone stop, audio context release and no automatic reconnect.
+  No actual API or microphone was used. Browser AudioWorklet/real speech validation,
+  ephemeral-token issuance integration and end-to-end Voice are still outstanding.
+- Grok Build payload permission remains pending; this work does not bypass that
+  rejection and no credentials were sent to xAI in this turn.
+
+### Continuation: actual browser synthetic-audio verification
+
+- Added `scripts/smoke_voice_browser.js`: real Chromium, synthetic device flags,
+  muted output, loopback client assets, a replaced WebSocket class and a network
+  guard that prevents real external sockets. No actual user microphone or xAI call.
+- Passed: no socket/media before Start, real AudioWorklet delivery of three
+  2,400-sample PCM frames (7,200 samples), playback callback, Stop ending tracks,
+  closed audio context/socket and cleared credential fields. No browser page errors.
+- This advances browser implementation evidence beyond VM mocks, but does not
+  prove xAI authentication, real speech interaction, physical audio quality or
+  completed Voice integration. Payload approval and final integration remain open.
+
 Before planning verification, follow `docs/DEVELOPMENT_VERIFICATION_POLICY.md`. Do not
 escalate beyond its risk tier without a concrete reason.

@@ -130,7 +130,21 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
         if (!entries.length) { void vscode.window.showInformationMessage('LoreRelay: AI接続は開始されていません。'); return; }
         const selected = await vscode.window.showQuickPick(entries, { title: 'AI接続の状態（ゲーム操作は実行しません）',
             placeHolder: '公開toolの存在は、現在のexecute承認・残回数を保証しません。' });
-        if (selected && await vscode.window.showInformationMessage(selected.label, 'この接続を停止') === 'この接続を停止') stop(selected.role);
+        if (!selected) return;
+        const gateway = gateways.get(selected.role);
+        const choice = await vscode.window.showInformationMessage(selected.label, 'この接続を停止',
+            ...(gateway && !gateway.isClosed() ? ['Grok Voice設定を作成'] : []));
+        if (choice === 'この接続を停止') stop(selected.role);
+        else if (choice === 'Grok Voice設定を作成' && gateway) {
+            try {
+                const config = gateway.issueVoiceConfiguration();
+                output.clear();
+                output.appendLine('Grok Voice相談役の設定です。今回の接続コードは消費されました。');
+                output.appendLine('この設定をxAIへ送ると、一時読取tokenと公開ゲーム情報をxAIが利用します。ここでは送信もマイク起動も行いません。');
+                output.appendLine('別途xAI Voiceの認証が必要です。設定を保存・共有・commitしないでください。失効後は新規接続が必要です。');
+                output.appendLine(JSON.stringify(config, null, 2)); output.show(true);
+            } catch { void vscode.window.showWarningMessage('Voice設定は、HTTPS tunnelへの到達確認が済んだ未使用接続で作成してください。'); }
+        }
     }
     context.subscriptions.push(output, { dispose: stopAll },
         onExperienceProfileChanged(stopAll),

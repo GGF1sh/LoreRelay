@@ -22,6 +22,10 @@ async function run(options = {}) {
             if (options.timeout) throw new Error('codex_login_timeout');
         }
         async checkAuthentication() { events.push('checked'); return 'ready'; }
+        async listModels() {
+            if (options.catalogFailure) throw new Error('catalog unavailable');
+            return [{ model: 'fixture-model', displayName: 'Fixture' }, { model: 'another-model', displayName: 'Another' }];
+        }
         generate() { throw new Error('LOGIN_MUST_NOT_CALL_MODEL'); }
         dispose() { this.disposed = true; }
     }
@@ -34,7 +38,12 @@ async function run(options = {}) {
         window: {
             showWarningMessage: async () => '接続設定へ進む',
             showInputBox: async () => { if (options.changeWorkspace) workspace += '-changed'; return 'fixture-model'; },
-            showQuickPick: async items => items.find(item => item.mode === (options.mode ?? 'device')),
+            showQuickPick: async items => {
+                if (items[0]?.mode) return items.find(item => item.mode === (options.mode ?? 'device'));
+                if (options.cancelPicker) return undefined;
+                if (options.changeOnPicker) workspace += '-changed';
+                return items.find(item => item.model === (options.selectModel ?? ''));
+            },
             showInformationMessage: async (_text, arg) => arg?.modal ? options.cancelCode ? undefined : 'コードをコピーしてブラウザーを開く' : undefined,
             showErrorMessage: async message => errors.push(message),
             withProgress: async (_, fn) => fn({}, { isCancellationRequested: Boolean(options.cancelProgress),
@@ -67,11 +76,18 @@ async function main() {
     for (const options of [{ cancelCode: true }, { cancelProgress: true }, { timeout: true }, { open: false }, { changeWorkspace: true }, { changeOnCopy: true }]) {
         const result = await run(options);
         assert.equal(result.updates.length, 0);
-        if (options.changeWorkspace) assert.equal(result.events.length, 0);
+        if (options.changeWorkspace) assert(result.events.includes('checked'));
         if (options.cancelCode) assert(!result.events.includes('copied') && !result.events.includes('opened'));
         if (options.changeOnCopy) assert(!result.events.includes('opened'));
         if (options.timeout) assert(result.logs.some(line => line.includes('timed_out')));
         if (options.cancelProgress) assert(result.logs.some(line => line.includes('connection_closed')));
+    }
+    const selected = await run({ selectModel: 'another-model' });
+    assert.equal(selected.updates[0][1].model, 'another-model');
+    const fallback = await run({ catalogFailure: true });
+    assert.equal(fallback.updates[0][1].model, 'fixture-model');
+    for (const options of [{ cancelPicker: true }, { changeOnPicker: true }]) {
+        assert.equal((await run(options)).updates.length, 0);
     }
     console.log('Codex login Host: official device/browser choices, explicit code copy, completion, cancellation, timeout, stale setup and secret-free diagnostics passed. Authentication mocked.');
 }

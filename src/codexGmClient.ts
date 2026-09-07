@@ -99,6 +99,30 @@ export class CodexGmClient implements GmConnectionAdapter {
         return 'ready';
     }
 
+    /** Read the official visible catalog without starting a model turn. */
+    async listModels(): Promise<Array<{ model: string; displayName: string }>> {
+        if (!this.authenticated) { throw new Error('codex_login_required'); }
+        const models = new Map<string, { model: string; displayName: string }>();
+        const cursors = new Set<string>();
+        let cursor: string | undefined;
+        for (let page = 0; page < 5; page++) {
+            const result = await this.rpc.request('model/list', { limit: 100, includeHidden: false, ...(cursor ? { cursor } : {}) }) as JsonObject;
+            if (!result || !Array.isArray(result.data) || result.data.length > 100) { throw new Error('codex_model_list_invalid'); }
+            for (const item of result.data) {
+                if (!item || item.hidden !== false || typeof item.model !== 'string' || !/^[a-zA-Z0-9_.-]{1,100}$/.test(item.model)) { continue; }
+                const displayName = typeof item.displayName === 'string'
+                    ? item.displayName.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 120) : item.model;
+                models.set(item.model, { model: item.model, displayName: displayName || item.model });
+            }
+            if (result.nextCursor == null) { return [...models.values()]; }
+            if (typeof result.nextCursor !== 'string' || !result.nextCursor || result.nextCursor.length > 1024 || cursors.has(result.nextCursor)) {
+                throw new Error('codex_model_list_invalid');
+            }
+            cursor = result.nextCursor; cursors.add(cursor);
+        }
+        throw new Error('codex_model_list_invalid');
+    }
+
     async startLogin(): Promise<{ loginId: string; authUrl: string }> {
         this.loginCompleted = undefined;
         const result = await this.rpc.request('account/login/start', { type: 'chatgpt' }) as JsonObject;

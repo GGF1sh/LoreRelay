@@ -68,13 +68,26 @@ export function createPlayerDelegation(bindings: Bindings, allowed: readonly Gam
 }
 /** Separate read-only authority and entrypoint; never upgrades into Player or QA. */
 export function createNarratorReader(bindings: Bindings): AgentConnectionApi {
+    return createPublicReader(bindings, false);
+}
+/** Fixed read-only companion authority; never exposes preview, confirmation or execute. */
+export function createCompanionReader(bindings: Bindings): AgentConnectionApi {
+    return createPublicReader(bindings, true);
+}
+function createPublicReader(bindings: Bindings, companion: boolean): AgentConnectionApi {
     const context = bindings.service.createTrustedSession('narrator');
     const scope = hashGameActionValue(bindings.scope());
     let active = true;
     const dispose = () => { active = false; bindings.service.close(context); };
     return { dispose, async call(tool, args) {
         if (!active || !bindings.current() || hashGameActionValue(bindings.scope()) !== scope) { dispose(); return rejection(args, 'rejected_forbidden'); }
-        if (tool !== 'read_committed_facts' || !fields(args, [])) return rejection(args, 'rejected_forbidden');
+        if (!fields(args, [])) return rejection(args, 'rejected_forbidden');
+        if (companion) {
+            if (tool === 'read_player_view') return bindings.service.readPlayerView(context);
+            if (tool === 'query_available') return bindings.service.queryAvailable(context);
+            return rejection(args, 'rejected_forbidden');
+        }
+        if (tool !== 'read_committed_facts') return rejection(args, 'rejected_forbidden');
         return { facts: bindings.service.readPlayerView(context) };
     } };
 }

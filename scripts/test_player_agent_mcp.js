@@ -215,7 +215,29 @@ async function main() {
     }
     // Packaging retains the official runtime dependencies used by the installed entrypoints.
     const ignore = fs.readFileSync(path.join(__dirname, '../.vscodeignore'), 'utf8');
-    for (const name of ['@modelcontextprotocol/server', '@modelcontextprotocol/core', 'zod']) assert(ignore.includes(`!node_modules/${name}/**`));
+    for (const directory of ['.test-runs', '.tmp', '.vscode-test']) {
+        assert(ignore.split(/\r?\n/).includes(`${directory}/**`), `VSIX must exclude local QA artifacts: ${directory}`);
+    }
+    const dependencies = new Set();
+    function checkRuntimePackage(name, from) {
+        if (dependencies.has(name)) return;
+        dependencies.add(name);
+        assert(ignore.includes(`!node_modules/${name}/**`), `VSIX excludes runtime dependency: ${name}`);
+        let directory = path.dirname(require.resolve(name, { paths: [from] }));
+        let metadata;
+        while (true) {
+            const file = path.join(directory, 'package.json');
+            if (fs.existsSync(file)) {
+                const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+                if (value.name === name) { metadata = value; break; }
+            }
+            const parent = path.dirname(directory);
+            assert.notEqual(parent, directory, `missing metadata: ${name}`);
+            directory = parent;
+        }
+        for (const dependency of Object.keys(metadata.dependencies || {})) checkRuntimePackage(dependency, directory);
+    }
+    for (const name of ['@modelcontextprotocol/server', '@modelcontextprotocol/client']) checkRuntimePackage(name, path.join(__dirname, '..'));
     console.log('Player MCP: official stdio client, production fixture actions, pairing denial, limits, revocation, privacy and uncertain outcomes passed.');
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,4 +1,5 @@
 {
+  "command.aiConnectionStatus": "LoreRelay: AI 連線狀態",
   "command.openGame": "LoreRelay: 開啟遊戲 UI",
   "command.listImageModels": "LoreRelay: 列出圖像模型",
   "command.scanLocalModels": "LoreRelay: 掃描本機模型檔案",
@@ -105,6 +106,7 @@
   "command.startActionRecording": "開始錄製交易操作",
   "command.stopActionRecording": "停止錄製交易操作",
   "command.exportActionRecording": "匯出交易操作錄製範本",
+  "command.openAiConnection": "LoreRelay: AI 連線",
   "command.startPlayerAgent": "連接玩家代理",
   "command.stopPlayerAgent": "停止玩家操作委託",
   "command.startNarrator": "連接唯讀敘述器",

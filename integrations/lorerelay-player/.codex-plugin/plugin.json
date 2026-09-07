@@ -1,0 +1,19 @@
+{
+  "name": "lorerelay-player",
+  "version": "0.1.0",
+  "description": "Use LoreRelay public views and Host-authorized Commerce actions.",
+  "author": {
+    "name": "LoreRelay"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LoreRelay Player",
+    "shortDescription": "Play through LoreRelay's approved actions.",
+    "longDescription": "Read the public game view, compare available actions, and execute only within an explicit LoreRelay Host delegation.",
+    "developerName": "LoreRelay",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Read my LoreRelay player view and help me choose my next action."
+  },
+  "mcpServers": "./.mcp.json"
+}

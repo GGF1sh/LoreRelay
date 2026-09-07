@@ -6,8 +6,8 @@ import { randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import type { AgentConnectionApi } from './playerDelegationCore';
 
 /** Local IPC only. The role and authority factory are fixed by the Host entrypoint. */
-export async function openAgentConnection(role: 'player' | 'narrator',
-    approve: (clientSession: string) => Promise<AgentConnectionApi | undefined>) {
+export async function openAgentConnection(role: 'player' | 'narrator' | 'companion',
+    approve: (clientSession: string, clientName?: string) => Promise<AgentConnectionApi | undefined>) {
     const session = randomUUID();
     const secret = randomBytes(32).toString('hex');
     const root = process.platform === 'win32' ? undefined
@@ -16,12 +16,16 @@ export async function openAgentConnection(role: 'player' | 'narrator',
     const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\lorerelay-${role}-${session}` : path.join(root!, `${role}.sock`);
     let closed = false;
     let claimed = false;
+    let phase: 'waiting' | 'approval_pending' | 'connected' | 'closed' = 'waiting';
+    let clientSession: string | undefined;
+    let clientName: string | undefined;
+    let completedCalls = 0;
     let api: AgentConnectionApi | undefined;
     const sockets = new Set<net.Socket>();
     const cleanup = () => { if (root) try { fs.rmdirSync(root); } catch { /* never remove unknown contents */ } };
     const dispose = () => {
         if (closed) return;
-        closed = true; clearTimeout(expiry); api?.dispose();
+        closed = true; phase = 'closed'; clearTimeout(expiry); api?.dispose();
         for (const socket of sockets) socket.destroy();
         server.close(cleanup);
     };
@@ -41,15 +45,21 @@ export async function openAgentConnection(role: 'player' | 'narrator',
             if (!value || typeof value !== 'object' || Array.isArray(value)) { socket.destroy(); return; }
             const message = value as Record<string, unknown>;
             if (!authenticated) {
-                if (authorizing || claimed || Object.keys(message).some(key => !['type', 'secret', 'clientSession'].includes(key))
+                if (authorizing || claimed || Object.keys(message).some(key => !['type', 'secret', 'clientSession', 'clientName'].includes(key))
                     || message.type !== 'hello' || typeof message.secret !== 'string' || !/^[a-f0-9]{64}$/.test(message.secret)
                     || !timingSafeEqual(Buffer.from(message.secret, 'hex'), Buffer.from(secret, 'hex'))
-                    || typeof message.clientSession !== 'string' || !/^[a-f0-9-]{36}$/.test(message.clientSession)) { socket.destroy(); return; }
+                    || typeof message.clientSession !== 'string' || !/^[a-f0-9-]{36}$/.test(message.clientSession)
+                    || (message.clientName !== undefined && (typeof message.clientName !== 'string'
+                        || !/^[\p{L}\p{N} ._@/-]{1,80}$/u.test(message.clientName)))) { socket.destroy(); return; }
                 claimed = true; authorizing = true;
+                clientSession = message.clientSession;
+                clientName = message.clientName as string | undefined;
+                phase = 'approval_pending';
                 try {
-                    const granted = await approve(message.clientSession);
+                    const granted = await approve(message.clientSession, clientName);
                     if (closed || socket.destroyed || !granted) { granted?.dispose(); dispose(); return; }
                     api = granted; authenticated = true; authorizing = false;
+                    phase = 'connected';
                     clearTimeout(expiry); expiry = setTimeout(dispose, 30 * 60_000); expiry.unref();
                     send({ type: 'ready', session });
                 } catch { dispose(); }
@@ -64,7 +74,7 @@ export async function openAgentConnection(role: 'player' | 'narrator',
             pending++;
             try { send({ id: message.id, session, result: await api!.call(message.tool, message.args) }); }
             catch { send({ id: message.id, session, result: { classification: 'rejected_forbidden' } }); }
-            finally { pending--; }
+            finally { pending--; completedCalls++; }
         }
         socket.on('data', chunk => {
             buffer += chunk;
@@ -80,5 +90,7 @@ export async function openAgentConnection(role: 'player' | 'narrator',
         await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(endpoint, resolve); });
         if (root) fs.chmodSync(endpoint, 0o600);
     } catch (error) { dispose(); throw error; }
-    return { endpoint, secret, session, dispose };
+    // Host-only observation. No game read, tool call, initialization or authority creation.
+    const getAgentConnectionStatus = () => ({ phase, clientSession, clientName, completedCalls });
+    return { endpoint, secret, session, dispose, getAgentConnectionStatus };
 }

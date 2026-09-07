@@ -1,5 +1,5 @@
 import { canonicalizeAcceptedTurnPayload, sha256Hex } from './acceptedTurnReplayGuardCore';
-export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription';
+export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli';
 
 /** Transport-only contract. Adapters never receive canonical paths or persistence callbacks. */
 export interface GmConnectionAdapter {
@@ -13,6 +13,12 @@ export interface GmConnectionAdapter {
 export function formatGmConnectionError(error: unknown): string {
     const code = error instanceof Error ? error.message : '';
     const messages: Record<string, string> = {
+        antigravity_start_failed: 'Antigravity CLIを起動できません。公式CLIの導入と実行パスを確認してください。',
+        antigravity_login_required: 'Google公式ログインが必要です。「LoreRelay: AI接続」から接続してください。',
+        antigravity_auth_unverified: 'Antigravityの認証を確認できません。公式ログインを再確認してください。',
+        antigravity_version_unsupported: 'Antigravityの必要な機能を確認できません。公式CLIを更新してください。',
+        antigravity_timeout: 'Antigravityの応答待ちが終了しました。入力を保持し、自動再送は行いません。',
+        antigravity_invalid_candidate: 'Antigravityの応答を検証できませんでした。ゲームには適用していません。',
         claude_start_failed: 'Claude Codeを起動できません。公式CLIの導入と実行パスを確認してください。',
         claude_version_unsupported: 'Claude Codeの必要な隔離機能を確認できません。公式CLIを更新してください。',
         claude_login_required: 'Claudeのログインが必要です。「LoreRelay: AI接続」から接続してください。',

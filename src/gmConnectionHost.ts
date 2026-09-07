@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { CodexGmClient } from './codexGmClient';
+import { AntigravityGmClient } from './antigravityGmClient';
 import { ClaudeGmClient } from './claudeGmClient';
 import { GmCandidateGate, formatGmConnectionError, type GmConnectionWitness, type GmConnectionAdapter, type ConnectedGmProvider } from './gmConnectionCore';
 import { loadExistingAcceptedTurnScope, loadAcceptedTurnLedger } from './acceptedTurnReplayGuard';
@@ -21,6 +22,10 @@ let cancellationGeneration = 0;
 const hostSession = randomUUID();
 const profileKey = 'gmConnection.v2.codex';
 const claudeProfileKey = 'gmConnection.v2.claude';
+const antigravityProfileKey = 'gmConnection.v2.antigravity';
+function connectionProfileKey(provider: ConnectedGmProvider): string {
+    return provider === 'codex-app-server' ? profileKey : provider === 'antigravity-cli' ? antigravityProfileKey : claudeProfileKey;
+}
 interface Profile { executable: string; model: string }
 
 export function initializeGmConnectionHost(value: vscode.ExtensionContext, gate: DeterministicWorkspaceMutationGate,
@@ -44,14 +49,14 @@ export function isGmConnectionBusy(): boolean { return activeClient !== undefine
 
 export async function runConnectedGmChat(prompt: string, provider: ConnectedGmProvider = 'codex-app-server'): Promise<{ ok: boolean; text: string; model?: string }> {
     if (!context || activeClient) { return { ok: false, text: '' }; }
-    const profile = context.workspaceState.get<Profile>(provider === 'codex-app-server' ? profileKey : claudeProfileKey);
+    const profile = context.workspaceState.get<Profile>(connectionProfileKey(provider));
     if (!profile) { return { ok: false, text: '' }; }
     const generation = cancellationGeneration;
     const workspace = getWorkspacePath();
     let client: GmConnectionAdapter | undefined;
     try {
         client = makeClient(profile, provider); activeClient = client;
-        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : 'claude_login_required'); }
+        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
         const text = await client.generate(prompt, () => {});
         if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return { ok: false, text: '' }; }
         return { ok: true, text, model: profile.model };
@@ -63,7 +68,7 @@ export async function runConnectedGmChat(prompt: string, provider: ConnectedGmPr
 
 function connectionDirectories(provider: ConnectedGmProvider) {
     if (!context) { throw new Error('GM connection Host is unavailable'); }
-    const root = path.join(context.globalStorageUri.fsPath, provider === 'codex-app-server' ? 'gm-codex-v2' : 'gm-claude-v2');
+    const root = path.join(context.globalStorageUri.fsPath, provider === 'codex-app-server' ? 'gm-codex-v2' : provider === 'antigravity-cli' ? 'gm-antigravity-v2' : 'gm-claude-v2');
     const profileDirectory = path.join(root, 'profile');
     const workingDirectory = path.join(root, 'work');
     fs.mkdirSync(profileDirectory, { recursive: true });
@@ -73,7 +78,8 @@ function connectionDirectories(provider: ConnectedGmProvider) {
 
 function makeClient(profile: Profile, provider: ConnectedGmProvider): GmConnectionAdapter {
     const options = { ...profile, ...connectionDirectories(provider) };
-    return provider === 'codex-app-server' ? new CodexGmClient(options) : new ClaudeGmClient(options);
+    return provider === 'codex-app-server' ? new CodexGmClient(options)
+        : provider === 'antigravity-cli' ? new AntigravityGmClient(options) : new ClaudeGmClient(options);
 }
 
 export async function configureCodexGm(): Promise<void> {
@@ -114,6 +120,48 @@ export async function configureCodexGm(): Promise<void> {
     } catch (error) {
         void vscode.window.showErrorMessage(`Codex GM接続: ${formatGmConnectionError(error)}`);
     } finally { client?.dispose(); if (activeClient === client) activeClient = undefined; }
+}
+
+export async function configureAntigravityGm(): Promise<void> {
+    if (!context || isGmConnectionBusy()) return;
+    const consent = await vscode.window.showWarningMessage(
+        'AntigravityをGMとして使用します。入力・会話履歴・GM用の非公開設定をGoogleへ送ります。公式アカウントの利用枠を使い、API課金や追加AIクレジットへ自動切替しません。',
+        { modal: true }, 'GMとして接続');
+    if (!consent) return;
+    const previous = context.workspaceState.get<Profile>(antigravityProfileKey);
+    const model = await vscode.window.showInputBox({ title: 'GMに使うAntigravityモデルID（agy modelsで確認）', value: previous?.model ?? '',
+        validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : '正確なモデルIDを入力してください。' });
+    if (!model || isGmConnectionBusy()) return;
+    const profile = { executable: previous?.executable ?? 'agy', model };
+    const generation = cancellationGeneration, workspace = getWorkspacePath();
+    const client = new AntigravityGmClient({ ...profile, ...connectionDirectories('antigravity-cli') });
+    activeClient = client;
+    const inputCancellation = new vscode.CancellationTokenSource();
+    try {
+        if (await client.initialize() === 'login_required') {
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
+                title: 'Antigravity GM: 公式ログインを待っています', cancellable: true }, async (_, token) => {
+                const cancellation = token.onCancellationRequested(() => { inputCancellation.cancel(); client.dispose(); });
+                try {
+                    await client.login(async url => {
+                        if (!await vscode.env.openExternal(vscode.Uri.parse(url))) throw new Error('antigravity_browser_failed');
+                        return vscode.window.showInputBox({ title: 'Google公式画面に表示された認証コード',
+                            prompt: '認証コードは公式CLIへ渡し、保存しません。接続期限切れの場合は最初からログインしてください。',
+                            password: true, ignoreFocusOut: true }, inputCancellation.token);
+                    });
+                } finally { cancellation.dispose(); }
+            });
+        }
+        if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+        await context.workspaceState.update(antigravityProfileKey, profile);
+        await vscode.workspace.getConfiguration('textAdventure').update('gmBridge.provider', 'antigravity-cli', vscode.ConfigurationTarget.Workspace);
+        void vscode.window.showInformationMessage('Antigravity GM: 認証確認済み。実モデルの応答は次のゲーム入力で確認します。');
+    } catch (error) {
+        void vscode.window.showErrorMessage(`Antigravity GM: ${formatGmConnectionError(error)}`);
+    } finally {
+        inputCancellation.cancel(); inputCancellation.dispose(); client.dispose();
+        if (activeClient === client) activeClient = undefined;
+    }
 }
 
 export async function configureClaudeGm(): Promise<void> {
@@ -158,7 +206,7 @@ function captureWitness(workspace: string, requestId: string): GmConnectionWitne
 export async function runConnectedGmCandidate(prompt: string, normalize: (reply: string) => TurnResult,
     onDraft: (text: string) => void, afterAccepted?: () => void, provider: ConnectedGmProvider = 'codex-app-server'): Promise<boolean> {
     if (!context || !mutationGate || activeClient) { throw new Error('GM connection is busy or unavailable'); }
-    const profile = context.workspaceState.get<Profile>(provider === 'codex-app-server' ? profileKey : claudeProfileKey);
+    const profile = context.workspaceState.get<Profile>(connectionProfileKey(provider));
     const workspace = getWorkspacePath();
     if (!profile || !workspace) { throw new Error('Configure GM in AI connections first'); }
     const requestId = randomUUID();
@@ -182,7 +230,7 @@ export async function runConnectedGmCandidate(prompt: string, normalize: (reply:
     let client: GmConnectionAdapter | undefined;
     try {
         client = makeClient(profile, provider); activeClient = client;
-        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : 'claude_login_required'); }
+        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
         const reply = await client.generate(prompt, onDraft);
         const candidate = normalize(reply);
         const isCurrent = () => generation === cancellationGeneration && workspace === getWorkspacePath()

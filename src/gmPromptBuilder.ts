@@ -2312,6 +2312,7 @@ function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {
     switch (provider) {
         case 'codex-app-server':
         case 'claude-code-subscription':
+        case 'antigravity-cli':
         case 'grok':
         case 'ollama':
         case 'koboldcpp':

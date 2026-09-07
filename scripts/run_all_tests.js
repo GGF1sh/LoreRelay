@@ -59,7 +59,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_remote_tunnel_witness.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_chat_native_card.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_voice_companion.js', consumesCompiledOutput: true },
-    { category: 'unit', file: 'test_voice_client.js' },
+    { category: 'unit', file: 'test_voice_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_live_extension_qa.js', consumesCompiledOutput: true },
     { category: 'validate', file: 'validate_utf8_docs.js' },
     { category: 'validate', file: 'check_version_consistency.js' },

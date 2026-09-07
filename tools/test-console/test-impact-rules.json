@@ -2,6 +2,48 @@
   "schemaVersion": 1,
   "rules": [
     {
+      "id": "ai-client-packaging",
+      "patterns": ["src/aiClientIntegrationCore.ts", "src/playerAgentHost.ts", "src/playerIpcHost.ts", "integrations/lorerelay-player/**", "integrations/README.md", "scripts/build_ai_client_bundle.js", "scripts/build_codex_local_plugin.js", "scripts/pack_ai_client_bundle.py", "scripts/smoke_codex_config.js", "scripts/smoke_gemini_connection.js", "scripts/smoke_grok_connection.js"],
+      "tests": ["test_ai_client_integration.js", "test_ai_connection_status.js", "test_ai_client_bundle.js", "test_player_agent_mcp.js"],
+      "boundaries": ["compile"],
+      "reason": "Client configuration, fixed-role packaging and Host pairing require SDK isolation checks. Vendor application smoke is a separate explicitly launched check."
+    },
+    {
+      "id": "mcp-public-resources",
+      "patterns": ["src/mcpAdapter.ts", "src/companionMcp.ts", "src/publicGameGraphicCore.ts", "src/commerceActionRuntime.ts"],
+      "tests": ["test_ai_client_bundle.js", "test_mcp_public_events.js", "test_public_game_graphic.js", "test_player_agent_mcp.js"],
+      "boundaries": ["compile"],
+      "reason": "Public resources and images must retain role boundaries, fog projection and portable dependencies."
+    },
+    {
+      "id": "player-lab",
+      "patterns": ["src/playerLabCore.ts", "scripts/run_player_lab.js", "scripts/compare_player_lab.js", "integrations/player-lab-task.md", "scripts/smoke_codex_play.js", "scripts/smoke_grok_play.js"],
+      "tests": ["test_player_lab.js", "test_player_lab_runner.js"],
+      "boundaries": ["compile"],
+      "reason": "Fixture comparison, receipt aggregation and session cleanup require bounded SDK runner checks. Actual model play is not run by the test selector."
+    },
+    {
+      "id": "remote-ai-gateway",
+      "patterns": ["src/remoteAiGateway.ts", "src/remoteTunnelWitness.ts", "src/mcpAdapter.ts", "src/playerAgentHost.ts"],
+      "tests": ["test_remote_ai_gateway.js", "test_remote_tunnel_witness.js"],
+      "boundaries": ["compile"],
+      "reason": "Remote pairing, role boundaries and connection invalidation require local SDK and tunnel-witness checks. External HTTPS connectivity is verified separately."
+    },
+    {
+      "id": "ai-voice-client",
+      "patterns": ["src/voiceCompanionCore.ts", "integrations/voice-client.*", "scripts/serve_voice_client.js", "scripts/smoke_voice_browser.js"],
+      "tests": ["test_voice_companion.js", "test_voice_client.js", "test_remote_ai_gateway.js"],
+      "boundaries": ["compile"],
+      "reason": "Voice consent, fixed read-only configuration and audio lifecycle are checked without external API calls. Real microphone and xAI tests remain separate."
+    },
+    {
+      "id": "chat-native-card",
+      "patterns": ["src/chatNativeCard.ts", "scripts/render_chat_card.js"],
+      "tests": ["test_chat_native_card.js", "test_remote_ai_gateway.js"],
+      "boundaries": ["compile"],
+      "reason": "Public chat UI rendering and Gateway resource metadata share a read-only boundary."
+    },
+    {
       "id": "ui-presentation",
       "patterns": ["src/uiPresentationCore.ts", "webview/modules/04-ui-presentation.js", "webview/modules/06-genesis-guide.js", "webview/modules/84b-responsive-shell.js", "webview/styles/9d-ui-presentation.css", "scripts/build-webview.js"],
       "tests": ["test_ui_presentation.js", "test_webview_responsive_narrow.js", "test_webview_bundle.js", "test_world_genesis_setup.js", "validate_webview_html_structure.js"],

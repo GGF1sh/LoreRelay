@@ -47,6 +47,18 @@ const COMBAT_MANIFEST_ENTRIES = COMBAT_TEST_GROUPS.map((group) => ({
 }));
 
 const MANIFEST = [
+    { category: 'unit', file: 'test_ai_client_integration.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_ai_connection_status.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_ai_client_bundle.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_mcp_public_events.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_public_game_graphic.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_player_lab.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_player_lab_runner.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_remote_ai_gateway.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_remote_tunnel_witness.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_chat_native_card.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_voice_companion.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_voice_client.js' },
     { category: 'unit', file: 'test_live_extension_qa.js', consumesCompiledOutput: true },
     { category: 'validate', file: 'validate_utf8_docs.js' },
     { category: 'validate', file: 'check_version_consistency.js' },

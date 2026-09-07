@@ -1,4 +1,5 @@
 import { canonicalizeAcceptedTurnPayload, sha256Hex } from './acceptedTurnReplayGuardCore';
+export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription';
 
 /** Transport-only contract. Adapters never receive canonical paths or persistence callbacks. */
 export interface GmConnectionAdapter {
@@ -12,6 +13,13 @@ export interface GmConnectionAdapter {
 export function formatGmConnectionError(error: unknown): string {
     const code = error instanceof Error ? error.message : '';
     const messages: Record<string, string> = {
+        claude_start_failed: 'Claude Codeを起動できません。公式CLIの導入と実行パスを確認してください。',
+        claude_version_unsupported: 'Claude Codeの必要な隔離機能を確認できません。公式CLIを更新してください。',
+        claude_login_required: 'Claudeのログインが必要です。「LoreRelay: AI接続」から接続してください。',
+        claude_subscription_auth_required: 'Claudeのサブスク認証を確認できません。API課金へは切り替えません。',
+        claude_timeout: 'Claudeの応答待ちが終了しました。接続状態を確認してください。自動再送はしません。',
+        claude_usage_limit: 'Claudeの利用枠に達しました。利用枠の回復後に再開してください。APIへ切り替えず、自動再送もしません。',
+        claude_turn_failed: 'Claudeの応答を完了できませんでした。利用枠と接続状態を確認してください。自動再送はしません。',
         codex_start_failed: 'Codexを起動できません。公式Codex CLIの導入と実行パスを確認してください。',
         codex_login_required: 'ログインが必要です。「LoreRelay: AI接続」から公式ログインを確認してください。',
         codex_login_timeout: 'ログイン待ちが終了しました。「LoreRelay: AI接続」から新しいログインを開始してください。',

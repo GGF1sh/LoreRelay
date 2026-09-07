@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { cancelGmConnection, isGmConnectionBusy, runCodexGmCandidate } from './gmConnectionHost';
-import { formatGmConnectionError } from './gmConnectionCore';
+import { cancelGmConnection, isGmConnectionBusy, runConnectedGmCandidate } from './gmConnectionHost';
+import { formatGmConnectionError, type ConnectedGmProvider } from './gmConnectionCore';
 import { spawn, ChildProcess } from 'child_process';
 import { t, getConfiguredLocale } from './i18n';
 import {
@@ -1219,12 +1219,12 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
     }
 }
 
-async function invokeCodexGmBridge(playerAction: string): Promise<boolean> {
+async function invokeConnectedGmBridge(playerAction: string, provider: ConnectedGmProvider): Promise<boolean> {
     const workspace = getWorkspacePath();
     if (!workspace) { return false; }
     const locale = getConfiguredLocale();
     const turnId = vscodeLmNextTurnId(workspace);
-    const assembly = buildProductionPromptAssembly(playerAction, 'codex-app-server');
+    const assembly = buildProductionPromptAssembly(playerAction, provider);
     const prompt = `${vscodeLmSystemPrompt(locale)}\n[Expected turn ID] ${turnId}\n${assembly.promptText}\n[Player action]\n${playerAction}`;
     const receipt = withPromptReceiptDiagnostics(assembly.receipt, { transportPayloadHash: hashPromptReceiptText(prompt) });
     const previous = JSON.parse(fs.readFileSync(path.join(workspace, 'game_state.json'), 'utf8'));
@@ -1235,7 +1235,7 @@ async function invokeCodexGmBridge(playerAction: string): Promise<boolean> {
     requireDeps().getPanel()?.webview.postMessage({ type: 'gmStart' });
     notifyRemoteGmBusy(true);
     try {
-        const accepted = await runCodexGmCandidate(prompt, text => {
+        const accepted = await runConnectedGmCandidate(prompt, text => {
             const substitution = substituteDiceMarkersWithLedger(text);
             const json = extractVscodeLmJsonBlock(substitution.text);
             if (!json) { throw new Error('GM response has no valid JSON candidate'); }
@@ -1246,8 +1246,8 @@ async function invokeCodexGmBridge(playerAction: string): Promise<boolean> {
                 triggeredLore: getTriggeredLoreLabels(playerAction + '\n' + text),
                 promptReceipt: buildTurnResultPromptReceiptMeta(receipt),
             });
-        }, () => { vscode.window.setStatusBarMessage('Codex GM: 応答中（未確定）'); },
-        () => { vscodeLmProcessProfileUpdates(workspace, acceptedJson); });
+        }, () => { vscode.window.setStatusBarMessage('GM: 応答中（未確定）'); },
+        () => { vscodeLmProcessProfileUpdates(workspace, acceptedJson); }, provider);
         pendingDiceLedgerWritten = false;
         requireDeps().getPanel()?.webview.postMessage({ type: 'gmEnd', success: accepted });
         return accepted;
@@ -1256,7 +1256,7 @@ async function invokeCodexGmBridge(playerAction: string): Promise<boolean> {
         // Preserve evidence when the canonical commit may already have completed.
         if (!gmCancellationRequested) {
             requireDeps().getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
-            void vscode.window.showErrorMessage(`Codex GM: ${formatGmConnectionError(error)}`);
+            void vscode.window.showErrorMessage(`GM: ${formatGmConnectionError(error)}`);
         }
         return false;
     } finally {
@@ -1322,7 +1322,7 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
         ).catch((e) => console.error('Soulgaze VLM enqueue failed', e));
     }
 
-    if (provider === 'codex-app-server') { return invokeCodexGmBridge(playerAction); }
+    if (provider === 'codex-app-server' || provider === 'claude-code-subscription') { return invokeConnectedGmBridge(playerAction, provider); }
     const { maybeInvokeAgenticBridge } = await import('./agenticGmRunner');
     const agentic = await maybeInvokeAgenticBridge(
         playerAction,

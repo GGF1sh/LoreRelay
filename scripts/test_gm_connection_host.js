@@ -7,7 +7,7 @@ const { createRequire } = require('node:module');
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-gm-host-'));
 const ledgers = ['world_state.json', 'npc_registry.json', 'vehicle_state.json', 'settlement_state.json',
     'settlement_layout.json', 'discoveries.json', 'campaign_resources.json'];
-let resume, parentLease, writes = 0, busy = false, partial = false, epoch = 'epoch', afterAuthorization = () => {};
+let resume, parentLease, writes = 0, claudeStarts = 0, busy = false, partial = false, epoch = 'epoch', afterAuthorization = () => {};
 class Client {
     async initialize() { return 'ready'; }
     generate() { return new Promise(resolve => { resume = () => resolve('candidate'); }); }
@@ -18,6 +18,7 @@ const nativeRequire = createRequire(filename);
 const mocks = {
     vscode: { workspace: { onDidChangeWorkspaceFolders: () => ({}), onDidChangeConfiguration: () => ({}) } },
     './codexGmClient': { CodexGmClient: Client },
+    './claudeGmClient': { ClaudeGmClient: class extends Client { constructor() { super(); claudeStarts++; } } },
     './experience': { onExperienceProfileChanged: () => ({}) },
     './checkpointSnapshot': { CHECKPOINT_MUTABLE_LEDGER_FILES: ledgers },
     './workspacePaths': { getWorkspacePath: () => workspace },
@@ -40,9 +41,9 @@ vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
 exportsObject.initializeGmConnectionHost({ subscriptions: [], globalStorageUri: { fsPath: workspace },
     workspaceState: { get: () => ({ executable: 'fixture', model: 'fixture-model' }) },
 }, { run: async (_, identity, fn) => busy ? { status: 'busy' } : { status: 'completed', value: await fn() } }, () => parentLease);
-const start = async () => {
+const start = async provider => {
     fs.writeFileSync(path.join(workspace, 'game_state.json'), '{}');
-    const pending = exportsObject.runCodexGmCandidate('input', () => ({ turnId: 'one' }), () => {});
+    const pending = exportsObject.runConnectedGmCandidate('input', () => ({ turnId: 'one' }), () => {}, undefined, provider);
     // Register rejection immediately, before adversarial mutation and delivery.
     const result = pending.then(value => ({ value }), error => ({ error }));
     await new Promise(resolve => setImmediate(resolve));
@@ -76,5 +77,12 @@ const start = async () => {
     operation = await start(); parentLease = undefined; operation.deliver();
     assert.match((await operation.result).error.message, /stale/);
     assert.equal(writes, 3, 'An expired parent gameplay lease cannot authorize commit');
+    busy = false;
+    operation = await start('claude-code-subscription'); operation.deliver();
+    assert.equal((await operation.result).value, true);
+    operation = await start('claude-code-subscription');
+    fs.writeFileSync(path.join(workspace, 'world_state.json'), '{"changedAgain":true}'); operation.deliver();
+    assert.match((await operation.result).error.message, /stale/);
+    assert.equal(claudeStarts, 2); assert.equal(writes, 4, 'Claude shares the same late-candidate guard');
     console.log('GM Host adversarial fixture: ledger/settings changes, epoch, late delivery, post-authorization cancel, busy and partial persistence passed. No model used.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

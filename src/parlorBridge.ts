@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { runCodexGmChat } from './gmConnectionHost';
+import { runConnectedGmChat } from './gmConnectionHost';
 import { t, getConfiguredLocale } from './i18n';
 import {
     getActiveCharacterId,
@@ -247,10 +247,10 @@ function applyParlorBackgroundToWebview(): void {
 }
 
 async function invokeParlorByProfile(prompt: string, profile: ConnectionProfile): Promise<{ ok: boolean; text: string; model?: string }> {
-    if (profile.provider === 'codex-app-server') {
+    if (profile.provider === 'codex-app-server' || profile.provider === 'claude-code-subscription') {
         let success = false;
         try {
-            const result = await runCodexGmChat(prompt);
+            const result = await runConnectedGmChat(prompt, profile.provider);
             success = result.ok;
             return result;
         } finally {

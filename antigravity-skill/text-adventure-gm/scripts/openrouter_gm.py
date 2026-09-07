@@ -37,6 +37,30 @@ def encode_image(image_path: Path) -> str:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 
+def call_openai_compatible(endpoint: str, headers: dict, data: dict | None, *,
+                           timeout: int = 90, max_response_bytes: int | None = None,
+                           allow_redirects: bool = True) -> dict:
+    """Transport shared by API bridges; no prompts, persistence, retries or logging."""
+    req = urllib.request.Request(endpoint, data=None if data is None else json.dumps(data).encode("utf-8"),
+                                 headers=headers, method="GET" if data is None else "POST")
+    if allow_redirects:
+        open_request = urllib.request.urlopen
+    else:
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        # Do not inherit an unrelated proxy setting when sending a dedicated provider key.
+        open_request = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()).open
+    with open_request(req, timeout=timeout) as response:
+        raw = response.read() if max_response_bytes is None else response.read(max_response_bytes + 1)
+        if max_response_bytes is not None and len(raw) > max_response_bytes:
+            raise ValueError("api_response_too_large")
+        result = json.loads(raw.decode("utf-8"))
+        if not isinstance(result, dict):
+            raise ValueError("api_invalid_response")
+        return result
+
+
 def call_openrouter(api_key: str, model: str, system_prompt: str, user_prompt: str, max_tokens: int, image_path: Path | None = None) -> str:
     endpoint = "https://openrouter.ai/api/v1/chat/completions"
     
@@ -77,21 +101,13 @@ def call_openrouter(api_key: str, model: str, system_prompt: str, user_prompt: s
     }
     
     print(f"Calling OpenRouter ({model}, max_tokens={max_tokens}) API...", flush=True)
-    req = urllib.request.Request(
-        endpoint,
-        data=json.dumps(data).encode("utf-8"),
-        headers=headers,
-        method="POST"
-    )
-    
     try:
-        with urllib.request.urlopen(req, timeout=90) as response:
-            res = json.loads(response.read().decode("utf-8"))
-            choices = res.get("choices", [])
-            if not choices:
-                print("No choices returned from OpenRouter.", file=sys.stderr)
-                return ""
-            return choices[0].get("message", {}).get("content", "").strip()
+        res = call_openai_compatible(endpoint, headers, data)
+        choices = res.get("choices", [])
+        if not choices:
+            print("No choices returned from OpenRouter.", file=sys.stderr)
+            return ""
+        return choices[0].get("message", {}).get("content", "").strip()
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8")
         print(f"OpenRouter HTTP Error {e.code}: {e.reason}\nBody: {err_body}", file=sys.stderr)

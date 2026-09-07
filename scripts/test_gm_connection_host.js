@@ -19,6 +19,7 @@ const mocks = {
     vscode: { workspace: { onDidChangeWorkspaceFolders: () => ({}), onDidChangeConfiguration: () => ({}) } },
     './codexGmClient': { CodexGmClient: Client },
     './grokGmClient': { GrokGmClient: Client },
+    './deepSeekGmClient': { DeepSeekGmClient: Client },
     './claudeGmClient': { ClaudeGmClient: class extends Client { constructor() { super(); claudeStarts++; } } },
     './experience': { onExperienceProfileChanged: () => ({}) },
     './checkpointSnapshot': { CHECKPOINT_MUTABLE_LEDGER_FILES: ledgers },
@@ -39,7 +40,7 @@ vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
     exports: exportsObject, require: id => Object.hasOwn(mocks, id) ? mocks[id] : nativeRequire(id),
     console, Buffer,
 }, { filename });
-exportsObject.initializeGmConnectionHost({ subscriptions: [], globalStorageUri: { fsPath: workspace },
+exportsObject.initializeGmConnectionHost({ subscriptions: [], globalStorageUri: { fsPath: workspace }, extensionPath: workspace,
     workspaceState: { get: () => ({ executable: 'fixture', model: 'fixture-model' }) },
 }, { run: async (_, identity, fn) => busy ? { status: 'busy' } : { status: 'completed', value: await fn() } }, () => parentLease);
 const start = async provider => {
@@ -90,5 +91,10 @@ const start = async provider => {
     operation = await start('grok-acp'); exportsObject.cancelGmConnection(); operation.deliver();
     assert.match((await operation.result).error.message, /stale/);
     assert.equal(writes, 5, 'Grok shares admission and cannot commit after cancellation');
+    operation = await start('deepseek-api'); operation.deliver();
+    assert.equal((await operation.result).value, true);
+    operation = await start('deepseek-api'); exportsObject.cancelGmConnection(); operation.deliver();
+    assert.match((await operation.result).error.message, /stale/);
+    assert.equal(writes, 6, 'DeepSeek shares admission and cannot commit after cancellation');
     console.log('GM Host adversarial fixture: ledger/settings changes, epoch, late delivery, post-authorization cancel, busy and partial persistence passed. No model used.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

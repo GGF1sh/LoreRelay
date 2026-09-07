@@ -247,7 +247,7 @@ function applyParlorBackgroundToWebview(): void {
 }
 
 async function invokeParlorByProfile(prompt: string, profile: ConnectionProfile): Promise<{ ok: boolean; text: string; model?: string }> {
-    if (profile.provider === 'codex-app-server' || profile.provider === 'claude-code-subscription' || profile.provider === 'antigravity-cli' || profile.provider === 'grok-acp') {
+    if (profile.provider === 'codex-app-server' || profile.provider === 'claude-code-subscription' || profile.provider === 'antigravity-cli' || profile.provider === 'grok-acp' || profile.provider === 'deepseek-api') {
         let success = false;
         try {
             const result = await runConnectedGmChat(prompt, profile.provider);

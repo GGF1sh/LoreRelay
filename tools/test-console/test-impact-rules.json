@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "rules": [
       {
+        "id": "deepseek-gm-connection-v2",
+        "patterns": ["src/deepSeekGmClient.ts", "src/deepSeekGmCore.ts", "antigravity-skill/text-adventure-gm/scripts/openrouter_gm.py", "antigravity-skill/text-adventure-gm/scripts/deepseek_gm.py", "scripts/test_deepseek_api_transport.py"],
+        "tests": ["test_deepseek_gm_client.js", "test_deepseek_gm_core.js", "test_deepseek_api_transport.js", "test_gm_connection_host.js", "test_player_agent_mcp.js", "test_vscode_lm_turn_result_core.js"],
+        "boundaries": ["compile"],
+        "reason": "Shared API transport, secret admission, bounded candidate and usage accounting require hermetic coverage."
+      },
+      {
         "id": "grok-gm-connection-v2",
         "patterns": ["src/grokGmClient.ts", "src/grokGmProfile.ts", "src/grokAcpProtocol.ts", "src/grokGmProtocolCore.ts"],
         "tests": ["test_grok_gm_client.js", "test_grok_gm_protocol.js", "test_gm_connection_host.js", "test_player_agent_mcp.js", "test_vscode_lm_turn_result_core.js"],

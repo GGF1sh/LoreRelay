@@ -1322,7 +1322,7 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
         ).catch((e) => console.error('Soulgaze VLM enqueue failed', e));
     }
 
-    if (provider === 'codex-app-server' || provider === 'claude-code-subscription' || provider === 'antigravity-cli' || provider === 'grok-acp') { return invokeConnectedGmBridge(playerAction, provider); }
+    if (provider === 'codex-app-server' || provider === 'claude-code-subscription' || provider === 'antigravity-cli' || provider === 'grok-acp' || provider === 'deepseek-api') { return invokeConnectedGmBridge(playerAction, provider); }
     const { maybeInvokeAgenticBridge } = await import('./agenticGmRunner');
     const agentic = await maybeInvokeAgenticBridge(
         playerAction,

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export type GmProvider = 'grok' | 'clipboard' | 'command' | 'ollama' | 'koboldcpp' | 'openrouter' | 'vscode-lm' | 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli' | 'grok-acp';
+export type GmProvider = 'grok' | 'clipboard' | 'command' | 'ollama' | 'koboldcpp' | 'openrouter' | 'vscode-lm' | 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli' | 'grok-acp' | 'deepseek-api';
 export type ContextTier = 'small' | 'large';
 
 /** OpenRouter 等で長コンテキスト扱いするモデル名パターン */

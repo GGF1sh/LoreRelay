@@ -76,6 +76,9 @@ export function saveConnectionProfiles(file: ConnectionProfilesFile): void {
 }
 
 export function getActiveParlorConnectionProfile(): ConnectionProfile {
+    if (getGmProvider() === 'deepseek-api') {
+        return { id: 'deepseek-gm-v2', label: 'DeepSeek GM (API)', provider: 'deepseek-api' };
+    }
     if (getGmProvider() === 'grok-acp') {
         return { id: 'grok-gm-v2', label: 'Grok GM', provider: 'grok-acp' };
     }

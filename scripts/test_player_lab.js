@@ -12,6 +12,7 @@ async function main() {
     await recorder.connection.call('execute', request);
     await recorder.connection.call('execute', request);
     assert.equal(calls, 2, 'wrapper must leave authoritative replay handling to service');
+    await recorder.connection.call('wait_receipt', { requestId: request.requestId });
     const result = recorder.result(true);
     assert.equal(result.steps.length, 1, 'identical retry must not inflate action counts');
     assert(!JSON.stringify(result).includes('private-'));
@@ -20,6 +21,9 @@ async function main() {
     assert.equal(comparison.comparable, true);
     assert.equal(comparison.runs[0].committed, 0);
     assert.equal(comparison.runs[0].partialOrUnknown, 1);
+    assert.deepEqual(comparison.runs[0].receiptChecks, { calls: 1, unknown: 1, errors: 0 });
+    assert.equal(result.steps.length, 1, 'read-back does not count as another operation');
+    assert.equal(comparePlayerLabRuns([{ ...result, receiptChecks: undefined }]).runs[0].receiptChecks, null);
     assert.equal(comparePlayerLabRuns([result, recorder.result(false)]).comparable, false);
     assert.equal(comparePlayerLabRuns([result, { ...result, conditions: { ...conditions, maximum: 11 } }]).comparable, false);
     assert.equal(comparePlayerLabRuns([result, { ...result, conditions: { ...conditions, taskDigest: 'b'.repeat(64) } }]).comparable, false);
@@ -66,6 +70,8 @@ async function main() {
     await assert.rejects(failing.connection.call('execute', failedRequest), error => error === failure);
     await assert.rejects(failing.connection.call('read_player_view', {}), error => error === failure);
     assert.equal(failedCalls, 3, 'recorder does not retry or suppress the original failure');
+    await assert.rejects(failing.connection.call('wait_receipt', { requestId: failedRequest.requestId }), error => error === failure);
+    assert.deepEqual(failing.result().receiptChecks, { calls: 1, unknown: 0, errors: 1 });
     assert.deepEqual(failing.result().steps, [{ action: 'commerce:end_day', classification: 'outcome_unknown', commitStatus: 'unknown' }]);
     assert.equal(comparePlayerLabRuns([failing.result()]).runs[0].partialOrUnknown, 1);
     assert(!JSON.stringify(failing.result()).includes('private-'));

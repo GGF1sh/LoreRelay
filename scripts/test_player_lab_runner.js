@@ -38,6 +38,7 @@ async function main() {
         assert.equal(preview.ok, true);
         const receipt = await call('execute', { ...input, requestId: randomUUID(), confirmationToken: preview.confirmationToken });
         assert.equal(receipt.commitStatus, 'committed');
+        assert.equal((await call('wait_receipt', { requestId: receipt.requestId, timeoutMs: 1000 })).commitStatus, 'committed');
         if (smoke) assert.equal((await call('query_available')).delegation.remaining, 0);
         await client.close();
         assert.equal(await exit, 0);
@@ -53,6 +54,7 @@ async function main() {
         const comparison = JSON.parse(execFileSync(process.execPath, [path.join(__dirname, 'compare_player_lab.js'), info.resultFile], { encoding: 'utf8' }));
         assert.equal(comparison.comparable, false, 'SDK smoke is not an audited model comparison');
         assert.equal(comparison.runs[0].committed, 1);
+        assert.deepEqual(comparison.runs[0].receiptChecks, { calls: 1, unknown: 0, errors: 0 });
         console.log('Player Lab runner: fixture read/preview/execute, disconnect report and expired credential cleanup passed. No model comparison claimed.');
     } finally { clearTimeout(timer); await client.close(); if (child.exitCode === null) child.kill(); }
 }

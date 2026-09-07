@@ -13,6 +13,7 @@ export interface PlayerLabResult {
     model: string;
     conditions: PlayerLabConditions;
     complete: boolean;
+    receiptChecks?: { calls: number; unknown: number; errors: number };
     steps: { action: GameActionId; classification: string; commitStatus: string;
         trade?: { op: 'buy' | 'sell'; commodityId: string; qty: number; total: number } }[];
 }
@@ -22,6 +23,7 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
     const captured = JSON.parse(JSON.stringify(conditions)) as PlayerLabConditions;
     const steps: PlayerLabResult['steps'] = [];
     const requests = new Set<string>();
+    const receiptChecks = { calls: 0, unknown: 0, errors: 0 };
     let active = true;
     let pending = 0;
     const drained: (() => void)[] = [];
@@ -36,9 +38,11 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
         if (record && requests.size >= 100) return { classification: 'rejected_forbidden' };
         if (record) requests.add(fingerprint);
         let result: unknown;
+        if (tool === 'wait_receipt') receiptChecks.calls++;
         try {
             result = await api.call(tool, args);
         } catch (error) {
+            if (tool === 'wait_receipt') receiptChecks.errors++;
             // A lost response cannot prove that the operation did not commit.
             // Retain the attempted action without exporting exception diagnostics.
             if (record && captured.allowedActions.includes(input.actionId as GameActionId)) {
@@ -47,6 +51,8 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
             }
             throw error;
         }
+        if (tool === 'wait_receipt' && result && typeof result === 'object'
+            && (result as Record<string, unknown>).classification === 'outcome_unknown') receiptChecks.unknown++;
         if (record && result && typeof result === 'object') {
             const receipt = result as Record<string, unknown>;
             if (captured.allowedActions.includes(receipt.actionId as GameActionId)) {
@@ -77,7 +83,7 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
         // Invalidation refuses new calls; accepted work retains its fixture until settled.
         if (pending) await new Promise<void>(resolve => drained.push(resolve));
     }, result(complete = false): PlayerLabResult {
-        return JSON.parse(JSON.stringify({ client, model, conditions: captured, complete, steps }));
+        return JSON.parse(JSON.stringify({ client, model, conditions: captured, complete, steps, receiptChecks }));
     } };
 }
 
@@ -89,6 +95,9 @@ export function comparePlayerLabRuns(runs: readonly PlayerLabResult[]) {
     return { comparable, reason: comparable ? 'matching_completed_conditions' : 'incomplete_or_different_conditions',
         runs: runs.map(run => ({ client: run.client, model: run.model, complete: run.complete,
             executions: run.steps.length,
+            // Read-back behavior only; never overwrite the original execution outcome.
+            // Legacy reports did not observe checks, so absence must not mean zero.
+            receiptChecks: run.receiptChecks ? { ...run.receiptChecks } : null,
             committed: run.steps.filter(step => step.commitStatus === 'committed'
                 && ['committed', 'committed_with_warning'].includes(step.classification)).length,
             partialOrUnknown: run.steps.filter(step => ['partial', 'unknown'].includes(step.commitStatus)).length,

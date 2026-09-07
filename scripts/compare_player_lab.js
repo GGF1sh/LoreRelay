@@ -29,7 +29,14 @@ try {
             }
             return safe;
         });
-        return { client: run.client, model: run.model, complete: run.complete, conditions: {
+        let receiptChecks;
+        if (run.receiptChecks !== undefined) {
+            const value = run.receiptChecks;
+            if (!value || !['calls', 'unknown', 'errors'].every(key => Number.isSafeInteger(value[key]) && value[key] >= 0)
+                || value.unknown + value.errors > value.calls) throw new Error('invalid_receipt_checks');
+            receiptChecks = { calls: value.calls, unknown: value.unknown, errors: value.errors };
+        }
+        return { client: run.client, model: run.model, complete: run.complete, ...(receiptChecks ? { receiptChecks } : {}), conditions: {
             fixtureDigest: c.fixtureDigest, initialPublicDigest: c.initialPublicDigest, taskDigest: c.taskDigest,
             maximum: c.maximum, allowedActions: c.allowedActions,
         }, steps };

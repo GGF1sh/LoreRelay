@@ -90,6 +90,10 @@ action counts, receipt outcomes and recorded trade cash flow; cash flow is not
 profit because cargo valuation is not included. Reports remain `complete: false`
 until the session evidence is audited. Matching fixture data alone does not certify
 fair comparison. Actual four-model runs and regional support metrics are pending.
+`receiptChecks` separately counts explicit `wait_receipt` calls, unknown replies
+and transport errors. It does not overwrite initial execution outcomes or certify
+that an uncertain operation was resolved. Older reports show `null` for this
+observation rather than an invented zero count. No request identifiers are exported.
 
 ## Remote read-only gateway setup
 

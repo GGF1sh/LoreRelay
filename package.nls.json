@@ -1,4 +1,5 @@
 {
+  "command.aiConnectionStatus": "LoreRelay: AI Connection Status",
   "command.openGame": "LoreRelay: Open Game UI",
   "command.openBattleView": "LoreRelay: Open Battle View",
   "command.startCampaignCombatDebug": "LoreRelay: Start Campaign Combat (Debug)",
@@ -113,6 +114,7 @@
   "command.startActionRecording": "Start Commerce Recording",
   "command.stopActionRecording": "Stop Commerce Recording",
   "command.exportActionRecording": "Export Commerce Recording Template",
+  "command.openAiConnection": "LoreRelay: AI Connections",
   "command.startPlayerAgent": "Connect Player Agent",
   "command.stopPlayerAgent": "Stop Player Delegation",
   "command.startNarrator": "Connect Read-only Narrator",

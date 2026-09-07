@@ -56,6 +56,11 @@ async function main() {
         assert.deepEqual(bytes(), originalBytes, 'preview wrote canonical files');
         const publicActions = service.queryAvailable(agent);
         assert(!JSON.stringify(publicActions).includes('south_port'), 'hidden destination leaked');
+        const playerView = service.readPlayerView(agent);
+        assert(!JSON.stringify(playerView).includes('south_port'), 'hidden location leaked through geography');
+        assert(!JSON.stringify(playerView.geography).includes('r_south'), 'hidden region or edge leaked');
+        assert(playerView.geography.locations.some(location => location.id === 'elda_shop'));
+        assert.deepEqual(bytes(), originalBytes, 'public geography read wrote canonical files');
         assert.throws(() => service.inspect(agent), /rejected_forbidden/);
         const forged = JSON.parse(JSON.stringify(qa));
         assert.throws(() => service.queryAvailable(forged), /rejected_forbidden/);

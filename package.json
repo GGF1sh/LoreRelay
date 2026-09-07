@@ -61,6 +61,8 @@
     "onCommand:textadventure.startActionRecording",
     "onCommand:textadventure.stopActionRecording",
     "onCommand:textadventure.exportActionRecording",
+    "onCommand:textadventure.openAiConnection",
+    "onCommand:textadventure.aiConnectionStatus",
     "onCommand:textadventure.startPlayerAgent",
     "onCommand:textadventure.stopPlayerAgent",
     "onCommand:textadventure.startNarrator",
@@ -216,6 +218,14 @@
       {
         "command": "textadventure.exportActionRecording",
         "title": "%command.exportActionRecording%"
+      },
+      {
+        "command": "textadventure.openAiConnection",
+        "title": "%command.openAiConnection%"
+      },
+      {
+        "command": "textadventure.aiConnectionStatus",
+        "title": "%command.aiConnectionStatus%"
       },
       {
         "command": "textadventure.startPlayerAgent",

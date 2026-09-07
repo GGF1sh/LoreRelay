@@ -21,6 +21,9 @@ import type { GameState } from './types/GameState';
 import type { WorldIntent, JsonValue } from './worldIntentCore';
 import { validateGameState } from './validateGameState';
 import { projectWorldPacing } from './worldPacingCore';
+import { buildFogPayload, normalizeFogWorldState } from './fogOfWarCore';
+import { publishedMarketLocationIds } from './publishedMarketLocationsCore';
+import { pruneExpiredEvents } from './worldEventLogCore';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function readJson(file: string): unknown {
@@ -47,6 +50,39 @@ function readCommerceSnapshot(workspaceId: string) {
     return { game, world, forge, rawForge, rules, commerceForge, commerce, markets, shop, travel, day, npc };
 }
 type Snapshot = ReturnType<typeof readCommerceSnapshot>;
+function projectPublicGeography(state: Snapshot) {
+    const fog = buildFogPayload(normalizeFogWorldState(state.game.world, state.forge, state.game.world?.currentLocationId), state.forge);
+    const discovered = new Set(fog.discoveredRegionIds);
+    const visibleLocations = publishedMarketLocationIds(state.forge, state.game.world);
+    const regions = state.forge.geography.regions.filter(region => discovered.has(region.id)).map(region => ({
+        id: region.id, name: region.name, x: region.x, y: region.y,
+        connectedTo: (region.connectedTo ?? []).filter(id => discovered.has(id)),
+    }));
+    const locations = state.forge.geography.locations.filter(location => visibleLocations.has(location.id)).map(location => ({
+        id: location.id, name: location.name,
+        regionId: location.regionId && discovered.has(location.regionId) ? location.regionId : undefined,
+    }));
+    const current = locations.find(location => location.id === state.game.world?.currentLocationId);
+    return { regions, locations, currentLocation: current ?? null,
+        currentRegion: regions.find(region => region.id === current?.regionId) ?? null };
+}
+function projectPublicRecentEvents(state: Snapshot) {
+    if (!state.rules.enableEmergentSimulation) return [];
+    const geography = projectPublicGeography(state);
+    const regions = new Set(geography.regions.map(region => region.id));
+    const locations = new Set(geography.locations.map(location => location.id));
+    const factions = new Set(state.forge.geography.locations.filter(location => locations.has(location.id))
+        .flatMap(location => location.factionControl ? [location.factionControl] : []));
+    return pruneExpiredEvents(state.world.recentChanges ?? [], state.world.worldTurn)
+        .filter(event => event.worldTurn <= state.world.worldTurn
+            && (!event.regionId || regions.has(event.regionId))
+            && (!event.locationId || locations.has(event.locationId))
+            && (!event.factionId || factions.has(event.factionId))
+            && (!event.targetFactionId || factions.has(event.targetFactionId))
+            && !event.npcIds?.length)
+        .slice(-20).map(event => ({ worldTurn: event.worldTurn, category: event.category,
+            severity: event.severity, message: event.message }));
+}
 function projectActions(state: Snapshot): PublicGameAction[] {
     const tradeAvailable = state.rules.enableCommerce && state.rules.enableCommerceUi && isWorldForgeEnabled()
         && !!state.shop?.commodities.length;
@@ -158,6 +194,9 @@ async function buildCommerceActionRuntime(mutationGate: DeterministicWorkspaceMu
         },
         read: () => readCommerceSnapshot(workspaceId),
         playerView: state => ({ currentLocationId: state.game.world?.currentLocationId, worldTurn: state.world.worldTurn,
+            geography: projectPublicGeography(state),
+            recentEvents: projectPublicRecentEvents(state),
+            availableActions: projectActions(state).filter(action => action.available),
             worldPacing: state.rules.enableEmergentSimulation ? projectWorldPacing(state.forge, state.world,
                 state.forge.geography.locations.filter(location => location.id === state.game.world?.currentLocationId
                     || state.travel.ok && state.travel.destinations.some(d => d.id === location.id)).flatMap(l => l.regionId ? [l.regionId] : [])) : null,

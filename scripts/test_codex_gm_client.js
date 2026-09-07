@@ -5,6 +5,7 @@ const cp = require('node:child_process');
 const originalSpawn = cp.spawn;
 let account = { type: 'chatgpt' }, respondToTurn = true, conflict = false;
 let child, launch, requests;
+let catalog = () => ({ data: [], nextCursor: null });
 let loginResponse = { type: 'chatgptDeviceCode', loginId: 'ours', verificationUrl: 'https://auth.openai.com/codex/device', userCode: 'TEST-1234' };
 cp.spawn = (executable, args, options) => {
     launch = { executable, args, options }; requests = [];
@@ -16,6 +17,7 @@ cp.spawn = (executable, args, options) => {
             if (!('id' in m)) return;
             const result = m.method === 'account/read' ? { account }
                 : m.method === 'account/login/start' ? loginResponse
+                : m.method === 'model/list' ? catalog(m.params)
                 : m.method === 'thread/start' ? { thread: { id: 'thread' }, model: 'fixture-model' }
                 : m.method === 'turn/start' ? { turn: { id: 'turn' } } : {};
             child.stdout.write(JSON.stringify({ id: m.id, result }) + '\n');
@@ -57,6 +59,16 @@ const create = () => new CodexGmClient({ executable: 'fixture', workingDirectory
     }
     const client = create();
     assert.equal(await client.initialize(), 'ready');
+    catalog = params => params.cursor ? { data: [{ model: 'second', displayName: 'Second', hidden: false }], nextCursor: null }
+        : { data: [{ model: 'first', displayName: 'First', hidden: false }, { model: 'secret', hidden: true },
+            { model: 'bad id', hidden: false }, { model: 'first', displayName: 'First', hidden: false }], nextCursor: 'next' };
+    assert.deepEqual(await client.listModels(), [{ model: 'first', displayName: 'First' }, { model: 'second', displayName: 'Second' }]);
+    assert(requests.filter(m => m.method === 'model/list').every(m => m.params.includeHidden === false));
+    assert(!requests.some(m => m.method === 'turn/start'));
+    catalog = () => ({ data: [], nextCursor: 'loop' });
+    await assert.rejects(client.listModels(), /model_list_invalid/);
+    catalog = () => ({ data: null });
+    await assert.rejects(client.listModels(), /model_list_invalid/);
     assert.equal(await client.generate('fixture input', () => {}), 'fixture reply');
     assert.equal(launch.options.shell, false);
     assert.equal(launch.options.windowsHide, true);
@@ -74,6 +86,7 @@ const create = () => new CodexGmClient({ executable: 'fixture', workingDirectory
     account = null;
     const unauthenticated = create();
     assert.equal(await unauthenticated.initialize(), 'login_required');
+    await assert.rejects(unauthenticated.listModels(), /login_required/);
     assert.deepEqual(await unauthenticated.startDeviceLogin(), { loginId: 'ours', verificationUrl: loginResponse.verificationUrl, userCode: 'TEST-1234' });
     assert.deepEqual(requests.find(m => m.method === 'account/login/start').params, { type: 'chatgptDeviceCode' });
     const validLogin = loginResponse;

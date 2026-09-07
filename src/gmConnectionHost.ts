@@ -110,10 +110,7 @@ export async function configureCodexGm(): Promise<void> {
         { modal: true }, '接続設定へ進む');
     if (!consent) { return; }
     const previous = context.workspaceState.get<Profile>(profileKey);
-    const model = await vscode.window.showInputBox({ title: 'GMに使うCodexモデルID', value: previous?.model ?? 'gpt-5.6-terra',
-        validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : 'モデルIDを入力してください。' });
-    if (!model) { return; }
-    const profile = { executable: previous?.executable ?? 'codex', model };
+    const profile = { executable: previous?.executable ?? 'codex', model: previous?.model ?? 'gpt-5.6-terra' };
     if (isGmConnectionBusy() || generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
     let client: CodexGmClient | undefined;
     const startedAt = Date.now();
@@ -159,6 +156,22 @@ export async function configureCodexGm(): Promise<void> {
         if (status !== 'ready') { throw new Error('codex_login_required'); }
         if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
         diagnostic('authentication_confirmed');
+        let models: Array<{ model: string; displayName: string }> = [];
+        let catalogFailed = false;
+        try { models = await client.listModels(); } catch { catalogFailed = true; }
+        if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
+        const choices = models.map(item => ({ label: item.displayName, model: item.model,
+            description: item.model, detail: item.model === previous?.model ? '現在の設定' : '公式クライアントのモデル一覧' }));
+        choices.sort((a, b) => Number(b.model === previous?.model) - Number(a.model === previous?.model));
+        choices.push({ label: 'モデルIDを手入力', model: '', description: '',
+            detail: catalogFailed ? '一覧を取得できませんでした。正確なモデルIDを指定できます。' : '一覧にないモデルを指定する' });
+        const choice = await vscode.window.showQuickPick(choices, { title: 'GMに使うCodexモデル',
+            placeHolder: '使用するモデルを選択してください（自動変更はしません）', matchOnDescription: true });
+        if (!choice || generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
+        const model = choice.model || await vscode.window.showInputBox({ title: 'GMに使うCodexモデルID', value: profile.model,
+            validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : 'モデルIDを入力してください。' });
+        if (!model || generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
+        profile.model = model;
         await context.workspaceState.update(profileKey, profile);
         await vscode.workspace.getConfiguration('textAdventure').update('gmBridge.provider', 'codex-app-server', vscode.ConfigurationTarget.Workspace);
         void vscode.window.showInformationMessage('Codex GM: 認証確認済み。実モデルの応答は次のゲーム入力で確認します。');

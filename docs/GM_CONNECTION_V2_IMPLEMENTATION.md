@@ -178,3 +178,19 @@ Bounded adversarial verification checked authority injection in decisions, confi
 These results do not resolve the user's Codex browser callback refusal or prove real provider inference. All five providers' authenticated GM three-turn/stop/rendered acceptance and actual comparative Player runs remain pending. Human Play remains unperformed.
 
 Stage 6 final executable-tree verification: full suite 380/380, Combat 736/736 (167.9 seconds). The real Windows QA entrypoint passed with a scripted model. No unchanged full-suite rerun was performed.
+
+Stage 6 #114: final HEAD 267946b8c6f6acf52f3ecc40e52605c2f70e4382; merge 7e45ee7920392b3386e547752584706b41cb0908. Exact CI 34156893015 / Live QA 34156893006 and post-merge CI 34157075860 / Live QA 34157075847 passed.
+
+## Codex login recovery
+
+The user confirmed that pressing Continue in the browser resulted in a refused localhost:1455 callback. A later listener check found no listener; the dedicated VS Code log showed a normal Host exit but did not establish why the login receiver stopped. This is not evidence of successful authentication or a proven historical root cause.
+
+Installed official codex-cli 0.140.0 generates `LoginAccountParams` with `type: chatgptDeviceCode` and a response containing `verificationUrl`, `userCode`, and `loginId`. The existing GM setup now offers that official device-code route first, alongside the existing browser callback route. The device route does not require localhost callback access. Both await the matching official completion notification and then read the official account state before persisting the selected GM profile.
+
+The code is shown only in the interactive setup dialog and copied only after the user chooses the copy/open button. Verification URLs must use the exact HTTPS auth.openai.com origin without embedded credentials; malformed codes and responses are rejected. No API-key fallback or model request happens during login. Stale workspace setup, cancellation and timeout leave the existing connection setting in place. Fixed lifecycle labels and elapsed time are logged without account data, URLs or codes.
+
+One bounded adversarial verification covered origin substitution, code injection, late/cancelled completion and workspace changes during dialogs/clipboard. The repair rechecks the scope before opening the browser. Focused post-repair tests passed 12/12 (15 commands). Host dialogs/authentication in these tests are mocked; actual device login and real GM acceptance remain pending user interaction.
+
+For the next manual attempt, reopen the isolated fixture Host, run `LoreRelay: AI接続`, select Codex and `GMとして使う`, then choose `デバイスコードでログイン`. Keep that VS Code window open while entering the displayed code on the official page. Completion is detected automatically. Do not reuse an expired callback URL or paste authentication codes into a bug report.
+
+Device-login final verification: full suite 381/381, Combat 736/736 (169.3 seconds), real Windows lifecycle_v1 passed. A fresh official read-only check of the dedicated user profile returned login_required with modelCalled=false and loginStarted=false. Actual device authorization remains pending.

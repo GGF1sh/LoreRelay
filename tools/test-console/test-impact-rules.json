@@ -25,7 +25,7 @@
       {
         "id": "gm-connection-v2",
       "patterns": ["src/gmConnectionCore.ts", "src/gmConnectionHost.ts", "src/codexAppServerProtocol.ts", "src/codexGmClient.ts", "scripts/probe_codex_gm.js"],
-        "tests": ["test_gm_connection.js", "test_gm_connection_host.js", "test_codex_app_server_protocol.js", "test_codex_gm_client.js", "test_runtime_turn_result_acceptance.js", "test_vscode_lm_turn_result_core.js", "test_prompt_receipt_accepted_consumption.js"],
+        "tests": ["test_gm_connection.js", "test_gm_connection_host.js", "test_codex_app_server_protocol.js", "test_codex_gm_client.js", "test_codex_gm_login_host.js", "test_runtime_turn_result_acceptance.js", "test_vscode_lm_turn_result_core.js", "test_prompt_receipt_accepted_consumption.js"],
       "boundaries": ["compile"],
       "reason": "GM transport and Host candidate admission must preserve auth, cancellation and Accepted Turn. The live account probe is manual, not an automated model call."
       },

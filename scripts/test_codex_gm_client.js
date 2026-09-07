@@ -5,6 +5,7 @@ const cp = require('node:child_process');
 const originalSpawn = cp.spawn;
 let account = { type: 'chatgpt' }, respondToTurn = true, conflict = false;
 let child, launch, requests;
+let loginResponse = { type: 'chatgptDeviceCode', loginId: 'ours', verificationUrl: 'https://auth.openai.com/codex/device', userCode: 'TEST-1234' };
 cp.spawn = (executable, args, options) => {
     launch = { executable, args, options }; requests = [];
     child = new EventEmitter();
@@ -14,6 +15,7 @@ cp.spawn = (executable, args, options) => {
         queueMicrotask(() => {
             if (!('id' in m)) return;
             const result = m.method === 'account/read' ? { account }
+                : m.method === 'account/login/start' ? loginResponse
                 : m.method === 'thread/start' ? { thread: { id: 'thread' }, model: 'fixture-model' }
                 : m.method === 'turn/start' ? { turn: { id: 'turn' } } : {};
             child.stdout.write(JSON.stringify({ id: m.id, result }) + '\n');
@@ -72,6 +74,19 @@ const create = () => new CodexGmClient({ executable: 'fixture', workingDirectory
     account = null;
     const unauthenticated = create();
     assert.equal(await unauthenticated.initialize(), 'login_required');
+    assert.deepEqual(await unauthenticated.startDeviceLogin(), { loginId: 'ours', verificationUrl: loginResponse.verificationUrl, userCode: 'TEST-1234' });
+    assert.deepEqual(requests.find(m => m.method === 'account/login/start').params, { type: 'chatgptDeviceCode' });
+    const validLogin = loginResponse;
+    for (const invalid of [
+        { verificationUrl: 'http://localhost:1455/auth/callback' },
+        { verificationUrl: 'https://auth.openai.com.attacker.invalid/codex/device' },
+        { verificationUrl: 'https://user:password@auth.openai.com/codex/device' },
+        { verificationUrl: 'not a URL' }, { userCode: 'code\nSECRET' }, { loginId: '' }, { type: 'apiKey' },
+    ]) {
+        loginResponse = { ...validLogin, ...invalid };
+        await assert.rejects(unauthenticated.startDeviceLogin(), /codex_login_(origin|response)_invalid/);
+    }
+    loginResponse = validLogin;
     assert.equal(requests.some(m => m.method === 'turn/start'), false);
     let loginDone = false;
     const login = unauthenticated.waitForLogin('ours', 1000).then(() => { loginDone = true; });
@@ -81,6 +96,9 @@ const create = () => new CodexGmClient({ executable: 'fixture', workingDirectory
     await login;
     await unauthenticated.waitForLogin('ours', 20); // completion may precede UI progress creation
     await assert.rejects(unauthenticated.waitForLogin('missing', 10), /login_timeout/);
+    const pendingLogin = unauthenticated.waitForLogin('pending', 1000);
+    const cancelledLogin = assert.rejects(pendingLogin, /connection_closed/);
+    unauthenticated.dispose(); await cancelledLogin;
     assert.equal(requests.some(m => m.method === 'turn/start'), false, 'Login completion does not submit a prompt');
     unauthenticated.dispose();
     account = { type: 'apiKey' };

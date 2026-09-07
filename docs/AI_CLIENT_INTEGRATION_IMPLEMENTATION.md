@@ -147,5 +147,93 @@ No Human Play has been performed by this work.
 - The complete work is still in progress. Local checkpoint commits do not imply final
   review, full-suite verification, vendor compatibility, PR readiness or completion.
 
+### Continuation: local Codex package and Gemini environment
+
+- `build_codex_local_plugin.js` creates a local plugin with bundled adapter/dependencies
+  and inherited connection environment keys; no secrets embedded. Keep the build
+  directory at its original location after installation. Output v2 at
+  `.test-runs/codex-package-v2/lorerelay-player` passed the installed plugin validator.
+- Current web docs describe `mcp_servers`, but installed plugin validator accepts
+  `mcpServers` only. Builder uses the locally validated form; actual plugin installation
+  remains required to resolve runtime compatibility. Do not claim it is proven.
+- Official Gemini CLI 0.58.0 installed in dedicated `.test-runs/client-tools`;
+  session 68117 completed successfully. Its executable is
+  `node_modules/@google/gemini-cli/bundle/gemini.js`, not `dist/index.js`.
+  Version and MCP help ran successfully. Authentication/connection remain unverified.
+
+- Gemini diagnostic subsequently paired successfully using `smoke_gemini_connection.js`.
+  GEMINI_CLI_HOME points to the isolated home; actual settings belong in its `.gemini`
+  subfolder. Its trustedFolders file trusts only the generated fixture directory.
+  No user settings/auth files copied or modified; no model call or play claim.
+
+### Continuation: Player Lab starting implementation
+
+- Added `playerLabCore.ts` recorder/comparison: snapshots conditions, counts typed
+  receipt outcomes, excludes exact resend inflation and never reports partial/unknown
+  as committed. Focused `test_player_lab.js` and compile passed.
+- Added `run_player_lab.js CLIENT MODEL_LABEL`: fixed merchant fixture, separate Player
+  IPC, 10-operation delegation, private expiring config and sanitized report. No
+  embedded model loop or QA endpoint. Syntax checked; runtime smoke still required.
+- Reports stay incomplete pending evidence audit; model label is not certified model
+  identity. Equal task definition, complete comparison report and actual four-model
+  executions still need implementation/verification. This is not finished Play Lab.
+
+- `test_player_lab_runner.js` passed: spawned fixture runner, connected through stdio,
+  read/available/preview/execute end-day, disconnected, verified committed receipt in
+  sanitized incomplete report and erased credential contents. This uses SDK, no model.
+- Actual account status checked outside sandbox: Codex is logged in using ChatGPT;
+  Claude Code is not logged in. Sandbox-only Codex status incorrectly appeared logged
+  out due to environment access; do not use that as account evidence.
+
+### Continuation: disconnect settlement and Codex model attempt
+
+- Player Lab shutdown now invalidates new calls and drains accepted calls before
+  writing the report or releasing the fixture. A delayed execution regression and
+  the existing SDK runner smoke passed; compile passed. No full suite repeated.
+- `smoke_codex_play.js` requested GPT-6 Astra / High with one end-day operation in
+  an isolated fixture. The first attempt left no receipt report. After adding safe
+  diagnostic categories and credential cleanup, the second attempt timed out at
+  150 seconds (`client_or_pairing_failed:-1:client_timeout`). No committed operation
+  or actual-model interoperability is claimed. The known native child PID was
+  checked after timeout and no longer existed. Do not blindly repeat this test.
+- This timeout does not invalidate the separate Codex configuration parser smoke,
+  Gemini/Grok connection diagnostics, or SDK execution evidence; none substitutes
+  for successful model-driven play. Remote gateway and chat-native/voice remain
+  outstanding, as does final integration verification.
+
+### Continuation: initial read-only remote path
+
+- Added `remoteAiGateway.ts`: official SDK Streamable HTTP on loopback, one-time
+  256-bit pairing code, short-lived bearer, fixed read-only role, bounded requests,
+  origin/Host checks, no-store replies, and existing local adapter/Host approval.
+  Host connection menu can start this preview with a supplied HTTPS tunnel origin.
+- HTTP clients cannot supply campaign, role, command, path or QA authority. The
+  MCP client SDK 2.0.0 was moved from dev to runtime dependencies without upgrades.
+- Compile, existing Player MCP suite and new remote SDK tests passed. Tests cover
+  actual local HTTP-to-stdio-to-IPC reads, replayed pairing, missing token, hostile
+  Origin, missing execute tool, resources, DELETE and Host disconnect.
+- Closing all stdio adapters on Host disconnect initially broke the existing typed
+  pairing-denial result. Corrected to an explicit remote-supervisor environment
+  option; the existing Player suite passed after repair.
+- Remaining: supervised tunnel stop invalidation, actual remote app compatibility,
+  expiry/overload adversarial coverage and real installed Host UI verification.
+  This is an implementation preview, not REMOTE-AI-GATEWAY-V1 completion. No tunnel
+  or public listener has been deployed. Final High Risk review/full suite/CI remain.
+
+### Continuation: external tunnel reachability invalidation
+
+- No `cloudflared` or `ngrok` command was found on the current PATH. No external
+  tunnel was installed, started or published during this turn.
+- Added `remoteTunnelWitness.ts` and Gateway wiring: successful instance-specific
+  HTTPS reachability is required before pairing. Fresh challenges, no redirects,
+  bounded body and timeout prevent stale/foreign responses from verifying a lease.
+  Probes run every five seconds with a three-second timeout. Loss after connection
+  revokes the Gateway permanently; a later response cannot revive it.
+- Compile and focused witness/Gateway tests passed. Witness tests use a controlled
+  fetch, so they prove the transition rules, not an actual external tunnel. The
+  Gateway test still proves real loopback HTTP/stdio/IPC. Production HTTPS tunnel
+  verification and any instantaneous tunnel-process shutdown guarantee remain
+  unproven. Do not conflate bounded reachability detection with process supervision.
+
 Before planning verification, follow `docs/DEVELOPMENT_VERIFICATION_POLICY.md`. Do not
 escalate beyond its risk tier without a concrete reason.

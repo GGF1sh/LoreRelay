@@ -9,14 +9,20 @@ import { createPlayerDelegation, createNarratorReader, createCompanionReader, PL
 import { openAgentConnection } from './playerIpcHost';
 import type { DeterministicWorkspaceMutationGate } from './deterministicWorkspaceMutationGate';
 import { buildAiConnectionConfig, type AiConnectionClient } from './aiClientIntegrationCore';
+import { openRemoteAiGateway } from './remoteAiGateway';
 
 export function registerPlayerAgent(context: vscode.ExtensionContext, gate: DeterministicWorkspaceMutationGate) {
     const connections = new Map<'player' | 'narrator' | 'companion', Awaited<ReturnType<typeof openAgentConnection>>>();
     const generations = { player: 0, narrator: 0, companion: 0 };
     const output = vscode.window.createOutputChannel('LoreRelay Agent Connection');
-    const stop = (role: 'player' | 'narrator' | 'companion') => { generations[role]++; connections.get(role)?.dispose(); connections.delete(role); };
+    const gateways = new Map<string, Awaited<ReturnType<typeof openRemoteAiGateway>>>();
+    const stop = (role: 'player' | 'narrator' | 'companion') => {
+        generations[role]++; gateways.get(role)?.close(); gateways.delete(role);
+        connections.get(role)?.dispose(); connections.delete(role);
+    };
     const stopAll = () => { stop('player'); stop('narrator'); stop('companion'); };
-    async function start(role: 'player' | 'narrator' | 'companion', client: AiConnectionClient = 'claude-desktop') {
+    async function start(role: 'player' | 'narrator' | 'companion', client: AiConnectionClient = 'claude-desktop', remoteOrigin?: string) {
+        if (remoteOrigin && role === 'player') throw new Error('readonly_role_required');
         const workspace = getWorkspacePath();
         if (!workspace || !getGameStatePath() || !fs.existsSync(getGameStatePath()!) || isParlorMode() || isInWorldMode()) {
             void vscode.window.showWarningMessage('LoreRelay: 通常campaignを開いてください。'); return;
@@ -46,7 +52,7 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
             if (!current()) return;
             const label = role === 'player' ? '操作を委譲する' : '公開情報の読取を許可';
             const choice = await vscode.window.showWarningMessage(
-                `LoreRelay ${role}\n設定の対象: ${client}\nクライアント申告名: ${clientName ?? '不明'}（身元は未検証）\nCampaign: ${workspace}\n接続session: ${clientSession}\n`
+                `LoreRelay ${role}\n設定の対象: ${remoteOrigin ?? client}\nクライアント申告名: ${clientName ?? '不明'}（身元は未検証）\nCampaign: ${workspace}\n接続session: ${clientSession}\n`
                 + (role === 'player' ? `許可操作: ${allowed.join(', ')}\n新規execute ${maximum}回・30分。` : '公開済みの確定状態のみ。ゲーム操作は許可しません。'),
                 { modal: true }, label);
             if (choice !== label || !current()) return;
@@ -56,6 +62,20 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
         });
         if (!current()) { connection.dispose(); return; }
         connections.set(role, connection);
+        if (remoteOrigin && role !== 'player') {
+            const gateway = await openRemoteAiGateway(role, connection.endpoint, connection.secret, remoteOrigin);
+            if (!current()) { gateway.close(); return; }
+            gateways.set(role, gateway);
+            output.clear();
+            output.appendLine(`読取専用Remote MCP: ${gateway.url}`);
+            output.appendLine(`専用HTTPS tunnelの転送先: http://127.0.0.1:${gateway.localPort}（Hostヘッダーは公開URLのものを保持）`);
+            output.appendLine(`一回限りの接続コード（5分）: ${gateway.pairingCode}`);
+            output.appendLine('公開URLの /pair に {"code":"接続コード"} をPOSTし、返されたtokenをMCPのAuthorization: Bearerに設定してください。');
+            output.appendLine('公開状態の取得前に、このHostでcampaignと接続sessionを確認します。期限30分、無通信5分。');
+            output.appendLine('tunnelは自動起動しません。公開URLへの到達を確認後に接続できます。5秒間隔の到達確認が失敗すると失効します（通信待ち上限3秒）。停止後は新規接続が必要です。接続コードとtokenは共有・commitしないでください。');
+            output.show(true);
+            return;
+        }
         const generated = buildAiConnectionConfig(client, role,
             path.join(context.extensionPath, 'out', `${role}Mcp.js`),
             connection.endpoint, connection.secret);
@@ -67,7 +87,7 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
             if (current()) await vscode.env.clipboard.writeText(config);
         }
     }
-    const startSafely = (role: 'player' | 'narrator' | 'companion', client?: AiConnectionClient) => start(role, client).catch(() => {
+    const startSafely = (role: 'player' | 'narrator' | 'companion', client?: AiConnectionClient, remoteOrigin?: string) => start(role, client, remoteOrigin).catch(() => {
         stop(role); void vscode.window.showWarningMessage('LoreRelay: 接続を開始できません。campaignの状態を確認してください。');
     });
     async function chooseConnection() {
@@ -77,14 +97,26 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
             { label: 'Grok Build', id: 'grok' as const },
             { label: 'Claude Desktop', id: 'claude-desktop' as const },
             { label: 'Claude Code', id: 'claude-code' as const },
+            { label: 'Web・スマホ（読取専用Remote MCP）', id: 'remote' as const },
         ], { title: 'LoreRelay — AI接続', placeHolder: '接続先を選択（設定ファイルは自動変更しません）' });
         if (!client) return;
-        const role = await vscode.window.showQuickPick([
+        const roles = [
             { label: '相談役', description: '公開状態・行動候補の読取のみ。操作権限なし', id: 'companion' as const },
             { label: '委任プレイヤー', description: '取引・市場移動・日送りをHostで承認', id: 'player' as const },
             { label: '観戦者・日記係', description: '公開済みの確定状態の読取のみ', id: 'narrator' as const },
-        ], { title: 'この接続の役割' });
-        if (role) await startSafely(role.id, client.id);
+        ];
+        const role = await vscode.window.showQuickPick(client.id === 'remote' ? roles.filter(item => item.id !== 'player') : roles,
+            { title: 'この接続の役割' });
+        if (!role) return;
+        if (client.id === 'remote') {
+            const origin = await vscode.window.showInputBox({ title: '専用HTTPS tunnelの公開origin（https://example.com）',
+                validateInput: value => {
+                    try { const url = new URL(value); if (url.protocol === 'https:' && url.origin === value && !url.username && !url.password) return; }
+                    catch { /* show the same validation message */ }
+                    return 'パスや認証情報を含まないHTTPS originを入力してください。';
+                } });
+            if (origin) await startSafely(role.id, undefined, origin);
+        } else await startSafely(role.id, client.id);
     }
     async function showConnectionStatus() {
         const labels = { waiting: '接続待機', approval_pending: 'Host承認待ち', connected: '接続済み', closed: '失効・切断済み' };

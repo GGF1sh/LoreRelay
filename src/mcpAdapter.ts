@@ -26,6 +26,7 @@ export async function runMcpAdapter(role: 'player' | 'narrator' | 'companion') {
     let session: string | undefined;
     let clientName: string | undefined;
     let helloSent = false;
+    let closeMcp: (() => void) | undefined;
     const hello = () => {
         if (!clientName || helloSent || socket.connecting || socket.destroyed) return;
         helloSent = true;
@@ -44,6 +45,9 @@ export async function runMcpAdapter(role: 'player' | 'narrator' | 'companion') {
         clearTimeout(timer); rejectReady(new Error('connection_closed'));
         for (const entry of pending.values()) { clearTimeout(entry.timer); entry.resolve({ classification: 'outcome_unknown' }); }
         pending.clear();
+        // Remote supervisor must invalidate its HTTP token when this local lease dies.
+        // Ordinary stdio clients retain the existing typed forbidden response path.
+        if (process.env.LORERELAY_CLOSE_ON_HOST_DISCONNECT === '1') closeMcp?.();
     });
     socket.on('data', chunk => {
         buffer += chunk;
@@ -76,6 +80,7 @@ export async function runMcpAdapter(role: 'player' | 'narrator' | 'companion') {
         } catch { return { isError: true, content: [{ type: 'text', text: '{"classification":"rejected_forbidden"}' }] }; }
     };
     const server = new McpServer({ name: `lorerelay-${role}`, version: '1.0.0' });
+    closeMcp = () => { void server.close(); };
     server.server.oninitialized = () => {
         const reported = server.server.getClientVersion()?.name;
         clientName = typeof reported === 'string' && /^[\p{L}\p{N} ._@/-]{1,80}$/u.test(reported) ? reported : 'unknown-client';

@@ -45,6 +45,34 @@ results or use normal campaign snapshots as fixtures.
 ## Verification status
 
 Configuration generation, Host IPC lifecycle, and portable adapter SDK smoke have
-passed locally. Actual vendor-client smoke and desktop installation remain pending.
+passed locally. Grok Build and Gemini CLI paired with isolated test Hosts in their
+MCP diagnostics (no model call). Codex CLI accepted generated configuration fields.
+Actual model play smoke and desktop installation remain pending.
 The Codex plugin source contains playing instructions; its automated packaging is
 still being implemented. No four-client compatibility claim is made yet.
+
+## Remote read-only gateway (implementation preview)
+
+In **AI接続**, choose **Web・スマホ（読取専用Remote MCP）**, then companion or
+narrator. Supply the origin of a dedicated HTTPS tunnel, without a path. The output
+channel shows the loopback forwarding port and a one-time pairing code. Keep the
+public Host header when forwarding. No tunnel is started automatically.
+
+POST `{"code":"HOST_DISPLAYED_CODE"}` to `/pair` at that origin. Configure the
+returned token as `Authorization: Bearer TOKEN` on the `/mcp` endpoint. Pairing
+codes expire after five minutes; tokens expire after thirty minutes and idle
+connections after five minutes. Reading still requires the existing Host approval
+for the current campaign and session. No Player or QA role is exposed remotely.
+
+Pairing waits for a successful HTTPS probe through the configured origin to this
+gateway instance. Probes run every five seconds with a three-second timeout and
+a fresh challenge. After initial connectivity, a failed probe invalidates the
+session; restoring the tunnel cannot revive it. This is bounded reachability
+detection, not supervision of the external tunnel process. Use the AI connection
+status menu for immediate explicit shutdown.
+
+Do not present this preview as a finished remote integration. SDK loopback HTTP, single-use pairing,
+public reads, write rejection, origin rejection, DELETE and Host-disconnect
+invalidation have passed. Actual external client/tunnel and installed Host UI
+verification remain outstanding. Standard clients requiring OAuth discovery
+instead of custom bearer configuration are not yet supported by this preview.

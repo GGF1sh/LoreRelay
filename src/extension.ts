@@ -101,6 +101,7 @@ import {
     checkPendingTurnResultFile,
 } from './gameStateSync';
 import { ensureAcceptedTurnScope } from './acceptedTurnReplayGuard';
+import { initializeGmConnectionHost } from './gmConnectionHost';
 import { initTurnResultFallback } from './turnResultFallback';
 import { isValidEntryId } from './entryId';
 import { isValidEventId } from './worldEventLogCore';
@@ -306,6 +307,7 @@ let panel: vscode.WebviewPanel | undefined;
 let worldGenesisPreviewSession: WorldGenesisPreviewSession | undefined;
 let worldGenesisApplyInProgress = false;
 let activeGameplayRequestCount = 0;
+let activeGameplayMutationLease: DeterministicWorkspaceMutationLease | undefined;
 let combatWorkshopStatuses: StatusDefinition[] = [];
 let combatWorkshopBuiltins: AbilityDefinition[] = [];
 let combatWorkshopLibrary: CustomAbilityLibrary | undefined;
@@ -388,6 +390,7 @@ function getPanel(): vscode.WebviewPanel | undefined {
 
 export function activate(context: vscode.ExtensionContext) {
     registerActionRecorder(context);
+    initializeGmConnectionHost(context, deterministicWorkspaceMutationGate, () => activeGameplayMutationLease);
     registerPlayerAgent(context, deterministicWorkspaceMutationGate);
     extensionInstallationPath = context.extensionPath;
     extensionContext = context;
@@ -1251,6 +1254,7 @@ async function handlePlayerInput(
 
     let retainedForRelay = false;
     activeGameplayRequestCount += 1;
+    activeGameplayMutationLease = acquired.lease;
     try {
         const result = await handleAcceptedPlayerInput(trimmed, authorsNote, entryId, source, presentationText);
         if (result?.relayRequestId) {
@@ -1266,6 +1270,7 @@ async function handlePlayerInput(
         // fall back. This is the final guard for pre-dispatch/debug exits.
         consumeGmBridgeCancellationRequest();
         activeGameplayRequestCount = Math.max(0, activeGameplayRequestCount - 1);
+        if (activeGameplayMutationLease === acquired.lease) { activeGameplayMutationLease = undefined; }
         if (!retainedForRelay) {
             acquired.lease.release();
         }

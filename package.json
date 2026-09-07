@@ -605,6 +605,7 @@
           "enum": [
             "grok",
             "vscode-lm",
+            "codex-app-server",
             "clipboard",
             "command",
             "ollama",
@@ -615,6 +616,7 @@
           "enumDescriptions": [
             "Grok CLI (uses the grok command)",
             "VS Code Language Model API (uses models exposed by installed VS Code AI extensions)",
+            "Codex App Server GM (configure through LoreRelay AI connections; ChatGPT subscription)",
             "Copy player input to clipboard only",
             "Custom executable via gmBridge.command",
             "Local Ollama via ollama_gm.py (ollama serve required)",

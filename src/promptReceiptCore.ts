@@ -8,6 +8,7 @@ export type PromptReceiptProvider =
     | 'openrouter'
     | 'command'
     | 'vscode-lm'
+    | 'codex-app-server'
     | 'agentic';
 
 export interface PromptReceiptChunkRecord {

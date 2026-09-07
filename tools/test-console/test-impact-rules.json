@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "rules": [
     {
+      "id": "gm-connection-v2",
+      "patterns": ["src/gmConnectionCore.ts", "src/gmConnectionHost.ts", "src/codexAppServerProtocol.ts", "src/codexGmClient.ts", "scripts/probe_codex_gm.js"],
+        "tests": ["test_gm_connection.js", "test_gm_connection_host.js", "test_codex_app_server_protocol.js", "test_codex_gm_client.js", "test_runtime_turn_result_acceptance.js", "test_vscode_lm_turn_result_core.js", "test_prompt_receipt_accepted_consumption.js"],
+      "boundaries": ["compile"],
+      "reason": "GM transport and Host candidate admission must preserve auth, cancellation and Accepted Turn. The live account probe is manual, not an automated model call."
+    },
+    {
       "id": "ai-client-packaging",
       "patterns": ["src/aiClientIntegrationCore.ts", "src/playerAgentHost.ts", "src/playerIpcHost.ts", "integrations/lorerelay-player/**", "integrations/README.md", "scripts/build_ai_client_bundle.js", "scripts/build_codex_local_plugin.js", "scripts/pack_ai_client_bundle.py", "scripts/smoke_codex_config.js", "scripts/smoke_gemini_connection.js", "scripts/smoke_grok_connection.js"],
       "tests": ["test_ai_client_integration.js", "test_ai_connection_status.js", "test_ai_client_bundle.js", "test_player_agent_mcp.js"],

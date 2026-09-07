@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { cancelGmConnection, isGmConnectionBusy, runCodexGmCandidate } from './gmConnectionHost';
+import { formatGmConnectionError } from './gmConnectionCore';
 import { spawn, ChildProcess } from 'child_process';
 import { t, getConfiguredLocale } from './i18n';
 import {
@@ -110,7 +112,7 @@ function resolveGrokCommand(configured: string): string {
 }
 
 export function isGmBridgeBusy(): boolean {
-    return Boolean(grokProcess || gmProcess || agenticBridgeBusy || parlorLmBusy || activeGmCancellationSources.size > 0);
+    return Boolean(isGmConnectionBusy() || grokProcess || gmProcess || agenticBridgeBusy || parlorLmBusy || activeGmCancellationSources.size > 0);
 }
 
 export function isGmBridgeCancellationRequested(): boolean {
@@ -118,7 +120,7 @@ export function isGmBridgeCancellationRequested(): boolean {
 }
 
 export function isParlorBridgeBusy(): boolean {
-    return parlorLmBusy;
+    return parlorLmBusy || isGmConnectionBusy();
 }
 
 export function setAgenticBridgeBusy(busy: boolean): void {
@@ -151,6 +153,7 @@ function handleGmBridgeFailure(): void {
 }
 
 export function killGmBridgeProcesses(): void {
+    cancelGmConnection();
     const wasBusy = Boolean(grokProcess || gmProcess || agenticBridgeBusy);
     if (grokProcess) {
         grokProcess.kill();
@@ -171,6 +174,7 @@ export function killGmBridgeProcesses(): void {
 
 function requestActiveGmCancellation(): void {
     const wasBusy = isGmBridgeBusy();
+    cancelGmConnection();
     // Keep process handles registered until their close handlers run. This keeps
     // the gameplay input lease locked and prevents a canceled turn racing the next one.
     grokProcess?.kill();
@@ -1215,6 +1219,53 @@ async function invokeVscodeLmBridge(playerAction: string, isContinuation: boolea
     }
 }
 
+async function invokeCodexGmBridge(playerAction: string): Promise<boolean> {
+    const workspace = getWorkspacePath();
+    if (!workspace) { return false; }
+    const locale = getConfiguredLocale();
+    const turnId = vscodeLmNextTurnId(workspace);
+    const assembly = buildProductionPromptAssembly(playerAction, 'codex-app-server');
+    const prompt = `${vscodeLmSystemPrompt(locale)}\n[Expected turn ID] ${turnId}\n${assembly.promptText}\n[Player action]\n${playerAction}`;
+    const receipt = withPromptReceiptDiagnostics(assembly.receipt, { transportPayloadHash: hashPromptReceiptText(prompt) });
+    const previous = JSON.parse(fs.readFileSync(path.join(workspace, 'game_state.json'), 'utf8'));
+    let acceptedJson: VscodeLmGmJson | null = null;
+    const channel = getGmBridgeOutputChannel();
+    const cts = createTrackedCancellationSource();
+    const before = beginGmRun(createPromptAcceptedCallbackForTests(receipt, channel, () => { localGmSessionActive = true; }));
+    requireDeps().getPanel()?.webview.postMessage({ type: 'gmStart' });
+    notifyRemoteGmBusy(true);
+    try {
+        const accepted = await runCodexGmCandidate(prompt, text => {
+            const substitution = substituteDiceMarkersWithLedger(text);
+            const json = extractVscodeLmJsonBlock(substitution.text);
+            if (!json) { throw new Error('GM response has no valid JSON candidate'); }
+            acceptedJson = json;
+            return buildVscodeLmTurnResult({ prev: previous, llmJson: json,
+                narrative: stripVscodeLmJsonBlock(substitution.text), turnId, locale, playerAction,
+                diceLedger: [...(vscodeLmLoadDiceLedger(workspace) ?? []), ...substitution.diceLedger],
+                triggeredLore: getTriggeredLoreLabels(playerAction + '\n' + text),
+                promptReceipt: buildTurnResultPromptReceiptMeta(receipt),
+            });
+        }, () => { vscode.window.setStatusBarMessage('Codex GM: 応答中（未確定）'); },
+        () => { vscodeLmProcessProfileUpdates(workspace, acceptedJson); });
+        pendingDiceLedgerWritten = false;
+        requireDeps().getPanel()?.webview.postMessage({ type: 'gmEnd', success: accepted });
+        return accepted;
+    } catch (error) {
+        finishGmRun(before, playerAction, false);
+        // Preserve evidence when the canonical commit may already have completed.
+        if (!gmCancellationRequested) {
+            requireDeps().getPanel()?.webview.postMessage({ type: 'gmEnd', success: false });
+            void vscode.window.showErrorMessage(`Codex GM: ${formatGmConnectionError(error)}`);
+        }
+        return false;
+    } finally {
+        disposeTrackedCancellationSource(cts);
+        vscode.window.setStatusBarMessage('');
+        notifyRemoteGmBusy(false);
+    }
+}
+
 export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedgerEntry[]): Promise<boolean> {
     if (isGmBridgeBusy()) {
         vscode.window.showWarningMessage(t('extension.error.gmBusy'));
@@ -1271,6 +1322,7 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
         ).catch((e) => console.error('Soulgaze VLM enqueue failed', e));
     }
 
+    if (provider === 'codex-app-server') { return invokeCodexGmBridge(playerAction); }
     const { maybeInvokeAgenticBridge } = await import('./agenticGmRunner');
     const agentic = await maybeInvokeAgenticBridge(
         playerAction,

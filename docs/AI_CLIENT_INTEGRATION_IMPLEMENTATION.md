@@ -453,3 +453,14 @@ escalate beyond its risk tier without a concrete reason.
   SDK. Artifact: `.test-runs/lorerelay-ai-integration-preview.vsix`.
 - Player MCP packaging/dependency checks passed. This proves archive contents,
   not installation, external AI use or release readiness.
+
+### Isolated VSIX installation
+
+- VS Code CLI successfully installed the preview into explicit dedicated
+  `.test-runs/installed-preview/user-data` and `extensions` directories, with the
+  CLI IPC hook unset. `--list-extensions --show-versions` returned only
+  `miya.lorerelay@1.84.32`. No normal user extension directory was modified.
+- The installed Gateway module loaded successfully. Artifact SHA256:
+  `6BA01C96BBF0C0C2A5AC98095F54AEC44AFCDCA83092C3EA61C273407E9C9539`.
+  This verifies installation and module availability, not normal-Host connection
+  UI interaction, vendor-client pairing, Voice operation or Human Play.

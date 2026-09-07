@@ -416,3 +416,15 @@ escalate beyond its risk tier without a concrete reason.
   This isolates the earlier cleanup failure to execution permissions; no protected
   directory permissions were changed and earlier retained fixtures were untouched.
   It is lifecycle evidence, not new AI connection-menu interaction or Human Play.
+
+### Packaging review repair
+
+- Review found `.vscodeignore` omitted the MCP client SDK used by the new Host
+  Remote Gateway. Development dependencies masked the missing installed runtime.
+  Added the client and its transitive runtime packages to VSIX inclusion rules.
+- Player MCP focused verification now walks installed SDK dependency metadata and
+  checks every required package is retained. It passed, including existing authority
+  and production-fixture cases. A separate temp layout copied only the included
+  packages and four Gateway modules; loading `remoteAiGateway.js` there passed
+  without repository node_modules. This is installed-layout module evidence, not
+  an actual VSIX installation or external Gateway client test.

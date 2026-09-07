@@ -105,8 +105,8 @@ Protocol references: [Claude CLI](https://code.claude.com/docs/en/cli-reference)
 | Stage | Implementation | Real-service evidence | Integration |
 | --- | --- | --- | --- |
 | 1 Common GM + Codex | Integrated; live acceptance evidence pending | Authentication callback unresolved; no inference claimed | #109 merged; both post-merge CI passed |
-| 2 Claude | Implemented locally; focused and full suite passed | CLI readiness only; login and inference pending | Pending |
-| 3 Antigravity | Pending | Pending | Pending |
+| 2 Claude | Integrated | CLI readiness only; login and inference pending | #110 merged; post-merge CI passed |
+| 3 Antigravity | Implemented; focused/full suite passed | Native readiness only; login/inference pending | PR pending |
 | 4 Grok ACP | Pending | Pending | Pending |
 | 5 DeepSeek API | Pending | Pending | Pending |
 | 6 Player/QA comparison and sanitized blog artifacts | Pending | Pending | Pending |
@@ -118,3 +118,16 @@ evidence. Publication authorization does not authorize copying credentials or by
 The ignored .test-runs/gm-v2-manual workspace was seeded only from merchant_route_v1 and launched
 with dedicated user-data and extensions directories. It is for interactive login/GM verification,
 not the normal campaign. The production connection picker is used; no QA approval bypass is enabled.
+
+## Antigravity implementation
+
+- Native official CLI 1.1.27 was downloaded into ignored .test-runs, verified against the official SHA512 manifest. The installer was inspected but not executed; normal user CLI installation/settings were not changed.
+- Native --help uses stderr. The adapter checks the required flags and records the exact executable SHA256 because no version flag is exposed.
+- A dedicated home/profile and fixed work directory contain deny rules for file access, URLs, shell, unsandboxed commands and MCP. The custom primary GM agent declares no tools, skills, plugins or MCP; extra AI credits and telemetry are disabled. The native fixture log confirmed the deny rules and zero named hooks.
+- One NDJSON user input is sent on stdin to a fresh CLI process. Model/conversation identity, empty advertised tool set, terminal SUCCESS and one turn are required. Nonzero exit, invalid/foreign/conflicting events and cancellation cannot commit.
+- Official /usage performs readiness without a model prompt. Native unauthenticated 1.1.27 waited for login instead of immediately exiting; the adapter detects the authentication-required diagnostic and terminates its owned request. The real readiness probe returned login_required, modelCalled=false.
+- Explicit connection consent precedes official Google login. The browser callback code is passed only to the official CLI stdin, never saved/logged. Split URLs and cancelled input are covered by the process fixture. Workspace/session revalidation and Accepted Turn remain the existing shared Host path.
+- Test Console: 37/37 focused, 40/40 commands. Real Windows lifecycle_v1 regression passed. Final full suite passed 370/370, Combat 736/736 (167.8 seconds); actual Google login, GM inference, three consecutive turns, stop and rendered acceptance remain UNVERIFIED. These fixture checks do not replace Human Play.
+- Official references: https://antigravity.google/docs/cli/headless/ ; https://antigravity.google/docs/cli/install/ ; https://antigravity.google/docs/cli/permissions/ ; https://antigravity.google/docs/subagents
+
+Claude #110 integration: final HEAD 7c16deb9b58da504ba196dde2d19cab0e7ac1c94; merge 10c2710e0da38dfd28c5bbe467917597422d5acd. Exact CI 34149273734 / Live QA 34149273772 passed. Post-merge CI 34149549554 / Live QA 34149549545 passed. Real Claude service acceptance remains pending.

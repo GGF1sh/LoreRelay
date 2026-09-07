@@ -76,6 +76,9 @@ export function saveConnectionProfiles(file: ConnectionProfilesFile): void {
 }
 
 export function getActiveParlorConnectionProfile(): ConnectionProfile {
+    if (getGmProvider() === 'antigravity-cli') {
+        return { id: 'antigravity-gm-v2', label: 'Antigravity GM', provider: 'antigravity-cli' };
+    }
     if (getGmProvider() === 'claude-code-subscription') {
         return { id: 'claude-gm-v2', label: 'Claude GM', provider: 'claude-code-subscription' };
     }

@@ -78,7 +78,7 @@ export interface TurnResultAgenticMeta {
 
 export interface TurnResultPromptReceiptMeta {
     receiptId: string;
-    provider: 'grok' | 'ollama' | 'koboldcpp' | 'openrouter' | 'command' | 'vscode-lm' | 'codex-app-server' | 'claude-code-subscription' | 'agentic';
+    provider: 'grok' | 'ollama' | 'koboldcpp' | 'openrouter' | 'command' | 'vscode-lm' | 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli' | 'agentic';
     assemblyDigest: string;
     transportPayloadHash?: string;
     stageTransportPayloadHashes?: Array<{ stage: string; hash: string }>;

@@ -102,6 +102,12 @@ fair comparison. Actual four-model runs and regional support metrics are pending
 and transport errors. It does not overwrite initial execution outcomes or certify
 that an uncertain operation was resolved. Older reports show `null` for this
 observation rather than an invented zero count. No request identifiers are exported.
+`worldObservations` records world turns and region supply statuses returned by the
+client's own `read_player_view` calls. It never reads additional QA state. The first
+100 reads / 100 regions per read are retained; truncation is explicit. These
+observations show what the client saw, not a causal score for its sales. Missing
+legacy observations are reported as `null`. Regional support comparisons must use
+the observed sequence and receipts together, rather than awarding credit for every sale.
 
 ## Remote read-only gateway setup
 

@@ -76,6 +76,15 @@ async function main() {
     assert.equal(comparePlayerLabRuns([failing.result()]).runs[0].partialOrUnknown, 1);
     assert(!JSON.stringify(failing.result()).includes('private-'));
     await failing.close();
+    const observing = recordPlayerLabSession({ dispose() {}, async call() { return { worldTurn: 1,
+        worldPacing: { regions: [{ regionId: 'public-region', status: 'shortage', gmHint: 'private-hint' }] },
+        secret: 'private-secret' }; } }, 'fixture-client', 'fixture-model', conditions);
+    for (let index = 0; index < 101; index++) await observing.connection.call('read_player_view', {});
+    assert.equal(observing.result().worldObservations.length, 100);
+    assert.equal(observing.result().observationsTruncated, true);
+    assert(!JSON.stringify(observing.result()).includes('private-'));
+    assert.equal(observing.result().steps.length, 0);
+    await observing.close();
     console.log('Player Lab aggregation: conditions, incomplete runs, replay count, unknown outcomes, privacy and disposal passed.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

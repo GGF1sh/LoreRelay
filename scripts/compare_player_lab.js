@@ -36,7 +36,22 @@ try {
                 || value.unknown + value.errors > value.calls) throw new Error('invalid_receipt_checks');
             receiptChecks = { calls: value.calls, unknown: value.unknown, errors: value.errors };
         }
-        return { client: run.client, model: run.model, complete: run.complete, ...(receiptChecks ? { receiptChecks } : {}), conditions: {
+        let observations;
+        if (run.worldObservations !== undefined) {
+            if (!Array.isArray(run.worldObservations) || run.worldObservations.length > 100
+                || typeof run.observationsTruncated !== 'boolean') throw new Error('invalid_observations');
+            observations = run.worldObservations.map(value => {
+                if (!value || !Number.isSafeInteger(value.worldTurn) || value.worldTurn < 0
+                    || !Array.isArray(value.regions) || value.regions.length > 100) throw new Error('invalid_observation');
+                return { worldTurn: value.worldTurn, regions: value.regions.map(region => {
+                    if (!region || typeof region.regionId !== 'string' || !/^[a-zA-Z0-9_.:-]{1,128}$/.test(region.regionId)
+                        || !['unconfirmed', 'unconfigured', 'paused', 'supplied', 'shortage'].includes(region.status)) throw new Error('invalid_region');
+                    return { regionId: region.regionId, status: region.status };
+                }) };
+            });
+        }
+        return { client: run.client, model: run.model, complete: run.complete, ...(receiptChecks ? { receiptChecks } : {}),
+            ...(observations ? { worldObservations: observations, observationsTruncated: run.observationsTruncated } : {}), conditions: {
             fixtureDigest: c.fixtureDigest, initialPublicDigest: c.initialPublicDigest, taskDigest: c.taskDigest,
             maximum: c.maximum, allowedActions: c.allowedActions,
         }, steps };

@@ -5,8 +5,13 @@ const { openActionFixture } = require('./action_scenario_fixture');
 async function run(support) {
     const fixture = await openActionFixture('player_lab_support_v1');
     const { createPlayerDelegation } = require('../out/playerDelegationCore');
-    const api = createPlayerDelegation({ service: fixture.runtime.service, scope: fixture.runtime.scope,
+    const delegated = createPlayerDelegation({ service: fixture.runtime.service, scope: fixture.runtime.scope,
         current: fixture.runtime.authorized }, ['commerce:trade', 'commerce:travel', 'commerce:end_day'], 10);
+    const recorder = require('../out/playerLabCore').recordPlayerLabSession(delegated, 'sdk', 'fixture', {
+        fixtureDigest: 'fixture', initialPublicDigest: 'public', taskDigest: 'a'.repeat(64), maximum: 10,
+        allowedActions: ['commerce:trade', 'commerce:travel', 'commerce:end_day'],
+    });
+    const api = recorder.connection;
     try {
         const status = view => view.worldPacing.regions.find(region => region.regionId === 'r_central').status;
         const before = await api.call('read_player_view', {});
@@ -27,6 +32,11 @@ async function run(support) {
         const after = await api.call('read_player_view', {});
         assert.equal(status(after), support ? 'supplied' : 'shortage');
         assert.equal(after.worldTurn, before.worldTurn + 1);
+        const observations = recorder.result().worldObservations;
+        assert.equal(observations.length, 2);
+        assert.equal(observations[0].regions.find(region => region.regionId === 'r_central').status, 'shortage');
+        assert.equal(observations[1].regions.find(region => region.regionId === 'r_central').status, support ? 'supplied' : 'shortage');
+        assert(!JSON.stringify(observations).includes('r_south'));
     } finally { api.dispose(); fixture.close(); }
 }
 (async () => { await assert.rejects(openActionFixture('../outside'), /unknown_fixture/); await run(false); await run(true);

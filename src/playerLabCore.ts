@@ -14,6 +14,8 @@ export interface PlayerLabResult {
     conditions: PlayerLabConditions;
     complete: boolean;
     receiptChecks?: { calls: number; unknown: number; errors: number };
+    worldObservations?: { worldTurn: number; regions: { regionId: string; status: string }[] }[];
+    observationsTruncated?: boolean;
     steps: { action: GameActionId; classification: string; commitStatus: string;
         trade?: { op: 'buy' | 'sell'; commodityId: string; qty: number; total: number } }[];
 }
@@ -24,6 +26,8 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
     const steps: PlayerLabResult['steps'] = [];
     const requests = new Set<string>();
     const receiptChecks = { calls: 0, unknown: 0, errors: 0 };
+    const worldObservations: NonNullable<PlayerLabResult['worldObservations']> = [];
+    let observationsTruncated = false;
     let active = true;
     let pending = 0;
     const drained: (() => void)[] = [];
@@ -72,6 +76,20 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
                 });
             }
         }
+        if (tool === 'read_player_view' && result && typeof result === 'object') {
+            const view = result as { classification?: unknown; worldTurn?: number; worldPacing?: { regions?: unknown } };
+            if (!view.classification && Number.isSafeInteger(view.worldTurn) && view.worldTurn! >= 0 && Array.isArray(view.worldPacing?.regions)) {
+                if (worldObservations.length >= 100) observationsTruncated = true;
+                else {
+                    const publicRegions = view.worldPacing.regions.filter(region => region
+                        && typeof region.regionId === 'string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(region.regionId)
+                        && ['unconfirmed', 'unconfigured', 'paused', 'supplied', 'shortage'].includes(region.status));
+                    if (publicRegions.length > 100) observationsTruncated = true;
+                    worldObservations.push({ worldTurn: view.worldTurn!, regions: publicRegions.slice(0, 100)
+                        .map(region => ({ regionId: region.regionId, status: region.status })) });
+                }
+            }
+        }
         return result;
         } finally {
             pending--;
@@ -83,7 +101,7 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
         // Invalidation refuses new calls; accepted work retains its fixture until settled.
         if (pending) await new Promise<void>(resolve => drained.push(resolve));
     }, result(complete = false): PlayerLabResult {
-        return JSON.parse(JSON.stringify({ client, model, conditions: captured, complete, steps, receiptChecks }));
+        return JSON.parse(JSON.stringify({ client, model, conditions: captured, complete, steps, receiptChecks, worldObservations, observationsTruncated }));
     } };
 }
 
@@ -98,6 +116,8 @@ export function comparePlayerLabRuns(runs: readonly PlayerLabResult[]) {
             // Read-back behavior only; never overwrite the original execution outcome.
             // Legacy reports did not observe checks, so absence must not mean zero.
             receiptChecks: run.receiptChecks ? { ...run.receiptChecks } : null,
+            worldObservations: run.worldObservations ? JSON.parse(JSON.stringify(run.worldObservations)) : null,
+            observationsTruncated: run.worldObservations ? Boolean(run.observationsTruncated) : null,
             committed: run.steps.filter(step => step.commitStatus === 'committed'
                 && ['committed', 'committed_with_warning'].includes(step.classification)).length,
             partialOrUnknown: run.steps.filter(step => ['partial', 'unknown'].includes(step.commitStatus)).length,

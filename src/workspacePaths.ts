@@ -136,7 +136,7 @@ export function getGmProvider(): GmProvider {
         provider === 'ollama' ||
         provider === 'koboldcpp' ||
         provider === 'openrouter' ||
-        provider === 'vscode-lm' || provider === 'codex-app-server' || provider === 'claude-code-subscription' || provider === 'antigravity-cli' || provider === 'grok-acp'
+        provider === 'vscode-lm' || provider === 'codex-app-server' || provider === 'claude-code-subscription' || provider === 'antigravity-cli' || provider === 'grok-acp' || provider === 'deepseek-api'
     ) {
         return provider;
     }

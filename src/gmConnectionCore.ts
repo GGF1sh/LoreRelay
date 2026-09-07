@@ -1,5 +1,5 @@
 import { canonicalizeAcceptedTurnPayload, sha256Hex } from './acceptedTurnReplayGuardCore';
-export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli' | 'grok-acp';
+export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription' | 'antigravity-cli' | 'grok-acp' | 'deepseek-api';
 
 /** Transport-only contract. Adapters never receive canonical paths or persistence callbacks. */
 export interface GmConnectionAdapter {
@@ -13,6 +13,13 @@ export interface GmConnectionAdapter {
 export function formatGmConnectionError(error: unknown): string {
     const code = error instanceof Error ? error.message : '';
     const messages: Record<string, string> = {
+        deepseek_key_required: 'DeepSeek APIキーの認証が必要です。「LoreRelay: AI接続」からキーを確認してください。',
+        deepseek_balance_required: 'DeepSeek APIの残高が不足しています。自動再送や他サービスへの切替は行いません。',
+        deepseek_rate_limit: 'DeepSeek APIの受付上限に達しました。自動再送はしていません。時間を置いて状態を確認してください。',
+        deepseek_model_mismatch: 'DeepSeekの指定モデルを確認できません。接続設定とAPIの対応モデルを確認してください。',
+        deepseek_invalid_candidate: 'DeepSeekの応答は未完了、または検証できませんでした。ゲームには適用していません。API利用料が発生する場合があります。',
+        deepseek_timeout: 'DeepSeek APIの待機時間を超えました。結果と費用は未確認です。入力を保持し、自動再送はしていません。',
+        deepseek_start_failed: 'DeepSeek API bridgeを起動できません。Pythonの導入と設定を確認してください。',
         grok_start_failed: 'Grok Buildを起動できません。公式CLIの導入と実行パスを確認してください。',
         grok_login_required: 'Grokの公式ログインが必要です。「LoreRelay: AI接続」から接続してください。',
         grok_model_unverified: 'Grokの指定モデルを確認できませんでした。モデルIDとCLIの対応状況を確認してください。',

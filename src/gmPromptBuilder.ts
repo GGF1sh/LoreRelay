@@ -2313,6 +2313,7 @@ function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {
         case 'codex-app-server':
         case 'claude-code-subscription':
         case 'grok-acp':
+        case 'deepseek-api':
         case 'antigravity-cli':
         case 'grok':
         case 'ollama':

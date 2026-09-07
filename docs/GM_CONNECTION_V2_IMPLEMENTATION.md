@@ -107,8 +107,8 @@ Protocol references: [Claude CLI](https://code.claude.com/docs/en/cli-reference)
 | 1 Common GM + Codex | Integrated; live acceptance evidence pending | Authentication callback unresolved; no inference claimed | #109 merged; both post-merge CI passed |
 | 2 Claude | Integrated | CLI readiness only; login and inference pending | #110 merged; post-merge CI passed |
 | 3 Antigravity | Integrated | Native readiness only; login/inference pending | #111 merged; both post-merge CI passed |
-| 4 Grok ACP | Implemented; final verification passed | Native readiness only; login/inference pending | Pending |
-| 5 DeepSeek API | Pending | Pending | Pending |
+| 4 Grok ACP | Integrated | Native readiness only; login/inference pending | #112 merged; both post-merge CI passed |
+| 5 DeepSeek API | Implemented; final verification passed | Key/login/inference pending | Pending |
 | 6 Player/QA comparison and sanitized blog artifacts | Pending | Pending | Pending |
 
 The user's overnight continuation retains the whole six-stage objective. User-login or external
@@ -149,3 +149,20 @@ References: [official Grok ACP](https://docs.x.ai/build/cli/headless-scripting),
 Antigravity #111: final HEAD 2f7359ea008795e75fc3c66de422312dcc9c263f; merge 659ae767fec3685824694ff8114c59e62b088ee1. Exact CI 34150807422 / Live QA 34150807429 and post-merge CI 34151079268 / Live QA 34151079330 passed.
 
 Grok final verification: full suite 372/372, Combat 736/736 (170.0 seconds); real Windows lifecycle_v1 passed. Actual Grok login/inference and rendered GM acceptance remain unverified.
+
+Grok #112: final HEAD fd1c473d71a8d815f0dea5c2bb90505fb6f64dfc; merge b3711e338729b80cbb9114eae8d2853d1c96396e. Exact CI 34152595593 / Live QA 34152595589 and post-merge CI 34152889518 / Live QA 34152889498 passed.
+
+## DeepSeek API implementation
+
+- Reuses the existing OpenRouter bridge's extracted OpenAI-compatible HTTP transport. The existing OpenRouter entrypoint keeps its prompt/result behavior. The DeepSeek entrypoint accepts one stdin request and returns an API envelope; it never opens or writes campaign files. Host prompt construction, normalization, stale witness and Accepted Turn remain shared.
+- Explicit metered-API consent, text model and 1–32768 maximum output-token selection precede key entry. Keys use SecretStorage and a dedicated provider key. The model-list endpoint verifies readiness without generating a model response. Saving a key alone is not readiness. Readiness failure or cancellation before saving leaves the existing profile in place.
+- The key is sent to the owned Python process through stdin, never command arguments, files or inherited API-key environment. Python runs with explicit UTF-8, no user site and no Python environment overrides. Dedicated working directory, fixed official DeepSeek endpoint, no redirects/proxies, bounded input/output and timeout; no model/tool loop or retries.
+- Text-only non-thinking mode is explicit in setup. One successful assistant choice, matching reported model and stop finish reason are required. Length/tool/refusal/malformed responses cannot commit. Valid usage counters remain reportable even when the candidate is rejected. Cancellation while awaiting SecretStorage cannot start a process.
+- Status displays input/output usage and a dated USD estimate range using the official 2026-09-08 price snapshot. Peak/off-peak and unknown cache split widen the range; unavailable counters are not reported as zero. This is not a billing guarantee or a free-web-chat route.
+- Test Console selected 38/38 focused tests, 41/41 commands. Bounded adversarial verification covered redirects, response bounds, key-read races, partial paid responses, provider/model mismatch, cancellation and Host admission. Repair made the Python encoding explicit and invalidated setup across workspace/session changes; focused repair checks passed.
+- No DeepSeek key was supplied and no account/model request was made. Actual API readiness, three consecutive GM turns, stop and rendered acceptance remain UNVERIFIED. Real Host lifecycle regression is separate from provider inference. Human Play remains unperformed.
+
+Official references: [API contract](https://api-docs.deepseek.com/api/create-chat-completion/),
+[dated pricing source](https://api-docs.deepseek.com/quick_start/pricing/).
+
+DeepSeek final verification: full suite 375/375, Combat 736/736 (169.5 seconds), real Windows lifecycle_v1 passed. API account and model evidence remains pending.

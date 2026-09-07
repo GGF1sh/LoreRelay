@@ -394,3 +394,25 @@ No Human Play has been performed by this work.
 
 Before planning verification, follow `docs/DEVELOPMENT_VERIFICATION_POLICY.md`. Do not
 escalate beyond its risk tier without a concrete reason.
+
+### Continuation: package, graphics and real Host verification
+
+- Local commits through `08b2bee` add the portable Codex plugin builder, bounded
+  vendor smoke commands, failed-execution recording, public SVG resources, and
+  twelve integration tests in the standard suite. Test Console self-checks passed
+  52/52; its actual changed-file plan has no unknown files. This does not waive
+  High Risk final full-suite verification.
+- Package SDK tests pass for Player/Narrator/Companion and the generated Codex
+  plugin. Manifest validation passes. Codex installation/model play is not proven.
+- Public SVG checks pass for escaped labels, visible-only edges, no mutation and
+  unavailable data. Local Chromium rendered the schematic map and stock chart at
+  `.test-runs/public-graphics-01ad211/graphics.png`. SVG support in vendor clients
+  remains unverified. JSON fallback retains full public values.
+- 2026-09-07 20:54 JST: existing `lifecycle_v1` passed on installed VS Code 1.136.1
+  with the current compiled tree, outside the restricted sandbox. The final command
+  exited 0 after real Host Commerce, read-only preview, duplicate receipt, complete
+  restore, epoch invalidation, panel reopen, window reload and old-handle refusal.
+  The fresh fixture `lorerelay-live-qa-8QkVsH` was cleaned by the existing runner.
+  This isolates the earlier cleanup failure to execution permissions; no protected
+  directory permissions were changed and earlier retained fixtures were untouched.
+  It is lifecycle evidence, not new AI connection-menu interaction or Human Play.

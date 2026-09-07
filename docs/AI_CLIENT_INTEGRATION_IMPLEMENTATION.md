@@ -235,5 +235,19 @@ No Human Play has been performed by this work.
   verification and any instantaneous tunnel-process shutdown guarantee remain
   unproven. Do not conflate bounded reachability detection with process supervision.
 
+### Continuation: common comparison task and receipt aggregation
+
+- Added the public `integrations/player-lab-task.md`. Runner emits that exact task
+  and records its normalized-text digest. Comparisons reject missing/different task
+  conditions even when fixtures match. This records the intended task, not proof
+  that a model obeyed it or saw no external information.
+- Added allowlisted committed trade details (side, public commodity, quantity,
+  total), cash flow explicitly distinguished from profit, and
+  `scripts/compare_player_lab.js` for up to four bounded JSON reports. Invalid
+  receipt/trade shapes are refused; raw requests and diagnostic data are omitted.
+- Compile, Player Lab aggregation tests and production fixture SDK runner plus
+  comparison command passed. Actual four-model play, audited completion, public
+  regional-support metrics and model evidence remain outstanding.
+
 Before planning verification, follow `docs/DEVELOPMENT_VERIFICATION_POLICY.md`. Do not
 escalate beyond its risk tier without a concrete reason.

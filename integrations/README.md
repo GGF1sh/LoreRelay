@@ -51,7 +51,23 @@ Actual model play smoke and desktop installation remain pending.
 The Codex plugin source contains playing instructions; its automated packaging is
 still being implemented. No four-client compatibility claim is made yet.
 
-## Remote read-only gateway (implementation preview)
+## Fixture Player Lab (in progress)
+
+Run `node scripts/run_player_lab.js CLIENT MODEL_LABEL` for a dedicated merchant
+fixture (`CLIENT`: codex, gemini, grok, claude-code, or claude-desktop). Give the
+fresh Player-only session the emitted task text unchanged. The task digest is
+recorded alongside the fixture, initial public view and operation limit. Do not
+provide QA information or previous runs to that session. Model labels are supplied
+by the operator, not certified by the runner.
+
+After disconnect, compare up to four result files with
+`node scripts/compare_player_lab.js RESULT1.json RESULT2.json`. The output reports
+action counts, receipt outcomes and recorded trade cash flow; cash flow is not
+profit because cargo valuation is not included. Reports remain `complete: false`
+until the session evidence is audited. Matching fixture data alone does not certify
+fair comparison. Actual four-model runs and regional support metrics are pending.
+
+## Remote read-only gateway setup
 
 In **AI接続**, choose **Web・スマホ（読取専用Remote MCP）**, then companion or
 narrator. Supply the origin of a dedicated HTTPS tunnel, without a path. The output

@@ -103,6 +103,8 @@ function makeClient(profile: Profile, provider: ConnectedGmProvider): GmConnecti
 
 export async function configureCodexGm(): Promise<void> {
     if (!context || isGmConnectionBusy()) { return; }
+    const generation = cancellationGeneration;
+    const workspace = getWorkspacePath();
     const consent = await vscode.window.showWarningMessage(
         'CodexをGMとして使用します。入力、会話履歴、GM用の非公開設定をOpenAIへ送ります。専用の公式ログインを使い、ChatGPT利用枠を消費します。',
         { modal: true }, '接続設定へ進む');
@@ -112,31 +114,57 @@ export async function configureCodexGm(): Promise<void> {
         validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : 'モデルIDを入力してください。' });
     if (!model) { return; }
     const profile = { executable: previous?.executable ?? 'codex', model };
-    const generation = cancellationGeneration;
-    const workspace = getWorkspacePath();
-    if (isGmConnectionBusy()) { return; }
+    if (isGmConnectionBusy() || generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
     let client: CodexGmClient | undefined;
+    const startedAt = Date.now();
+    // Only fixed lifecycle labels and duration; never authentication URLs, codes or account data.
+    const diagnostic = (stage: string) => console.info(`[LoreRelay Codex login] ${stage}; elapsedMs=${Date.now() - startedAt}`);
     try {
         client = new CodexGmClient({ ...profile, ...connectionDirectories('codex-app-server') }); activeClient = client;
         let status = await client.initialize();
         if (status === 'login_required') {
-            const login = await client.startLogin();
-            if (!await vscode.env.openExternal(vscode.Uri.parse(login.authUrl))) { throw new Error('codex_login_browser_failed'); }
+            const method = await vscode.window.showQuickPick([
+                { label: 'デバイスコードでログイン', detail: 'localhost接続は不要です。公式画面にコードを入力します。', mode: 'device' },
+                { label: 'ブラウザーの戻り先でログイン', detail: 'このPCのlocalhostへ認証結果を返す従来方式です。', mode: 'browser' },
+            ], { title: 'Codexの公式ログイン方式' });
+            if (!method || generation !== cancellationGeneration || workspace !== getWorkspacePath()) { diagnostic('cancelled_before_login'); return; }
+            let loginId: string;
+            let authUrl: string;
+            if (method.mode === 'device') {
+                const login = await client.startDeviceLogin();
+                loginId = login.loginId; authUrl = login.verificationUrl;
+                diagnostic('device_started');
+                const proceed = await vscode.window.showInformationMessage(
+                    `公式ログイン画面にコード ${login.userCode} を入力してください。このVS Codeウィンドウは開いたままにしてください。`,
+                    { modal: true }, 'コードをコピーしてブラウザーを開く');
+                if (!proceed || generation !== cancellationGeneration || workspace !== getWorkspacePath()) { diagnostic('cancelled_before_browser'); return; }
+                await vscode.env.clipboard.writeText(login.userCode);
+            } else {
+                const login = await client.startLogin();
+                loginId = login.loginId; authUrl = login.authUrl;
+                diagnostic('browser_callback_started');
+            }
+            if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { diagnostic('cancelled_before_browser'); return; }
+            if (!await vscode.env.openExternal(vscode.Uri.parse(authUrl))) { throw new Error('codex_login_browser_failed'); }
             const loginClient = client;
             await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
-                title: 'Codex GM: ブラウザーでの公式ログイン完了を待っています', cancellable: true }, async (_, token) => {
-                const cancellation = token.onCancellationRequested(() => loginClient.dispose());
-                try { await loginClient.waitForLogin(login.loginId); }
+                title: 'Codex GM: 公式ログイン完了を待っています（最大10分）', cancellable: true }, async (_, token) => {
+                const cancellation = token.onCancellationRequested(() => { diagnostic('cancelled_by_user'); loginClient.dispose(); });
+                if (token.isCancellationRequested) loginClient.dispose();
+                try { await loginClient.waitForLogin(loginId); }
                 finally { cancellation.dispose(); }
             });
             status = await client.checkAuthentication();
         }
         if (status !== 'ready') { throw new Error('codex_login_required'); }
         if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return; }
+        diagnostic('authentication_confirmed');
         await context.workspaceState.update(profileKey, profile);
         await vscode.workspace.getConfiguration('textAdventure').update('gmBridge.provider', 'codex-app-server', vscode.ConfigurationTarget.Workspace);
         void vscode.window.showInformationMessage('Codex GM: 認証確認済み。実モデルの応答は次のゲーム入力で確認します。');
     } catch (error) {
+        diagnostic(error instanceof Error && error.message === 'codex_login_timeout' ? 'timed_out'
+            : error instanceof Error && error.message === 'codex_connection_closed' ? 'connection_closed' : 'failed');
         void vscode.window.showErrorMessage(`Codex GM接続: ${formatGmConnectionError(error)}`);
     } finally { client?.dispose(); if (activeClient === client) activeClient = undefined; }
 }

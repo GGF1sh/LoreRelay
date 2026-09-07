@@ -134,6 +134,21 @@ export class CodexGmClient implements GmConnectionAdapter {
         });
     }
 
+    /** Official device authorization: no localhost callback listener is needed. */
+    async startDeviceLogin(): Promise<{ loginId: string; verificationUrl: string; userCode: string }> {
+        this.loginCompleted = undefined;
+        const result = await this.rpc.request('account/login/start', { type: 'chatgptDeviceCode' }) as JsonObject;
+        if (result.type !== 'chatgptDeviceCode' || typeof result.loginId !== 'string' || !result.loginId
+            || result.loginId.length > 128 || typeof result.verificationUrl !== 'string'
+            || typeof result.userCode !== 'string' || !/^[A-Za-z0-9-]{4,32}$/.test(result.userCode)) {
+            throw new Error('codex_login_response_invalid');
+        }
+        let url: URL;
+        try { url = new URL(result.verificationUrl); } catch { throw new Error('codex_login_origin_invalid'); }
+        if (url.origin !== 'https://auth.openai.com' || url.username || url.password) throw new Error('codex_login_origin_invalid');
+        return { loginId: result.loginId, verificationUrl: result.verificationUrl, userCode: result.userCode };
+    }
+
     async generate(prompt: string, onDraft: (text: string) => void): Promise<string> {
         if (this.running || this.disposed) { throw new Error('codex_busy_or_closed'); }
         if (!this.authenticated) { throw new Error('codex_subscription_auth_required'); }

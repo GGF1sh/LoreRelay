@@ -53,6 +53,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_codex_gm_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_claude_gm_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_antigravity_gm_client.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_grok_gm_client.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_grok_gm_protocol.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_antigravity_gm_protocol.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_ai_client_integration.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_ai_connection_status.js', consumesCompiledOutput: true },

@@ -76,6 +76,9 @@ export function saveConnectionProfiles(file: ConnectionProfilesFile): void {
 }
 
 export function getActiveParlorConnectionProfile(): ConnectionProfile {
+    if (getGmProvider() === 'grok-acp') {
+        return { id: 'grok-gm-v2', label: 'Grok GM', provider: 'grok-acp' };
+    }
     if (getGmProvider() === 'antigravity-cli') {
         return { id: 'antigravity-gm-v2', label: 'Antigravity GM', provider: 'antigravity-cli' };
     }

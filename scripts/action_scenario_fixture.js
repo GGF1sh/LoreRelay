@@ -7,7 +7,6 @@ const path = require('path');
 const Module = require('module');
 const ROOT = path.resolve(__dirname, '..');
 const FILES = ['game_state.json', 'world_state.json', 'world_forge.json', 'game_rules.json'];
-const fixtureRoot = path.join(ROOT, 'fixtures', 'action-scenarios', 'merchant_route_v1');
 let active;
 let modules;
 const vscode = {
@@ -35,7 +34,9 @@ function loadModules() {
         return modules;
     } finally { Module._load = original; }
 }
-async function openActionFixture() {
+async function openActionFixture(fixtureId = 'merchant_route_v1') {
+    if (!['merchant_route_v1', 'player_lab_support_v1'].includes(fixtureId)) throw new Error('unknown_fixture');
+    const fixtureRoot = path.join(ROOT, 'fixtures', 'action-scenarios', fixtureId);
     if (active) throw new Error('fixture_already_active');
     const tempRoot = fs.realpathSync(os.tmpdir());
     const workspace = fs.mkdtempSync(path.join(tempRoot, 'lorerelay-action-'));

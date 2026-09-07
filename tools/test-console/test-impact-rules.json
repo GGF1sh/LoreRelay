@@ -17,8 +17,8 @@
     },
     {
       "id": "player-lab",
-      "patterns": ["src/playerLabCore.ts", "scripts/run_player_lab.js", "scripts/compare_player_lab.js", "integrations/player-lab-task.md", "scripts/smoke_codex_play.js", "scripts/smoke_grok_play.js"],
-      "tests": ["test_player_lab.js", "test_player_lab_runner.js"],
+      "patterns": ["src/playerLabCore.ts", "scripts/run_player_lab.js", "scripts/compare_player_lab.js", "integrations/player-lab-task.md", "fixtures/action-scenarios/player_lab_support_v1/**", "scripts/smoke_codex_play.js", "scripts/smoke_grok_play.js"],
+      "tests": ["test_player_lab.js", "test_player_lab_runner.js", "test_player_lab_support.js"],
       "boundaries": ["compile"],
       "reason": "Fixture comparison, receipt aggregation and session cleanup require bounded SDK runner checks. Actual model play is not run by the test selector."
     },

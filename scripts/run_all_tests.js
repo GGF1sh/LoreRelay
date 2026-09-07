@@ -54,6 +54,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_public_game_graphic.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_player_lab.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_player_lab_runner.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_player_lab_support.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_remote_ai_gateway.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_remote_tunnel_witness.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_chat_native_card.js', consumesCompiledOutput: true },

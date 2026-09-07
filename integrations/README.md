@@ -77,12 +77,20 @@ unit prices, not price history or a binding trade quote. Displays are bounded to
 Package SDK reads and local Chromium rendering passed; vendor image rendering
 remains unverified. No image-generation service is called.
 
-Run `node scripts/run_player_lab.js CLIENT MODEL_LABEL` for a dedicated merchant
+Run `node scripts/run_player_lab.js CLIENT MODEL_LABEL` for the dedicated `player_lab_support_v1`
 fixture (`CLIENT`: codex, gemini, grok, claude-code, or claude-desktop). Give the
 fresh Player-only session the emitted task text unchanged. The task digest is
 recorded alongside the fixture, initial public view and operation limit. Do not
 provide QA information or previous runs to that session. Model labels are supplied
 by the operator, not certified by the runner.
+
+The comparison fixture starts with eight wheat units in cargo and a publicly
+reported four-unit food shortage supplied through Elda's Shop. A production-service
+fixture check establishes that selling four wheat there and ending the day restores
+supply, while waiting for the same first day leaves the shortage. This gives an
+observable support choice; it does not prescribe the model's preference or prove
+any later sale caused recovery. The one-action connection smoke retains the original
+`merchant_route_v1` fixture. Fixture digests keep those runs non-comparable.
 
 After disconnect, compare up to four result files with
 `node scripts/compare_player_lab.js RESULT1.json RESULT2.json`. The output reports

@@ -14,7 +14,8 @@ async function main() {
     if (![4, 5].includes(process.argv.length) || (mode !== undefined && mode !== '--end-day-smoke')
         || !['codex', 'gemini', 'grok', 'claude-desktop', 'claude-code'].includes(client)
         || !/^[a-zA-Z0-9._:/-]{1,80}$/.test(model || '')) throw new Error('usage: node scripts/run_player_lab.js CLIENT MODEL_LABEL');
-    const fixture = await openActionFixture();
+    const fixtureId = mode ? 'merchant_route_v1' : 'player_lab_support_v1';
+    const fixture = await openActionFixture(fixtureId);
     let host;
     let recorder;
     const directory = path.resolve(__dirname, '../.test-runs/player-lab', randomUUID());
@@ -27,7 +28,7 @@ async function main() {
         const initialPublicDigest = hashGameActionValue(service.readPlayerView(reader));
         service.close(reader);
         const fixtureDigest = hashGameActionValue(['game_state.json', 'world_state.json', 'world_forge.json', 'game_rules.json']
-            .map(name => fs.readFileSync(path.resolve(__dirname, '../fixtures/action-scenarios/merchant_route_v1', name), 'utf8')));
+            .map(name => fs.readFileSync(path.resolve(__dirname, '../fixtures/action-scenarios', fixtureId, name), 'utf8')));
         const maximum = mode ? 1 : 10;
         const allowedActions = mode ? ['commerce:end_day'] : ['commerce:trade', 'commerce:travel', 'commerce:end_day'];
         const task = mode ? 'Connection smoke only: read public state, preview and execute one end day, inspect the receipt, then stop. No automatic retries. Not a comparison run.'
@@ -40,7 +41,7 @@ async function main() {
         });
         const config = buildAiConnectionConfig(client, 'player', path.resolve(__dirname, '../out/playerMcp.js'), host.endpoint, host.secret);
         fs.writeFileSync(configFile, config.text, { mode: 0o600, flag: 'wx' });
-        console.log(JSON.stringify({ fixture: 'merchant_route_v1', client, modelLabel: model, maximum,
+        console.log(JSON.stringify({ fixture: fixtureId, client, modelLabel: model, maximum,
             connectionFile: configFile, resultFile: output, task,
             instruction: 'Connect a fresh Player-only AI session. Disconnect when finished. No QA data may be supplied to that session.' }));
         await new Promise(resolve => {

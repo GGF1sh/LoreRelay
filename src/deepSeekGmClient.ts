@@ -8,6 +8,7 @@ interface Options { executable: string; script: string; workingDirectory: string
 
 /** Uses the existing Python API transport. The secret travels over stdin, never argv or a file. */
 export class DeepSeekGmClient implements GmConnectionAdapter {
+    reportedModel?: string;
     private child?: ChildProcessWithoutNullStreams;
     private disposed = false;
     private ready = false;
@@ -89,6 +90,7 @@ export class DeepSeekGmClient implements GmConnectionAdapter {
         if (this.disposed) throw new Error('deepseek_cancelled');
         this.options.onUsage?.(readDeepSeekUsage(result, this.options.model));
         const candidate = parseDeepSeekCandidate(result, this.options.model);
+        this.reportedModel = candidate.reportedModel;
         onDraft(candidate.text);
         return candidate.text;
     }

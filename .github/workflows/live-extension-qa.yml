@@ -31,3 +31,7 @@ jobs:
         run: xvfb-run -a node scripts/run_live_extension_qa.js --scenario mods_v1
       - if: runner.os == 'Windows'
         run: node scripts/run_live_extension_qa.js --scenario mods_v1
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/test_connected_qa_lab_host.js
+      - if: runner.os == 'Windows'
+        run: node scripts/test_connected_qa_lab_host.js

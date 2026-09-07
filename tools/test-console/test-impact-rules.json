@@ -52,8 +52,8 @@
     },
     {
       "id": "player-lab",
-      "patterns": ["src/playerLabCore.ts", "scripts/run_player_lab.js", "scripts/compare_player_lab.js", "integrations/player-lab-task.md", "fixtures/action-scenarios/player_lab_support_v1/**", "scripts/smoke_codex_play.js", "scripts/smoke_grok_play.js"],
-      "tests": ["test_player_lab.js", "test_player_lab_runner.js", "test_player_lab_support.js"],
+      "patterns": ["src/playerLabCore.ts", "src/playerLabDecisionCore.ts", "src/qaLabEvidenceCore.ts", "scripts/player_lab_provider.js", "scripts/run_connected_player_lab.js", "scripts/run_connected_qa_lab.js", "scripts/test_connected_qa_lab_host.js", "scripts/export_ai_lab_article.js", "scripts/run_player_lab.js", "scripts/compare_player_lab.js", "integrations/player-lab-task.md", "fixtures/action-scenarios/player_lab_support_v1/**", "scripts/smoke_codex_play.js", "scripts/smoke_grok_play.js"],
+      "tests": ["test_player_lab.js", "test_player_lab_decision.js", "test_player_lab_provider.js", "test_connected_player_lab.js", "test_qa_lab_evidence.js", "test_ai_lab_article.js", "test_player_lab_runner.js", "test_player_lab_support.js"],
       "boundaries": ["compile"],
       "reason": "Fixture comparison, receipt aggregation and session cleanup require bounded SDK runner checks. Actual model play is not run by the test selector."
     },

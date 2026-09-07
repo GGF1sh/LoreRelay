@@ -16,6 +16,7 @@ export class AntigravityGmClient implements GmConnectionAdapter {
     private authenticated = false;
     private rejectActive?: (error: Error) => void;
     clientVersion?: string;
+    reportedModel?: string;
 
     constructor(private readonly options: Options) {}
 
@@ -131,7 +132,10 @@ export class AntigravityGmClient implements GmConnectionAdapter {
         const result = await this.run(['--input-format', 'stream-json', '--output-format', 'stream-json',
             '--model', this.options.model, '--agent', 'lorerelay-gm', '--disable-slash-commands', '--print-timeout', '3m'],
         JSON.stringify({ event: 'user', message: { content: prompt } }) + '\n', line => stream.accept(line));
-        return stream.finish(result.code);
+        const candidate = stream.finish(result.code);
+        // finish succeeds only after init.model matched the requested model.
+        this.reportedModel = this.options.model;
+        return candidate;
     }
 
     async login(onLogin: (url: string) => Promise<string | undefined>): Promise<void> {

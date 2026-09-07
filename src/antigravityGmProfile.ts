@@ -18,7 +18,7 @@ export function prepareAntigravityGmProfile(profileDirectory: string, workingDir
         '---', 'name: lorerelay-gm', 'description: LoreRelay GM candidate generation without tools',
         'mainAgent: true', 'subagent: false', 'tools: []', 'mcpServers: []', 'skills: []', 'plugins: []',
         'commandExecutionPolicy: off', '---',
-        'You are the LoreRelay GM. Follow the supplied game context and response format. Do not use tools.', '',
+        'Follow the role and response format in the supplied LoreRelay context. Do not use tools.', '',
     ].join('\n'));
     const env: NodeJS.ProcessEnv = {};
     for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP']) {

@@ -59,6 +59,13 @@ async function main() {
                 assert.ok(expanded.messages[0].content.text.includes(role === 'narrator' ? 'read_committed_facts' : 'read_player_view'));
             }
             assert.equal(called, 2, 'getting a prompt must not call the Host or execute an action');
+            for (const kind of ['world-map', 'market-report']) {
+                const graphic = await client.readResource({ uri: `lorerelay://${kind}-image` });
+                assert.equal(graphic.contents[0].mimeType, 'image/svg+xml');
+                const svg = Buffer.from(graphic.contents[0].blob, 'base64').toString('utf8');
+                assert(svg.startsWith('<svg '));
+                assert(!svg.includes(host.secret));
+            }
             await assert.rejects(client.readResource({ uri: 'lorerelay://raw-world-state' }));
             const market = JSON.parse((await client.readResource({ uri: 'lorerelay://market-report' })).contents[0].text);
             assert.deepEqual(market, { currentLocationId: 'known-market', worldTurn: 7, available: true,
@@ -70,6 +77,7 @@ async function main() {
             refused = true;
             await assert.rejects(client.readResource({ uri: 'lorerelay://player-view' }));
             await assert.rejects(client.readResource({ uri: 'lorerelay://market-report' }));
+            await assert.rejects(client.readResource({ uri: 'lorerelay://world-map-image' }));
             assert.equal(fs.readFileSync(path.join(target, 'manifest.json'), 'utf8').includes(host.secret), false);
         } finally { await client.close(); host.dispose(); }
     }

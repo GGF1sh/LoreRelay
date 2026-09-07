@@ -33,7 +33,7 @@ function build(destination, role) {
     collect('@modelcontextprotocol/server', root);
     collect('zod', root);
     // Validate compiled files before creating the output directory.
-    const files = [`${role}Mcp.js`, 'mcpAdapter.js'];
+    const files = [`${role}Mcp.js`, 'mcpAdapter.js', 'publicGameGraphicCore.js'];
     for (const file of files) fs.accessSync(path.join(root, 'out', file));
     fs.mkdirSync(path.join(target, 'server'), { recursive: true });
     for (const file of files) fs.copyFileSync(path.join(root, 'out', file), path.join(target, 'server', file));

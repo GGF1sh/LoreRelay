@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { renderPublicGameGraphic } from './publicGameGraphicCore';
 // Official SDK owns all MCP framing, lifecycle, schema validation and stdio.
 const { McpServer } = require('@modelcontextprotocol/server');
 const { StdioServerTransport } = require('@modelcontextprotocol/server/stdio');
@@ -137,6 +138,11 @@ export async function runMcpAdapter(role: 'player' | 'narrator' | 'companion') {
             worldTurn: view?.worldTurn, events: view?.recentEvents ?? [], coverage: 'public_non_npc_events',
         }) }] };
     });
+    for (const kind of ['world-map', 'market-report'] as const) server.registerResource(`${kind}-image`, `lorerelay://${kind}-image`, {
+        description: 'Read-only SVG from the public view. Use the matching JSON resource if images are unsupported. Map layout is schematic; market prices are estimates.',
+        mimeType: 'image/svg+xml',
+    }, async (uri: URL) => ({ contents: [{ uri: uri.href, mimeType: 'image/svg+xml',
+        blob: Buffer.from(renderPublicGameGraphic(kind, await readPublic()), 'utf8').toString('base64') }] }));
     const prompts: Record<string, string> = {
         'plan-day': 'Help plan a day around the user\'s stated goals. Observation and waiting are valid choices. Explain tradeoffs; do not assume profit is the only goal.',
         'compare-trades': 'Compare publicly available trades. Distinguish actual quotes from estimates; do not invent hidden market prices or execute a trade just to compare it.',

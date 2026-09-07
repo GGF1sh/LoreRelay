@@ -91,6 +91,10 @@ export async function openRemoteAiGateway(role: 'companion' | 'narrator', endpoi
         const uri = `lorerelay://${name}`;
         server.registerResource(name, uri, { mimeType: 'application/json' }, () => read(() => upstream.readResource({ uri })));
     }
+    for (const name of ['world-map-image', 'market-report-image']) {
+        const uri = `lorerelay://${name}`;
+        server.registerResource(name, uri, { mimeType: 'image/svg+xml' }, () => read(() => upstream.readResource({ uri })));
+    }
     for (const name of ['plan-day', 'compare-trades', 'summarize-world', 'explain-recent-events', 'write-travel-diary']) {
         server.registerPrompt(name, { description: 'Use only Host-authorized public facts.' }, () => read(() => upstream.getPrompt({ name })));
     }

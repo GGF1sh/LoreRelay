@@ -67,6 +67,16 @@ plugin installation is unverified. No four-client compatibility claim is made ye
 
 ## Fixture Player Lab (in progress)
 
+Public image resources `lorerelay://world-map-image` and
+`lorerelay://market-report-image` return SVG blobs through the same authorized
+read path as JSON. The map is a schematic of published region connections, not
+travel eligibility or distance. The market chart shows current stock and estimate
+unit prices, not price history or a binding trade quote. Displays are bounded to
+24 regions / 20 commodities and state the displayed total. Use `world-map` and
+`market-report` JSON resources for complete values or when SVG is unsupported.
+Package SDK reads and local Chromium rendering passed; vendor image rendering
+remains unverified. No image-generation service is called.
+
 Run `node scripts/run_player_lab.js CLIENT MODEL_LABEL` for a dedicated merchant
 fixture (`CLIENT`: codex, gemini, grok, claude-code, or claude-desktop). Give the
 fresh Player-only session the emitted task text unchanged. The task digest is

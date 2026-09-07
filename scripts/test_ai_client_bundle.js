@@ -4,17 +4,30 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { build } = require('./build_ai_client_bundle');
+const { buildPlugin } = require('./build_codex_local_plugin');
 const { openAgentConnection } = require('../out/playerIpcHost');
 const { Client } = require('@modelcontextprotocol/client');
 const { StdioClientTransport } = require('@modelcontextprotocol/client/stdio');
 async function main() {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-bundle-test-'));
-    for (const role of ['player', 'narrator', 'companion']) {
-        const target = build(path.join(directory, role), role);
+    for (const variant of ['player', 'narrator', 'companion', 'codex-plugin']) {
+        const role = variant === 'codex-plugin' ? 'player' : variant;
+        const target = variant === 'codex-plugin' ? buildPlugin(directory) : build(path.join(directory, role), role);
         assert.throws(() => build(target, role), /must not exist/);
         const manifest = JSON.parse(fs.readFileSync(path.join(target, 'manifest.json'), 'utf8'));
         assert.equal(manifest.user_config.secret.sensitive, true);
         assert.equal(manifest.server.mcp_config.args[0], `\${__dirname}/server/${role}Mcp.js`);
+        let launchArgs = [path.join(target, manifest.server.entry_point)];
+        if (variant === 'codex-plugin') {
+            const plugin = JSON.parse(fs.readFileSync(path.join(target, '.codex-plugin/plugin.json'), 'utf8'));
+            const config = JSON.parse(fs.readFileSync(path.join(target, plugin.mcpServers), 'utf8')).mcpServers['lorerelay-player'];
+            assert.deepEqual(config.env_vars, ['LORERELAY_AGENT_ENDPOINT', 'LORERELAY_AGENT_SECRET']);
+            assert.equal(config.command, 'node');
+            assert.equal(config.env, undefined, 'package must not embed runtime credentials');
+            assert(fs.existsSync(path.join(target, plugin.skills, 'play/SKILL.md')));
+            launchArgs = config.args;
+            assert.throws(() => buildPlugin(directory), /must not exist/);
+        }
         let called = 0;
         const publicValue = { public: true, currentLocationId: 'known-market', worldTurn: 7,
             availableActions: [{ actionId: 'commerce:trade', estimate: { commodities: [{ commodityId: 'wheat', price: 3 }] } }] };
@@ -26,7 +39,7 @@ async function main() {
         const client = new Client({ name: 'packaged-adapter-test', version: '1.0.0' });
         try {
             await client.connect(new StdioClientTransport({ command: process.execPath,
-                args: [path.join(target, manifest.server.entry_point)], cwd: directory,
+                args: launchArgs, cwd: directory,
                 env: { LORERELAY_AGENT_ENDPOINT: host.endpoint, LORERELAY_AGENT_SECRET: host.secret }, stderr: 'pipe' }));
             const tools = await client.listTools();
             assert.equal(tools.tools.length, role === 'player' ? 5 : role === 'companion' ? 2 : 1);
@@ -60,6 +73,7 @@ async function main() {
             assert.equal(fs.readFileSync(path.join(target, 'manifest.json'), 'utf8').includes(host.secret), false);
         } finally { await client.close(); host.dispose(); }
     }
+    console.log(`Codex plugin artifact: ${path.join(directory, 'lorerelay-player')}`);
     console.log('Portable bundles: SDK stdio initialization, fixed role tool lists and public read passed outside the repository. Vendor apps untested.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

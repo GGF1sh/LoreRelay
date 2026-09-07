@@ -28,6 +28,20 @@ are not embedded in the archive. After expiry/reload, generate fresh Host settin
 The SDK smoke checks portability of the packaged server; it does not prove Claude
 Desktop installation. Current format: https://github.com/modelcontextprotocol/mcpb .
 
+## Local Codex plugin
+
+After compiling, run `node scripts/build_codex_local_plugin.js NEW_PARENT_DIRECTORY`.
+The builder creates `lorerelay-player` with its own adapter dependencies, playing
+skill and MCP configuration. It refuses to overwrite an existing output. Keep the
+generated directory in place: its MCP command references that absolute location.
+
+Supply `LORERELAY_AGENT_ENDPOINT` and `LORERELAY_AGENT_SECRET` from the current
+Host Player connection in the Codex process environment before starting the client.
+The generated package does not contain those values. Installing it does not grant
+campaign authority; approve the incoming session in LoreRelay. Restart with fresh
+connection values after expiry or reload. SDK package checks do not establish that
+Codex has installed or invoked the plugin; that client verification remains pending.
+
 ## Client-side diagnostics
 
 - Codex: `codex mcp list`; use `/mcp` inside Codex to inspect the loaded tools.
@@ -48,8 +62,8 @@ Configuration generation, Host IPC lifecycle, and portable adapter SDK smoke hav
 passed locally. Grok Build and Gemini CLI paired with isolated test Hosts in their
 MCP diagnostics (no model call). Codex CLI accepted generated configuration fields.
 Actual model play smoke and desktop installation remain pending.
-The Codex plugin source contains playing instructions; its automated packaging is
-still being implemented. No four-client compatibility claim is made yet.
+The Codex plugin builder bundles the adapter and playing instructions. Actual
+plugin installation is unverified. No four-client compatibility claim is made yet.
 
 ## Fixture Player Lab (in progress)
 

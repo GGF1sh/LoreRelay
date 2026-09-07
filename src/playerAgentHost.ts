@@ -10,7 +10,7 @@ import { openAgentConnection } from './playerIpcHost';
 import type { DeterministicWorkspaceMutationGate } from './deterministicWorkspaceMutationGate';
 import { buildAiConnectionConfig, type AiConnectionClient } from './aiClientIntegrationCore';
 import { openRemoteAiGateway } from './remoteAiGateway';
-import { configureCodexGm } from './gmConnectionHost';
+import { configureCodexGm, configureClaudeGm } from './gmConnectionHost';
 
 export function registerPlayerAgent(context: vscode.ExtensionContext, gate: DeterministicWorkspaceMutationGate) {
     const connections = new Map<'player' | 'narrator' | 'companion', Awaited<ReturnType<typeof openAgentConnection>>>();
@@ -101,10 +101,13 @@ export function registerPlayerAgent(context: vscode.ExtensionContext, gate: Dete
             { label: 'Web・スマホ（読取専用Remote MCP）', id: 'remote' as const },
         ], { title: 'LoreRelay — AI接続', placeHolder: '接続先を選択（設定ファイルは自動変更しません）' });
         if (!client) return;
-        if (client.id === 'codex') {
-            const usage = await vscode.window.showQuickPick(['GMとして使う', 'Player・相談役・観戦者として使う'], { title: 'Codexの役割' });
+        if (client.id === 'codex' || client.id === 'claude-code') {
+            const usage = await vscode.window.showQuickPick(['GMとして使う', 'Player・相談役・観戦者として使う'], { title: `${client.label}の役割` });
             if (!usage) return;
-            if (usage === 'GMとして使う') { await configureCodexGm(); return; }
+            if (usage === 'GMとして使う') {
+                if (client.id === 'codex') await configureCodexGm(); else await configureClaudeGm();
+                return;
+            }
         }
         const roles = [
             { label: '相談役', description: '公開状態・行動候補の読取のみ。操作権限なし', id: 'companion' as const },

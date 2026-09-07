@@ -76,6 +76,9 @@ export function saveConnectionProfiles(file: ConnectionProfilesFile): void {
 }
 
 export function getActiveParlorConnectionProfile(): ConnectionProfile {
+    if (getGmProvider() === 'claude-code-subscription') {
+        return { id: 'claude-gm-v2', label: 'Claude GM', provider: 'claude-code-subscription' };
+    }
     if (getGmProvider() === 'codex-app-server') {
         return { id: 'codex-gm-v2', label: 'Codex GM', provider: 'codex-app-server' };
     }

@@ -3,8 +3,10 @@
 Status: implementation verification passed; actual GM login/turn verification remains incomplete.
 Human Play has not been performed. No end-to-end GM success is claimed.
 
-Base: ea4cb92220871668eebd0de80b9b479cdbebf910 (#108 included).
-Branch: feat/GM-CONNECTION-V2-CODEX. Reuses the existing ai-client-integration-kit-v1 worktree.
+Codex base: ea4cb92220871668eebd0de80b9b479cdbebf910 (#108 included).
+Codex PR #109 HEAD: 6ce09dce4eea22d9f1083094e0ddf280f6bd70d2.
+Merge / Claude base: 2635ceef627476b314e968e30863e2c72ec03115.
+Current branch: feat/GM-CONNECTION-V2-CLAUDE. Reuses the ai-client-integration-kit-v1 worktree.
 Owner-requested implementer: GPT-6 Astra / High; no automatic model downgrade or subagents.
 
 ## Scope and order
@@ -67,18 +69,43 @@ Existing game rules, provider routes and Player/QA authority remain the baseline
 
 - User login in the isolated manual development Host, then actual model GM turns (3 plus stop),
   campaign and conversation-only verification, and actual Webview evidence.
-- Exact-head CI, PR and post-merge CI remain pending.
+- Codex #109 exact-head CI 34147603840 and Live QA 34147603785 passed. Post-merge CI
+  34147885034 and Live QA 34147885066 passed on the merge SHA above. Actual GM service
+  success remains unverified; integration does not satisfy that remaining evidence requirement.
 - Review runtime limits and provider protocol version compatibility against actual client results.
 - Typed partial reporting currently covers core/secondary ledgers and profile writes; assess other
   post-commit side effects before claiming complete persistence coverage.
-- Remaining providers and Player Lab work have not started.
+- Claude implementation and local verification passed. Remaining providers and Player Lab are pending.
+
+## Claude implementation
+
+- Official `claude -p` structured JSON event stream; the final response enters the same GM
+  normalization and Accepted Turn path as Codex. Conversation-only modes share the adapter too.
+- Dedicated `CLAUDE_CONFIG_DIR` and work directory, Safe Mode, empty settings sources, disabled
+  hooks/skills/tools, strict empty MCP configuration, no saved sessions, one maximum model turn.
+- No `--bare`: the official documentation says it does not use subscription credentials.
+  Authentication status must identify `claude.ai` and the first-party provider. API-key and
+  alternate-provider environment variables are not inherited. No fallback model or resume option.
+- Official `auth login --claudeai` handles the user's login; no token extraction or credential copying.
+- Installed CLI 2.1.178 supports the required flags. Actual adapter readiness in an empty profile
+  returned login_required, modelCalled=false. No Anthropic GM context has been transmitted.
+- Mocked-process adversarial coverage includes auth/billing rejection, unexpected tools/model/session,
+  invalid JSON, conflicting candidates, nonzero exit, quota, timeout and cancellation.
+
+- Final Claude tree: Test Console 36/36 focused tests (39/39 commands), full suite 368/368,
+  Combat 736/736 (166.9 seconds). Real Windows lifecycle_v1 QA passed; this is regression
+  evidence, not a Claude inference or rendered GM acceptance claim.
+
+Protocol references: [Claude CLI](https://code.claude.com/docs/en/cli-reference),
+[programmatic usage](https://code.claude.com/docs/en/headless),
+[subscription eligibility](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan).
 
 ## Full objective tracking
 
 | Stage | Implementation | Real-service evidence | Integration |
 | --- | --- | --- | --- |
-| 1 Common GM + Codex | In progress | Authentication callback unresolved; no inference claimed | Not pushed |
-| 2 Claude | Pending | Pending | Pending |
+| 1 Common GM + Codex | Integrated; live acceptance evidence pending | Authentication callback unresolved; no inference claimed | #109 merged; both post-merge CI passed |
+| 2 Claude | Implemented locally; focused and full suite passed | CLI readiness only; login and inference pending | Pending |
 | 3 Antigravity | Pending | Pending | Pending |
 | 4 Grok ACP | Pending | Pending | Pending |
 | 5 DeepSeek API | Pending | Pending | Pending |

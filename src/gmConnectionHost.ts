@@ -3,7 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { CodexGmClient } from './codexGmClient';
-import { GmCandidateGate, formatGmConnectionError, type GmConnectionWitness } from './gmConnectionCore';
+import { ClaudeGmClient } from './claudeGmClient';
+import { GmCandidateGate, formatGmConnectionError, type GmConnectionWitness, type GmConnectionAdapter, type ConnectedGmProvider } from './gmConnectionCore';
 import { loadExistingAcceptedTurnScope, loadAcceptedTurnLedger } from './acceptedTurnReplayGuard';
 import { activeEpochLedgerHead } from './acceptedTurnReplayGuardCore';
 import { getWorkspacePath } from './workspacePaths';
@@ -15,10 +16,11 @@ import type { TurnResult } from './types/TurnResult';
 let context: vscode.ExtensionContext | undefined;
 let mutationGate: DeterministicWorkspaceMutationGate | undefined;
 let getGameplayLease: (() => DeterministicWorkspaceMutationLease | undefined) | undefined;
-let activeClient: CodexGmClient | undefined;
+let activeClient: GmConnectionAdapter | undefined;
 let cancellationGeneration = 0;
 const hostSession = randomUUID();
 const profileKey = 'gmConnection.v2.codex';
+const claudeProfileKey = 'gmConnection.v2.claude';
 interface Profile { executable: string; model: string }
 
 export function initializeGmConnectionHost(value: vscode.ExtensionContext, gate: DeterministicWorkspaceMutationGate,
@@ -40,33 +42,38 @@ export function cancelGmConnection(): void {
 
 export function isGmConnectionBusy(): boolean { return activeClient !== undefined; }
 
-export async function runCodexGmChat(prompt: string): Promise<{ ok: boolean; text: string; model?: string }> {
+export async function runConnectedGmChat(prompt: string, provider: ConnectedGmProvider = 'codex-app-server'): Promise<{ ok: boolean; text: string; model?: string }> {
     if (!context || activeClient) { return { ok: false, text: '' }; }
-    const profile = context.workspaceState.get<Profile>(profileKey);
+    const profile = context.workspaceState.get<Profile>(provider === 'codex-app-server' ? profileKey : claudeProfileKey);
     if (!profile) { return { ok: false, text: '' }; }
     const generation = cancellationGeneration;
     const workspace = getWorkspacePath();
-    let client: CodexGmClient | undefined;
+    let client: GmConnectionAdapter | undefined;
     try {
-        client = makeClient(profile); activeClient = client;
-        if (await client.initialize() !== 'ready') { throw new Error('codex_login_required'); }
+        client = makeClient(profile, provider); activeClient = client;
+        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : 'claude_login_required'); }
         const text = await client.generate(prompt, () => {});
         if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return { ok: false, text: '' }; }
         return { ok: true, text, model: profile.model };
     } catch (error) {
-        if (generation === cancellationGeneration) void vscode.window.showErrorMessage(`Codex GM: ${formatGmConnectionError(error)}`);
+        if (generation === cancellationGeneration) void vscode.window.showErrorMessage(`GM: ${formatGmConnectionError(error)}`);
         return { ok: false, text: '' };
     } finally { client?.dispose(); if (activeClient === client) activeClient = undefined; }
 }
 
-function makeClient(profile: Profile): CodexGmClient {
+function connectionDirectories(provider: ConnectedGmProvider) {
     if (!context) { throw new Error('GM connection Host is unavailable'); }
-    const root = path.join(context.globalStorageUri.fsPath, 'gm-codex-v2');
+    const root = path.join(context.globalStorageUri.fsPath, provider === 'codex-app-server' ? 'gm-codex-v2' : 'gm-claude-v2');
     const profileDirectory = path.join(root, 'profile');
     const workingDirectory = path.join(root, 'work');
     fs.mkdirSync(profileDirectory, { recursive: true });
     fs.mkdirSync(workingDirectory, { recursive: true });
-    return new CodexGmClient({ ...profile, profileDirectory, workingDirectory });
+    return { profileDirectory, workingDirectory };
+}
+
+function makeClient(profile: Profile, provider: ConnectedGmProvider): GmConnectionAdapter {
+    const options = { ...profile, ...connectionDirectories(provider) };
+    return provider === 'codex-app-server' ? new CodexGmClient(options) : new ClaudeGmClient(options);
 }
 
 export async function configureCodexGm(): Promise<void> {
@@ -85,7 +92,7 @@ export async function configureCodexGm(): Promise<void> {
     if (isGmConnectionBusy()) { return; }
     let client: CodexGmClient | undefined;
     try {
-        client = makeClient(profile); activeClient = client;
+        client = new CodexGmClient({ ...profile, ...connectionDirectories('codex-app-server') }); activeClient = client;
         let status = await client.initialize();
         if (status === 'login_required') {
             const login = await client.startLogin();
@@ -109,6 +116,37 @@ export async function configureCodexGm(): Promise<void> {
     } finally { client?.dispose(); if (activeClient === client) activeClient = undefined; }
 }
 
+export async function configureClaudeGm(): Promise<void> {
+    if (!context || isGmConnectionBusy()) return;
+    const consent = await vscode.window.showWarningMessage(
+        'ClaudeをGMとして使用します。入力、会話履歴、GM用の非公開設定をAnthropicへ送ります。専用の公式ログインを使い、Claudeサブスク利用枠を消費します。APIへ自動切替しません。',
+        { modal: true }, '接続設定へ進む');
+    if (!consent) return;
+    const previous = context.workspaceState.get<Profile>(claudeProfileKey);
+    const model = await vscode.window.showInputBox({ title: 'GMに使うClaudeの完全なモデルID（別モデルへ自動変更しません）', value: previous?.model ?? '',
+        validateInput: value => /^claude-[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : '利用可能な完全なモデルIDを入力してください。' });
+    if (!model || isGmConnectionBusy()) return;
+    const profile = { executable: previous?.executable ?? 'claude', model };
+    const generation = cancellationGeneration, workspace = getWorkspacePath();
+    const client = new ClaudeGmClient({ ...profile, ...connectionDirectories('claude-code-subscription') });
+    activeClient = client;
+    try {
+        if (await client.initialize() === 'login_required') {
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
+                title: 'Claude GM: 公式ブラウザーログインを待っています', cancellable: true }, async (_, token) => {
+                const cancellation = token.onCancellationRequested(() => client.dispose());
+                try { await client.login(); } finally { cancellation.dispose(); }
+            });
+        }
+        if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+        await context.workspaceState.update(claudeProfileKey, profile);
+        await vscode.workspace.getConfiguration('textAdventure').update('gmBridge.provider', 'claude-code-subscription', vscode.ConfigurationTarget.Workspace);
+        void vscode.window.showInformationMessage(`Claude GM: サブスク認証確認済み（CLI ${client.clientVersion}）。実モデルの応答は次のゲーム入力で確認します。`);
+    } catch (error) {
+        void vscode.window.showErrorMessage(`Claude GM接続: ${formatGmConnectionError(error)}`);
+    } finally { client.dispose(); if (activeClient === client) activeClient = undefined; }
+}
+
 function captureWitness(workspace: string, requestId: string): GmConnectionWitness {
     const scope = loadExistingAcceptedTurnScope(workspace);
     if (!scope) { throw new Error('GM timeline scope is missing'); }
@@ -117,12 +155,12 @@ function captureWitness(workspace: string, requestId: string): GmConnectionWitne
         parentIdentityHash: activeEpochLedgerHead(ledger.records, scope)?.identityHash ?? null, hostSession, requestId };
 }
 
-export async function runCodexGmCandidate(prompt: string, normalize: (reply: string) => TurnResult,
-    onDraft: (text: string) => void, afterAccepted?: () => void): Promise<boolean> {
+export async function runConnectedGmCandidate(prompt: string, normalize: (reply: string) => TurnResult,
+    onDraft: (text: string) => void, afterAccepted?: () => void, provider: ConnectedGmProvider = 'codex-app-server'): Promise<boolean> {
     if (!context || !mutationGate || activeClient) { throw new Error('GM connection is busy or unavailable'); }
-    const profile = context.workspaceState.get<Profile>(profileKey);
+    const profile = context.workspaceState.get<Profile>(provider === 'codex-app-server' ? profileKey : claudeProfileKey);
     const workspace = getWorkspacePath();
-    if (!profile || !workspace) { throw new Error('Configure Codex GM in AI connections first'); }
+    if (!profile || !workspace) { throw new Error('Configure GM in AI connections first'); }
     const requestId = randomUUID();
     const generation = cancellationGeneration;
     const witness = captureWitness(workspace, requestId);
@@ -141,10 +179,10 @@ export async function runCodexGmCandidate(prompt: string, normalize: (reply: str
         return hash.digest('hex');
     };
     const initialHash = stateHash();
-    let client: CodexGmClient | undefined;
+    let client: GmConnectionAdapter | undefined;
     try {
-        client = makeClient(profile); activeClient = client;
-        if (await client.initialize() !== 'ready') { throw new Error('codex_login_required'); }
+        client = makeClient(profile, provider); activeClient = client;
+        if (await client.initialize() !== 'ready') { throw new Error(provider === 'codex-app-server' ? 'codex_login_required' : 'claude_login_required'); }
         const reply = await client.generate(prompt, onDraft);
         const candidate = normalize(reply);
         const isCurrent = () => generation === cancellationGeneration && workspace === getWorkspacePath()

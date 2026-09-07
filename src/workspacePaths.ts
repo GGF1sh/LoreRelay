@@ -136,7 +136,7 @@ export function getGmProvider(): GmProvider {
         provider === 'ollama' ||
         provider === 'koboldcpp' ||
         provider === 'openrouter' ||
-        provider === 'vscode-lm'
+        provider === 'vscode-lm' || provider === 'codex-app-server'
     ) {
         return provider;
     }

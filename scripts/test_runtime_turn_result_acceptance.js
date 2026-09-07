@@ -286,6 +286,9 @@ function loadGameStateSyncHarness(options = {}) {
         async processFile(filePath = turnResultPath) {
             return moduleRef.processTurnResultFileAtForTests(filePath);
         },
+        async submitCandidate(candidate, isCurrent) {
+            return moduleRef.submitGmTurnCandidate(tmpDir, candidate, isCurrent);
+        },
     };
 }
 
@@ -730,6 +733,17 @@ if (
 }
 
 async function runAsyncCases() {
+    {
+        const harness = loadGameStateSyncHarness({ processResponses: [baseTurnResult('gm-direct')] });
+        const denied = await harness.submitCandidate(baseTurnResult('gm-direct'), () => false);
+        assert(denied.kind === 'rejected', 'direct GM admission rejects stale request');
+        assert(harness.processCalls === 0, 'stale direct candidate never reaches game processing');
+        const accepted = await harness.submitCandidate(baseTurnResult('gm-direct'), () => true);
+        assert(accepted.kind === 'newlyAccepted', 'direct GM candidate uses normal Accepted pipeline');
+        assert(accepted.persistence === 'complete', 'direct GM result reports persistence classification');
+        assert(harness.processCalls === 1, 'direct GM candidate processes once');
+        assert(!fs.existsSync(harness.turnResultPath), 'direct GM candidate does not create a watcher replay file');
+    }
     const acceptedCore = require(outAcceptedTurnReplayGuardCore);
     // 1. Parse failure: no apply / dedupe / handled / callback-like side effects.
     {
@@ -907,7 +921,11 @@ async function runAsyncCases() {
                 };
             },
         });
-        const accepted = harness.module.processTurnResult(baseTurnResult('turn-ledger-structured'));
+        const persistence = { partial: false, failedTargets: [] };
+        const accepted = harness.module.processTurnResult(baseTurnResult('turn-ledger-structured'), undefined, undefined, undefined, persistence);
+        assert(persistence.committed === true && persistence.partial === true,
+            'GM persistence observer distinguishes canonical commit from partial side-ledger persistence');
+        assert(persistence.failedTargets.includes('campaignResources'), 'GM persistence observer names failed ledger');
         assert(Boolean(accepted), 'secondary ledger structured failure stays Accepted/truthy');
         assert(harness.commitCalls === 1, 'structured failure case crosses canonical commit once');
         assert(harness.ledgerCalls === 1, 'structured failure still attempts post-commit ledger persistence');

@@ -2310,6 +2310,7 @@ export function buildProductionPromptAssemblyWithShadowAllocatorForTests(
 
 function resolvePromptReceiptProvider(provider: string): PromptReceiptProvider {
     switch (provider) {
+        case 'codex-app-server':
         case 'grok':
         case 'ollama':
         case 'koboldcpp':

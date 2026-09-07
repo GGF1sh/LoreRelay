@@ -16,6 +16,7 @@ export type TurnResultFileOutcomeKind =
     | 'writerConflict';
 
 export interface TurnResultFileOutcome {
+    persistence?: 'complete' | 'partial';
     kind: TurnResultFileOutcomeKind;
     accepted?: boolean;
     reason?: string;

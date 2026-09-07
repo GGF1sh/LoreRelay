@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getWorkspacePath, writeJsonAtomic } from './workspacePaths';
+import { getWorkspacePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
 import {
     CONNECTION_PROFILES_FILENAME,
     ConnectionProfile,
@@ -76,6 +76,9 @@ export function saveConnectionProfiles(file: ConnectionProfilesFile): void {
 }
 
 export function getActiveParlorConnectionProfile(): ConnectionProfile {
+    if (getGmProvider() === 'codex-app-server') {
+        return { id: 'codex-gm-v2', label: 'Codex GM', provider: 'codex-app-server' };
+    }
     return getActiveConnectionProfile(loadConnectionProfiles());
 }
 

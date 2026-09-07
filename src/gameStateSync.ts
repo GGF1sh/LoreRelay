@@ -661,7 +661,18 @@ async function processTurnResultFileAt(fsPath: string, retryCount = 0): Promise<
     return runAcceptedTurnSingleFlight(() => processTurnResultFileAtSerialized(fsPath, retryCount));
 }
 
-async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0): Promise<TurnResultFileOutcome> {
+/** Host-only entrypoint; callers own the shared workspace gate until this resolves. */
+export async function submitGmTurnCandidate(
+    workspacePath: string, candidate: TurnResult, isCurrent: () => boolean
+): Promise<TurnResultFileOutcome> {
+    const content = JSON.stringify(candidate);
+    return runAcceptedTurnSingleFlight(() => processTurnResultFileAtSerialized(
+        path.join(workspacePath, 'turn_result.json'), 0, { content, isCurrent }
+    ));
+}
+
+async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0,
+    submission?: { content: string; isCurrent: () => boolean }): Promise<TurnResultFileOutcome> {
     const workspacePath = path.dirname(fsPath);
     const modAuthorization = await acquireModCanonicalAuthorization(workspacePath);
     if (!modAuthorization) {
@@ -671,13 +682,16 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
             reason: 'MOD activation gate blocks canonical writes while Safe Mode is required',
         };
     }
+    if (submission && !submission.isCurrent()) {
+        return { kind: 'rejected', accepted: false, reason: 'GM request is stale or cancelled' };
+    }
     let hash = '';
     let turnResult: TurnResult;
     try {
-        if (!fs.existsSync(fsPath)) {
+        if (!submission && !fs.existsSync(fsPath)) {
             return { kind: 'missing', accepted: false, reason: 'turn_result.json missing' };
         }
-        const content = fs.readFileSync(fsPath, 'utf-8');
+        const content = submission ? submission.content : fs.readFileSync(fsPath, 'utf-8');
         if (!content.trim()) {
             throw new Error('Empty file content');
         }
@@ -686,7 +700,7 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
 
         turnResult = JSON.parse(content) as TurnResult;
     } catch (e) {
-        if (retryCount < 3) {
+        if (!submission && retryCount < 3) {
             console.warn(`Retry reading turn_result.json (attempt ${retryCount + 1}): ${e instanceof Error ? e.message : String(e)}`);
             await sleep(100);
             return processTurnResultFileAtSerialized(fsPath, retryCount + 1);
@@ -727,7 +741,7 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
         return leaseConflict;
     }
 
-    const preflight = preflightAcceptedTurn(workspacePath, turnResult, hash, 'turn_result_file');
+    const preflight = preflightAcceptedTurn(workspacePath, turnResult, hash, submission ? 'gm_candidate' : 'turn_result_file');
     if (preflight.kind !== 'unseen') {
         if (preflight.kind === 'alreadyAccepted') {
             console.info('[gameStateSync] stale accepted turn_result.json observed; skipping apply', {
@@ -769,9 +783,14 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
     if (trustedModContext) {
         trustedAcceptedModContextByEntryId.set(preflight.context.identity.turnId, trustedModContext);
     }
-    const enriched = processTurnResult(turnResult, preflight.context, trustedModContext, modAuthorization);
+    const persistence = { partial: false, failedTargets: [] as string[], committed: false };
+    const enriched = processTurnResult(turnResult, preflight.context, trustedModContext, modAuthorization, persistence);
     if (!enriched) {
         trustedAcceptedModContextByEntryId.delete(preflight.context.identity.turnId);
+        if (submission && persistence.committed) {
+            return { kind: 'repairRequired', accepted: true, persistence: 'partial',
+                reason: 'GM canonical turn committed but completion failed. Inspect before continuing; do not replay.' };
+        }
         if (pendingRelayRequest) {
             notifyRelayImportFailure('processTurnResult returned false before Accepted boundary');
         }
@@ -845,6 +864,7 @@ async function processTurnResultFileAtSerialized(fsPath: string, retryCount = 0)
 
     return {
         kind: 'newlyAccepted',
+        ...(submission ? { persistence: persistence.partial ? 'partial' as const : 'complete' as const } : {}),
         accepted: true,
         identityHash: preflight.context.identity.identityHash,
         turnId: preflight.context.identity.turnId,

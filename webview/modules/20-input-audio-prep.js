@@ -224,6 +224,7 @@ function sendFreeInput() {
   if (!text) return;
   window.speechSynthesis?.cancel();
   const entryId = `user-${Date.now()}`;
+  window.gmPendingInput = { text: freeInput.value, authorsNote: getAuthorsNote() };
   // Share this id with the extension so the persisted entry it later sends back
   // in gameStateUpdate matches this optimistic one instead of rendering a duplicate.
   vscode.postMessage({ type: 'freeInput', text, authorsNote: getAuthorsNote(), entryId });

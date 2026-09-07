@@ -696,6 +696,7 @@ export function processTurnResult(
     acceptedTurnContext?: AcceptedTurnCommitContext,
     modContext?: ModContext,
     modAuthorization?: ModCanonicalAuthorization,
+    persistence?: { partial: boolean; failedTargets: string[]; committed?: boolean },
 ): TurnResult | false {
     const statePath = getGameStatePath();
     if (!statePath) {
@@ -854,11 +855,17 @@ export function processTurnResult(
             return false;
         }
 
+        if (persistence) { persistence.committed = true; }
         const worldPublished = commitWorldStateWriteDeferral();
         worldDeferralOpen = false;
         const npcPublished = commitNpcRegistryWriteDeferral();
         npcDeferralOpen = false;
         if (!worldPublished || !npcPublished) {
+            if (persistence) {
+                persistence.partial = true;
+                if (!worldPublished) persistence.failedTargets.push('world');
+                if (!npcPublished) persistence.failedTargets.push('npc');
+            }
             console.error(
                 '[statePatch] Accepted game_state committed but deferred world side-ledger publication failed;',
                 'the Accepted witness prevents retry from advancing the world twice.',
@@ -873,6 +880,7 @@ export function processTurnResult(
                     recordAcceptedTurnAfterCommit(wsPath, acceptedTurnContext);
                 }
             } catch (e) {
+                if (persistence) { persistence.partial = true; persistence.failedTargets.push('accepted-turn-ledger'); }
                 console.error(
                     '[statePatch] accepted-turn ledger persistence failed after canonical Accepted commit;',
                     'canonical witness retained for restart repair.',
@@ -902,6 +910,7 @@ export function processTurnResult(
                 },
             });
             if (!ledgerOutcome.ok) {
+                if (persistence) { persistence.partial = true; persistence.failedTargets.push(...ledgerOutcome.failedTargets); }
                 console.error(
                     '[statePatch] partial cross-ledger persist after game_state commit;',
                     'game_state retained per compensation policy.',
@@ -916,6 +925,7 @@ export function processTurnResult(
                 );
             }
         } catch (e) {
+            if (persistence) { persistence.partial = true; persistence.failedTargets.push('secondary-ledgers'); }
             console.error(
                 '[statePatch] post-commit secondary ledger persistence threw;',
                 'game_state retained per compensation policy.',
@@ -975,10 +985,12 @@ export function processTurnResult(
                 try {
                     fs.appendFileSync(journalPath, JSON.stringify(enriched) + '\n', 'utf-8');
                 } catch (e) {
+                    if (persistence) { persistence.partial = true; persistence.failedTargets.push('journal'); }
                     console.error('Failed to append state_journal.ndjson after Accepted commit', e);
                 }
             }
         } catch (e) {
+            if (persistence) { persistence.partial = true; persistence.failedTargets.push('journal'); }
             console.error('[statePatch] post-commit journal setup threw; game_state retained per compensation policy.', e);
         }
 

@@ -848,8 +848,16 @@ window.addEventListener('message', (event) => {
     // Unlock the controls without adding the generic failure row.
     hideGmLoading(msg.canceled ? true : msg.success);
     if (msg.canceled) {
+      if (window.gmPendingInput && freeInput && !freeInput.value) {
+        freeInput.value = window.gmPendingInput.text;
+        const note = document.getElementById('authors-note-input');
+        if (note && !note.value) note.value = window.gmPendingInput.authorsNote;
+        autoGrowFreeInput();
+        saveState();
+      }
       addSystemMessage(T('webview.gm.canceled'));
     }
+    window.gmPendingInput = undefined;
   } else if (msg.type === 'playerInputBusy') {
     // A duplicate gameplay message must not unlock the accepted request.
     // A competing non-gameplay mutation rejection clears this attempt's row.

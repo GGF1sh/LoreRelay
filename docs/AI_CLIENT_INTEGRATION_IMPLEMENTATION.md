@@ -440,3 +440,16 @@ escalate beyond its risk tier without a concrete reason.
   source/document files. Retained fixtures and permissions were not changed.
 - GitHub readback: main remains `7632b49325491e94e3ef5992d2e5257dc1a0c1f8`,
   open PR list empty. Actual external-client verification is still outstanding.
+
+### Actual VSIX packaging
+
+- Explicitly excluded `.test-runs`, `.tmp`, and `.vscode-test` from VSIX packaging;
+  local connection files, logs and retained Host profiles are not distribution data.
+- Installed official `@vscode/vsce` 3.9.2 only under ignored `.test-runs/vsce-tool`
+  with lifecycle scripts disabled. Repository package definitions were unchanged.
+- Default dependency-aware `vsce ls` retained all 15 allowlisted runtime packages
+  and no QA artifacts. `vsce package` succeeded: 2668 archive entries, 43.08 MB.
+  Inspected the actual ZIP directory for absent QA roots and present Gateway/client
+  SDK. Artifact: `.test-runs/lorerelay-ai-integration-preview.vsix`.
+- Player MCP packaging/dependency checks passed. This proves archive contents,
+  not installation, external AI use or release readiness.

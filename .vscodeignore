@@ -3,6 +3,10 @@
 .github/**
 .claude/**
 .codex/**
+# Generated QA artifacts may contain local connection credentials and Host profiles.
+.test-runs/**
+.tmp/**
+.vscode-test/**
 node_modules/**
 !node_modules/ws/
 !node_modules/ws/**

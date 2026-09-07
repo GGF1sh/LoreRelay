@@ -215,6 +215,9 @@ async function main() {
     }
     // Packaging retains the official runtime dependencies used by the installed entrypoints.
     const ignore = fs.readFileSync(path.join(__dirname, '../.vscodeignore'), 'utf8');
+    for (const directory of ['.test-runs', '.tmp', '.vscode-test']) {
+        assert(ignore.split(/\r?\n/).includes(`${directory}/**`), `VSIX must exclude local QA artifacts: ${directory}`);
+    }
     const dependencies = new Set();
     function checkRuntimePackage(name, from) {
         if (dependencies.has(name)) return;

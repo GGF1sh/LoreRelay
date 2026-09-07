@@ -35,7 +35,18 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
         const record = tool === 'execute' && !requests.has(fingerprint);
         if (record && requests.size >= 100) return { classification: 'rejected_forbidden' };
         if (record) requests.add(fingerprint);
-        const result = await api.call(tool, args);
+        let result: unknown;
+        try {
+            result = await api.call(tool, args);
+        } catch (error) {
+            // A lost response cannot prove that the operation did not commit.
+            // Retain the attempted action without exporting exception diagnostics.
+            if (record && captured.allowedActions.includes(input.actionId as GameActionId)) {
+                steps.push({ action: input.actionId as GameActionId,
+                    classification: 'outcome_unknown', commitStatus: 'unknown' });
+            }
+            throw error;
+        }
         if (record && result && typeof result === 'object') {
             const receipt = result as Record<string, unknown>;
             if (captured.allowedActions.includes(receipt.actionId as GameActionId)) {

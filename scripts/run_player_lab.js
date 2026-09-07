@@ -10,8 +10,9 @@ const { hashGameActionValue } = require('../out/gameActionService');
 const { recordPlayerLabSession } = require('../out/playerLabCore');
 const { buildAiConnectionConfig } = require('../out/aiClientIntegrationCore');
 async function main() {
-    const [client, model] = process.argv.slice(2);
-    if (process.argv.length !== 4 || !['codex', 'gemini', 'grok', 'claude-desktop', 'claude-code'].includes(client)
+    const [client, model, mode] = process.argv.slice(2);
+    if (![4, 5].includes(process.argv.length) || (mode !== undefined && mode !== '--end-day-smoke')
+        || !['codex', 'gemini', 'grok', 'claude-desktop', 'claude-code'].includes(client)
         || !/^[a-zA-Z0-9._:/-]{1,80}$/.test(model || '')) throw new Error('usage: node scripts/run_player_lab.js CLIENT MODEL_LABEL');
     const fixture = await openActionFixture();
     let host;
@@ -27,17 +28,19 @@ async function main() {
         service.close(reader);
         const fixtureDigest = hashGameActionValue(['game_state.json', 'world_state.json', 'world_forge.json', 'game_rules.json']
             .map(name => fs.readFileSync(path.resolve(__dirname, '../fixtures/action-scenarios/merchant_route_v1', name), 'utf8')));
-        const allowedActions = ['commerce:trade', 'commerce:travel', 'commerce:end_day'];
-        const task = fs.readFileSync(path.resolve(__dirname, '../integrations/player-lab-task.md'), 'utf8').replace(/\r\n/g, '\n');
-        const conditions = { fixtureDigest, initialPublicDigest, taskDigest: hashGameActionValue(task), maximum: 10, allowedActions };
+        const maximum = mode ? 1 : 10;
+        const allowedActions = mode ? ['commerce:end_day'] : ['commerce:trade', 'commerce:travel', 'commerce:end_day'];
+        const task = mode ? 'Connection smoke only: read public state, preview and execute one end day, inspect the receipt, then stop. No automatic retries. Not a comparison run.'
+            : fs.readFileSync(path.resolve(__dirname, '../integrations/player-lab-task.md'), 'utf8').replace(/\r\n/g, '\n');
+        const conditions = { fixtureDigest, initialPublicDigest, taskDigest: hashGameActionValue(task), maximum, allowedActions };
         host = await openAgentConnection('player', async () => {
-            const api = createPlayerDelegation({ service, scope: fixture.runtime.scope, current: fixture.runtime.authorized }, allowedActions, 10);
+            const api = createPlayerDelegation({ service, scope: fixture.runtime.scope, current: fixture.runtime.authorized }, allowedActions, maximum);
             recorder = recordPlayerLabSession(api, client, model, conditions);
             return recorder.connection;
         });
         const config = buildAiConnectionConfig(client, 'player', path.resolve(__dirname, '../out/playerMcp.js'), host.endpoint, host.secret);
         fs.writeFileSync(configFile, config.text, { mode: 0o600, flag: 'wx' });
-        console.log(JSON.stringify({ fixture: 'merchant_route_v1', client, modelLabel: model, maximum: 10,
+        console.log(JSON.stringify({ fixture: 'merchant_route_v1', client, modelLabel: model, maximum,
             connectionFile: configFile, resultFile: output, task,
             instruction: 'Connect a fresh Player-only AI session. Disconnect when finished. No QA data may be supplied to that session.' }));
         await new Promise(resolve => {

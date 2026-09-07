@@ -55,6 +55,21 @@ async function main() {
     assert.deepEqual(aggregate.trades.map(trade => trade.op), ['buy', 'sell']);
     assert(!JSON.stringify(aggregate).includes('not-for-export'));
     await trading.close();
+    const failure = new Error('private-transport-diagnostic');
+    let failedCalls = 0;
+    const failing = recordPlayerLabSession({ dispose() {}, async call() {
+        failedCalls++;
+        throw failure;
+    } }, 'fixture-client', 'fixture-model', conditions);
+    const failedRequest = { actionId: 'commerce:end_day', requestId: 'private-failed-request' };
+    await assert.rejects(failing.connection.call('execute', failedRequest), error => error === failure);
+    await assert.rejects(failing.connection.call('execute', failedRequest), error => error === failure);
+    await assert.rejects(failing.connection.call('read_player_view', {}), error => error === failure);
+    assert.equal(failedCalls, 3, 'recorder does not retry or suppress the original failure');
+    assert.deepEqual(failing.result().steps, [{ action: 'commerce:end_day', classification: 'outcome_unknown', commitStatus: 'unknown' }]);
+    assert.equal(comparePlayerLabRuns([failing.result()]).runs[0].partialOrUnknown, 1);
+    assert(!JSON.stringify(failing.result()).includes('private-'));
+    await failing.close();
     console.log('Player Lab aggregation: conditions, incomplete runs, replay count, unknown outcomes, privacy and disposal passed.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

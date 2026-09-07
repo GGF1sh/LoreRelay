@@ -31,7 +31,7 @@ async function main() {
         });
         await client.connect(transport);
         const tools = (await client.listTools()).tools.map(tool => tool.name);
-        assert.deepEqual(tools, ['read_player_view', 'query_available']);
+        assert.deepEqual(tools, ['read_player_view', 'query_available', 'show_public_state']);
         const view = JSON.parse((await client.callTool({ name: 'read_player_view', arguments: {} })).content[0].text);
         assert.equal(view.worldTurn, 7);
         assert.equal(approved, 1);
@@ -40,6 +40,11 @@ async function main() {
         assert.equal(reads, before);
         const resource = await client.readResource({ uri: 'lorerelay://player-view' });
         assert.equal(JSON.parse(resource.contents[0].text).worldTurn, 7);
+        const card = await client.callTool({ name: 'show_public_state', arguments: {} });
+        assert.equal(card.structuredContent.view.worldTurn, 7);
+        const html = await client.readResource({ uri: 'ui://lorerelay/public-state-v1.html' });
+        assert.equal(html.contents[0].mimeType, 'text/html;profile=mcp-app');
+        assert(!html.contents[0].text.includes(host.secret));
         await transport.terminateSession();
         assert(gateway.isClosed());
         console.log('Remote read-only gateway: SDK HTTP, one-time pairing, Host pairing, public reads, role and origin boundaries, disconnect passed.');

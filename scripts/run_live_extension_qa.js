@@ -101,6 +101,7 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
         return response.result;
     };
     let exited = false;
+    let checksPassed = false;
     let child;
     let test;
     try {
@@ -109,7 +110,10 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
     const executable = await (testDeps.resolveExecutable || (() => process.env.LORERELAY_QA_VSCODE
         || downloadAndUnzipVSCode({ version: '1.136.1' })))();
     child = (testDeps.spawnHost || spawn)(executable, [workspace, `--extensionDevelopmentPath=${ROOT}`, `--user-data-dir=${profile}`,
-        `--shared-data-dir=${path.join(owned, 'shared-data')}`, `--extensions-dir=${path.join(owned, 'extensions')}`, '--disable-extensions', '--skip-welcome',
+        `--shared-data-dir=${path.join(owned, 'shared-data')}`, `--extensions-dir=${path.join(owned, 'extensions')}`, '--disable-extensions',
+        // Built-in Git is outside game QA and creates protected askpass state even
+        // with user extensions disabled. Do not involve user Git credential helpers.
+        '--disable-extension', 'vscode.git', '--disable-extension', 'vscode.git-base', '--skip-welcome',
         '--skip-release-notes', '--disable-gpu', '--disable-workspace-trust', '--no-sandbox'], {
         windowsHide: true, detached: process.platform !== 'win32', shell: false, env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined,
             VSCODE_IPC_HOOK_CLI: undefined, TEMP: temp, TMP: temp, TMPDIR: temp, LORERELAY_QA_SECRET: secret, LORERELAY_QA_ENDPOINT: endpoint },
@@ -136,6 +140,7 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
                 assert.notEqual(session, before); await request('reopen');
             });
             await request('stop'); await deadline(test, 30000, 'qa_shutdown_timeout');
+            checksPassed = true;
             return { status: 'passed', fixtureId, checks: ['real MOD Manager', 'actual DOM', 'Safe Mode', 'adult denial', 'reload coherence'] };
         }
         const initial = await request('inspect');
@@ -183,6 +188,7 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
         assert.notEqual((await request('execute', execute)).commitStatus, 'committed', 'restart never implies safe retry');
         await request('stop');
         await deadline(test, 30000, 'qa_shutdown_timeout');
+        checksPassed = true;
         return { status: 'passed', fixtureId: 'lifecycle_v1', checks: ['real Host commerce', 'readonly preview',
             'duplicate receipt', 'checkpoint complete restore', 'stale epoch', 'panel reopen', 'window reload', 'restart handle rejection'] };
     } finally {
@@ -200,7 +206,14 @@ async function runLifecycle(testDeps = {}, fixtureId = 'lifecycle_v1') {
         await new Promise(resolve => server.close(resolve));
         if ((!child || exited) && fs.realpathSync(owned) === owned && path.dirname(owned) === temp
             && path.basename(owned).startsWith('lorerelay-live-qa-') && !fs.lstatSync(owned).isSymbolicLink()) {
-            fs.rmSync(owned, { recursive: true });
+            try { fs.rmSync(owned, { recursive: true }); }
+            catch (error) {
+                // Preserve a failed overall exit while identifying which phase failed.
+                // Never change permissions or force cleanup of protected Host state.
+                console.error(JSON.stringify({ phase: 'cleanup', status: 'failed', fixtureId,
+                    checksPassed, hostExited: exited, code: error.code ?? 'unknown', retainedFixture: owned }));
+                throw error;
+            }
         } else {
             // A connected timeout is not cancellation; retain its fixture and Host.
             child?.unref(); child?.stdout.destroy(); child?.stderr.destroy();

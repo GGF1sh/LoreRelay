@@ -249,5 +249,104 @@ No Human Play has been performed by this work.
   comparison command passed. Actual four-model play, audited completion, public
   regional-support metrics and model evidence remain outstanding.
 
+### Continuation: Codex startup isolation evidence
+
+- Read only names/enabled flags from installed Codex MCP configuration: five
+  unrelated servers were enabled. Updated the fixture smoke to disable those
+  servers with command-scoped overrides, leaving the user's config unchanged.
+- The isolated attempt still terminated at 150 seconds with `client_timeout`.
+  Sanitized event counts were empty: no JSON thread/turn/item event was observed.
+  No receipt report was produced. Thus unrelated configured MCP startup is not a
+  sufficient explanation, and actual Codex play is still unverified. Do not repeat
+  the same model smoke again without new startup evidence.
+- This is the third failed fixture-model attempt overall. Stop this particular
+  trial and retain its failure evidence while continuing other integration work.
+  Codex config parsing, SDK play and other-client diagnostics remain separate.
+- Grok Build help confirms headless `--single`, model, turn limit and built-in-tool
+  restriction options exist; no Grok model execution was started in this turn.
+
+### Continuation: Grok model smoke prepared; specific authorization pending
+
+- Installed Grok reports grok.com login and available grok-4.6/default, grok-4.5.
+  The user config has a housecarl MCP entry. Prepared a separate temp-directory
+  smoke with built-in tools excluded, only LoreRelay MCP allowlisted, and project
+  overrides disabling the discovered unrelated MCP entries (CRLF normalized).
+- Auto-review rejected launching it because the destination/payload authorization
+  for passing the ephemeral fixture endpoint and secret to local Grok was not
+  explicit enough. Asked the user specifically; no Grok model process was launched
+  and no workaround attempted. Wait for that answer before this launch.
+- Added `--end-day-smoke` to the fixture runner: Host delegation is restricted to
+  end day only, maximum one, with a distinct smoke-task digest. Grok/Codex smoke
+  scripts now request that mode. This bounds authority independently of the prompt.
+- SDK runner smoke-mode test passed: trade preview forbidden, end day committed,
+  remaining zero, receipt report and credential cleanup. This is not Grok play.
+- Official Grok permission/tool restriction reference used:
+  https://docs.x.ai/build/features/permissions and MCP configuration reference:
+  https://docs.x.ai/build/features/mcp-servers .
+
+### Continuation: read-only chat-native status card
+
+- Added `chatNativeCard.ts` and remote `show_public_state` presentation tool. The
+  tool accepts no model-supplied world data and reads through the existing approved
+  companion/Narrator adapter. The static `ui://lorerelay/public-state-v1.html`
+  resource contains no credentials or game state. Standard MCP Apps metadata and
+  tool-result notifications carry the authorized snapshot to the view.
+- Card shows location, world turn, credits, cargo, available action labels and
+  public events. It makes no tool/model/network calls and has no persistent storage.
+  Text is inserted with textContent. Failed reads hide the previous snapshot.
+- Compile, real SDK remote resource/tool tests and VM bridge/renderer tests passed.
+  VM tests prove message-source checks, untrusted text handling and failure behavior;
+  they do not prove browser layout or ChatGPT product rendering. Both remain pending.
+- References: https://developers.openai.com/plugins/build/chatgpt-ui and
+  https://apps.extensions.modelcontextprotocol.io/api/interfaces/app.McpUiInitializeRequest.html .
+- Grok secret-transfer approval is still pending. No real Grok launch or alternate
+  client launch was attempted to bypass the auto-review rejection.
+
+### Continuation: real local browser card evidence
+
+- Added `scripts/render_chat_card.js` using the provided Playwright runtime and an
+  installed headless Chromium. No browser download or network access was needed;
+  requests are aborted and all displayed state is synthetic fixture data.
+- At 800px/light and 320px/dark: long location wraps without horizontal overflow,
+  injected HTML-like strings remain text (zero img nodes), and keyboard Enter
+  toggles cargo details. Added MCP Apps size-change notifications and awaited
+  iframe sizing before final screenshots to avoid premature capture.
+- Final local screenshots/DOM evidence:
+  `.test-runs/chat-card/16817388-29d2-412d-a147-3f7e0f759152/`.
+  Compile, VM renderer test and browser checks passed. Browser evidence proves a
+  local iframe layout, not rendering within ChatGPT, external pairing, or Human Play.
+- Grok launch remains unattempted pending the previously requested payload approval.
+
+### Continuation: actual Extension Host checks, cleanup failure isolated
+
+- Ran the existing `qa:live` lifecycle on installed VS Code 1.136.1 and the current
+  compiled tree. Logged operations reached trade/travel/end-day, duplicate receipt,
+  complete checkpoint restore, stale epoch, reopen, reload, restart rejection and
+  stop. The command nevertheless exited 1 because final recursive temp cleanup
+  threw EPERM. Do not call the overall run successful.
+- Retrying with temp rooted inside this worktree also failed only at cleanup.
+  An inaccessible built-in Git askpass directory was observed in that fixture.
+  QA startup now requests disabling built-in vscode.git/git-base; it does not need
+  Git or credential helpers. A truncated enumeration initially missed the remaining
+  askpass access denial. A later complete read confirmed it still exists; these
+  flags did not prevent that protected directory. The earlier inference was wrong.
+- Three actual startup runs were made; no fourth repeated run. Last retained
+  fixture: `.test-runs/live-host-temp/lorerelay-live-qa-VOXGRy`. Earlier retained
+  fixtures were not forcibly deleted. Host stop/exit was observed in the logs.
+- `node scripts/test_live_extension_qa.js` passed after the isolation argument
+  change (closed protocol and failure worker cleanup). This does not replace the
+  failing actual-host command or prove the new connection menu end-to-end.
+
+### Continuation: cleanup diagnostics without suppressing failure
+
+- Read the retained fixture ACL and full file enumeration; the sandbox-owned
+  fixture still contains inaccessible Git askpass state. No permission changes,
+  forced deletion, or fourth actual Host startup were attempted.
+- Runner now logs a separate cleanup-phase result including whether scenario
+  checks passed and Host exit was observed, then rethrows the cleanup error. It
+  retains the failed overall exit and cannot convert cleanup failure into green QA.
+- Syntax and existing closed-protocol/failure-worker tests passed. This does not
+  resolve the actual cleanup failure. Grok payload approval remains pending.
+
 Before planning verification, follow `docs/DEVELOPMENT_VERIFICATION_POLICY.md`. Do not
 escalate beyond its risk tier without a concrete reason.

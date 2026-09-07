@@ -2,6 +2,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { createRemoteTunnelWitness } from './remoteTunnelWitness';
+import { CHAT_NATIVE_CARD_HTML, CHAT_NATIVE_CARD_URI } from './chatNativeCard';
 const { McpServer, WebStandardStreamableHTTPServerTransport } = require('@modelcontextprotocol/server');
 const { Client } = require('@modelcontextprotocol/client');
 const { StdioClientTransport } = require('@modelcontextprotocol/client/stdio');
@@ -69,6 +70,22 @@ export async function openRemoteAiGateway(role: 'companion' | 'narrator', endpoi
         description: 'Read Host-authorized public state. No game mutations.', inputSchema: z.object({}).strict(),
         annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     }, () => read(() => upstream.callTool({ name, arguments: {} })));
+    server.registerResource('public-state-card', CHAT_NATIVE_CARD_URI, { mimeType: 'text/html;profile=mcp-app' }, () => ({
+        contents: [{ uri: CHAT_NATIVE_CARD_URI, mimeType: 'text/html;profile=mcp-app', text: CHAT_NATIVE_CARD_HTML,
+            _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } } }],
+    }));
+    server.registerTool('show_public_state', {
+        description: 'Show a read-only LoreRelay status card from current Host-authorized public facts. No model-supplied state or game operations.',
+        inputSchema: z.object({}).strict(),
+        annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+        _meta: { ui: { resourceUri: CHAT_NATIVE_CARD_URI } },
+    }, () => read(async () => {
+        const result = await upstream.callTool({ name: role === 'companion' ? 'read_player_view' : 'read_committed_facts', arguments: {} });
+        const value = JSON.parse(result.content?.find((item: { type: string }) => item.type === 'text')?.text ?? 'null');
+        if (result.isError || !value || value.classification) throw new Error('public_state_unavailable');
+        const view = role === 'narrator' ? value.facts : value;
+        return { content: result.content, structuredContent: { view } };
+    }));
     for (const name of ['player-view', 'market-report', 'world-map', 'current-region', 'recent-events']) {
         const uri = `lorerelay://${name}`;
         server.registerResource(name, uri, { mimeType: 'application/json' }, () => read(() => upstream.readResource({ uri })));

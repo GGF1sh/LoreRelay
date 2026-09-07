@@ -15,6 +15,7 @@ const SKIP_DIRS = new Set([
   'out',
   'dist',
   '.vscode-test',
+  '.test-runs',
   'sample-scenarios',
 ]);
 const EXTENSIONS = new Set([

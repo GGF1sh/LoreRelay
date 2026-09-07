@@ -428,3 +428,15 @@ escalate beyond its risk tier without a concrete reason.
   packages and four Gateway modules; loading `remoteAiGateway.js` there passed
   without repository node_modules. This is installed-layout module evidence, not
   an actual VSIX installation or external Gateway client test.
+
+### Full-suite attempt and generated-output exclusion
+
+- Full suite at `3de8835`: 361/362 passed, Combat 736/736. Sole failure was
+  `validate_utf8_docs.js` descending into ignored `.test-runs` and encountering the
+  earlier retained VS Code askpass directory. No game or integration test failed.
+  Log: `.test-runs/ai-integration-full-suite.log`.
+- Added `.test-runs` to the validator's existing generated-directory exclusions;
+  `.gitignore` already excludes that root. Focused validation then passed for 1560
+  source/document files. Retained fixtures and permissions were not changed.
+- GitHub readback: main remains `7632b49325491e94e3ef5992d2e5257dc1a0c1f8`,
+  open PR list empty. Actual external-client verification is still outstanding.

@@ -3,6 +3,9 @@ export type ConnectedGmProvider = 'codex-app-server' | 'claude-code-subscription
 
 /** Transport-only contract. Adapters never receive canonical paths or persistence callbacks. */
 export interface GmConnectionAdapter {
+    readonly clientVersion?: string;
+    /** Protocol metadata only; never the model's self-description. */
+    readonly reportedModel?: string;
     initialize(): Promise<'ready' | 'login_required'>;
     generate(prompt: string, onDraft: (text: string) => void): Promise<string>;
     /** Invalidates pending output immediately and ends the owned client connection. */

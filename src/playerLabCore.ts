@@ -1,5 +1,6 @@
 import { hashGameActionValue, type GameActionId } from './gameActionService';
 import type { AgentConnectionApi } from './playerDelegationCore';
+import { parsePlayerLabDecision } from './playerLabDecisionCore';
 
 export interface PlayerLabConditions {
     fixtureDigest: string;
@@ -17,6 +18,7 @@ export interface PlayerLabResult {
     worldObservations?: { worldTurn: number; regions: { regionId: string; status: string }[] }[];
     observationsTruncated?: boolean;
     steps: { action: GameActionId; classification: string; commitStatus: string;
+        parameters?: Record<string, unknown>;
         trade?: { op: 'buy' | 'sell'; commodityId: string; qty: number; total: number } }[];
 }
 /** Fixture runner wrapper only. Never exports requests, handles, text or QA state. */
@@ -61,6 +63,11 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
             const receipt = result as Record<string, unknown>;
             if (captured.allowedActions.includes(receipt.actionId as GameActionId)) {
                 const publicResult = receipt.result as Record<string, unknown> | undefined;
+                let publicParameters: Record<string, unknown> | undefined;
+                try {
+                    const parsed = parsePlayerLabDecision(JSON.stringify({ actionId: receipt.actionId, parameters: input.parameters }));
+                    if (!('stop' in parsed)) publicParameters = parsed.parameters;
+                } catch { /* Invalid attempts do not acquire invented normalized parameters. */ }
                 const committed = receipt.commitStatus === 'committed' && ['committed', 'committed_with_warning'].includes(String(receipt.classification));
                 const trade: PlayerLabResult['steps'][number]['trade'] = committed && receipt.actionId === 'commerce:trade' && publicResult
                     && (publicResult.op === 'buy' || publicResult.op === 'sell')
@@ -72,6 +79,7 @@ export function recordPlayerLabSession(api: AgentConnectionApi, client: string, 
                 action: receipt.actionId as GameActionId,
                 classification: typeof receipt.classification === 'string' ? receipt.classification : 'outcome_unknown',
                 commitStatus: typeof receipt.commitStatus === 'string' ? receipt.commitStatus : 'unknown',
+                ...(publicParameters ? { parameters: publicParameters } : {}),
                 ...(trade ? { trade } : {}),
                 });
             }

@@ -19,6 +19,7 @@ export class GrokGmClient implements GmConnectionAdapter {
     private disposed = false;
     private used = false;
     clientVersion?: string;
+    reportedModel?: string;
 
     constructor(private readonly options: Options) {}
 
@@ -80,6 +81,7 @@ export class GrokGmClient implements GmConnectionAdapter {
             const model = session.models?.currentModelId ?? session.configOptions?.find(
                 (option: JsonObject) => option.category === 'model' || option.id === 'model')?.currentValue;
             if (model !== this.options.model) throw new Error('grok_model_unverified');
+            this.reportedModel = model;
             return 'ready';
         } catch (error) {
             if (error instanceof Error && error.message === 'grok_login_required') return 'login_required';

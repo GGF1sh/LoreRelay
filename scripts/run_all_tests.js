@@ -47,6 +47,11 @@ const COMBAT_MANIFEST_ENTRIES = COMBAT_TEST_GROUPS.map((group) => ({
 }));
 
 const MANIFEST = [
+    { category: 'unit', file: 'test_player_lab_decision.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_player_lab_provider.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_qa_lab_evidence.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_ai_lab_article.js' },
+    { category: 'unit', file: 'test_connected_player_lab.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_gm_connection.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_gm_connection_host.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_codex_app_server_protocol.js', consumesCompiledOutput: true },

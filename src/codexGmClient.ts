@@ -37,6 +37,8 @@ type JsonObject = Record<string, any>;
 
 /** One official App Server process per GM connection, with client-owned login. */
 export class CodexGmClient implements GmConnectionAdapter {
+    clientVersion?: string;
+    reportedModel?: string;
     private readonly process: ChildProcessWithoutNullStreams;
     private readonly rpc: CodexAppServerProtocol;
     private running = false;
@@ -59,7 +61,7 @@ export class CodexGmClient implements GmConnectionAdapter {
             'code_mode', 'memories', 'workspace_dependencies']) {
             args.push('-c', `features.${feature}=false`);
         }
-        args.push('-c', 'web_search="disabled"', '-c', 'model_provider="openai"');
+        args.push('-c', 'web_search="disabled"', '-c', 'model_provider="openai"', '-c', 'project_doc_max_bytes=0');
         this.process = spawn(resolveCodexExecutable(options.executable), args, {
             cwd: options.workingDirectory, env, shell: false, windowsHide: true, stdio: 'pipe',
         });
@@ -79,10 +81,11 @@ export class CodexGmClient implements GmConnectionAdapter {
     }
 
     async initialize(): Promise<'ready' | 'login_required'> {
-        await this.rpc.request('initialize', {
+        const initialized = await this.rpc.request('initialize', {
             clientInfo: { name: 'lorerelay_gm', title: 'LoreRelay GM', version: '2.0.0' },
             capabilities: { experimentalApi: true },
-        });
+        }) as JsonObject;
+        this.clientVersion = typeof initialized.userAgent === 'string' ? initialized.userAgent.match(/\b\d+\.\d+\.\d+\b/)?.[0] : undefined;
         this.rpc.notify('initialized', {});
         return this.checkAuthentication();
     }
@@ -140,12 +143,13 @@ export class CodexGmClient implements GmConnectionAdapter {
                 model: this.options.model, cwd: this.options.workingDirectory,
                 approvalPolicy: 'never', sandbox: 'read-only', ephemeral: true,
                 environments: [], dynamicTools: [],
-                baseInstructions: 'You are the LoreRelay GM. Reply only to the supplied game context. Do not use tools or access files.',
+                baseInstructions: 'Follow the role and response format in the supplied LoreRelay context. Do not use tools or access files.',
             }) as JsonObject;
             const threadId = result.thread?.id;
             if (typeof threadId !== 'string' || result.model !== this.options.model) {
                 throw new Error('codex_thread_or_model_mismatch');
             }
+            this.reportedModel = result.model;
             if (this.disposed) { throw new Error('codex_cancelled'); }
             return await new Promise<string>((resolve, reject) => {
                 let settled = false;

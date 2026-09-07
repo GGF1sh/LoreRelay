@@ -166,3 +166,15 @@ Official references: [API contract](https://api-docs.deepseek.com/api/create-cha
 [dated pricing source](https://api-docs.deepseek.com/quick_start/pricing/).
 
 DeepSeek final verification: full suite 375/375, Combat 736/736 (169.5 seconds), real Windows lifecycle_v1 passed. API account and model evidence remains pending.
+
+DeepSeek #113: final HEAD 6935d1fddd17cf7b83d6305998a387db75ba1e86; merge 87324d33a78a9ff5adced480cf259b229159c2a0. Exact CI 34154264908 / Live QA 34154264950 and post-merge CI 34154568266 / Live QA 34154568276 passed.
+
+## Stage 6: explicit Player Lab and separate QA runs
+
+See [Player Lab operation and evidence boundaries](AI_CONNECTION_V2_PLAYER_LAB.md). The five existing transports can run bounded public-only Commerce decisions using fresh role-separated sessions. The separate real-Host QA entrypoint reuses existing lifecycle/inspection and records typed hypotheses. An anonymous article draft exporter does not publish content or certify model comparisons.
+
+Bounded adversarial verification checked authority injection in decisions, confirmation substitution, cancellation before execute, partial/lost-response handling, fresh processes/profiles, provider readiness, report field projection and fixture-owned inspection. The repair prevents repository instruction inheritance and makes failed/uncertain Player invocations exit unsuccessfully. Focused verification after repair passed 34/34 tests (37 commands). Scripted public-only trade/travel/end-day succeeded through the production fixture service. The separate QA entrypoint passed actual Windows Extension Host lifecycle plus extra end day with a scripted model response.
+
+These results do not resolve the user's Codex browser callback refusal or prove real provider inference. All five providers' authenticated GM three-turn/stop/rendered acceptance and actual comparative Player runs remain pending. Human Play remains unperformed.
+
+Stage 6 final executable-tree verification: full suite 380/380, Combat 736/736 (167.9 seconds). The real Windows QA entrypoint passed with a scripted model. No unchanged full-suite rerun was performed.

@@ -3,7 +3,7 @@ const fs = require('fs');
 const { comparePlayerLabRuns } = require('../out/playerLabCore');
 const files = process.argv.slice(2);
 try {
-    if (!files.length || files.length > 4) throw new Error('provide_one_to_four_result_files');
+    if (!files.length || files.length > 5) throw new Error('provide_one_to_five_result_files');
     const actions = ['commerce:trade', 'commerce:travel', 'commerce:end_day'];
     const classifications = ['committed', 'committed_with_warning', 'committed_partial', 'outcome_unknown',
         'rejected_invalid', 'rejected_forbidden', 'rejected_busy', 'rejected_stale'];

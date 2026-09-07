@@ -122,7 +122,7 @@ export class ClaudeGmClient implements GmConnectionAdapter {
         let session: string | undefined, final: string | undefined, failed = false;
         const result = await this.run([...this.isolationArgs(), '-p', '--output-format', 'stream-json', '--verbose',
             '--include-partial-messages', '--no-session-persistence', '--max-turns', '1', '--model', this.options.model,
-            '--system-prompt', 'You are the LoreRelay GM. Follow the supplied game context and response format. Do not use tools.'], prompt, line => {
+            '--system-prompt', 'Follow the role and response format in the supplied LoreRelay context. Do not use tools.'], prompt, line => {
             const event = JSON.parse(line);
             if (event.type === 'rate_limit_event' && event.rate_limit_info?.status === 'rejected') throw new Error('claude_usage_limit');
             if (event.type === 'system' && event.subtype === 'init') {

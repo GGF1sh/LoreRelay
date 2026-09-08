@@ -3230,3 +3230,6 @@ No code changes — design doc only, per the prompt's "Do NOT implement yet" con
 2026-06-27 01:30 JST 莉･髯阪・隧ｳ邏ｰ繝ｭ繧ｰ縺ｯ **CP932 / Latin-1 豺ｷ蝨ｨ縺ｫ繧医ｊ譁・ｭ怜喧縺・* 縺励※縺翫ｊ縲∬・蜍募ｾｩ蜈・〒縺阪∪縺帙ｓ縺ｧ縺励◆縲・
 - **蜑企勁縺帙★繧｢繝ｼ繧ｫ繧､繝匁桶縺・** Git 螻･豁ｴ `git log -- AI_SHARED_LOG.md` 縺翫ｈ縺ｳ蜷・沿繧ｿ繧ｰ縺ｮ `CHANGELOG.md` 繧貞盾辣ｧ
 - **豁｣譛ｬ:** 荳願ｨ・Current Snapshot + `CHANGELOG.md` + `DEVELOPMENT_TIMELINE.md`・・026-06-29 譖ｸ縺咲峩縺暦ｼ・- **蜀咲匱髦ｲ豁｢:** 蜈ｨ AI 蜷代￠繝峨く繝･繝｡繝ｳ繝医・ UTF-8・・OM 縺ｪ縺暦ｼ峨〒菫晏ｭ假ｼ・AI_COLLABORATION.md` 蜿ら・・・
+
+2026-09-08 Antigravity effective-policy repair: version 1.85.2; official zero-turn permission report verified before context transmission; both owned agent discovery roots initialized with inheritance disabled. Actual native Antigravity 1.1.27 / gemini-3.8-flash-high Campaign run-ZZeMWr and Parlor run-Fr9gxd each passed three turns and cancellation. Focused Test Console 9/9 (12/12 commands), adversarial rejection coverage passed. Full suite and PR close pending. Human Play unperformed/unreplaced.
+Final Antigravity effective-policy suite completed: 382/382, Combat 736/736, 171.3s, exit 0. No executable changes afterward. Integration pending.

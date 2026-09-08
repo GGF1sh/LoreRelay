@@ -21,7 +21,11 @@ cp.spawn = (exe, args, options) => {
     child.stdin = new Writable({ write(chunk, _, done) { record.input += chunk.toString(); done(); }, final(done) {
         queueMicrotask(() => {
             if (args.includes('--help')) { child.stderr.write('--input-format --output-format --disable-slash-commands --agent --model'); child.emit('close', 0); }
-            else if (args.includes('/usage')) {
+            else if (args.includes('/permissions')) {
+                child.stdout.write(JSON.stringify({status:'SUCCESS',num_turns:0,command:{name:'permissions',data:{permissions:[
+                    {scope:'project'}, {scope:'shared'}, {scope:'global',deny:['read_file(*)','write_file(*)','read_url(*)','execute_url(*)','command(*)','unsandboxed(*)','mcp(*)']}
+                ]}}})); child.emit('close',0);
+            } else if (args.includes('/usage')) {
                 if (loginFlow && record.input === 'fixture-code\n') { loggedIn = true; loginFlow = false; }
                 if (!loggedIn) child.stderr.write('Authentication required.\n');
                 else { child.stdout.write('Usage: available'); child.emit('close', 0); }
@@ -49,6 +53,9 @@ const make = () => new AntigravityGmClient({ executable: __filename, profileDire
     assert(!launch.args.includes('--continue')); assert(!launch.args.includes('--dangerously-skip-permissions'));
     const settings = JSON.parse(fs.readFileSync(path.join(root, 'profile/.gemini/antigravity-cli/settings.json')));
     assert.equal(settings.useG1Credits, false); assert(settings.permissions.deny.includes('mcp(*)'));
+    const workspaceAgent = fs.readFileSync(path.join(root, 'work/.agents/agents/lorerelay-gm/agent.md'), 'utf8');
+    assert.equal(fs.readFileSync(path.join(root, 'profile/.gemini/config/agents/lorerelay-gm/agent.md'), 'utf8'), workspaceAgent);
+    assert(workspaceAgent.includes('inheritCustomizations: false'));
     client.dispose();
     loggedIn = false; client = make(); assert.equal(await client.initialize(), 'login_required');
     const before = launches.length; await assert.rejects(client.generate('do not transmit', () => {})); assert.equal(launches.length, before); client.dispose();

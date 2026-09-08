@@ -24,13 +24,13 @@
     ]
   },
   "counts": {
-    "total": 5725,
+    "total": 5726,
     "byBoundary": {
       "configuration": 91,
       "host": 1029,
       "host-bridge": 61,
       "host-webview": 597,
-      "pure-core": 3177,
+      "pure-core": 3178,
       "schema-types": 32,
       "webview": 738
     },
@@ -43,7 +43,7 @@
       "ai-client-integration": 2,
       "antigravity-gm-client": 1,
       "antigravity-gm-profile": 1,
-      "antigravity-gm-protocol": 1,
+      "antigravity-gm-protocol": 2,
       "antigravity-relay": 15,
       "antigravity-relay-bridge-host": 3,
       "archive-prompt": 8,
@@ -407,7 +407,7 @@
       "configurationKey": 91,
       "constant": 772,
       "enum": 2,
-      "function": 2044,
+      "function": 2045,
       "interface": 1008,
       "messageType": 597,
       "type": 460,
@@ -1462,12 +1462,24 @@
       "name": "AntigravityGmStream",
       "kind": "class",
       "sourcePath": "src/antigravityGmProtocolCore.ts",
-      "line": 2,
+      "line": 25,
       "signature": "export class AntigravityGmStream",
       "public": "exported",
       "boundary": "pure-core",
       "category": "antigravity-gm-protocol",
       "description": "Official agy NDJSON events, restricted to a single tool-free GM request."
+    },
+    {
+      "id": "pure-core:function:src/antigravityGmProtocolCore.ts:verifyAntigravityIsolationPolicy",
+      "name": "verifyAntigravityIsolationPolicy",
+      "kind": "function",
+      "sourcePath": "src/antigravityGmProtocolCore.ts",
+      "line": 2,
+      "signature": "export function verifyAntigravityIsolationPolicy(output: string): boolean",
+      "public": "exported",
+      "boundary": "pure-core",
+      "category": "antigravity-gm-protocol",
+      "description": "Validate the official read-only permission report, not model-written claims."
     },
     {
       "id": "pure-core:constant:src/antigravityRelayBridgeCore.ts:ANTIGRAVITY_RELAY_REQUEST_SCHEMA_VERSION",

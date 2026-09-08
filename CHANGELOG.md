@@ -13,6 +13,12 @@
 - NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
 - Campaign combat spectator soak (`qa:combat:quick`): story `encounterOps` → spectator resolve → PENDING → exactly-once apply → consequence ACK → reload does not double-apply.
 
+## [1.85.2] - 2026-09-08
+
+### Fixed
+- Antigravity GM validates the official effective permission report before sending context. A populated tool catalog is accepted only with the selected restricted agent and verified deny policy; executable response steps remain rejected.
+- Dedicated Antigravity profiles install the same non-inheriting agent in both client discovery roots, including fresh profiles inside a Git checkout.
+
 ## [1.85.1] - 2026-09-08
 
 ### Fixed

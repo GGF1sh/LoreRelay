@@ -1,3 +1,26 @@
+/** Validate the official read-only permission report, not model-written claims. */
+export function verifyAntigravityIsolationPolicy(output: string): boolean {
+    try {
+        const value = JSON.parse(output);
+        if (value.status !== 'SUCCESS' || value.num_turns !== 0 || value.command?.name !== 'permissions') return false;
+        const scopes = value.command.data?.permissions;
+        if (!Array.isArray(scopes) || scopes.length !== 3) return false;
+        const seen = new Set<string>();
+        const denies = new Set<string>();
+        for (const scope of scopes) {
+            if (!scope || !['project', 'shared', 'global'].includes(scope.scope) || seen.has(scope.scope)) return false;
+            seen.add(scope.scope);
+            for (const key of ['allow', 'ask', 'deny']) {
+                if (scope[key] !== undefined && (!Array.isArray(scope[key]) || scope[key].some((s: unknown) => typeof s !== 'string'))) return false;
+            }
+            if (scope.allow?.length || scope.ask?.length) return false;
+            for (const rule of scope.deny ?? []) denies.add(rule);
+        }
+        return ['read_file(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)', 'command(*)', 'unsandboxed(*)', 'mcp(*)']
+            .every(rule => denies.has(rule));
+    } catch { return false; }
+}
+
 /** Official agy NDJSON events, restricted to a single tool-free GM request. */
 export class AntigravityGmStream {
     private conversation?: string;
@@ -6,7 +29,8 @@ export class AntigravityGmStream {
     private closed = false;
     private bytes = 0;
 
-    constructor(private readonly model: string, private readonly onDraft: (text: string) => void) {}
+    constructor(private readonly model: string, private readonly onDraft: (text: string) => void,
+        private readonly verifiedPermissionPolicy = false) {}
 
     accept(line: string): void {
         if (this.closed || this.failed) throw new Error('antigravity_stream_closed');
@@ -18,7 +42,10 @@ export class AntigravityGmStream {
             if (event.event === 'init') {
                 if (this.conversation || typeof event.conversation_id !== 'string' || !event.conversation_id
                     || event.init?.model !== this.model || !Array.isArray(event.init?.tools)
-                    || event.init.tools.length !== 0) throw new Error('antigravity_identity_or_tools');
+                    || event.init.tools.some((tool: unknown) => typeof tool !== 'string')
+                    || (event.init.tools.length !== 0 && (!this.verifiedPermissionPolicy
+                        || event.init.agent !== 'lorerelay-gm' || event.init.permission_mode !== 'request-review')))
+                    throw new Error('antigravity_identity_or_tools');
                 this.conversation = event.conversation_id;
                 return;
             }

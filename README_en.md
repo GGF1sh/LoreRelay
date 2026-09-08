@@ -17,7 +17,7 @@ LoreRelay is a roleplaying and persistent-world RPG extension for VS Code. Start
 
 [Start playing](#how-to-play) · [Connect your AI](#ai-connections) · [See the UI](#screenshots) · [Install](#setup)
 
-<p align="center"><img src="docs/assets/hero-ui.jpg" width="840" alt="Illustration of beginning an adventure with an AI game master in a lantern-lit tavern." /></p>
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="Illustration of beginning an adventure with an AI game master in a lantern-lit tavern." /></a></p>
 
 <p align="center"><sub>An illustration of the adventure's atmosphere. Actual game screens appear below. <a href="docs/assets/README.md">Image provenance</a></sub></p>
 
@@ -37,7 +37,7 @@ World pacing is a separate choice. **Stable living, a changing world and challen
 
 | Read in a light theme | Read in a dark theme |
 | :---: | :---: |
-| <img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="Real light-theme Webview with a market conversation, action suggestions and free-text input." /> | <img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="Dark Story display showing the market conversation and next actions together." /> |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="Real light-theme Webview with a market conversation, action suggestions and free-text input." /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="Dark Story display showing the market conversation and next actions together." /></a> |
 
 Real 1.85.2 screens displaying the same saved synthetic fixture conversation. Changing the theme does not change the conversation.
 
@@ -104,23 +104,23 @@ The map UI, logistics, scene image, party, lorebook and battle captures are earl
 
 A ComfyUI map background built from a regional layout: green plains, forests and roads. In the game, locations, trade routes and unexplored areas are overlaid for exploration.
 
-<p align="center"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="Generated map background based on the World Forge regional layout, with green plains, forests, roads and a central town." /></p>
+<p align="center"><a href="docs/assets/worldmap-showcase-fixture/world_map.png"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="Generated map background based on the World Forge regional layout, with green plains, forests, roads and a central town." /></a></p>
 
 <p align="center"><sub>An included generation example. The artwork and the game's location, fog and route overlays are separate layers.</sub></p>
 
 | Find your next destination | Inspect a location |
 | :---: | :---: |
-| <img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map overlay with region names, locations, faction areas and unexplored territory." /> | <img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="A selected ruin on the map, showing danger, region and travel or investigation actions." /> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map overlay with region names, locations, faction areas and unexplored territory." /></a> | <a href="docs/assets/screenshot-world-map-detail.png"><img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="A selected ruin on the map, showing danger, region and travel or investigation actions." /></a> |
 
 ### Trade at markets and connect your bases
 
 From a single purchase to regional logistics: check price, stock, credits and cargo before buying, then inspect the routes connecting markets, settlements and facilities.
 
-<p align="center"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="Trade estimate for wheat at unit price 9, projecting credits 11 and cargo 1." /></p>
+<p align="center"><a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="Trade estimate for wheat at unit price 9, projecting credits 11 and cargo 1." /></a></p>
 
 <p align="center"><sub>Current 1.85.2 Action Hub. A purchase estimate, not an executed trade.</sub></p>
 
-<p align="center"><img src="docs/assets/screenshot-logistics.png" width="900" alt="Logistics network showing ports, markets, settlements and facilities connected by routes, with flow values and status filters." /></p>
+<p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="Logistics network showing ports, markets, settlements and facilities connected by routes, with flow values and status filters." /></a></p>
 
 <p align="center"><sub>See how bases connect. Earlier feature screenshot showing a preview of the current state.</sub></p>
 
@@ -128,13 +128,13 @@ From a single purchase to regional logistics: check price, stock, credits and ca
 
 Add scene images to the adventure log, adjust companions' speaking frequency and relationships, and organize characters and world lore in a lorebook. Image generation needs separate setup such as ComfyUI.
 
-<p align="center"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="ComfyUI-generated scene inside the adventure log: a stone dungeon corridor lit by lanterns." /></p>
+<p align="center"><a href="docs/assets/screenshot-comfyui.png"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="ComfyUI-generated scene inside the adventure log: a stone dungeon corridor lit by lanterns." /></a></p>
 
 <p align="center"><sub>Keep an image of the place your story has reached. Earlier scene-image integration showcase.</sub></p>
 
 | Party conversations and relationships | Character and world lore |
 | :---: | :---: |
-| <img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director companion cards with speaking frequency, mute, forced speech and relationships." /> | <img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook entries for characters, factions and domains, with enable and pin controls." /> |
+| <a href="docs/assets/screenshot-party-director.png"><img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director companion cards with speaking frequency, mute, forced speech and relationships." /></a> | <a href="docs/assets/screenshot-lorebook.png"><img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook entries for characters, factions and domains, with enable and pin controls." /></a> |
 
 - **Build a living world:** World Forge, economy, factions, NPC relationships, settlements, domains, guilds and vehicle bases. Enable the systems you want.
 - **Keep your story:** Conversation history, memories, lorebooks, chronicles, checkpoints and Markdown/HTML replay export.
@@ -143,7 +143,7 @@ Add scene images to the adventure log, adjust companions' speaking frequency and
 
 <a id="combat"></a>
 
-<p align="center"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View showing allied and enemy HP, gambits, movement orders and the combat log." /></p>
+<p align="center"><a href="docs/assets/screenshot-battle-view.png"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View showing allied and enemy HP, gambits, movement orders and the combat log." /></a></p>
 
 The combat simulator and Battle View are **experimental**. Combat currently starts through commands; automatic story-driven GM initiation and a directly controlled single-avatar UI are not provided. [Feature status](docs/FEATURE_MATRIX.md) · [Combat design and limitations](docs/COMBAT_SYSTEM_DESIGN.md)
 

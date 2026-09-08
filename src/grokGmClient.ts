@@ -46,7 +46,8 @@ export class GrokGmClient implements GmConnectionAdapter {
         const env = prepareGrokGmProfile(this.options.profileDirectory, this.options.workingDirectory);
         const executable = this.executable();
         this.clientVersion = `sha256:${createHash('sha256').update(fs.readFileSync(executable)).digest('hex')}`;
-        const child = spawn(executable, ['--tools', '', '--no-subagents', '--no-plan', '--disable-web-search',
+        const child = spawn(executable, ['--agent', path.join(this.options.profileDirectory, 'lorerelay-gm.md'),
+            '--no-subagents', '--no-plan', '--disable-web-search',
             '--model', this.options.model, '--max-turns', '1', 'agent', 'stdio'], {
             cwd: this.options.workingDirectory, env, windowsHide: true, shell: false, stdio: 'pipe',
         });

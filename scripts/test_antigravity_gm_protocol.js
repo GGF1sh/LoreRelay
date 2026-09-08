@@ -1,6 +1,18 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { AntigravityGmStream } = require('../out/antigravityGmProtocolCore');
+const { AntigravityGmStream, verifyAntigravityIsolationPolicy } = require('../out/antigravityGmProtocolCore');
+const policy = {status:'SUCCESS',num_turns:0,command:{name:'permissions',data:{permissions:[
+    {scope:'project'}, {scope:'shared'}, {scope:'global',deny:['read_file(*)','write_file(*)','read_url(*)','execute_url(*)','command(*)','unsandboxed(*)','mcp(*)']}
+]}}};
+assert.equal(verifyAntigravityIsolationPolicy(JSON.stringify(policy)),true);
+for (const mutate of [p=>p.command.data.permissions[2].deny.pop(),p=>p.command.data.permissions[0].allow=['command(*)'],
+    p=>p.command.data.permissions[1].scope='project',p=>p.num_turns=1,p=>p.command.name='model',p=>p.status='ERROR']) {
+    const bad=structuredClone(policy);mutate(bad);assert.equal(verifyAntigravityIsolationPolicy(JSON.stringify(bad)),false);
+}
+assert.equal(verifyAntigravityIsolationPolicy('not json'),false);
+const restricted = new AntigravityGmStream('fixture-model',()=>{},true);
+restricted.accept(JSON.stringify({event:'init',conversation_id:'restricted',init:{model:'fixture-model',agent:'lorerelay-gm',permission_mode:'request-review',tools:['run_command']}}));
+assert.throws(()=>restricted.accept(JSON.stringify({event:'step_update',step_update:{conversation_id:'restricted',step_type:'tool',tool_name:'run_command'}})),/unexpected_step/);
 const init = { event: 'init', conversation_id: 'fixture-session', init: { model: 'fixture-model', tools: [] } };
 const result = { event: 'result', result: { conversation_id: 'fixture-session', status: 'SUCCESS', response: '{"narrative":"fixture"}', num_turns: 1 } };
 const send = (stream, event) => stream.accept(JSON.stringify(event));

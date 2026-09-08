@@ -5,7 +5,7 @@ import { createHash } from 'crypto';
 import { StringDecoder } from 'string_decoder';
 import type { GmConnectionAdapter } from './gmConnectionCore';
 import { prepareAntigravityGmProfile } from './antigravityGmProfile';
-import { AntigravityGmStream } from './antigravityGmProtocolCore';
+import { AntigravityGmStream, verifyAntigravityIsolationPolicy } from './antigravityGmProtocolCore';
 
 interface Options { executable: string; profileDirectory: string; workingDirectory: string; model: string; timeoutMs?: number }
 
@@ -131,7 +131,8 @@ export class AntigravityGmClient implements GmConnectionAdapter {
         try {
             // Quota output can be present even without an account session. Never advertise
             // readiness while the actual transport exposes a tool-capable agent.
-            const preflight = new AntigravityGmStream(this.options.model, () => {});
+            await this.verifyPolicy();
+            const preflight = new AntigravityGmStream(this.options.model, () => {}, true);
             let initialized = false;
             const probe = await this.run(['--input-format', 'stream-json', '--output-format', 'stream-json',
                 '--model', this.options.model, '--agent', 'lorerelay-gm', '--disable-slash-commands'], '', line => {
@@ -155,7 +156,8 @@ export class AntigravityGmClient implements GmConnectionAdapter {
     async generate(prompt: string, onDraft: (text: string) => void): Promise<string> {
         if (!this.prepared) throw new Error('antigravity_login_required');
         if (Buffer.byteLength(prompt, 'utf8') > 4 * 1024 * 1024) throw new Error('antigravity_context_limit');
-        const stream = new AntigravityGmStream(this.options.model, onDraft);
+        await this.verifyPolicy();
+        const stream = new AntigravityGmStream(this.options.model, onDraft, true);
         const result = await this.run(['--input-format', 'stream-json', '--output-format', 'stream-json',
             '--model', this.options.model, '--agent', 'lorerelay-gm', '--disable-slash-commands', '--print-timeout', '3m'],
         JSON.stringify({ event: 'user', message: { content: prompt } }) + '\n', line => stream.accept(line), undefined, true);
@@ -163,6 +165,14 @@ export class AntigravityGmClient implements GmConnectionAdapter {
         // finish succeeds only after init.model matched the requested model.
         this.reportedModel = this.options.model;
         return candidate;
+    }
+
+    private async verifyPolicy(): Promise<void> {
+        const result = await this.run(['-p', '/permissions', '--output-format', 'json']);
+        if (result.code !== 0 || !verifyAntigravityIsolationPolicy(result.output)) {
+            this.prepared = false;
+            throw new Error('antigravity_identity_or_tools');
+        }
     }
 
     async login(onLogin: (url: string) => Promise<string | undefined>): Promise<void> {

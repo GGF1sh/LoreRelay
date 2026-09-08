@@ -43,7 +43,16 @@ const make = () => new GrokGmClient({ executable: __filename, profileDirectory: 
     assert.equal(launch.options.env.GROK_HOME, path.join(root, 'profile'));
     assert.equal(launch.options.env.GROK_CLAUDE_MCPS_ENABLED, '0');
     assert.equal(launch.options.env.GROK_MEMORY, '0');
-    assert.equal(launch.args[launch.args.indexOf('--tools') + 1], '');
+    const agentPath = launch.args[launch.args.indexOf('--agent') + 1];
+    assert.equal(agentPath, path.join(root, 'profile', 'lorerelay-gm.md'));
+    const agent = fs.readFileSync(agentPath, 'utf8');
+    assert.match(agent, /toolConfig:\n  tools:\n    - id: "GrokBuild:read_file"/);
+    assert.match(agent, /disallowedTools: \["GrokBuild:read_file"\]/);
+    assert.match(fs.readFileSync(path.join(root, 'profile', 'config.toml'), 'utf8'), /\[agent\]\nname = "lorerelay-gm"/);
+    for (const key of ['injectDefaultTools', 'discoverSkills', 'inheritSkills', 'agentsMd']) {
+        assert.match(agent, new RegExp(`${key}: false`));
+    }
+    assert.equal(launch.args.includes('--tools'), false);
     assert.equal(launch.calls[0].params.clientCapabilities.terminal, false);
     client.dispose();
     mode = 'unauth'; client = make(); assert.equal(await client.initialize(), 'login_required');

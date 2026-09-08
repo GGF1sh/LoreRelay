@@ -5,7 +5,21 @@ import * as path from 'path';
 export function prepareGrokGmProfile(profileDirectory: string, workingDirectory: string): NodeJS.ProcessEnv {
     fs.mkdirSync(profileDirectory, { recursive: true });
     fs.mkdirSync(workingDirectory, { recursive: true });
+    // Grok rejects an empty curated toolConfig at build time, but applies its
+    // denylist before creating the tool bridge. Declare one known tool and
+    // remove it; default injection is disabled, leaving no executable tools.
+    fs.writeFileSync(path.join(profileDirectory, 'lorerelay-gm.md'), [
+        '---', 'name: lorerelay-gm', 'description: LoreRelay GM candidate generation without tools',
+        'toolConfig:', '  tools:', '    - id: "GrokBuild:read_file"',
+        'disallowedTools: ["GrokBuild:read_file"]', 'injectDefaultTools: false',
+        'discoverSkills: false', 'inheritSkills: false', 'agentsMd: false',
+        'mcpServers: []', 'skills: []', '---',
+        'You are the LoreRelay game master. Follow the supplied game context and response format.',
+        'Return a candidate response only. Do not inspect files, execute commands, or use tools.', '',
+    ].join('\n'));
     fs.writeFileSync(path.join(profileDirectory, 'config.toml'), [
+        '[agent]', 'name = "lorerelay-gm"',
+        `definition = ${JSON.stringify(path.join(profileDirectory, 'lorerelay-gm.md'))}`,
         '[models]', 'max_retries = 0', '[permission]',
         'rules = [{ action = "deny", tool = "any" }]', '',
     ].join('\n'));

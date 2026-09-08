@@ -222,3 +222,21 @@ repair; no repeated local full suite was required. Evidence is in the local igno
 These observations supersede the earlier Codex authentication/inference pending notes only.
 Claude, Google, Grok and DeepSeek authenticated service runs, and actual comparative
 Player/QA model runs, remain unverified. Human Play remains unperformed and unreplaced.
+
+### 2026-09-08: Grok actual-model tool isolation repair
+
+Grok Build 1.0.13 (native SHA-256 `bf43dc75f5478a106eab1e86d422c963e4dbe9666cf14dab363733d27bf1e672`) authenticated through the user-approved dedicated GM profile. ACP reported the requested `grok-4.6` model. Initial actual-Webview verification accepted the first turn, but the second requested `list_dir` and was rejected as `grok_tool_unavailable`; no failed candidate was committed or automatically retried.
+
+The empty `--tools` value did not remove the native ACP toolset. An agent-file CLI argument alone also did not select the dedicated definition in the tested ACP path. The repair binds a Host-owned definition through `[agent]` configuration, disables default injection and instruction/skill discovery, and removes its single declared `GrokBuild:read_file` tool with the native denylist before the tool bridge is built. Declaring an initially empty curated toolset is rejected by this client version, so the pre-build declaration and post-filter empty set are distinct. Existing permission denial, no client filesystem/terminal capabilities, empty MCP list, and rejection of any unexpected tool event remain in force.
+
+Official implementation references: [agent selection](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/agent/mvp_agent/agent_ops.rs), [toolset filtering](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-agent/src/builder.rs). Native initialization diagnostics confirmed `lorerelay-gm` selection, `tool_count=0`, and MCP `config_count=0`; configuration text alone was not used as isolation proof.
+
+Actual Windows Extension Host and its real Webview, same synthetic fixture and fixed inputs:
+
+- Campaign: three GM candidates committed through the existing Accepted Turn path; fourth input cancelled, accepted count remained 3, input restored, send control enabled. Local evidence: `.test-runs/gm-real-host/run-RajTPJ/turn-1.json`, `turn-2.json`, `turn-3.json`, `stop.json`, `grok-three-turns-stop.png`.
+- Parlor: three replies stored and rendered, fourth cancelled, input restored; `game_state.json`, `world_state.json`, `game_rules.json`, and `world_forge.json` byte-identical before/after. Local evidence: `.test-runs/gm-real-host/run-4t3SrL/parlor-result.json`, `grok-parlor-three-turns-stop.png`.
+- Final focused Test Console: 6/6 selected tests, 9/9 commands (`2026-09-08T00-36-44-199Z-c857f72f`). Adversarial verification exercised unsolicited permission requests, unexpected tools, wrong session/model, partial completion, repeated request, cancellation, and timeout through the existing protocol/client tests. Native diagnostics separately verified actual tool removal.
+
+This establishes the tested Grok GM cases, not universal client-version compatibility. Antigravity login/actual responses and actual Player/QA model comparisons remain pending. Human Play remains unperformed and unreplaced. Raw profile diagnostics, auth artifacts, and synthetic model transcripts remain local and are not included in this document.
+
+Final executable-tree full suite was run once: 376/381 passed and Combat 736/736 passed. Five Git-dependent suites were blocked before their assertions by Windows worktree ownership checks (`dubious ownership`). With a process-scoped `safe.directory` limited to this worktree, those five suites were rerun individually and all passed, without executable changes or global Git configuration changes. Combined same-tree coverage is 381/381; this is not reported as an uninterrupted all-green full-suite run. Logs: `.test-runs/grok-agent-final-full.log` and `.test-runs/grok-agent-env-recheck.log`.

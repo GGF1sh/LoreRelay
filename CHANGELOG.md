@@ -13,6 +13,12 @@
 - NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
 - Campaign combat spectator soak (`qa:combat:quick`): story `encounterOps` → spectator resolve → PENDING → exactly-once apply → consequence ACK → reload does not double-apply.
 
+## [1.85.1] - 2026-09-08
+
+### Fixed
+- Antigravity GM readiness now checks the native tool-free initialization before accepting a connection. GM context is sent only after the request process passes the same check; duplicate initialization does not resend it.
+- Preserve specific initialization failures and stop describing quota output as verified account authentication. Native CLI 1.1.27 currently fails the tool-isolation check in the tested environment; actual Antigravity GM completion remains unverified.
+
 ## [1.85.0] - 2026-09-08
 
 ### Added

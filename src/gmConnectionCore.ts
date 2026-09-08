@@ -31,6 +31,7 @@ export function formatGmConnectionError(error: unknown): string {
         antigravity_start_failed: 'Antigravity CLIを起動できません。公式CLIの導入と実行パスを確認してください。',
         antigravity_login_required: 'Google公式ログインが必要です。「LoreRelay: AI接続」から接続してください。',
         antigravity_auth_unverified: 'Antigravityの認証を確認できません。公式ログインを再確認してください。',
+        antigravity_identity_or_tools: 'Antigravityのモデル一致またはツール無効化を確認できません。接続を中止し、ゲームには適用していません。',
         antigravity_version_unsupported: 'Antigravityの必要な機能を確認できません。公式CLIを更新してください。',
         antigravity_timeout: 'Antigravityの応答待ちが終了しました。入力を保持し、自動再送は行いません。',
         antigravity_invalid_candidate: 'Antigravityの応答を検証できませんでした。ゲームには適用していません。',

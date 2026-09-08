@@ -14,7 +14,7 @@ export function prepareGrokGmProfile(profileDirectory: string, workingDirectory:
         'disallowedTools: ["GrokBuild:read_file"]', 'injectDefaultTools: false',
         'discoverSkills: false', 'inheritSkills: false', 'agentsMd: false',
         'mcpServers: []', 'skills: []', '---',
-        'You are the LoreRelay game master. Follow the supplied game context and response format.',
+        'Follow the role and response format in the supplied LoreRelay context.',
         'Return a candidate response only. Do not inspect files, execute commands, or use tools.', '',
     ].join('\n'));
     fs.writeFileSync(path.join(profileDirectory, 'config.toml'), [

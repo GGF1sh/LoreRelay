@@ -17,9 +17,17 @@ LoreRelay是一款在VS Code中執行的角色扮演／持久世界RPG擴充套�
 
 [開始遊玩](#how-to-play) · [連接AI](#ai-connections) · [查看介面](#screenshots) · [安裝](#setup)
 
-<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="在燈光溫暖的酒館裡，與AI主持人開始冒險的概念插畫。" /></a></p>
+### 從對話，到地圖與交易
 
-<p align="center"><sub>表現冒險氛圍的插畫。實際遊戲介面見下方。 <a href="docs/assets/README.md">圖片來源</a></sub></p>
+<p align="center"><a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="840" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /></a></p>
+
+<p align="center"><sub>1.85.2拍攝的實際介面：AI描寫、下一步行動與自由輸入集中在同一畫面。</sub></p>
+
+| 在地圖上尋找目的地 | 確認價格後交易 |
+| :---: | :---: |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="小麥交易估算：單價9，預計剩餘資金11、貨物量1。" /></a> |
+
+地圖為早期功能截圖；交易畫面為1.85.2的購買前報價。點擊圖片可開啟原圖。
 
 <a id="onboarding"></a>
 
@@ -34,12 +42,6 @@ LoreRelay是一款在VS Code中執行的角色扮演／持久世界RPG擴充套�
 介面可選擇**故事、管理、演出**，分別突出文字、狀態或背景與立繪。這些是顯示設定，不會改變玩法或世界規則。沒有圖片也能遊玩。
 
 世界推進方式是另一項設定。以**安定生活、變化的世界、艱難經營**為起點，可分別調整經濟、食物需求、衝突與關係進展。NOAI支援無需呼叫模型的世界處理，以及交易、市場移動和結束一天。它不取代生成開放式故事的GM。
-
-| 在明亮介面中閱讀 | 在深色介面中閱讀 |
-| :---: | :---: |
-| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="淺色主題的真實Webview，顯示市場對話、建議行動與自由輸入。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /></a> |
-
-1.85.2真實介面，展示同一段已儲存的合成測試對話。切換主題不會改變對話內容。
 
 <a id="ai-connections"></a>
 
@@ -96,9 +98,15 @@ AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透�
 
 <a id="screenshots"></a>
 
-## 不只是對話
+## 更多場景與玩法
 
 地圖UI、物流、場景圖、同伴、世界書和戰鬥截圖為較早的功能展示，版面配置可能與目前介面不同。點擊圖片可放大。
+
+| 在明亮介面中閱讀 | 在深色介面中閱讀 |
+| :---: | :---: |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="淺色主題的真實Webview，顯示市場對話、建議行動與自由輸入。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /></a> |
+
+1.85.2真實介面，展示同一段已儲存的合成測試對話。切換主題不會改變對話內容。
 
 ### 讓生成的地圖成為冒險舞台
 
@@ -140,6 +148,10 @@ AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透�
 - **留下故事：** 對話歷史、記憶、世界書、編年史、檢查點與Markdown／HTML重播匯出。
 - **增添氛圍：** ComfyUI場景圖和地圖、立繪、BGM／音效、TTS、VLM視覺記憶。外部工具與模型需另行設定。
 - **一起遊玩：** 透過區域網路Remote Play參與或旁觀，無需以公開到網際網路為前提。
+
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="在燈光溫暖的酒館裡，與AI主持人開始冒險的概念插畫。" /></a></p>
+
+<p align="center"><sub>表現冒險氛圍的插畫，並非實際操作介面。 <a href="docs/assets/README.md">Image provenance</a></sub></p>
 
 <a id="combat"></a>
 

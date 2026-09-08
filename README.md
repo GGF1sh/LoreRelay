@@ -17,9 +17,17 @@ LoreRelayは、VS Codeで遊ぶロールプレイ／永続世界RPGです。キ�
 
 [始める](#how-to-play) · [AIを接続する](#ai-connections) · [画面を見る](#screenshots) · [インストール](#setup)
 
-<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="灯りのともる酒場で、AIのGMと冒険を始めるイメージイラスト。" /></a></p>
+### 会話から、地図と交易へ
 
-<p align="center"><sub>冒険の雰囲気を表したイメージイラストです。実際の操作画面は下で紹介します。 <a href="docs/assets/README.md">画像の出典</a></sub></p>
+<p align="center"><a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="840" alt="ダークテーマの物語表示。市場の会話と次の行動を同じ画面で確認。" /></a></p>
+
+<p align="center"><sub>1.85.2で撮影した実画面。AIの描写、次の行動、自由入力を一つの画面で。</sub></p>
+
+| 地図で行き先を探す | 価格を確認して取引する |
+| :---: | :---: |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /></a> | <a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="取引の見積り画面。小麦の単価9、取引後の所持金11、積載量1を確認。" /></a> |
+
+地図は以前の機能紹介画面、取引は1.85.2の購入前見積りです。画像をクリックすると原寸で開きます。
 
 <a id="onboarding"></a>
 
@@ -34,12 +42,6 @@ LoreRelayは、VS Codeで遊ぶロールプレイ／永続世界RPGです。キ�
 画面は**物語・管理・演出**から選べます。文章を読む、状態を見渡す、背景や立ち絵を楽しむための表示設定で、遊び方や世界のルールは変更しません。画像なしでも遊べます。
 
 「世界の進み方」も別に選べます。**安定した暮らし・変化のある世界・手強い経営**を入口に、経済、食料需要、紛争、関係の進行を個別調整できます。NOAIでは対応する世界処理や取引・市場移動・日送りをAI呼出しなしで進められます。自由な物語を生成するGMの代替ではありません。
-
-| 明るい画面で読む | 落ち着いた画面で読む |
-| :---: | :---: |
-| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="ライトテーマの実Webview。市場での会話、行動候補、自由入力を表示。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="ダークテーマの物語表示。市場の会話と次の行動を同じ画面で確認。" /></a> |
-
-同じ保存済みの合成fixture会話を表示した1.85.2の実画面。テーマを変えても会話の内容は変わりません。
 
 <a id="ai-connections"></a>
 
@@ -96,9 +98,15 @@ AI Connection V2では、AIにゲームの正本ファイルを直接編集さ�
 
 <a id="screenshots"></a>
 
-## 会話の先にあるもの
+## いろいろな場面・遊び方
 
 地図UI・物流・場面画像・仲間・ロアブック・戦闘は以前の機能紹介画像です。現在の画面と配置が異なる場合があります。クリックで画像を拡大できます。
+
+| 明るい画面で読む | 落ち着いた画面で読む |
+| :---: | :---: |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="ライトテーマの実Webview。市場での会話、行動候補、自由入力を表示。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="ダークテーマの物語表示。市場の会話と次の行動を同じ画面で確認。" /></a> |
+
+同じ保存済みの合成fixture会話を表示した1.85.2の実画面。テーマを変えても会話の内容は変わりません。
 
 ### 生成した地図が、冒険の舞台になる
 
@@ -140,6 +148,10 @@ AI Connection V2では、AIにゲームの正本ファイルを直接編集さ�
 - **物語を残す：** 会話履歴、記憶、ロアブック、年代記、チェックポイント、Markdown／HTMLのリプレイ出力。
 - **演出を足す：** ComfyUIのシーン画像・地図、立ち絵、BGM／SE、TTS、VLMによる視覚記憶。外部ツールやモデルは別途準備します。
 - **一緒に遊ぶ：** LANのRemote Playで参加・観戦。インターネット公開を前提としません。
+
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="灯りのともる酒場で、AIのGMと冒険を始めるイメージイラスト。" /></a></p>
+
+<p align="center"><sub>冒険の雰囲気を表したイメージイラストです。実際の操作画面ではありません。 <a href="docs/assets/README.md">Image provenance</a></sub></p>
 
 <a id="combat"></a>
 

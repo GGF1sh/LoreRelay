@@ -17,7 +17,7 @@ LoreRelayは、VS Codeで遊ぶロールプレイ／永続世界RPGです。キ�
 
 [始める](#how-to-play) · [AIを接続する](#ai-connections) · [画面を見る](#screenshots) · [インストール](#setup)
 
-<p align="center"><img src="docs/assets/hero-ui.jpg" width="840" alt="灯りのともる酒場で、AIのGMと冒険を始めるイメージイラスト。" /></p>
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="灯りのともる酒場で、AIのGMと冒険を始めるイメージイラスト。" /></a></p>
 
 <p align="center"><sub>冒険の雰囲気を表したイメージイラストです。実際の操作画面は下で紹介します。 <a href="docs/assets/README.md">画像の出典</a></sub></p>
 
@@ -37,7 +37,7 @@ LoreRelayは、VS Codeで遊ぶロールプレイ／永続世界RPGです。キ�
 
 | 明るい画面で読む | 落ち着いた画面で読む |
 | :---: | :---: |
-| <img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="ライトテーマの実Webview。市場での会話、行動候補、自由入力を表示。" /> | <img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="ダークテーマの物語表示。市場の会話と次の行動を同じ画面で確認。" /> |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="ライトテーマの実Webview。市場での会話、行動候補、自由入力を表示。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="ダークテーマの物語表示。市場の会話と次の行動を同じ画面で確認。" /></a> |
 
 同じ保存済みの合成fixture会話を表示した1.85.2の実画面。テーマを変えても会話の内容は変わりません。
 
@@ -104,23 +104,23 @@ AI Connection V2では、AIにゲームの正本ファイルを直接編集さ�
 
 地域のレイアウトからComfyUIで作った地図背景。緑の平野、森、街道を眺め、ゲーム画面では地点・交易路・未探索領域を重ねて世界を探索します。
 
-<p align="center"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="World Forgeの地域レイアウトから生成した地図背景。緑の平野、森林、街道と中央の街。" /></p>
+<p align="center"><a href="docs/assets/worldmap-showcase-fixture/world_map.png"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="World Forgeの地域レイアウトから生成した地図背景。緑の平野、森林、街道と中央の街。" /></a></p>
 
 <p align="center"><sub>同梱の生成例。地図画像そのものと、ゲームが重ねる地点・霧・交易路は別の層です。</sub></p>
 
 | 地図上で行き先を探す | 地点の情報を開く |
 | :---: | :---: |
-| <img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /> | <img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="地図上の遺跡を選択し、危険度や地域、移動と調査の操作を確認する画面。" /> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /></a> | <a href="docs/assets/screenshot-world-map-detail.png"><img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="地図上の遺跡を選択し、危険度や地域、移動と調査の操作を確認する画面。" /></a> |
 
 ### 市場で売買し、拠点を交易路で結ぶ
 
 手元の売買から、地域をまたぐ物流まで。購入前に価格・在庫・所持金・積載量を確認し、物流網では市場や集落、施設を結ぶルートを見渡せます。
 
-<p align="center"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="取引の見積り画面。小麦の単価9、取引後の所持金11、積載量1を確認。" /></p>
+<p align="center"><a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="取引の見積り画面。小麦の単価9、取引後の所持金11、積載量1を確認。" /></a></p>
 
 <p align="center"><sub>現行1.85.2のAction Hub。購入前の見積りで、実行済みの結果ではありません。</sub></p>
 
-<p align="center"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網の画面。港、市場、集落、施設を結ぶ交易ルートと流量、状態フィルターを表示。" /></p>
+<p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網の画面。港、市場、集落、施設を結ぶ交易ルートと流量、状態フィルターを表示。" /></a></p>
 
 <p align="center"><sub>拠点ごとのつながりをグラフで確認。既存の機能紹介画像で、表示しているのは現在状態のプレビューです。</sub></p>
 
@@ -128,13 +128,13 @@ AI Connection V2では、AIにゲームの正本ファイルを直接編集さ�
 
 場面画像を会話ログに添えたり、仲間の発言量や関係を調整したり。キャラクターや世界の設定はロアブックで整理できます。画像生成には別途ComfyUIなどの準備が必要です。
 
-<p align="center"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒険ログに表示されたComfyUI生成画像。ランタンが照らす石造りの地下回廊。" /></p>
+<p align="center"><a href="docs/assets/screenshot-comfyui.png"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒険ログに表示されたComfyUI生成画像。ランタンが照らす石造りの地下回廊。" /></a></p>
 
 <p align="center"><sub>文章で進んだ先の風景を、場面画像として残す。既存のシーン画像連携の紹介です。</sub></p>
 
 | 仲間の会話と関係 | 人物と世界の設定 |
 | :---: | :---: |
-| <img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Directorの仲間カード。発言量、ミュート、強制発言と人物間の関係を調整。" /> | <img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebookの設定一覧。人物と勢力、領地の項目に有効化とピン留めを設定。" /> |
+| <a href="docs/assets/screenshot-party-director.png"><img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Directorの仲間カード。発言量、ミュート、強制発言と人物間の関係を調整。" /></a> | <a href="docs/assets/screenshot-lorebook.png"><img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebookの設定一覧。人物と勢力、領地の項目に有効化とピン留めを設定。" /></a> |
 
 - **世界を育てる：** World Forge、経済・勢力・NPC関係、集落・領地・ギルド・車両拠点。必要な機能だけ有効にできます。
 - **物語を残す：** 会話履歴、記憶、ロアブック、年代記、チェックポイント、Markdown／HTMLのリプレイ出力。
@@ -143,7 +143,7 @@ AI Connection V2では、AIにゲームの正本ファイルを直接編集さ�
 
 <a id="combat"></a>
 
-<p align="center"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View。味方と敵のHP、ガンビットと移動命令、戦闘ログを表示。" /></p>
+<p align="center"><a href="docs/assets/screenshot-battle-view.png"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View。味方と敵のHP、ガンビットと移動命令、戦闘ログを表示。" /></a></p>
 
 戦闘シミュレーター／Battle Viewもありますが**experimental**です。現状の開始入口はコマンドで、GMが物語から自動的に戦闘を開始する導線や、単体アバターの直接操作UIは未提供です。[機能の対応状況](docs/FEATURE_MATRIX.md) · [戦闘の設計と制約](docs/COMBAT_SYSTEM_DESIGN.md)
 

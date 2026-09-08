@@ -17,7 +17,7 @@ LoreRelay是一款在VS Code中執行的角色扮演／持久世界RPG擴充套�
 
 [開始遊玩](#how-to-play) · [連接AI](#ai-connections) · [查看介面](#screenshots) · [安裝](#setup)
 
-<p align="center"><img src="docs/assets/hero-ui.jpg" width="840" alt="在燈光溫暖的酒館裡，與AI主持人開始冒險的概念插畫。" /></p>
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="在燈光溫暖的酒館裡，與AI主持人開始冒險的概念插畫。" /></a></p>
 
 <p align="center"><sub>表現冒險氛圍的插畫。實際遊戲介面見下方。 <a href="docs/assets/README.md">圖片來源</a></sub></p>
 
@@ -37,7 +37,7 @@ LoreRelay是一款在VS Code中執行的角色扮演／持久世界RPG擴充套�
 
 | 在明亮介面中閱讀 | 在深色介面中閱讀 |
 | :---: | :---: |
-| <img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="淺色主題的真實Webview，顯示市場對話、建議行動與自由輸入。" /> | <img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /> |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="淺色主題的真實Webview，顯示市場對話、建議行動與自由輸入。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /></a> |
 
 1.85.2真實介面，展示同一段已儲存的合成測試對話。切換主題不會改變對話內容。
 
@@ -104,23 +104,23 @@ AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透�
 
 從區域配置透過ComfyUI生成地圖背景：綠色平原、森林與道路。在遊戲中疊加地點、貿易路線與未探索區域，尋找下一站。
 
-<p align="center"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="根據World Forge區域配置生成的地圖背景，包含綠色平原、森林、道路與中央城鎮。" /></p>
+<p align="center"><a href="docs/assets/worldmap-showcase-fixture/world_map.png"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="根據World Forge區域配置生成的地圖背景，包含綠色平原、森林、道路與中央城鎮。" /></a></p>
 
 <p align="center"><sub>內建生成範例。地圖插畫與遊戲疊加的地點、迷霧、路線是不同圖層。</sub></p>
 
 | 尋找目的地 | 查看地點資訊 |
 | :---: | :---: |
-| <img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /> | <img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="選中的遺跡地點，展示危險度、所屬區域以及移動和調查操作。" /> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/screenshot-world-map-detail.png"><img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="選中的遺跡地點，展示危險度、所屬區域以及移動和調查操作。" /></a> |
 
 ### 在市場交易，用路線連接據點
 
 從一次買賣到跨區域物流：購買前查看價格、庫存、資金和載貨量，再透過物流網路觀察市場、聚落與設施之間的聯繫。
 
-<p align="center"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="小麥交易估算：單價9，預計剩餘資金11、貨物量1。" /></p>
+<p align="center"><a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="小麥交易估算：單價9，預計剩餘資金11、貨物量1。" /></a></p>
 
 <p align="center"><sub>目前1.85.2的Action Hub。這是購買估算，並非已執行交易。</sub></p>
 
-<p align="center"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網路介面，展示港口、市場、聚落、設施之間的路線、流量與狀態篩選。" /></p>
+<p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網路介面，展示港口、市場、聚落、設施之間的路線、流量與狀態篩選。" /></a></p>
 
 <p align="center"><sub>透過網路圖查看據點之間的聯繫。較早的功能截圖，展示目前狀態預覽。</sub></p>
 
@@ -128,13 +128,13 @@ AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透�
 
 為冒險日誌添加場景圖，調整同伴發言頻率與關係，並透過世界書整理角色與背景。圖片生成需要另行設定ComfyUI等工具。
 
-<p align="center"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒險日誌中的ComfyUI生成場景：燈籠照亮的石造地下走廊。" /></p>
+<p align="center"><a href="docs/assets/screenshot-comfyui.png"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒險日誌中的ComfyUI生成場景：燈籠照亮的石造地下走廊。" /></a></p>
 
 <p align="center"><sub>把故事抵達的風景留成圖片。較早的場景圖片連接範例。</sub></p>
 
 | 同伴對話與關係 | 人物與世界設定 |
 | :---: | :---: |
-| <img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director同伴卡片，可調整發言量、靜音、強制發言與人物關係。" /> | <img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook人物、勢力和領地條目，提供啟用與釘選控制。" /> |
+| <a href="docs/assets/screenshot-party-director.png"><img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director同伴卡片，可調整發言量、靜音、強制發言與人物關係。" /></a> | <a href="docs/assets/screenshot-lorebook.png"><img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook人物、勢力和領地條目，提供啟用與釘選控制。" /></a> |
 
 - **建立世界：** World Forge、經濟、勢力、NPC關係、聚落、領地、公會和載具據點，按需啟用。
 - **留下故事：** 對話歷史、記憶、世界書、編年史、檢查點與Markdown／HTML重播匯出。
@@ -143,7 +143,7 @@ AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透�
 
 <a id="combat"></a>
 
-<p align="center"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View展示敵我HP、自動戰術、移動命令與戰鬥日誌。" /></p>
+<p align="center"><a href="docs/assets/screenshot-battle-view.png"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View展示敵我HP、自動戰術、移動命令與戰鬥日誌。" /></a></p>
 
 戰鬥模擬器與Battle View屬於**實驗性功能**。目前透過命令啟動；尚未提供GM根據故事自動發起戰鬥的流程，也未提供單一角色的直接操控UI。[功能狀態](docs/FEATURE_MATRIX.md) · [戰鬥設計與限制](docs/COMBAT_SYSTEM_DESIGN.md)
 

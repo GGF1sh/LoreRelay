@@ -19,15 +19,17 @@ LoreRelayは、VS Codeで遊ぶロールプレイ／永続世界RPGです。キ�
 
 ### 会話から、地図と交易へ
 
-<p align="center"><a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="840" alt="ダークテーマの物語表示。市場の会話と次の行動を同じ画面で確認。" /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="管理表示の実画面。AIとの会話、世界の地図、交易の状態を一緒に確認。" /></a></p>
 
-<p align="center"><sub>1.85.2で撮影した実画面。AIの描写、次の行動、自由入力を一つの画面で。</sub></p>
+<p align="center"><sub>1.85.3の実画面。AIとの会話、世界の地図、交易を同じ画面で。</sub></p>
+
+**[▶ 75秒の実演を見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — 実GM応答 → 取引の確認・購入 → 画面を開き直す。待ち時間を短縮した合成fixtureの実録です。
 
 | 地図で行き先を探す | 価格を確認して取引する |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /></a> | <a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="取引の見積り画面。小麦の単価9、取引後の所持金11、積載量1を確認。" /></a> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="購入確定後のAction Hub。小麦1、所持金11、市場在庫49。" /></a> |
 
-地図は以前の機能紹介画面、取引は1.85.2の購入前見積りです。画像をクリックすると原寸で開きます。
+地図は以前の機能紹介画面、取引は1.85.3の購入確定後です。画像をクリックすると原寸で開きます。
 
 <a id="onboarding"></a>
 
@@ -124,9 +126,9 @@ AI Connection V2では、AIにゲームの正本ファイルを直接編集さ�
 
 手元の売買から、地域をまたぐ物流まで。購入前に価格・在庫・所持金・積載量を確認し、物流網では市場や集落、施設を結ぶルートを見渡せます。
 
-<p align="center"><a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="取引の見積り画面。小麦の単価9、取引後の所持金11、積載量1を確認。" /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="480" alt="購入確定後のAction Hub。小麦1、所持金11、市場在庫49。" /></a></p>
 
-<p align="center"><sub>現行1.85.2のAction Hub。購入前の見積りで、実行済みの結果ではありません。</sub></p>
+<p align="center"><sub>1.85.3で購入を実行した結果。所持金20→11、小麦0→1。</sub></p>
 
 <p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網の画面。港、市場、集落、施設を結ぶ交易ルートと流量、状態フィルターを表示。" /></a></p>
 

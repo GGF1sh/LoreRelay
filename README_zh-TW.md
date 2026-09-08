@@ -19,15 +19,17 @@ LoreRelay是一款在VS Code中執行的角色扮演／持久世界RPG擴充套�
 
 ### 從對話，到地圖與交易
 
-<p align="center"><a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="840" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="真實管理介面，同時查看AI對話、世界示意圖和商隊狀態。" /></a></p>
 
-<p align="center"><sub>1.85.2拍攝的實際介面：AI描寫、下一步行動與自由輸入集中在同一畫面。</sub></p>
+<p align="center"><sub>1.85.3真實介面：AI對話、世界示意圖與交易集中展示。</sub></p>
+
+**[▶ 觀看75秒實演](docs/PUBLIC_LAUNCH_MEDIA.md)** — 真實GM回覆 → 確認並購買 → 重新開啟面板。合成測試世界的實際錄影，已縮短等待時間。
 
 | 在地圖上尋找目的地 | 確認價格後交易 |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="小麥交易估算：單價9，預計剩餘資金11、貨物量1。" /></a> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="購買完成後的Action Hub：小麥1、資金11、市場庫存49。" /></a> |
 
-地圖為早期功能截圖；交易畫面為1.85.2的購買前報價。點擊圖片可開啟原圖。
+地圖為早期功能截圖；交易畫面為1.85.3購買完成後的結果。點擊圖片可開啟原圖。
 
 <a id="onboarding"></a>
 
@@ -124,9 +126,9 @@ AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透�
 
 從一次買賣到跨區域物流：購買前查看價格、庫存、資金和載貨量，再透過物流網路觀察市場、聚落與設施之間的聯繫。
 
-<p align="center"><a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="小麥交易估算：單價9，預計剩餘資金11、貨物量1。" /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="480" alt="購買完成後的Action Hub：小麥1、資金11、市場庫存49。" /></a></p>
 
-<p align="center"><sub>目前1.85.2的Action Hub。這是購買估算，並非已執行交易。</sub></p>
+<p align="center"><sub>1.85.3實際購買結果：資金20→11，小麥0→1。</sub></p>
 
 <p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網路介面，展示港口、市場、聚落、設施之間的路線、流量與狀態篩選。" /></a></p>
 

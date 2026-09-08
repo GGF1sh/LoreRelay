@@ -19,15 +19,17 @@ LoreRelay is a roleplaying and persistent-world RPG extension for VS Code. Start
 
 ### From conversation to maps and trade
 
-<p align="center"><a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="840" alt="Dark Story display showing the market conversation and next actions together." /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="Actual Management display with AI conversation, world diagram and caravan state." /></a></p>
 
-<p align="center"><sub>Actual UI captured in 1.85.2: AI narration, next actions and free-text input together.</sub></p>
+<p align="center"><sub>Actual 1.85.3 UI: AI conversation, world diagram and trading together.</sub></p>
+
+**[▶ Watch the 75-second demo](docs/PUBLIC_LAUNCH_MEDIA.md)** — Real GM response → review and purchase → reopen the panel. Edited recording of a synthetic fixture, with waits shortened.
 
 | Find a destination on the map | Check the price before trading |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map overlay with region names, locations, faction areas and unexplored territory." /></a> | <a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="Trade estimate for wheat at unit price 9, projecting credits 11 and cargo 1." /></a> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map overlay with region names, locations, faction areas and unexplored territory." /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="Action Hub after purchase: one wheat, 11 credits, market stock 49." /></a> |
 
-The map is an earlier feature screenshot; the trade view is a 1.85.2 purchase estimate. Click any image to open the original.
+The map is an earlier feature screenshot; trading shows a completed purchase in 1.85.3. Click any image to open the original.
 
 <a id="onboarding"></a>
 
@@ -124,9 +126,9 @@ A ComfyUI map background built from a regional layout: green plains, forests and
 
 From a single purchase to regional logistics: check price, stock, credits and cargo before buying, then inspect the routes connecting markets, settlements and facilities.
 
-<p align="center"><a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="Trade estimate for wheat at unit price 9, projecting credits 11 and cargo 1." /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="480" alt="Action Hub after purchase: one wheat, 11 credits, market stock 49." /></a></p>
 
-<p align="center"><sub>Current 1.85.2 Action Hub. A purchase estimate, not an executed trade.</sub></p>
+<p align="center"><sub>Purchase executed in 1.85.3: credits 20 → 11, wheat 0 → 1.</sub></p>
 
 <p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="Logistics network showing ports, markets, settlements and facilities connected by routes, with flow values and status filters." /></a></p>
 

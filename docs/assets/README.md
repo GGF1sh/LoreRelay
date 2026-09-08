@@ -1,6 +1,22 @@
 # README image provenance
 
-The four language READMEs use the same twelve images: an opening illustration, light/dark conversations, generated map artwork and two map UI views, trade, logistics, a scene image, party, lorebook and battle. Images appear alongside the corresponding play features. Captions distinguish current UI captures, earlier feature screenshots and illustration. No generated mockup is presented as a functioning game screen.
+The four language READMEs share the same featured screens and full gallery. Current management and completed-trade captures accompany the retained light/dark conversations, generated map artwork, earlier feature screens and illustration. Captions distinguish their provenance. No generated mockup is presented as a functioning game screen.
+
+## Public launch refresh — 1.85.3
+
+See [public launch media](../PUBLIC_LAUNCH_MEDIA.md) for the 75-second real-Host recording, capture conditions, editing disclosure and remaining UI discrepancy.
+
+| Asset under `public-launch-v1.85.3/` | Source |
+| --- | --- |
+| `management-map.png` | Direct real Webview capture after a real Antigravity GM reply and the first confirmed purchase; conversation, world diagram and caravan together. |
+| `trade-committed.jpg` | Direct recording frame after the first purchase: 11 credits, 1 wheat, stock 49. |
+| `social-preview.png` | 1280 × 640 typography/CSS composition containing the unretouched management screenshot. No image generation. |
+| `lorerelay-demo-75s.webm` | Edited real screen frames, 75 seconds, VP8, silent, 2 fps. Shortened waits and held frames are disclosed in the video. |
+| `demo-poster.jpg` | A captioned frame from the video. |
+
+Captured on 2026-09-08 at source `8e479d922ddf7990b0ab4a0334c59ed27fd87835`, LoreRelay 1.85.3 / VS Code 1.136.1. All game content is from the dedicated synthetic fixture. The capture harness and raw traces remain local; normal user data and authentication screens are excluded.
+
+## Retained assets
 
 | Asset | Source | What it demonstrates |
 | --- | --- | --- |
@@ -19,4 +35,4 @@ The four language READMEs use the same twelve images: an opening illustration, l
 
 The three `readme-*-v1.85.2.png` images are direct screenshots of the real Webview element via the existing local CDP/Playwright fixture tooling. Only UI navigation, the isolated Host's theme setting and scrolling were used for framing; no DOM content was replaced to fabricate controls or results. These captures use English UI text in all four READMEs, with localized alt text and captions. No personal account screens, ordinary campaigns or secrets are included. Earlier screenshots have not been re-certified against the current source; captions identify them as feature showcases.
 
-The illustration returns to the opening, while real light/dark game screens follow the play-style introduction. Existing assets are reused without binary duplication. No new image-generation request was needed for this visual refresh.
+The illustration and light/dark screens remain in the lower gallery. Existing assets are retained without binary duplication. No new image-generation request was needed.

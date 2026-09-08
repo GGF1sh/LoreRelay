@@ -13,6 +13,12 @@
 - NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
 - Campaign combat spectator soak (`qa:combat:quick`): story `encounterOps` → spectator resolve → PENDING → exactly-once apply → consequence ACK → reload does not double-apply.
 
+## [1.85.3] - 2026-09-08
+
+### Fixed
+- GM connection V2 failures no longer copy input to the clipboard or switch to manual-GM instructions. Normal input and regeneration retain the provider selected when the request started; legacy clipboard preferences remain supported.
+- Parlor and In-World recheck V2 reply validity immediately before saving, rejecting replies invalidated by cancellation or workspace/session changes after generation completes.
+
 ## [1.85.2] - 2026-09-08
 
 ### Fixed

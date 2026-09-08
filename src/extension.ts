@@ -1391,7 +1391,7 @@ async function handleAcceptedPlayerInput(
                 }
                 const provider = getGmProvider();
                 if (provider === 'clipboard') {
-                    await fallbackToClipboard(actionForGm);
+                    await fallbackToClipboard(actionForGm, provider);
                     return;
                 }
 
@@ -1400,7 +1400,7 @@ async function handleAcceptedPlayerInput(
                     if (consumeGmBridgeCancellationRequest()) {
                         return;
                     }
-                    await fallbackToClipboard(actionForGm);
+                    await fallbackToClipboard(actionForGm, provider);
                     return;
                 }
                 const history = getGameEntryHistory();

@@ -54,19 +54,20 @@ export function cancelGmConnection(): void {
 
 export function isGmConnectionBusy(): boolean { return activeClient !== undefined; }
 
-export async function runConnectedGmChat(prompt: string, provider: ConnectedGmProvider = 'codex-app-server'): Promise<{ ok: boolean; text: string; model?: string }> {
+export async function runConnectedGmChat(prompt: string, provider: ConnectedGmProvider = 'codex-app-server'): Promise<{ ok: boolean; text: string; model?: string; isCurrent?: () => boolean }> {
     if (!context || activeClient) { return { ok: false, text: '' }; }
     const profile = context.workspaceState.get<Profile>(connectionProfileKey(provider));
     if (!profile) { return { ok: false, text: '' }; }
     const generation = cancellationGeneration;
     const workspace = getWorkspacePath();
+    const isCurrent = () => generation === cancellationGeneration && workspace === getWorkspacePath();
     let client: GmConnectionAdapter | undefined;
     try {
         client = makeClient(profile, provider); activeClient = client;
         if (await client.initialize() !== 'ready') { throw new Error(provider === 'deepseek-api' ? 'deepseek_key_required' : provider === 'grok-acp' ? 'grok_login_required' : provider === 'codex-app-server' ? 'codex_login_required' : provider === 'antigravity-cli' ? 'antigravity_login_required' : 'claude_login_required'); }
         const text = await client.generate(prompt, () => {});
-        if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) { return { ok: false, text: '' }; }
-        return { ok: true, text, model: profile.model };
+        if (!isCurrent()) { return { ok: false, text: '' }; }
+        return { ok: true, text, model: profile.model, isCurrent };
     } catch (error) {
         if (generation === cancellationGeneration) void vscode.window.showErrorMessage(`GM: ${formatGmConnectionError(error)}`);
         return { ok: false, text: '' };

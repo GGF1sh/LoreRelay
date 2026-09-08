@@ -54,6 +54,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_connected_player_lab.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_gm_connection.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_gm_connection_host.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_gm_failure_routing.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_codex_app_server_protocol.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_codex_gm_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_codex_gm_login_host.js', consumesCompiledOutput: true },

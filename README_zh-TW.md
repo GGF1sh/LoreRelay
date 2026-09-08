@@ -413,6 +413,7 @@ GM 技能端：`TextAdventureGMSkill/scenarios/`。
 | **v1.79–1.83** | NOAI Play（確定性旅行/經濟處理）· 依資源分級的 5 檔經濟難度（abundant→barren） |
 | **v1.84.0–1.84.16** | Logistics Graph Canvas（交易網路互動式可視化）· 響應式三段式 Webview 外殼 |
 | **v1.84.17–1.84.30** | **戰鬥系統** — Battle View · gambit + RTS 命令主幹（移動 / 攻擊 / 攻擊移動 / 停止 / 恢復）· 確定性重播雜湊 · 戰鬥分析 · Story⇄Combat Bridge V1-A/B/C（回執 → `game_state` → `combatConsequence` 提示） |
+| **v1.85.0** | AI 連接 V2（共用 GM、五種適配器、模型選擇與 Player/QA fixture；實際服務驗證範圍見實作紀錄） |
 | **v1.84.31–1.84.32** | Genre World Presets（凍結且具版本管理的題材世界生成註冊表，附 provenance 重現檢查） |
 
 詳見 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) 與 `sample-scenarios/trade-routes`。

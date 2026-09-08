@@ -457,6 +457,7 @@ GM スキル側にも同じパックがあります: `TextAdventureGMSkill/scena
 | **v1.79–1.83** | NOAI Play（決定論的な旅・経済処理）· 資源別5ティア経済難易度（abundant→barren） |
 | **v1.84.0–1.84.16** | Logistics Graph Canvas（交易ネットワークのインタラクティブ可視化）· Responsive 3段階 Webview シェル |
 | **v1.84.17–1.84.30** | **Tactical Combat** — Battle View · ガンビット + RTS命令スパイン（移動 / 攻撃 / アタックムーブ / 停止 / 再開）· 決定論リプレイハッシュ · 戦闘アナリティクス · Story⇄Combat Bridge V1-A/B/C（レシート → `game_state` → `combatConsequence` プロンプト） |
+| **v1.85.0** | AI接続V2（共通GM・5社Adapter・モデル選択・Player/QA fixture。実サービス確認範囲は実装記録を参照） |
 | **v1.84.31–1.84.32** | Genre World Presets（凍結・版管理されたジャンル別世界生成プリセット、provenance 付き再現性チェック） |
 
 体験の入口: [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)（stable / experimental）· `sample-scenarios/trade-routes`

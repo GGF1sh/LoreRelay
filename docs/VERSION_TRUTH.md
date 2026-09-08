@@ -60,7 +60,18 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 - **人間スモーク対象の候補ビルド**が main に統合される場合、直前に出荷/テスト済みだった候補より **新しいバージョン識別子**を必ず持つこと（同一版で異なる中身の VSIX が生まれるのを防ぐ）。
 - **docs-only のコミット**（レビュー記録・ハンドオフドキュメントなど、`src/` やパッケージ内容に影響しないもの）ではバージョンを上げない。
 
-## 現行（手動更新: 2026-07-29, COMBAT-STORY-SESSION-BRIDGE-V1-A-001）
+## 現行（2026-09-08, AI Connection V2）
+
+| 項目 | 値 |
+|------|-----|
+| `package.json` | **1.85.0** |
+| CHANGELOG 先頭 | **[1.85.0]** |
+| 対象 | 共通GM接続・5社Adapter・モデル選択・Player/QA fixture実行 |
+| 実サービス確認 | Codex/Grok GM、Grok Player/QA。その他は未確認 |
+| 配布 | この変更はコード版の更新。タグ・GitHub Releaseの配布版とは別 |
+| Human Play | 未実施・未代替 |
+
+## 過去のスナップショット（手動更新: 2026-07-29, COMBAT-STORY-SESSION-BRIDGE-V1-A-001）
 
 > タスクブランチ `task/COMBAT-STORY-SESSION-BRIDGE-V1-A-001`（PR #57）。
 

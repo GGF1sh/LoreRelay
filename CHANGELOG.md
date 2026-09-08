@@ -13,6 +13,18 @@
 - NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
 - Campaign combat spectator soak (`qa:combat:quick`): story `encounterOps` → spectator resolve → PENDING → exactly-once apply → consequence ACK → reload does not double-apply.
 
+## [1.85.0] - 2026-09-08
+
+### Added
+- AI Connection V2: shared GM adapters for Codex, Claude, Antigravity, Grok and DeepSeek, with existing Host validation and persistence. Real-service coverage is documented separately; adapter availability is not proof of authenticated access.
+- Official Codex and Grok model selection, separate Player/QA fixture execution, and local anonymized article drafts.
+
+### Fixed
+- Codex login completion, Parlor cancellation controls, Grok tool isolation and exact model selection.
+
+### Changed
+- Advance the source/package identity from 1.84.32 to 1.85.0 for the integrated compatible feature phase. Human Play remains unperformed and unreplaced.
+
 ## [1.84.32] - 2026-08-02
 
 ### Fixed

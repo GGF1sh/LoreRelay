@@ -1364,7 +1364,11 @@ export async function invokeGmBridge(playerAction: string, diceLedger?: DiceLedg
     }
 }
 
-export async function fallbackToClipboard(text: string): Promise<void> {
+export async function fallbackToClipboard(text: string, provider = getGmProvider()): Promise<void> {
+    // V2 failures remain on the selected connection, even if settings changed while awaiting it.
+    if (provider === 'codex-app-server' || provider === 'claude-code-subscription' || provider === 'antigravity-cli' || provider === 'grok-acp' || provider === 'deepseek-api') {
+        return;
+    }
     const config = vscode.workspace.getConfiguration('textAdventure');
     if (!config.get<boolean>('grokBridge.fallbackToClipboard', true)) {
         return;

@@ -246,7 +246,7 @@ function applyParlorBackgroundToWebview(): void {
     }
 }
 
-async function invokeParlorByProfile(prompt: string, profile: ConnectionProfile): Promise<{ ok: boolean; text: string; model?: string }> {
+async function invokeParlorByProfile(prompt: string, profile: ConnectionProfile): Promise<{ ok: boolean; text: string; model?: string; isCurrent?: () => boolean }> {
     if (profile.provider === 'codex-app-server' || profile.provider === 'claude-code-subscription' || profile.provider === 'antigravity-cli' || profile.provider === 'grok-acp' || profile.provider === 'deepseek-api') {
         let success = false;
         try {
@@ -672,7 +672,7 @@ export async function handleParlorPlayerInput(text: string): Promise<void> {
         assertChatModAuthorization(workspaceRoot);
         const result = await invokeParlorByProfile(prompt, connProfile);
         assertChatModAuthorization(workspaceRoot);
-        if (!isParlorMode()) {
+        if (!isParlorMode() || (result.isCurrent && !result.isCurrent())) {
             return;
         }
         if (result.ok && result.text) {
@@ -721,7 +721,7 @@ export async function handleInWorldPlayerInput(text: string): Promise<void> {
         assertChatModAuthorization(workspaceRoot);
         const result = await invokeParlorByProfile(prompt, connProfile);
         assertChatModAuthorization(workspaceRoot);
-        if (!isInWorldMode()) {
+        if (!isInWorldMode() || (result.isCurrent && !result.isCurrent())) {
             return;
         }
         if (result.ok && result.text) {

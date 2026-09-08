@@ -96,5 +96,11 @@ const start = async provider => {
     operation = await start('deepseek-api'); exportsObject.cancelGmConnection(); operation.deliver();
     assert.match((await operation.result).error.message, /stale/);
     assert.equal(writes, 6, 'DeepSeek shares admission and cannot commit after cancellation');
+    const chat = exportsObject.runConnectedGmChat('chat', 'grok-acp');
+    await new Promise(resolve => setImmediate(resolve)); resume();
+    const reply = await chat;
+    assert.equal(reply.ok, true); assert.equal(reply.isCurrent(), true);
+    exportsObject.cancelGmConnection();
+    assert.equal(reply.isCurrent(), false, 'A completed reply remains invalidatable until its caller persists it');
     console.log('GM Host adversarial fixture: ledger/settings changes, epoch, late delivery, post-authorization cancel, busy and partial persistence passed. No model used.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

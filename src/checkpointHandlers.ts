@@ -493,11 +493,11 @@ export async function handleRegenerateLastTurn(): Promise<void> {
     const regenPrompt = t('gm.prompt.regenerate', { action: lastUserAction });
     const provider = getGmProvider();
     if (provider === 'clipboard') {
-        await fallbackToClipboard(regenPrompt);
+        await fallbackToClipboard(regenPrompt, provider);
         return;
     }
     const ok = await invokeGmBridge(regenPrompt);
     if (!ok) {
-        await fallbackToClipboard(regenPrompt);
+        await fallbackToClipboard(regenPrompt, provider);
     }
 }

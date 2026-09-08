@@ -17,9 +17,9 @@ LoreRelay是一款在VS Code中运行的角色扮演／持久世界RPG扩展。�
 
 [开始游玩](#how-to-play) · [连接AI](#ai-connections) · [查看界面](#screenshots) · [安装](#setup)
 
-<p align="center"><img src="docs/assets/readme-story-v1.85.2.png" width="760" alt="LoreRelay 1.85.2的故事显示：市场对话、建议行动、当前状态和自由输入位于同一界面。" /></p>
+<p align="center"><img src="docs/assets/hero-ui.jpg" width="840" alt="在灯光温暖的酒馆里，与AI主持人开始冒险的概念插画。" /></p>
 
-<p align="center"><sub>在当前真实Extension Host中展示已保存的合成测试场景对话，未使用日常campaign或账户画面。<a href="docs/assets/README.md">图片来源</a></sub></p>
+<p align="center"><sub>表现冒险氛围的插画。实际游戏界面见下方。 <a href="docs/assets/README.md">图片来源</a></sub></p>
 
 <a id="onboarding"></a>
 
@@ -34,6 +34,12 @@ LoreRelay是一款在VS Code中运行的角色扮演／持久世界RPG扩展。�
 界面可选择**故事、管理、演出**，分别突出文字、状态或背景与立绘。这些是显示设置，不会改变玩法或世界规则。没有图片也能游玩。
 
 世界推进方式是另一项设置。以**安定生活、变化的世界、艰难经营**为起点，可分别调整经济、食物需求、冲突与关系进展。NOAI支持无需调用模型的世界处理，以及交易、市场移动和结束一天。它不替代生成开放式故事的GM。
+
+| 在明亮界面中阅读 | 在深色界面中阅读 |
+| :---: | :---: |
+| <img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="浅色主题的真实Webview，显示市场对话、建议行动与自由输入。" /> | <img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事界面，在同一画面查看市场对话和下一步行动。" /> |
+
+1.85.2真实界面，展示同一段已保存的合成测试对话。切换主题不会改变对话内容。
 
 <a id="ai-connections"></a>
 
@@ -92,10 +98,43 @@ AI Connection V2不会要求AI直接编辑游戏的权威状态文件。Host通�
 
 ## 不止是对话
 
-| 提交前确认行动结果 | 在地图上探索世界 |
+地图UI、物流、场景图、同伴、世界书和战斗截图为较早的功能展示，布局可能与当前界面不同。点击图片可放大。
+
+### 让生成的地图成为冒险舞台
+
+从区域布局通过ComfyUI生成地图背景：绿色平原、森林与道路。在游戏中叠加地点、贸易路线与未探索区域，寻找下一站。
+
+<p align="center"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="根据World Forge区域布局生成的地图背景，包含绿色平原、森林、道路与中央城镇。" /></p>
+
+<p align="center"><sub>内置生成示例。地图插画与游戏叠加的地点、迷雾、路线是不同图层。</sub></p>
+
+| 寻找目的地 | 查看地点信息 |
 | :---: | :---: |
-| <img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="当前Action Hub交易界面，在确认前展示单价、库存和预计剩余资金、货物量。" /> | <img src="docs/assets/screenshot-world-map.png" width="310" alt="较早拍摄的World Map功能图，展示区域、地点、贸易路线与未探索地区。" /> |
-| 1.85.2真实Webview。这是购买估算，并非已执行的交易。 | 较早的功能截图。地图背景为生成图片，标记与覆盖层由UI绘制。 |
+| <img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map界面，在生成地图上显示区域名、地点、势力范围与未探索区域。" /> | <img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="选中的遗迹地点，展示危险度、所属区域以及移动和调查操作。" /> |
+
+### 在市场交易，用路线连接据点
+
+从一次买卖到跨区域物流：购买前查看价格、库存、资金和载货量，再通过物流网络观察市场、聚落与设施之间的联系。
+
+<p align="center"><img src="docs/assets/readme-commerce-v1.85.2.png" width="480" alt="小麦交易估算：单价9，预计剩余资金11、货物量1。" /></p>
+
+<p align="center"><sub>当前1.85.2的Action Hub。这是购买估算，并非已执行交易。</sub></p>
+
+<p align="center"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流网络界面，展示港口、市场、聚落、设施之间的路线、流量与状态筛选。" /></p>
+
+<p align="center"><sub>通过网络图查看据点之间的联系。较早的功能截图，展示当前状态预览。</sub></p>
+
+### 把叙述变成画面，让同伴参与对话
+
+为冒险日志添加场景图，调整同伴发言频率与关系，并通过世界书整理角色与背景。图片生成需要另行配置ComfyUI等工具。
+
+<p align="center"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒险日志中的ComfyUI生成场景：灯笼照亮的石造地下走廊。" /></p>
+
+<p align="center"><sub>把故事抵达的风景留成图片。较早的场景图片连接示例。</sub></p>
+
+| 同伴对话与关系 | 人物与世界设定 |
+| :---: | :---: |
+| <img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director同伴卡片，可调整发言量、静音、强制发言与人物关系。" /> | <img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook人物、势力和领地条目，提供启用与置顶控制。" /> |
 
 - **构建世界：** World Forge、经济、势力、NPC关系、聚落、领地、公会和载具据点，按需启用。
 - **留下故事：** 对话历史、记忆、世界书、编年史、检查点与Markdown／HTML回放导出。
@@ -103,6 +142,8 @@ AI Connection V2不会要求AI直接编辑游戏的权威状态文件。Host通�
 - **一起游玩：** 通过局域网Remote Play参与或旁观，无需以公开到互联网为前提。
 
 <a id="combat"></a>
+
+<p align="center"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View展示敌我HP、自动战术、移动命令与战斗日志。" /></p>
 
 战斗模拟器与Battle View属于**实验性功能**。目前通过命令启动；尚未提供GM根据故事自动发起战斗的流程，也未提供单个角色的直接操控UI。[功能状态](docs/FEATURE_MATRIX.md) · [战斗设计与限制](docs/COMBAT_SYSTEM_DESIGN.md)
 

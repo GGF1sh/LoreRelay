@@ -17,9 +17,17 @@ LoreRelay is a roleplaying and persistent-world RPG extension for VS Code. Start
 
 [Start playing](#how-to-play) · [Connect your AI](#ai-connections) · [See the UI](#screenshots) · [Install](#setup)
 
-<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="Illustration of beginning an adventure with an AI game master in a lantern-lit tavern." /></a></p>
+### From conversation to maps and trade
 
-<p align="center"><sub>An illustration of the adventure's atmosphere. Actual game screens appear below. <a href="docs/assets/README.md">Image provenance</a></sub></p>
+<p align="center"><a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="840" alt="Dark Story display showing the market conversation and next actions together." /></a></p>
+
+<p align="center"><sub>Actual UI captured in 1.85.2: AI narration, next actions and free-text input together.</sub></p>
+
+| Find a destination on the map | Check the price before trading |
+| :---: | :---: |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map overlay with region names, locations, faction areas and unexplored territory." /></a> | <a href="docs/assets/readme-commerce-v1.85.2.png"><img src="docs/assets/readme-commerce-v1.85.2.png" width="390" alt="Trade estimate for wheat at unit price 9, projecting credits 11 and cargo 1." /></a> |
+
+The map is an earlier feature screenshot; the trade view is a 1.85.2 purchase estimate. Click any image to open the original.
 
 <a id="onboarding"></a>
 
@@ -34,12 +42,6 @@ LoreRelay is a roleplaying and persistent-world RPG extension for VS Code. Start
 Choose a **Story, Management or Cinematic** display to focus on prose, status, or backgrounds and portraits. These are presentation settings: switching them does not change your experience or world rules. Images are optional.
 
 World pacing is a separate choice. **Stable living, a changing world and challenging management** offer starting points, with individual economy, food demand, conflict and relationship controls. NOAI supports world processing and trade, market travel and end day without model calls. It does not replace a GM that generates open-ended stories.
-
-| Read in a light theme | Read in a dark theme |
-| :---: | :---: |
-| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="Real light-theme Webview with a market conversation, action suggestions and free-text input." /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="Dark Story display showing the market conversation and next actions together." /></a> |
-
-Real 1.85.2 screens displaying the same saved synthetic fixture conversation. Changing the theme does not change the conversation.
 
 <a id="ai-connections"></a>
 
@@ -96,9 +98,15 @@ To explore a demo, use Start Hub's demo group or `LoreRelay: Load Scenario Pack`
 
 <a id="screenshots"></a>
 
-## Beyond the conversation
+## More scenes and ways to play
 
 The map UI, logistics, scene image, party, lorebook and battle captures are earlier feature showcases; their layout may differ from the current UI. Click an image to enlarge it.
+
+| Read in a light theme | Read in a dark theme |
+| :---: | :---: |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="Real light-theme Webview with a market conversation, action suggestions and free-text input." /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="Dark Story display showing the market conversation and next actions together." /></a> |
+
+Real 1.85.2 screens displaying the same saved synthetic fixture conversation. Changing the theme does not change the conversation.
 
 ### A generated map becomes your adventure's setting
 
@@ -140,6 +148,10 @@ Add scene images to the adventure log, adjust companions' speaking frequency and
 - **Keep your story:** Conversation history, memories, lorebooks, chronicles, checkpoints and Markdown/HTML replay export.
 - **Add atmosphere:** ComfyUI scene images and maps, portraits, BGM/SFX, TTS and VLM visual memory. External tools and models need separate setup.
 - **Play together:** LAN Remote Play for participants and spectators. Internet exposure is not required.
+
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="Illustration of beginning an adventure with an AI game master in a lantern-lit tavern." /></a></p>
+
+<p align="center"><sub>An illustration of the adventure’s atmosphere, not an actual game screen. <a href="docs/assets/README.md">Image provenance</a></sub></p>
 
 <a id="combat"></a>
 

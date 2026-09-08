@@ -1,5 +1,7 @@
 # GM Connection V2 — implementation checkpoint
 
+> Historical implementation log: the opening status and intermediate “pending” entries below describe earlier checkpoints. For the 2026-09-08 / 1.85.2 outcome, tested clients and deferred Claude/DeepSeek checks, see [AI Connections](AI_CONNECTIONS.md). Earlier failed runs are retained, not overwritten as successes.
+
 Status: implementation verification passed; actual GM login/turn verification remains incomplete.
 Human Play has not been performed. No end-to-end GM success is claimed.
 

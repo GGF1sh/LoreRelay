@@ -24,7 +24,7 @@ LoreRelay には **3 種類の「版」** があり、混同すると Web Grok /
 
 ## 3. 説明ドキュメント（履歴・スナップショット）
 
-`README.md` Features 内の「v1.3+)」、`WORLD_AND_VISUAL_MEMORY.md` の「v1.6.1 時点」、`README` 末尾 Roadmap の **世代表** などは **機能導入時のラベル** または **参考**。現行版の数値は `package.json` が正本。
+履歴文書の「v1.3+)」や `WORLD_AND_VISUAL_MEMORY.md` の「v1.6.1 時点」などは **機能導入時のラベル** または **参考**。READMEの接続検証表も日付付きのスナップショットです。現行コード版は `package.json`、配布版はGitHub Releasesで確認します。
 
 | ドキュメント | 役割 |
 |--------------|------|
@@ -67,8 +67,8 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | `package.json` | **1.85.2** |
 | CHANGELOG 先頭 | **[1.85.2]** |
 | 対象 | 共通GM接続・5社Adapter・モデル選択・Player/QA fixture実行 |
-| 実サービス確認 | Codex/Grok GM、Codex Player、Grok Player/QA。Antigravity GMはツール制限確認で停止。その他は未確認 |
-| 配布 | この変更はコード版の更新。タグ・GitHub Releaseの配布版とは別 |
+| 実サービス確認 | Codex / Grok / Antigravity：実Host・実WebviewでCampaign／会話専用各3ターンと停止。3社のPlayer fixture・別セッションQAも確認済み。Claude / DeepSeekは機能実装済み、ユーザー指定で実サービス確認を後日に分離。詳細は [AI Connections](AI_CONNECTIONS.md) |
+| 配布 | 2026-09-08確認時の最新GitHub Releaseは [v1.71.0](https://github.com/GGF1sh/LoreRelay/releases/tag/v1.71.0)。1.85.2はコード版で、今回のREADME更新はタグ・VSIXを発行しない |
 | Human Play | 未実施・未代替 |
 
 ## 過去のスナップショット（手動更新: 2026-07-29, COMBAT-STORY-SESSION-BRIDGE-V1-A-001）

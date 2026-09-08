@@ -1,5 +1,7 @@
 # AI Connection V2: Player Lab and separate QA analysis
 
+> Real-service status as of 2026-09-08 is summarized in [AI Connections](AI_CONNECTIONS.md). Codex/Grok/Antigravity Player and separate QA runs have since completed; Claude/DeepSeek real-service checks are deferred. The evidence requirements and earlier limitations below describe the initial implementation boundary, not a claim that those later runs remain pending.
+
 These are explicit local fixture runs. They do not attach to a normal campaign, reuse a GM conversation, or run a background agent. The existing manual MCP Player Lab remains available.
 
 ## Player run

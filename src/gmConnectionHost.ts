@@ -312,7 +312,7 @@ export async function configureAntigravityGm(): Promise<void> {
         if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
         await context.workspaceState.update(antigravityProfileKey, profile);
         await vscode.workspace.getConfiguration('textAdventure').update('gmBridge.provider', 'antigravity-cli', vscode.ConfigurationTarget.Workspace);
-        void vscode.window.showInformationMessage('Antigravity GM: 認証確認済み。実モデルの応答は次のゲーム入力で確認します。');
+        void vscode.window.showInformationMessage('Antigravity GM: CLI起動とツール無効化を確認しました。アカウント認証と実モデルの応答は未確認です。次のゲーム入力で確認します。');
     } catch (error) {
         void vscode.window.showErrorMessage(`Antigravity GM: ${formatGmConnectionError(error)}`);
     } finally {

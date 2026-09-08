@@ -2,7 +2,7 @@
 
 ## Current Snapshot (2026-09-08)
 
-Source candidate: **1.85.0** (AI Connection V2 and Grok model picker). See `docs/GM_CONNECTION_V2_IMPLEMENTATION.md` for exact verification scope. Codex/Grok GM and Grok separate Player/QA actual-service cases were verified; other providers and Human Play remain unverified. This snapshot supersedes earlier current-version labels below; historical entries are retained.
+Source candidate: **1.85.1** (Antigravity initialization and context-send ordering repair). See `docs/GM_CONNECTION_V2_IMPLEMENTATION.md` for exact verification scope. Codex/Grok GM, Codex Player and Grok separate Player/QA actual-service cases were verified. Antigravity CLI 1.1.27 remains blocked at the tool-isolation check; it is not a verified GM connection. Other providers and Human Play remain unverified. This snapshot supersedes earlier current-version labels below; historical entries are retained.
 
 
 ## 2026-07-13 JST - Claude (Sonnet 5) - 人間スモーク直前 UI/UX 追加調査（Player Action Hub動作確認 + 追加i18n未翻訳4件 + テストversion drift修正）

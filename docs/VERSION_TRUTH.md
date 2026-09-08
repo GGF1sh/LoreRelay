@@ -64,10 +64,10 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.85.0** |
-| CHANGELOG 先頭 | **[1.85.0]** |
+| `package.json` | **1.85.1** |
+| CHANGELOG 先頭 | **[1.85.1]** |
 | 対象 | 共通GM接続・5社Adapter・モデル選択・Player/QA fixture実行 |
-| 実サービス確認 | Codex/Grok GM、Grok Player/QA。その他は未確認 |
+| 実サービス確認 | Codex/Grok GM、Codex Player、Grok Player/QA。Antigravity GMはツール制限確認で停止。その他は未確認 |
 | 配布 | この変更はコード版の更新。タグ・GitHub Releaseの配布版とは別 |
 | Human Play | 未実施・未代替 |
 

@@ -13,7 +13,7 @@ interface Options { executable: string; profileDirectory: string; workingDirecto
 export class AntigravityGmClient implements GmConnectionAdapter {
     private child?: ChildProcessWithoutNullStreams;
     private disposed = false;
-    private authenticated = false;
+    private prepared = false;
     private rejectActive?: (error: Error) => void;
     clientVersion?: string;
     reportedModel?: string;
@@ -33,7 +33,7 @@ export class AntigravityGmClient implements GmConnectionAdapter {
     }
 
     private run(args: string[], input = '', onLine?: (line: string) => void,
-        login?: (url: string) => Promise<string | undefined>): Promise<{ output: string; code: number | null }> {
+        login?: (url: string) => Promise<string | undefined>, waitForInit = false): Promise<{ output: string; code: number | null }> {
         if (this.disposed || this.child) return Promise.reject(new Error('antigravity_busy_or_closed'));
         const env = prepareAntigravityGmProfile(this.options.profileDirectory, this.options.workingDirectory);
         return new Promise((resolve, reject) => {
@@ -43,6 +43,7 @@ export class AntigravityGmClient implements GmConnectionAdapter {
             catch { reject(new Error('antigravity_start_failed')); return; }
             this.child = child;
             let settled = false, output = '', buffer = '', diagnostic = '', bytes = 0, loginStarted = false;
+            let inputSent = false;
             const decoder = new StringDecoder('utf8');
             const finish = (error?: Error, code: number | null = null) => {
                 if (settled) return;
@@ -61,8 +62,18 @@ export class AntigravityGmClient implements GmConnectionAdapter {
                 let newline: number;
                 while (!settled && (newline = buffer.indexOf('\n')) >= 0) {
                     const line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1);
-                    try { if (line.trim()) onLine?.(line); }
-                    catch { finish(new Error('antigravity_invalid_candidate')); }
+                    try {
+                        if (line.trim()) {
+                            onLine?.(line);
+                            // The stream validator must accept init before any GM context leaves Host.
+                            if (waitForInit && !inputSent) {
+                                inputSent = true; child.stdin.end(input);
+                            }
+                        }
+                    } catch (error) {
+                        finish(error instanceof Error && /^antigravity_[a-z_]+$/.test(error.message)
+                            ? error : new Error('antigravity_invalid_candidate'));
+                    }
                 }
             });
             child.stderr.on('data', (chunk: Buffer) => {
@@ -76,7 +87,7 @@ export class AntigravityGmClient implements GmConnectionAdapter {
                 // Recognize native unauthenticated waiting without retaining/logging OAuth URLs.
                 diagnostic = (diagnostic + chunk.toString('utf8')).slice(-8192);
                 if (/Authentication required|not logged into Antigravity/i.test(diagnostic)) {
-                    this.authenticated = false;
+                    this.prepared = false;
                     if (!login) { finish(new Error('antigravity_login_required')); return; }
                     const match = diagnostic.match(/https:\/\/accounts\.google\.com\/o\/oauth2\/auth\?[^\s]+(?=\s)/);
                     if (match && !loginStarted) {
@@ -100,25 +111,41 @@ export class AntigravityGmClient implements GmConnectionAdapter {
             child.on('close', code => {
                 if (settled) return;
                 try { if (buffer.trim()) onLine?.(buffer); }
-                catch { finish(new Error('antigravity_invalid_candidate')); return; }
+                catch (error) {
+                    finish(error instanceof Error && /^antigravity_[a-z_]+$/.test(error.message)
+                        ? error : new Error('antigravity_invalid_candidate')); return;
+                }
                 finish(undefined, code);
             });
-            if (!login) child.stdin.end(input);
+            if (!login && !waitForInit) child.stdin.end(input);
         });
     }
 
     async initialize(): Promise<'ready' | 'login_required'> {
-        this.authenticated = false;
+        this.prepared = false;
         const help = await this.run(['--help']);
         if (help.code !== 0 || !['--input-format', '--output-format', '--disable-slash-commands', '--agent', '--model']
             .every(flag => help.output.includes(flag))) throw new Error('antigravity_version_unsupported');
         // The CLI does not expose a version flag. Record the exact executable fingerprint.
         this.clientVersion = `sha256:${createHash('sha256').update(fs.readFileSync(this.executable())).digest('hex')}`;
         try {
+            // Quota output can be present even without an account session. Never advertise
+            // readiness while the actual transport exposes a tool-capable agent.
+            const preflight = new AntigravityGmStream(this.options.model, () => {});
+            let initialized = false;
+            const probe = await this.run(['--input-format', 'stream-json', '--output-format', 'stream-json',
+                '--model', this.options.model, '--agent', 'lorerelay-gm', '--disable-slash-commands'], '', line => {
+                preflight.accept(line);
+                if (initialized || JSON.parse(line).event !== 'init') throw new Error('antigravity_auth_unverified');
+                initialized = true;
+            });
+            if (probe.code !== 0 || !initialized) throw new Error('antigravity_auth_unverified');
             // Official CLI-owned command; it reads quota and never asks the model a question.
             const status = await this.run(['-p', '/usage']);
             if (status.code !== 0 || !status.output.trim()) throw new Error('antigravity_auth_unverified');
-            this.authenticated = true; return 'ready';
+            // Ready to attempt a guarded request, not proof of account authentication.
+            // The native /usage command also prints default quotas while signed out.
+            this.prepared = true; return 'ready';
         } catch (error) {
             if (error instanceof Error && error.message === 'antigravity_login_required') return 'login_required';
             throw error;
@@ -126,12 +153,12 @@ export class AntigravityGmClient implements GmConnectionAdapter {
     }
 
     async generate(prompt: string, onDraft: (text: string) => void): Promise<string> {
-        if (!this.authenticated) throw new Error('antigravity_login_required');
+        if (!this.prepared) throw new Error('antigravity_login_required');
         if (Buffer.byteLength(prompt, 'utf8') > 4 * 1024 * 1024) throw new Error('antigravity_context_limit');
         const stream = new AntigravityGmStream(this.options.model, onDraft);
         const result = await this.run(['--input-format', 'stream-json', '--output-format', 'stream-json',
             '--model', this.options.model, '--agent', 'lorerelay-gm', '--disable-slash-commands', '--print-timeout', '3m'],
-        JSON.stringify({ event: 'user', message: { content: prompt } }) + '\n', line => stream.accept(line));
+        JSON.stringify({ event: 'user', message: { content: prompt } }) + '\n', line => stream.accept(line), undefined, true);
         const candidate = stream.finish(result.code);
         // finish succeeds only after init.model matched the requested model.
         this.reportedModel = this.options.model;

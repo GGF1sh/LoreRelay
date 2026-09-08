@@ -224,22 +224,36 @@ export async function configureDeepSeekGm(): Promise<void> {
 
 export async function configureGrokGm(): Promise<void> {
     if (!context || isGmConnectionBusy()) return;
+    const generation = cancellationGeneration, workspace = getWorkspacePath();
     const consent = await vscode.window.showWarningMessage(
         'GrokをGMとして使用します。入力・会話履歴・GM用の非公開設定をxAIへ送ります。公式アカウントの利用枠を使い、API課金へ自動切替しません。',
         { modal: true }, 'GMとして接続');
-    if (!consent) return;
+    if (!consent || isGmConnectionBusy() || generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
     const previous = context.workspaceState.get<Profile>(grokProfileKey);
-    const model = await vscode.window.showInputBox({ title: 'GMに使うGrokモデルID', value: previous?.model ?? '',
-        validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : '正確なモデルIDを入力してください。' });
-    if (!model || isGmConnectionBusy()) return;
-    const profile = { executable: previous?.executable ?? 'grok', model };
-    const generation = cancellationGeneration, workspace = getWorkspacePath();
+    const profile = { executable: previous?.executable ?? 'grok', model: previous?.model ?? '' };
     let client = new GrokGmClient({ ...profile, ...connectionDirectories('grok-acp') });
     let terminal: vscode.Terminal | undefined;
     const owner: GmConnectionAdapter = { initialize: () => client.initialize(), generate: (prompt, draft) => client.generate(prompt, draft),
         dispose: () => { client.dispose(); terminal?.dispose(); } };
     activeClient = owner;
     try {
+        let models: Array<{ model: string; displayName: string }> = [];
+        try { models = await client.listModels(); } catch { /* explicit manual fallback */ }
+        if (generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+        const choices = models.map(item => ({ label: item.displayName, model: item.model,
+            description: item.model === previous?.model ? '現在の設定' : '公式CLIのモデル候補（利用可否は接続時に確認）' }));
+        choices.sort((a, b) => Number(b.model === previous?.model) - Number(a.model === previous?.model));
+        choices.push({ label: 'モデルIDを手入力', model: '', description: models.length ? '一覧にないモデルを指定する' : '一覧を取得できませんでした' });
+        const choice = await vscode.window.showQuickPick(choices, { title: 'GMに使うGrokモデル',
+            placeHolder: '使用するモデルを選択してください（自動変更はしません）', matchOnDescription: true });
+        if (!choice || generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+        const model = choice.model || await vscode.window.showInputBox({ title: 'GMに使うGrokモデルID', value: profile.model,
+            prompt: '大文字・小文字とハイフンを含め、正確なIDを入力してください。',
+            validateInput: value => /^[a-zA-Z0-9_.-]{1,100}$/.test(value) ? undefined : '正確なモデルIDを入力してください。' });
+        if (!model || generation !== cancellationGeneration || workspace !== getWorkspacePath()) return;
+        profile.model = model;
+        client.dispose();
+        client = new GrokGmClient({ ...profile, ...connectionDirectories('grok-acp') });
         let status = await client.initialize();
         if (status === 'login_required') {
             const launch = client.loginLaunch();

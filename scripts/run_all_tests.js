@@ -60,6 +60,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_claude_gm_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_antigravity_gm_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_grok_gm_client.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_grok_gm_login_host.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_deepseek_gm_client.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_deepseek_gm_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_deepseek_api_transport.js' },

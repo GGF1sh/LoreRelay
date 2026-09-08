@@ -41,6 +41,48 @@ export class GrokGmClient implements GmConnectionAdapter {
         throw new Error('grok_start_failed');
     }
 
+    /** Native catalog only; no ACP session or model prompt is started. */
+    async listModels(): Promise<Array<{ model: string; displayName: string }>> {
+        if (this.disposed || this.child) throw new Error('grok_busy_or_closed');
+        const env = prepareGrokGmProfile(this.options.profileDirectory, this.options.workingDirectory);
+        return new Promise((resolve, reject) => {
+            const child = spawn(this.executable(), ['models'], { cwd: this.options.workingDirectory,
+                env, windowsHide: true, shell: false, stdio: 'pipe' });
+            this.child = child;
+            let settled = false, bytes = 0;
+            const chunks: Buffer[] = [];
+            const finish = (error?: Error) => {
+                if (settled) return;
+                settled = true; clearTimeout(timer);
+                if (this.child === child) this.child = undefined;
+                if (error) { child.kill(); reject(error); return; }
+                const lines = Buffer.concat(chunks).toString('utf8').replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
+                const models = new Map<string, { model: string; displayName: string }>();
+                let catalog = false;
+                for (const line of lines) {
+                    if (line.trim() === 'Available models:') { catalog = true; continue; }
+                    if (!catalog) continue;
+                    const match = /^\s*[*-]\s+([A-Za-z0-9_.-]{1,100})(?:\s+\(default\))?\s*$/.exec(line);
+                    if (match) models.set(match[1], { model: match[1], displayName: match[1] });
+                }
+                if (!models.size || models.size > 100) { reject(new Error('grok_model_list_invalid')); return; }
+                resolve([...models.values()]);
+            };
+            const timer = setTimeout(() => finish(new Error('grok_timeout')), Math.min(this.options.timeoutMs ?? 15000, 15000));
+            child.stdout.on('data', (chunk: Buffer) => {
+                bytes += chunk.length;
+                if (bytes > 65536) { finish(new Error('grok_model_list_invalid')); return; }
+                chunks.push(chunk);
+            });
+            child.stderr.on('data', () => {});
+            child.on('error', () => finish(new Error('grok_start_failed')));
+            child.on('close', code => finish(this.disposed ? new Error('grok_cancelled')
+                : code !== 0 ? new Error('grok_model_list_invalid') : undefined));
+            child.stdin.on('error', () => finish(new Error('grok_write_failed')));
+            child.stdin.end();
+        });
+    }
+
     async initialize(): Promise<'ready' | 'login_required'> {
         if (this.disposed || this.child) throw new Error('grok_busy_or_closed');
         const env = prepareGrokGmProfile(this.options.profileDirectory, this.options.workingDirectory);

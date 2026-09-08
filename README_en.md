@@ -415,6 +415,7 @@ Also under `TextAdventureGMSkill/scenarios/`.
 | **v1.79–1.83** | NOAI Play (deterministic travel/economy) · per-resource 5-tier economy difficulty (abundant→barren) |
 | **v1.84.0–1.84.16** | Logistics Graph Canvas (interactive trade-network visualization) · responsive 3-stage Webview shell |
 | **v1.84.17–1.84.30** | **Tactical Combat** — Battle View · gambit + RTS order spine (move / attack / attack-move / stop / resume) · deterministic replay hash · battle analytics · Story⇄Combat Bridge V1-A/B/C (receipt → `game_state` → `combatConsequence` prompt) |
+| **v1.85.0** | AI Connection V2 (shared GM, five adapters, model selection and Player/QA fixtures; see implementation notes for verified service coverage) |
 | **v1.84.31–1.84.32** | Genre World Presets (frozen, versioned genre world-generation registry with provenance-checked reproduction) |
 
 See [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md) and `sample-scenarios/trade-routes`.

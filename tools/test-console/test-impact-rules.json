@@ -11,7 +11,7 @@
       {
         "id": "grok-gm-connection-v2",
         "patterns": ["src/grokGmClient.ts", "src/grokGmProfile.ts", "src/grokAcpProtocol.ts", "src/grokGmProtocolCore.ts"],
-        "tests": ["test_grok_gm_client.js", "test_grok_gm_protocol.js", "test_gm_connection_host.js", "test_player_agent_mcp.js", "test_vscode_lm_turn_result_core.js"],
+        "tests": ["test_grok_gm_client.js", "test_grok_gm_login_host.js", "test_grok_gm_protocol.js", "test_gm_connection_host.js", "test_player_agent_mcp.js", "test_vscode_lm_turn_result_core.js"],
         "boundaries": ["compile"],
         "reason": "Grok ACP authentication, process isolation and candidate finality feed the existing GM admission path."
       },

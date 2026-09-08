@@ -8,8 +8,19 @@ let mode = 'success', kills = 0;
 const launches = [];
 cp.spawn = (exe, args, options) => {
     const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
-    child.kill = () => { kills++; return true; };
+    child.kill = () => { kills++; queueMicrotask(() => child.emit('close', null)); return true; };
     const calls = []; launches.push({ args, options, calls });
+    if (args[0] === 'models') {
+        child.stdin = new PassThrough();
+        queueMicrotask(() => {
+            if (mode === 'catalog-pending') return;
+            child.stdout.write(mode === 'catalog-large' ? 'x'.repeat(65537)
+                : mode === 'catalog-invalid' ? 'Default model: should-not-be-a-candidate\n'
+                    : 'You are not authenticated.\nDefault model: ignored\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n  - grok-4.6\n  - bad;command\n');
+            child.emit('close', mode === 'catalog-failed' ? 1 : 0);
+        });
+        return child;
+    }
     const emit = value => child.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...value }) + '\n');
     child.stdin = new Writable({ write(chunk, _, done) {
         const call = JSON.parse(chunk.toString()); calls.push(call); done();
@@ -33,6 +44,23 @@ const { GrokGmClient } = require('../out/grokGmClient');
 const make = () => new GrokGmClient({ executable: __filename, profileDirectory: path.join(root, 'profile'),
     workingDirectory: path.join(root, 'work'), model: 'fixture', timeoutMs: 50 });
 (async () => {
+    mode = 'catalog-success';
+    let catalog = make();
+    assert.deepEqual(await catalog.listModels(), [
+        { model: 'grok-4.6', displayName: 'grok-4.6' }, { model: 'grok-4.5', displayName: 'grok-4.5' },
+    ]);
+    assert.deepEqual(launches.at(-1).args, ['models']);
+    assert.equal(launches.at(-1).calls.length, 0);
+    catalog.dispose();
+    for (mode of ['catalog-invalid', 'catalog-large', 'catalog-failed', 'catalog-pending']) {
+        catalog = make(); await assert.rejects(catalog.listModels(), /model_list_invalid|timeout/); catalog.dispose();
+    }
+    mode = 'catalog-pending'; catalog = make();
+    const listing = catalog.listModels();
+    await assert.rejects(catalog.listModels(), /busy_or_closed/);
+    const listingCancelled = assert.rejects(listing, /cancelled/);
+    catalog.dispose(); await listingCancelled;
+    mode = 'success';
     let client = make(); assert.equal(await client.initialize(), 'ready');
     assert.equal(await client.generate('fixture context', () => {}), 'candidate');
     await assert.rejects(client.generate('duplicate', () => {}), /busy_or_closed/);

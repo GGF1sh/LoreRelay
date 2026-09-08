@@ -68,7 +68,7 @@ git tag -l "v*" | Sort-Object { [version]($_ -replace '^v','') } | Select-Object
 | CHANGELOG 先頭 | **[1.85.3]** |
 | 対象 | 共通GM接続・5社Adapter・モデル選択・Player/QA fixture実行 |
 | 実サービス確認 | Codex / Grok / Antigravity：実Host・実WebviewでCampaign／会話専用各3ターンと停止。3社のPlayer fixture・別セッションQAも確認済み。Claude / DeepSeekは機能実装済み、ユーザー指定で実サービス確認を後日に分離。詳細は [AI Connections](AI_CONNECTIONS.md) |
-| 配布 | 2026-09-08確認時の最新GitHub Releaseは [v1.71.0](https://github.com/GGF1sh/LoreRelay/releases/tag/v1.71.0)。1.85.2はコード版で、今回のREADME更新はタグ・VSIXを発行しない |
+| 配布 | 2026-09-08確認時の最新GitHub Releaseは [v1.71.0](https://github.com/GGF1sh/LoreRelay/releases/tag/v1.71.0)。1.85.3はコード版で、今回のGM接続修復はタグ・VSIXを発行しない |
 | Human Play | 未実施・未代替 |
 
 ## 過去のスナップショット（手動更新: 2026-07-29, COMBAT-STORY-SESSION-BRIDGE-V1-A-001）

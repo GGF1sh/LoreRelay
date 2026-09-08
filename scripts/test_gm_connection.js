@@ -38,3 +38,21 @@ for (const newerInput of ['', 'new draft']) {
     assert.equal(saves, newerInput ? 0 : 1);
 }
 console.log('Cancelled GM input is restored without overwriting a newer draft or resending it.');
+
+const sessionSource = bootstrap.slice(bootstrap.indexOf('function applyParlorSession(msg)'), bootstrap.indexOf('function initStartHub()'));
+let cancelClicks = 0;
+const loading = { id: 'gm-loading', clickCancel: () => cancelClicks++ };
+const chatLog = { children: [loading], set innerHTML(value) { assert.equal(value, ''); this.children = []; },
+    appendChild(node) { this.children.push(node); } };
+const sessionContext = { chatLog, document: { getElementById: id => chatLog.children.find(node => node.id === id) },
+    renderMessage: entry => chatLog.children.push(entry), updateStartHubVisibility() {}, saveState() {} };
+vm.createContext(sessionContext);
+vm.runInContext(sessionSource, sessionContext);
+sessionContext.applyParlorSession({ entries: [{ id: 'user', role: 'user', content: 'Hello' }] });
+assert.equal(chatLog.children.at(-1), loading, 'History updates retain the active cancel control');
+chatLog.children.at(-1).clickCancel();
+assert.equal(cancelClicks, 1, 'The original cancel handler remains attached');
+chatLog.children = chatLog.children.filter(node => node !== loading); // gmEnd removed it
+sessionContext.applyParlorSession({ entries: [{ id: 'reply', role: 'gm', content: 'Welcome' }] });
+assert.equal(chatLog.children.length, 1, 'A completed turn does not restart its loading state');
+console.log('Parlor history refresh preserves cancellation while waiting and does not restart a completed turn.');

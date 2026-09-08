@@ -23563,6 +23563,9 @@ function applyExperienceProfile(profile) {
 
 function applyParlorSession(msg) {
   if (!Array.isArray(msg.entries)) return;
+  // A user-message update arrives before the model finishes. Keep the existing
+  // loading node (including its cancel handler and timer) until gmEnd arrives.
+  const loading = document.getElementById('gm-loading');
   startHubForcedVisible = false;
   messageHistory = msg.entries.map((e) => ({
     id: e.id,
@@ -23572,6 +23575,7 @@ function applyParlorSession(msg) {
   }));
   chatLog.innerHTML = '';
   messageHistory.forEach((entry) => renderMessage(entry));
+  if (loading) chatLog.appendChild(loading);
   updateStartHubVisibility();
   saveState();
 }

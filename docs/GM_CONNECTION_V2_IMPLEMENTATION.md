@@ -194,3 +194,31 @@ One bounded adversarial verification covered origin substitution, code injection
 For the next manual attempt, reopen the isolated fixture Host, run `LoreRelay: AI接続`, select Codex and `GMとして使う`, then choose `デバイスコードでログイン`. Keep that VS Code window open while entering the displayed code on the official page. Completion is detected automatically. Do not reuse an expired callback URL or paste authentication codes into a bug report.
 
 Device-login final verification: full suite 381/381, Combat 736/736 (169.3 seconds), real Windows lifecycle_v1 passed. A fresh official read-only check of the dedicated user profile returned login_required with modelCalled=false and loginStarted=false. Actual device authorization remains pending.
+
+## Authenticated Codex verification follow-up (2026-09-08)
+
+The user completed dedicated GM authentication. Official CLI 0.140.0 rejected the requested
+`gpt-5.6-terra` with an upgrade-required response; isolated CLI 0.153.4 then returned that
+model in its catalog and produced a real fixture response. PR #116 adds the official catalog
+picker while retaining manual model entry. No model substitution was used.
+
+Local Windows Extension Development Host verification used actual LoreRelay Webview input,
+send and cancel controls through its DOM. Campaign turns 1–3 were saved in the production
+Accepted Turn ledger (`gm_candidate`) and displayed; cancelling the next request retained
+three accepted turns and restored the input. Initial fixture failures were traced to an
+opening GM entry whose world simulation counter was inconsistent, then to test-mode refusal
+of the unrelated Git Timeline consent dialog. The fixture counter was aligned and automatic
+Git commits disabled only in the test workspace; production admission was not weakened.
+
+Conversation-only verification found that `applyParlorSession` removed the loading/cancel
+node when refreshing the user's message. Retaining the existing node fixes cancellation
+without replacing its event handler or timer. On the fixed Webview, three real Terra replies
+were saved and rendered, the fourth request was cancelled with its input restored, and
+game state, world state, rules and forge files were byte-identical before/after the conversation.
+Focused Test Console verification passed 6/6 tests, 9/9 commands. This is a Medium-risk UI
+repair; no repeated local full suite was required. Evidence is in the local ignored
+`.test-runs/gm-real-host` fixture runs, not in normal campaign data.
+
+These observations supersede the earlier Codex authentication/inference pending notes only.
+Claude, Google, Grok and DeepSeek authenticated service runs, and actual comparative
+Player/QA model runs, remain unverified. Human Play remains unperformed and unreplaced.

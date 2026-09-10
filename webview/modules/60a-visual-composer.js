@@ -5,6 +5,18 @@ window.visualComposer = (() => {
   let previousFocus, baselineBackground, ownsBackground = false;
   const inertBefore = new Map();
   const pending = new Map();
+  // VS Code's webview preload forwards dragenter/dragover to the editor, which
+  // can put its file-opening drop overlay above our target before drop fires.
+  // Stop bubbling at the document, after the actual drop target has handled it.
+  // Cover the whole open composer so crossing another field cannot start that
+  // editor drag. Leave normal editor/file behavior intact when closed.
+  for (const type of ['dragenter', 'dragover', 'drag', 'drop']) {
+    document.addEventListener(type, event => {
+      if (!root || root.hidden) return;
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  }
   const labels = (ja, en) => currentLocale === 'ja' ? ja : en;
   const el = (tag, text, className) => {
     const node = document.createElement(tag);

@@ -89,6 +89,26 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
   openDialog = async () => { workspace = path.join(root, 'other'); return [{ scheme: 'file', fsPath: path.join(root, 'external.png') }]; };
   fs.writeFileSync(path.join(root, 'external.png'), png);
   assert((await request('import', { briefId, edits })).error); workspace = root;
+  // Deletion is scoped by session, clears every adoption, survives reload,
+  // and preserves shared pixels, source files and editable drafts.
+  scope.timelineEpochId = 'epoch';
+  good(await request('bind', { candidateId: second.id, target: 'turn' }));
+  good(await request('bind', { candidateId: second.id, target: 'background' }));
+  scope.campaignInstanceId = 'other';
+  assert((await request('deleteCandidate', { candidateId: second.id })).error);
+  scope.campaignInstanceId = 'campaign';
+  assert((await request('deleteCandidate', { candidateId: '../presentation.json' })).error);
+  const remaining = good(await request('deleteCandidate', { candidateId: second.id }));
+  assert.deepEqual(remaining.candidates.map(c => c.id), [candidateId]);
+  const reopened = new VisualComposerStore(root).read();
+  assert.equal(reopened.candidates.length, 1);
+  assert.deepEqual(reopened.bindings, []);
+  assert.equal(reopened.drafts.length, 1);
+  assert(fs.existsSync(new VisualComposerStore(root).imagePath(reopened.candidates[0])));
+  assert.deepEqual(fs.readFileSync(path.join(root, 'external.png')), png);
+  assert((await request('deleteCandidate', { candidateId: second.id })).error);
+  good(await request('import', { briefId, edits, data: png.toString('base64') }));
+  assert.equal(new VisualComposerStore(root).read().candidates.length, 2);
   assert.deepEqual(canonical.map(file => fs.readFileSync(path.join(root, file), 'utf8')), before);
   const store = new VisualComposerStore(root);
   assert.throws(() => store.imagePath({ imageHash: '../escape', extension: 'png' }));

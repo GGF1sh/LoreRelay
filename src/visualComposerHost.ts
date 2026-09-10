@@ -82,6 +82,16 @@ export async function visualComposerHandle(message: Record<string, unknown>, pan
             const service = typeof message.service === 'string' && message.service.length <= 100 ? message.service : '';
             selected = store.change(value => { const brief = find(value); edit(brief); store.import(value, brief, bytes, service); return brief; });
             notice = 'Imported to gallery / ギャラリーに取り込みました';
+        } else if (message.action === 'deleteCandidate') {
+            store.change(value => {
+                const candidate = value.candidates.find(c => c.id === message.candidateId && c.brief.source.sessionId === scope().sessionId);
+                if (!candidate) throw new Error('Candidate not found');
+                value.bindings = value.bindings.filter(b => b.candidateId !== candidate.id);
+                value.candidates = value.candidates.filter(c => c.id !== candidate.id);
+                // Keep shared image bytes: another receipt may use the same hash.
+                // Original files and draft prompts are never removed here.
+            });
+            notice = 'Removed from gallery / ギャラリーから削除しました';
         } else if (message.action === 'bind') {
             store.change(value => {
                 const c = value.candidates.find(c => c.id === message.candidateId && c.brief.source.sessionId === scope().sessionId);

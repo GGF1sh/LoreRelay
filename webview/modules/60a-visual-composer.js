@@ -146,6 +146,16 @@ window.visualComposer = (() => {
         btn.disabled = busy || (!c.valid && !applied);
       });
       if (!c.savedTargets.length) card.append(el('span', labels('ギャラリーのみ', 'Gallery only')));
+      const remove = button(labels('画像を削除', 'Delete image'), () => {
+        if (busy) return;
+        remove.hidden = true;
+        const confirmation = el('div');
+        confirmation.append(el('p', labels('候補・ギャラリーから削除し、ターン画像・背景への採用も解除します。元ファイルは残ります。', 'Remove from candidates and gallery, including turn/background assignments. The original file is kept.')));
+        button(labels('削除する', 'Delete'), () => { if (!busy) send('deleteCandidate', { candidateId: c.id }); }, confirmation);
+        button(labels('キャンセル', 'Cancel'), () => { confirmation.remove(); remove.hidden = false; remove.focus(); }, confirmation);
+        card.append(confirmation);
+      }, card);
+      remove.disabled = busy;
       candidatesBox.append(card);
     });
   }

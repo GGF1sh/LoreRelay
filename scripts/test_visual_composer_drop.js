@@ -16,6 +16,7 @@ class Node {
   querySelectorAll(selector) { const tags = selector.split(',').map(x => x.trim()); return this.all().filter(n => tags.includes(n.tag)); }
   querySelector(selector) { return this.all().find(n => selector === '[data-close]' && n.dataset.close); }
   focus() {}
+  remove() { this.parent.children = this.parent.children.filter(n => n !== this); }
 }
 const win = new Node('window'), doc = new Node('document'), body = new Node('body');
 win.append(doc); doc.append(body); doc.body = body;
@@ -66,6 +67,20 @@ async function dispatch(target, type, files = [{ size: 5 }]) {
   assert.equal(forwarded, 1, 'handled drop does not reach editor');
   // While an upload is busy, another drop must not open an editor either.
   await dispatch(drop, 'drop'); assert.equal(decodeCount, 1); assert.equal(forwarded, 1);
+  for (const fn of win.listeners.message) fn({ data: { type: 'visualComposer', requestId: messages.at(-1).requestId, candidates: [{ id: 'candidate-1', turnId: 'turn-1', savedTargets: [], targets: [], valid: true }] } });
+  const deleteButton = () => body.all().find(n => n.textContent === '画像を削除');
+  const countBefore = messages.length;
+  deleteButton().listeners.click[0]();
+  assert.equal(messages.length, countBefore, 'first click only shows confirmation');
+  body.all().find(n => n.textContent === 'キャンセル').listeners.click[0]();
+  assert.equal(deleteButton().hidden, false);
+  assert.equal(messages.length, countBefore, 'cancel does not mutate');
+  deleteButton().listeners.click[0]();
+  body.all().find(n => n.textContent === '削除する').listeners.click[0]();
+  assert.equal(messages.at(-1).action, 'deleteCandidate');
+  assert.equal(messages.at(-1).candidateId, 'candidate-1');
+  for (const fn of win.listeners.message) fn({ data: { type: 'visualComposer', requestId: messages.at(-1).requestId, candidates: [] } });
+  assert.equal(deleteButton(), undefined, 'host response removes candidate card');
   const close = body.all().find(n => n.dataset.close);
   close.listeners.click[0]();
   await dispatch(body, 'dragenter'); assert.equal(forwarded, 2);

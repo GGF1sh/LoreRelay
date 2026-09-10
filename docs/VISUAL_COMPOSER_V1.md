@@ -41,6 +41,12 @@ image containers are rejected. A process crash while holding `write.lock` fails
 closed on the next write; remove that lock only after confirming no writer is
 active. Original imported files are never modified.
 
+Each candidate offers Delete image with an inline confirmation. Deleting removes
+the candidate and its turn/background assignments from the saved gallery. Drafts,
+original files and managed image bytes are retained (pixels may be shared by
+other candidates); this action does not reclaim disk space. Reimporting remains
+possible.
+
 The local webview route accepts IDs, edits and bounded image bytes, not a source
 context or destination filesystem path. It rechecks host history and workspace.
 Only published GM text is used; no world, NPC-secret or model prompt data is read

@@ -21,6 +21,7 @@ import {
     normalizeLocale
 } from './i18n';
 import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
+import { visualComposerHandle } from './visualComposerHost';
 import { AbilityDefinition, AbilityFixtureDocument, StatusDefinition } from './combatAbilityTypes';
 import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrary, exportCustomAbilityLibrary, importCustomAbilityLibrary, removeCustomAbility, saveCustomAbility, validateWorkshopAbility, workshopShot } from './combatAbilityWorkshopCore';
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
@@ -375,6 +376,7 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'visualComposer') { await visualComposerHandle(message, panel); return; }
     if (message.type === 'getUiPresentation') { uiPresentation?.send(); return; }
     if (message.type === 'setUiPresentation') {
         try { await uiPresentation?.set(message); } catch { uiPresentation?.send(); }

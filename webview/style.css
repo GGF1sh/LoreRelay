@@ -3395,6 +3395,28 @@ body.vscode-high-contrast #status-drawer-scrim {
   display: none;
 }
 
+/* --- 81-visual-composer.css --- */
+.visual-composer[hidden] { display: none; }
+.visual-composer { position: fixed; inset: 3vh 4vw; z-index: 10000; overflow: auto; padding: 20px; border: 1px solid var(--vscode-panel-border, #666); border-radius: 12px; background: var(--vscode-editor-background, #202027); color: var(--vscode-editor-foreground, #eee); box-shadow: 0 0 0 100vmax #000a; }
+.visual-composer header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.visual-composer h2 { margin: 0; font-size: 1.25rem; }
+.visual-composer label { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; }
+.visual-composer textarea, .visual-composer input, .visual-composer select { width: 100%; box-sizing: border-box; color: inherit; background: var(--vscode-input-background, #30303a); border: 1px solid var(--vscode-input-border, #777); border-radius: 4px; padding: 8px; font: inherit; }
+.visual-composer textarea { resize: vertical; }
+.visual-composer pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font: inherit; padding: 10px; background: #8881; }
+.visual-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 0 14px; }
+.visual-composer button { cursor: pointer; padding: 8px 12px; margin: 4px; border: 1px solid var(--vscode-button-border, #777); border-radius: 5px; background: var(--vscode-button-background, #365c83); color: var(--vscode-button-foreground, #fff); }
+.visual-composer button:disabled { opacity: .5; cursor: default; }
+.visual-composer :focus-visible { outline: 2px solid var(--vscode-focusBorder, #8bc8ff); outline-offset: 2px; }
+.visual-drop { margin: 16px 0; padding: 20px; border: 2px dashed #888; border-radius: 8px; }
+.visual-status { min-height: 1.5em; overflow-wrap: anywhere; }
+.visual-candidates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px; }
+.visual-candidates article { padding: 10px; border: 1px solid #8885; border-radius: 8px; overflow-wrap: anywhere; }
+.visual-candidates img { width: 100%; height: 180px; object-fit: contain; }
+.visual-adopted-image { max-width: 100%; max-height: 480px; object-fit: contain; display: block; margin-top: 12px; }
+.msg:has(.visual-adopted-image) > .scene-img-container { display: none; }
+@media (max-width: 480px) { .visual-composer { inset: 1vh 1vw; padding: 12px; } }
+
 /* --- 85-world.css --- */
 /* ========= World Tab — Location Images & NPC Panel ========= */
 

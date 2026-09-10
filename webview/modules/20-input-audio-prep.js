@@ -248,15 +248,7 @@ imgBtn.addEventListener('click', () => {
     addSystemMessage(T('webview.image.noTurn'));
     return;
   }
-  const promptSource = lastGmEntry.imagePrompt || lastGmEntry.content || 'current scene';
-  const prompt = String(promptSource).trim().slice(0, 300) || 'current scene';
-  vscode.postMessage({
-    type: 'generateImage',
-    prompt,
-    mode: 'illustrious',
-    entryId: lastGmEntry.id
-  });
-  addSystemMessage(T('webview.image.requested'));
+  window.visualComposer.open(lastGmEntry.id);
 });
 
 // ===== ユーティリティ =====

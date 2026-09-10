@@ -399,6 +399,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_quest_generator.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_agentic_gm_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_visual_memory.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_visual_composer.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_vlm_queue_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_tavern_card_importer.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_protagonist_bootstrap_core.js', consumesCompiledOutput: true },

@@ -69,9 +69,7 @@ function getBestVoiceForLocale(locale) {
     qrGenImage.addEventListener('click', () => {
       const lastGm = [...messageHistory].reverse().find((m) => m && m.role === 'gm' && m.id);
       if (!lastGm) { addSystemMessage(T('webview.image.noTurn')); return; }
-      const prompt = String(lastGm.imagePrompt || lastGm.content || 'current scene').trim().slice(0, 300) || 'current scene';
-      vscode.postMessage({ type: 'generateImage', prompt, entryId: lastGm.id });
-      addSystemMessage(T('webview.image.requested'));
+      window.visualComposer.open(lastGm.id);
     });
   }
 

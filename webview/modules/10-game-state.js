@@ -227,18 +227,12 @@ function renderMessage(entry) {
     // 🎨 画像生成
     const genImgBtn = document.createElement('button');
     genImgBtn.className = 'msg-action-btn';
-    genImgBtn.title = T('webview.msg.genImage') || 'Generate Image';
-    genImgBtn.textContent = '🎨';
+    genImgBtn.title = window.visualComposer?.label() || 'Illustrate this scene';
+    genImgBtn.textContent = '🎨 ' + genImgBtn.title;
     genImgBtn.onclick = () => {
-      vscode.postMessage({
-        type: 'generateImage',
-        prompt: entry.imagePrompt || entry.content.substring(0, 300),
-        mode: 'illustrious',
-        entryId: entry.id
-      });
-      addSystemMessage(T('webview.image.requested'));
+      window.visualComposer.open(entry.id);
     };
-    actionsBar.appendChild(genImgBtn);
+    if (entry.role === 'gm') actionsBar.appendChild(genImgBtn);
 
     // 🚩 チェックポイント
     const cpBtn = document.createElement('button');
@@ -381,6 +375,7 @@ function renderMessage(entry) {
   }
 
   chatLog.appendChild(div);
+  window.visualComposer?.renderPresentation();
   updateStartHubVisibility();
 }
 
@@ -749,6 +744,7 @@ function renderGallery() {
 
     gallery.appendChild(item);
   }
+  window.visualComposer?.renderPresentation();
 }
 
 // ===== テーマ切り替え =====

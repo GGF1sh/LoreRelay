@@ -1081,7 +1081,9 @@ window.addEventListener('message', (event) => {
       }
     }
   } else if (msg.type === 'imageGenConfig') {
-    applyImageGenConfigForm(msg.config || {});
+    applyImageGenConfigForm(msg.config || {}, msg);
+  } else if (msg.type === 'imageGenModelSuggestions') {
+    renderImageGenSuggestions(msg);
   } else if (msg.type === 'remotePlayStatus') {
     updateRemotePlayButton(msg.status);
   } else if (msg.type === 'remoteInput') {

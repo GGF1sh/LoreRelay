@@ -76,6 +76,9 @@ export interface WebviewHandlerDeps {
     loadBundledSampleScenario(sampleId: string): Promise<void>;
     sendImageGenConfig(): void;
     handleUpdateImageGenConfig(raw: unknown): Promise<void>;
+    handleSelectImageGenTemplate(raw: unknown): Promise<void>;
+    handleRequestImageGenModelSuggestions(): Promise<void>;
+    handleApplyImageGenModelSuggestion(raw: unknown): Promise<void>;
     sendGameRules(): void;
     handleUpdateGameRules(raw: unknown): Promise<void>;
     handleSetEventExcluded(eventId: string, excluded: boolean): Promise<void>;
@@ -182,6 +185,7 @@ const SAFE_MODE_READ_OR_ABORT_WEBVIEW_MESSAGES = new Set([
     'insertChatText', 'listCheckpoints', 'loadCharacters', 'loadDirector',
     'loadLorebook', 'loadMemory', 'loadParty', 'loadWorld',
     'requestCombatAbilityWorkshop', 'requestCombatLab', 'requestImageGenConfig',
+    'requestImageGenModelSuggestions',
     'requestParlorSettings', 'requestState', 'requestWorldGenesisSetup',
     'requestGitTimeline', 'requestChronicle',
 ]);
@@ -635,6 +639,15 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'updateImageGenConfig':
             await deps.handleUpdateImageGenConfig(message.config);
+            break;
+        case 'selectImageGenTemplate':
+            await deps.handleSelectImageGenTemplate(message);
+            break;
+        case 'requestImageGenModelSuggestions':
+            await deps.handleRequestImageGenModelSuggestions();
+            break;
+        case 'applyImageGenModelSuggestion':
+            await deps.handleApplyImageGenModelSuggestion(message);
             break;
         case 'toggleRemotePlay':
             await deps.toggleRemotePlay();

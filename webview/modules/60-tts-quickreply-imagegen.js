@@ -107,9 +107,81 @@ function getBestVoiceForLocale(locale) {
 // ===== Image Gen Settings パネル =====
 let imageGenConfigDraft = null;
 let imageGenSaveTimer = null;
+let imageGenCatalog = { scene: [], map: [] };
+let imageGenResolved = null;
+let imageGenManualSize = false;
+let imageGenLastSuggestions = null;
 
-function applyImageGenConfigForm(config) {
+function fillImageGenTemplateSelect(selectId, templates, selectedId) {
+  const select = document.getElementById(selectId);
+  if (!select) { return; }
+  const previous = selectedId || '';
+  select.replaceChildren();
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = T('webview.imageGen.noneTemplate');
+  select.appendChild(none);
+  for (const entry of templates || []) {
+    const opt = document.createElement('option');
+    opt.value = entry.id;
+    opt.textContent = `${entry.title} (${entry.width}×${entry.height})`;
+    select.appendChild(opt);
+  }
+  select.value = previous;
+  if (select.value !== previous) {
+    select.value = '';
+  }
+}
+
+function templateSummary(templates, id) {
+  const entry = (templates || []).find((row) => row.id === id);
+  return entry ? String(entry.summary || '') : '';
+}
+
+function renderImageGenResolvedSize(resolved) {
+  const sizeEl = document.getElementById('ig-resolved-size');
+  const staleEl = document.getElementById('ig-ignored-stale-size');
+  if (sizeEl) {
+    if (resolved && resolved.sizeSource === 'template' && resolved.width > 0) {
+      sizeEl.textContent = T('webview.imageGen.resolvedSizeTemplate', resolved);
+    } else if (resolved && resolved.sizeSource === 'manual-override' && resolved.width > 0) {
+      sizeEl.textContent = T('webview.imageGen.resolvedSizeManual', resolved);
+    } else {
+      sizeEl.textContent = '';
+    }
+  }
+  if (staleEl) {
+    if (resolved && resolved.ignoredStaleSize) {
+      staleEl.textContent = T('webview.imageGen.ignoredStaleSize', resolved.ignoredStaleSize);
+      staleEl.classList.remove('hidden');
+    } else {
+      staleEl.textContent = '';
+      staleEl.classList.add('hidden');
+    }
+  }
+}
+
+function applyImageGenConfigForm(config, payload) {
   imageGenConfigDraft = config;
+  if (payload && payload.catalog) {
+    imageGenCatalog = {
+      scene: payload.catalog.scene || [],
+      map: payload.catalog.map || []
+    };
+  }
+  imageGenResolved = payload && payload.resolved ? payload.resolved : imageGenResolved;
+  imageGenManualSize = config.sizeFollowsTemplate === false;
+  fillImageGenTemplateSelect('ig-workflow-template', imageGenCatalog.scene, config.workflowTemplateId || '');
+  fillImageGenTemplateSelect('ig-cartography-template', imageGenCatalog.map, config.cartographyTemplateId || '');
+  const sceneSummary = document.getElementById('ig-workflow-template-summary');
+  if (sceneSummary) {
+    sceneSummary.textContent = templateSummary(imageGenCatalog.scene, config.workflowTemplateId || '');
+  }
+  const mapSummary = document.getElementById('ig-cartography-template-summary');
+  if (mapSummary) {
+    mapSummary.textContent = templateSummary(imageGenCatalog.map, config.cartographyTemplateId || '');
+  }
+  renderImageGenResolvedSize(imageGenResolved);
   const setVal = (id, value) => {
     const el = document.getElementById(id);
     if (el) { el.value = value ?? ''; }
@@ -159,6 +231,9 @@ function collectImageGenConfigFromForm() {
     positivePrefix: str('ig-pos-prefix'),
     positiveSuffix: str('ig-pos-suffix'),
     negativePrompt: str('ig-negative'),
+    workflowTemplateId: str('ig-workflow-template'),
+    cartographyTemplateId: str('ig-cartography-template'),
+    sizeFollowsTemplate: !imageGenManualSize,
     templates: {
       scene: str('ig-tpl-scene'),
       portrait: str('ig-tpl-portrait'),
@@ -194,11 +269,69 @@ function setImageGenPanelOpen(open) {
   }
 }
 
+function renderImageGenSuggestions(payload) {
+  imageGenLastSuggestions = payload;
+  const list = document.getElementById('ig-suggest-list');
+  const status = document.getElementById('ig-suggest-status');
+  if (!list) { return; }
+  list.replaceChildren();
+  const suggestions = (payload && payload.suggestions) || [];
+  if (status) {
+    if (!payload || (payload.rootCount === 0 && suggestions.length === 0)) {
+      status.textContent = T('webview.imageGen.noLocalModels');
+    } else if (suggestions.length === 0) {
+      status.textContent = T('webview.imageGen.suggestNone');
+    } else {
+      status.textContent = '';
+    }
+  }
+  for (const row of suggestions) {
+    const item = document.createElement('div');
+    item.className = 'img-gen-suggest-item' + (row.status === 'unresolved' ? ' unresolved' : '');
+    const name = document.createElement('div');
+    name.className = 'img-gen-suggest-name';
+    name.textContent = row.comfyName || '';
+    const meta = document.createElement('div');
+    meta.className = 'img-gen-suggest-meta';
+    const bits = [];
+    if (row.status === 'unresolved') { bits.push(T('webview.imageGen.suggestionUnresolved')); }
+    if (row.status === 'comfy-unverified') { bits.push(T('webview.imageGen.comfyUnverified')); }
+    if (row.modelFamily && row.modelFamily !== 'unknown') { bits.push(row.modelFamily); }
+    if (row.mode) { bits.push(row.mode); }
+    if (row.workflowTemplateId) { bits.push(row.workflowTemplateId); }
+    meta.textContent = bits.join(' · ');
+    const reasons = document.createElement('ul');
+    reasons.className = 'img-gen-suggest-reasons';
+    for (const reason of row.reasons || []) {
+      const li = document.createElement('li');
+      li.textContent = String(reason);
+      reasons.appendChild(li);
+    }
+    item.appendChild(name);
+    item.appendChild(meta);
+    item.appendChild(reasons);
+    if (row.status !== 'unresolved') {
+      const applyBtn = document.createElement('button');
+      applyBtn.type = 'button';
+      applyBtn.className = 'glass-btn';
+      applyBtn.textContent = T('webview.imageGen.applySuggestion');
+      applyBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'applyImageGenModelSuggestion', comfyName: row.comfyName });
+      });
+      item.appendChild(applyBtn);
+    }
+    list.appendChild(item);
+  }
+}
+
 (function initImageGenSettingsPanel() {
   const openBtn = document.getElementById('img-gen-settings-btn');
   const closeBtn = document.getElementById('img-gen-panel-close');
   const backdrop = document.getElementById('img-gen-backdrop');
   const panel = document.getElementById('img-gen-panel');
+  const sceneSelect = document.getElementById('ig-workflow-template');
+  const mapSelect = document.getElementById('ig-cartography-template');
+  const suggestBtn = document.getElementById('ig-suggest-models');
 
   openBtn?.addEventListener('click', () => setImageGenPanelOpen(true));
   closeBtn?.addEventListener('click', () => setImageGenPanelOpen(false));
@@ -207,6 +340,25 @@ function setImageGenPanelOpen(open) {
   panel?.querySelectorAll('.img-gen-input, .img-gen-textarea').forEach((el) => {
     el.addEventListener('change', scheduleImageGenConfigSave);
     el.addEventListener('blur', scheduleImageGenConfigSave);
+  });
+  document.getElementById('ig-width')?.addEventListener('input', () => { imageGenManualSize = true; });
+  document.getElementById('ig-height')?.addEventListener('input', () => { imageGenManualSize = true; });
+  document.getElementById('ig-profile')?.addEventListener('change', scheduleImageGenConfigSave);
+  document.getElementById('ig-model-family')?.addEventListener('change', scheduleImageGenConfigSave);
+
+  sceneSelect?.addEventListener('change', () => {
+    if (imageGenSaveTimer) { clearTimeout(imageGenSaveTimer); imageGenSaveTimer = null; }
+    imageGenManualSize = false;
+    vscode.postMessage({ type: 'selectImageGenTemplate', group: 'scene', id: sceneSelect.value });
+  });
+  mapSelect?.addEventListener('change', () => {
+    if (imageGenSaveTimer) { clearTimeout(imageGenSaveTimer); imageGenSaveTimer = null; }
+    vscode.postMessage({ type: 'selectImageGenTemplate', group: 'map', id: mapSelect.value });
+  });
+  suggestBtn?.addEventListener('click', () => {
+    const status = document.getElementById('ig-suggest-status');
+    if (status) { status.textContent = T('webview.imageGen.suggestScanning'); }
+    vscode.postMessage({ type: 'requestImageGenModelSuggestions' });
   });
 })();
 

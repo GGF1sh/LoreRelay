@@ -1,4 +1,5 @@
 {
+  "webview.worldGenesis.error.preset-limit": "最多保存20个预设。可使用同名更新。",
   "webview.abilityWorkshop.addToLoadout": "加入配置",
   "webview.abilityWorkshop.catalogSummary": "内置（{builtin}）／自定义（{custom}）",
   "webview.abilityWorkshop.delete": "删除自定义",
@@ -1306,7 +1307,11 @@
   "webview.worldGenesis.regionType.ruins": "废墟",
   "webview.worldGenesis.regionType.urban": "城市",
   "webview.worldGenesis.regionType.wilderness": "荒野",
-  "webview.worldGenesis.reroll": "新种子",
+  "webview.worldGenesis.reroll": "🎲 生成另一个世界",
+  "webview.worldGenesis.currentOverview": "当前世界全图",
+  "webview.worldGenesis.presetSaved": "预设已保存",
+  "webview.worldGenesis.error.invalid-settings": "请检查设置",
+  "webview.worldGenesis.error.preset-save-failed": "请检查设置",
   "webview.worldGenesis.rerolling": "正在选择新种子并生成只读预览…",
   "webview.worldGenesis.sampleRegions": "生成地区名称示例",
   "webview.worldGenesis.seed": "种子",

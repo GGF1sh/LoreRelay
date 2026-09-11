@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { WORLD_GENESIS_FEATURES, worldGenesisRules } from './worldGenesisExperienceCore';
+import { worldGenesisOverview } from './worldGenesisSetupCore';
 import * as fs from 'fs';
 import * as path from 'path';
 import { renderWebviewHtml } from './webviewHtmlCore';
@@ -376,6 +378,7 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'worldGenesisPresetSave') { await saveWorldGenesisUserPreset(message); return; }
     if (message.type === 'visualComposer') { await visualComposerHandle(message, panel); return; }
     if (message.type === 'getUiPresentation') { uiPresentation?.send(); return; }
     if (message.type === 'setUiPresentation') {
@@ -1694,6 +1697,26 @@ function createFreshWorldGenesisSeed(): string {
     return createWorldGenesisSeed(Date.now(), randomBytes(6).toString('hex'));
 }
 
+let worldGenesisPresetSaving = false;
+async function saveWorldGenesisUserPreset(raw: Record<string, unknown>): Promise<void> {
+    if (!extensionContext || worldGenesisPresetSaving) return;
+    const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 80) : '';
+    const normalized = normalizeWorldGenesisInput({ ...raw, seed: 'user-preset' }, getDefaultGeneratorInput());
+    if (!name || !normalized.ok) { panel?.webview.postMessage({ type: 'worldGenesisError', reason: 'invalid-settings' }); return; }
+    worldGenesisPresetSaving = true;
+    try {
+        const saved = extensionContext.globalState.get<Array<{ name: string; draft: WorldGenesisDraft }>>('worldGenesis.userPresets.v1', []);
+        const presets = saved.filter(p => p && typeof p.name === 'string' && p.name !== name);
+        if (presets.length >= 20) { panel?.webview.postMessage({ type: 'worldGenesisError', reason: 'preset-limit' }); return; }
+        const input = normalized.input;
+        presets.push({ name, draft: { presetId: input.presetId, presetVersion: input.presetVersion, regionCount: input.regionCount, factionCount: input.factionCount, npcCount: input.npcCount, experience: input.experience } });
+        await extensionContext.globalState.update('worldGenesis.userPresets.v1', presets);
+        panel?.webview.postMessage({ type: 'worldGenesisUserPresets', presets, saved: true });
+    } catch {
+        panel?.webview.postMessage({ type: 'worldGenesisError', reason: 'preset-save-failed' });
+    } finally { worldGenesisPresetSaving = false; }
+}
+
 function sendWorldGenesisSetup(): void {
     if (!panel) { return; }
     worldGenesisPreviewSession = undefined;
@@ -1702,8 +1725,15 @@ function sendWorldGenesisSetup(): void {
         getDefaultGeneratorInput(),
         createFreshWorldGenesisSeed()
     );
+    if (!prefill.experience) prefill.experience = {
+        version: 1,
+        locale: getConfiguredLocale(),
+        features: Object.fromEntries(WORLD_GENESIS_FEATURES.map(key => [key, ['commerce', 'reputation', 'encounters', 'relationships'].includes(key)])) as NonNullable<typeof prefill.experience>['features'],
+    };
     panel.webview.postMessage({
         type: 'worldGenesisSetup',
+        userPresets: extensionContext?.globalState.get('worldGenesis.userPresets.v1', []) || [],
+        currentOverview: loadWorldForge() ? { worldName: loadWorldForge()!.meta.worldName, ...worldGenesisOverview(loadWorldForge()!) } : undefined,
         presets: getPublishedWorldGenesisPresets().map(preset => ({
             presetId: preset.presetId,
             presetVersion: preset.presetVersion,
@@ -1741,6 +1771,7 @@ async function handlePreviewWorldGenesis(raw: Record<string, unknown>, reroll: b
                 regionCount: normalized.input.regionCount,
                 factionCount: normalized.input.factionCount,
                 npcCount: normalized.input.npcCount,
+                experience: normalized.input.experience,
             },
             summary: worldGenesisPreviewSession.summary,
         });
@@ -1795,7 +1826,7 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
                 onApplied: async (forge, isOverwrite) => {
                     bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: isOverwrite });
                     resetWorldStateFromForge(forge, isOverwrite);
-                    saveGameRules({ enableWorldForge: true, enableNpcRegistry: true });
+                    if (!saveGameRules(worldGenesisRules(normalized.input.experience))) throw new Error('World rules could not be saved');
                     sendGameRules();
                     await sendUiState(0, true);
                     pushWorldViewToWebview();

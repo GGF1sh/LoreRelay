@@ -1,4 +1,5 @@
 {
+  "webview.worldGenesis.error.preset-limit": "Up to 20 presets. Reuse a name to update it.",
   "extension.action.applyVehicleMigration": "Apply Migration",
   "extension.action.cancel": "Cancel",
   "extension.action.restoreVehicleMigration": "Restore Backup",
@@ -1309,7 +1310,11 @@
   "webview.worldGenesis.regionType.ruins": "Ruins",
   "webview.worldGenesis.regionType.urban": "Urban",
   "webview.worldGenesis.regionType.wilderness": "Wilderness",
-  "webview.worldGenesis.reroll": "New Seed",
+  "webview.worldGenesis.reroll": "🎲 Generate another world",
+  "webview.worldGenesis.currentOverview": "Current world overview",
+  "webview.worldGenesis.presetSaved": "Preset saved",
+  "webview.worldGenesis.error.invalid-settings": "Check the setup settings",
+  "webview.worldGenesis.error.preset-save-failed": "Check the setup settings",
   "webview.worldGenesis.rerolling": "Choosing a new seed and generating a read-only preview…",
   "webview.worldGenesis.sampleRegions": "Sample generated region names",
   "webview.worldGenesis.seed": "Seed",

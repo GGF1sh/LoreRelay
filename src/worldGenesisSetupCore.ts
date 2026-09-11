@@ -6,6 +6,7 @@ import {
     resolveGeneratorThemeForPreset,
     resolvePresetId,
 } from './genreWorldPresetCore';
+import { normalizeWorldGenesisExperience, type WorldGenesisExperience } from './worldGenesisExperienceCore';
 import type { GenreWorldPreset, WorldReproductionUnavailableReason } from './genreWorldPresetCore';
 import { isValidEventId } from './worldEventLogCore';
 import type { RegionType, WorldForge } from './worldForgeCore';
@@ -25,6 +26,7 @@ export interface WorldGenesisDefaults {
 }
 
 export interface WorldGenesisDraft {
+    experience?: unknown;
     presetId?: unknown;
     presetVersion?: unknown;
     seed?: unknown;
@@ -42,10 +44,11 @@ export type NormalizeWorldGenesisResult =
     | { ok: true; input: NormalizedWorldGenesisInput }
     | {
         ok: false;
-        reason: 'invalid-seed' | 'invalid-preset' | 'preset-version-unavailable' | 'preset-not-published' | 'theme-unavailable';
+        reason: 'invalid-settings' | 'invalid-seed' | 'invalid-preset' | 'preset-version-unavailable' | 'preset-not-published' | 'theme-unavailable';
       };
 
 export interface WorldGenesisPreviewSummary {
+    overview?: { regions: Array<{ id: string; name: string; type: RegionType; x?: number; y?: number; connectedTo?: string[] }>; locations: Array<{ id: string; name: string; regionId?: string }>; factions: Array<{ id: string; name: string }> };
     worldName: string;
     presetId: string;
     presetVersion: number;
@@ -67,6 +70,7 @@ export interface WorldGenesisPreviewSession {
 }
 
 export interface WorldGenesisPrefill {
+    experience?: WorldGenesisExperience;
     presetId?: string;
     presetVersion?: number;
     seed: string;
@@ -116,6 +120,8 @@ export function normalizeWorldGenesisInput(
     draft: WorldGenesisDraft,
     defaults: WorldGenesisDefaults
 ): NormalizeWorldGenesisResult {
+    const experience = normalizeWorldGenesisExperience(draft.experience);
+    if (draft.experience !== undefined && !experience) return { ok: false, reason: 'invalid-settings' };
     const seed = normalizeWorldForgeSeed(draft.seed);
     if (!seed || !isValidEventId(seed)) {
         return { ok: false, reason: 'invalid-seed' };
@@ -146,6 +152,7 @@ export function normalizeWorldGenesisInput(
     return {
         ok: true,
         input: {
+            ...(experience ? { experience } : {}),
             worldSeed: seed,
             theme,
             presetId,
@@ -166,6 +173,7 @@ export function worldGenesisInputKey(input: NormalizedWorldGenesisInput): string
         regionCount: input.regionCount,
         factionCount: input.factionCount,
         npcCount: input.npcCount,
+        ...(input.experience ? { experience: input.experience } : {}),
     });
 }
 
@@ -199,6 +207,7 @@ export function previewWorldGenesis(input: NormalizedWorldGenesisInput): WorldGe
         inputKey: worldGenesisInputKey(input),
         canonicalContent,
         summary: {
+            overview: worldGenesisOverview(generated.forge),
             worldName: generated.forge.meta.worldName,
             presetId: input.presetId,
             presetVersion: input.presetVersion,
@@ -265,6 +274,16 @@ export function buildWorldGenesisPrefill(
         regionCount: availability.provenance.regionCount,
         factionCount: availability.provenance.factionCount,
         npcCount: availability.provenance.npcCount,
+        ...(availability.provenance.experience ? { experience: availability.provenance.experience } : {}),
+    };
+}
+
+/** Authoring overview only: no hidden NPC data or dynamic campaign state. */
+export function worldGenesisOverview(forge: WorldForge): NonNullable<WorldGenesisPreviewSummary['overview']> {
+    return {
+        regions: forge.geography.regions.map(({ id, name, type, x, y, connectedTo }) => ({ id, name, type, x, y, connectedTo })),
+        locations: forge.geography.locations.map(({ id, name, regionId }) => ({ id, name, regionId })),
+        factions: forge.factions.map(({ id, name }) => ({ id, name })),
     };
 }
 

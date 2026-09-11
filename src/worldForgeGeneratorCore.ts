@@ -1,4 +1,5 @@
 import { inferRegionBiomeFromType } from './worldForgeCore';
+import { localizeWorldGenesisNames, type WorldGenesisExperience } from './worldGenesisExperienceCore';
 import {
     allocateGuaranteedRegionTypes,
     getPreset,
@@ -26,6 +27,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface WorldForgeGeneratorInput {
+    experience?: WorldGenesisExperience;
     worldSeed: string;
     theme: string;
     presetId?: string;
@@ -668,6 +670,7 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
                 regionCount,
                 factionCount,
                 npcCount,
+                ...(input.experience ? { experience: input.experience } : {}),
             },
         },
         geography: { regions, locations },
@@ -676,6 +679,7 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
         initialNpcs: npcs,
     };
 
+    localizeWorldGenesisNames(forge, input.experience);
     const warnings = validateForge(forge);
     const valid =
         forge.geography.regions.length >= 1 &&

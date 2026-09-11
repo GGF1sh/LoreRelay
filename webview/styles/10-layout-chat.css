@@ -448,7 +448,7 @@ body.relay-mode-active #app {
 }
 
 .world-genesis-setup {
-  width: min(760px, 100%);
+  width: min(1080px, 100%);
   box-sizing: border-box;
   padding: 22px;
   border: 1px solid var(--glass-border);
@@ -462,6 +462,26 @@ body.relay-mode-active #app {
 .world-genesis-setup.hidden {
   display: none;
 }
+
+/* Chromium's native option popup must not inherit pale text on a light OS menu. */
+.world-genesis-setup { color: #eef4ff; }
+.world-genesis-setup select { color-scheme: dark; }
+.world-genesis-setup select option { color: #eef4ff; background: #101b2b; }
+.world-genesis-setup small, .world-genesis-header p, .world-genesis-status { color: #c7d5e5; }
+.world-genesis-experience { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 20px 0; }
+.world-genesis-experience > label { display: grid; gap: 8px; font-size: 14px; }
+.world-genesis-experience > details, .world-genesis-experience > div { grid-column: 1 / -1; }
+.world-genesis-experience select, .world-genesis-experience input:not([type=checkbox]) { min-width: 0; padding: 10px; border: 1px solid #72839b; border-radius: 8px; color: #eef4ff; background: #101b2b; font: inherit; }
+.world-genesis-experience summary, #world-genesis-current-overview > summary { cursor: pointer; padding: 10px 0; }
+.world-genesis-feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; }
+.world-genesis-feature-grid label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.world-genesis-feature-grid input { width: 18px; height: 18px; accent-color: #72a9ff; }
+.world-genesis-overview-map { display: block; width: 100%; background: #101d2b; border: 1px solid #7891ab; border-radius: 12px; }
+.world-genesis-overview-map circle { cursor: pointer; }
+.world-genesis-region-detail { padding: 14px; background: #15243a; border-radius: 8px; margin: 10px 0; }
+.world-genesis-region-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.world-genesis-setup button:focus-visible, .world-genesis-experience input:focus-visible, .world-genesis-experience select:focus-visible { outline: 3px solid #9ec5ff; outline-offset: 2px; }
+@media (max-width: 600px) { .world-genesis-experience { grid-template-columns: 1fr; } }
 
 .world-genesis-header {
   display: grid;
@@ -498,7 +518,7 @@ body.relay-mode-active #app {
   flex-direction: column;
   gap: 7px;
   color: var(--text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 

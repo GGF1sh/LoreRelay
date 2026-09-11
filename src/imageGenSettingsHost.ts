@@ -102,7 +102,8 @@ export function collectLocalImageGenModelSuggestions(input: {
     knownComfyNames?: readonly string[];
 }): ImageGenModelSuggestion[] {
     const models = scanLocalModelRoots([...input.roots])
-        .filter((row: LocalModelFile) => row.category === 'checkpoint');
+        .filter((row: LocalModelFile) => row.category === 'checkpoint'
+            || (row.category === 'other' && /^(checkpoints?|ckpt)$/i.test(path.basename(row.root))));
     const suggestions = models.map((row) => {
         const sidecar = readLocalModelSidecar(row.absolutePath);
         return suggestImageGenModel({

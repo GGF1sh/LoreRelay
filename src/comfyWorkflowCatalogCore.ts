@@ -101,14 +101,18 @@ export function getCatalogTemplate(
 }
 
 export function listSceneTemplates(catalog: BundledWorkflowCatalog): BundledWorkflowTemplate[] {
-    return catalog.templates.filter((entry) => entry.kind !== 'world_map');
+    return catalog.templates.filter((entry) => entry.kind !== 'world_map' && entry.id !== 'scene-sd15-square');
 }
 
 export function listMapTemplates(catalog: BundledWorkflowCatalog): BundledWorkflowTemplate[] {
     return catalog.templates.filter((entry) => entry.kind === 'world_map');
 }
 
-export function templateMatchesWorkflowPath(template: BundledWorkflowTemplate, workflowPath: string): boolean {
-    const normalized = workflowPath.replace(/\\/g, '/').toLowerCase();
-    return normalized.endsWith(`/comfyui/${template.file}`) || normalized.endsWith(`/${template.file}`);
+export function templateMatchesWorkflowPath(template: BundledWorkflowTemplate, workflowPath: string, bundledRoot?: string): boolean {
+    if (!bundledRoot) return false;
+    const normalize = (value: string) => {
+        const slash = value.replace(/\\/g, '/').replace(/\/+$/, '');
+        return /^[a-z]:\//i.test(slash) ? slash.toLowerCase() : slash;
+    };
+    return normalize(workflowPath) === `${normalize(bundledRoot)}/${template.file}`;
 }

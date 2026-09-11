@@ -135,12 +135,19 @@ try {
         knownComfyNames: ['prefectIllustriousXL_v8.safetensors'],
     });
     check(rows.length === 1, 'local folder scan suggests the checkpoint file');
+    const direct = host.collectLocalImageGenModelSuggestions({ roots: [ckptDir], knownComfyNames: ['prefectIllustriousXL_v8.safetensors'] });
+    check(direct.length === 1 && direct[0].status === 'ready', 'direct checkpoints folder produces the same suggestion');
     check(rows[0].status === 'ready', 'local sidecar + Comfy name produces a ready suggestion');
     check(rows[0].evidence.sidecarSource === 'prefectIllustriousXL_v8.json', 'records the local sidecar filename');
     check(!JSON.stringify(rows).includes('civitai.com/should-not-be-fetched'),
         'suggestion payload does not perform or copy a Civitai network lookup');
 } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+for (const evidence of [{ sidecar: { baseModel: 'SDXL' } }, {}]) {
+    const generic = suggest.suggestImageGenModel({ comfyName: 'generic_sdxl.safetensors', relativePath: 'generic_sdxl.safetensors', category: 'checkpoint', ...evidence });
+    check(generic.mode === 'natural' && generic.profileId === 'sdxl-generic-simple', 'generic SDXL evidence selects the generic natural profile');
 }
 
 if (failed) {

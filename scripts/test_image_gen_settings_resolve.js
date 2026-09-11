@@ -88,8 +88,9 @@ const bundledRoot = path.join(root, 'comfyui');
         height: 1024,
         sizeFollowsTemplate: true,
     }, catalog);
-    check(inferred.templateId === 'scene-sdxl-landscape', 'legacy workflowPath infers the landscape template');
-    check(inferred.width === 1152 && inferred.height === 896, 'inferred landscape template ignores leftover square size');
+    check(inferred.templateId === '', 'without a trusted bundled root no path is inferred');
+    const trusted = resolveCore.resolveImageGenExecutionSettings({ workflowPath: path.join(bundledRoot, 'workflow_sdxl_landscape.json'), width: 1024, height: 1024 }, catalog, bundledRoot);
+    check(trusted.templateId === 'scene-sdxl-landscape' && trusted.width === 1152 && trusted.height === 896, 'verified bundled path infers landscape dimensions');
 }
 
 {
@@ -141,6 +142,72 @@ const bundledRoot = path.join(root, 'comfyui');
     check(sanitized.workflowTemplateId === '', 'v1 configs get an empty scene template id');
     check(sanitized.cartographyTemplateId === '', 'v1 configs get an empty map template id');
     check(sanitized.sizeFollowsTemplate === true, 'sizeFollowsTemplate defaults to true so leftover sizes cannot win a later template pick');
+}
+
+{
+    for (const [width, height, expectedWidth, expectedHeight] of [[768, 0, 768, 1152], [0, 768, 896, 768]]) {
+        const resolved = resolveCore.resolveImageGenExecutionSettings({ workflowTemplateId: portrait.id, width, height, sizeFollowsTemplate: false }, catalog);
+        check(resolved.width === expectedWidth && resolved.height === expectedHeight, 'single dimension edit uses template only for the missing side');
+    }
+    const custom = path.join(root, 'custom', portrait.file);
+    const resolved = resolveCore.resolveWorkspaceImageGenSettings({ snapshot: { workflowPath: custom, width: 640, height: 768 }, catalog, bundledRoot });
+    check(resolved.sceneWorkflowPath === custom && !resolved.resolved.templateId, 'same basename custom graph remains untouched');
+    check(!catalogCore.listSceneTemplates(catalog).some(t => t.id === 'scene-sd15-square'), 'unsupported SD1.5 is absent from selectable templates');
+}
+
+// Actual host selector: unsaved edits and template selection are one save.
+{
+    const vm = require('vm');
+    const source = fs.readFileSync(path.join(root, 'out/imageGenRunner.js'), 'utf8');
+    const start = source.indexOf('async function handleSelectImageGenTemplate(');
+    const handler = source.slice(start, source.indexOf('async function collectKnownComfyCheckpointNames', start));
+    let config = imageConfig.sanitizeImageGenConfig({ checkpoint: 'old.safetensors' });
+    const ctx = vm.createContext({
+        workspacePaths_1: { getWorkspacePath: () => 'test' },
+        imageGenSettingsHost_1: { getBundledComfyRoot: () => bundledRoot, loadBundledWorkflowCatalog: () => catalog },
+        imageGenConfig_1: { loadImageGenConfig: () => config, sanitizeImageGenConfig: imageConfig.sanitizeImageGenConfig, saveImageGenConfig: (_ws, value) => { config = imageConfig.sanitizeImageGenConfig({ ...config, ...value }); } },
+        comfyWorkflowCatalogCore_1: catalogCore, imageGenSettingsResolveCore_1: resolveCore,
+        getImageGenExtensionPath() {}, postImageGenConfig() {}, console,
+        vscode: { window: { showWarningMessage() {}, showErrorMessage() {} } }, i18n_1: { t: s => s },
+    });
+    vm.runInContext(handler, ctx);
+    ctx.handleSelectImageGenTemplate({ group: 'scene', id: portrait.id, config: { checkpoint: 'edited.safetensors', cfg: 6, positivePrefix: 'pending text' } });
+    check(config.checkpoint === 'edited.safetensors' && config.cfg === 6 && config.positivePrefix === 'pending text' && config.workflowTemplateId === portrait.id, 'scene selection retains all pending edits');
+    ctx.handleSelectImageGenTemplate({ group: 'map', id: mapCanny.id, config: { checkpoint: 'map-edit.safetensors' } });
+    check(config.checkpoint === 'map-edit.safetensors' && config.workflowTemplateId === portrait.id, 'map selection retains pending edits and scene choice');
+    ctx.handleSelectImageGenTemplate({ group: 'scene', id: '' });
+    check(!config.workflowPath && !resolveCore.resolveSceneTemplate(config, catalog, bundledRoot), 'None removes the bundled workflow without reinference');
+}
+
+{
+    const vm = require('vm');
+    const source = fs.readFileSync(path.join(root, 'out/cartographyRunner.js'), 'utf8');
+    const start = source.indexOf('function buildCartographyEnv(');
+    const ctx = vm.createContext({
+        process: { env: {} }, path, imageGenRunner_1: { buildImageGenEnv: () => ({}), getResolvedImageMode: () => 'natural' },
+        imageGenSettingsHost_1: { loadBundledWorkflowCatalog: () => catalog },
+        imageGenConfig_1: { loadImageGenConfig: () => ({ cartographyTemplateId: 'map-sdxl-direct' }) },
+        imageGenSettingsResolveCore_1: resolveCore, comfyWorkflowCatalogCore_1: catalogCore,
+        cartographyFallbackFile: () => 'workflow_cartography_sdxl_canny.json', resolveCartographyLoraFromConfig: () => ({}),
+        vscode: { workspace: { getConfiguration: () => ({ get: () => '' }) } },
+    });
+    vm.runInContext(source.slice(start, source.indexOf('function spawnAndWait(', start)), ctx);
+    check(ctx.buildCartographyEnv('test', root).TA_LAYOUT_MODE === 'lineart', 'direct map template selects lineart without an environment override');
+}
+{
+    const vm = require('vm'), handlers = {}, messages = [];
+    const source = fs.readFileSync(path.join(root, 'webview/modules/60-tts-quickreply-imagegen.js'), 'utf8');
+    const start = source.indexOf('(function initImageGenSettingsPanel()');
+    const ctx = vm.createContext({
+        document: { getElementById: id => ['ig-workflow-template', 'ig-cartography-template'].includes(id)
+            ? { value: 'selected', addEventListener: (event, cb) => { handlers[id] = cb; } } : null },
+        imageGenSaveTimer: 1, imageGenManualSize: true, clearTimeout() {},
+        collectImageGenConfigFromForm: () => ({ checkpoint: 'unsaved', width: 768 }),
+        vscode: { postMessage: m => messages.push(m) },
+    });
+    vm.runInContext(source.slice(start, source.indexOf('function speakText(', start)), ctx);
+    handlers['ig-workflow-template'](); handlers['ig-cartography-template']();
+    check(messages.length === 2 && messages.every(m => m.config.checkpoint === 'unsaved' && m.config.width === 768), 'both webview selectors deliver pending form edits with the selection');
 }
 
 if (failed) {

@@ -373,21 +373,24 @@ export async function handleSelectImageGenTemplate(raw: unknown): Promise<void> 
     const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
     const catalog = loadBundledWorkflowCatalog(bundledRoot);
     try {
+        const stored = loadImageGenConfig(wsPath);
+        const edits = source.config && typeof source.config === 'object' && !Array.isArray(source.config)
+            ? source.config as Partial<ImageGenConfig> : {};
+        const current = sanitizeImageGenConfig({ ...stored, ...edits, templates: { ...stored.templates, ...(edits.templates || {}) } });
         if (!id) {
             if (group === 'map') {
-                saveImageGenConfig(wsPath, { cartographyTemplateId: '' });
+                saveImageGenConfig(wsPath, { ...current, cartographyTemplateId: '' });
             } else {
-                saveImageGenConfig(wsPath, { workflowTemplateId: '' });
+                saveImageGenConfig(wsPath, { ...current, workflowTemplateId: '', workflowPath: '' });
             }
             postImageGenConfig(wsPath);
             return;
         }
         const template = getCatalogTemplate(catalog, id);
-        if (!template || (group === 'map' ? template.kind !== 'world_map' : template.kind === 'world_map')) {
+        if (!template || (group === 'map' ? template.kind !== 'world_map' : !listSceneTemplates(catalog).includes(template))) {
             vscode.window.showWarningMessage(t('extension.error.imageGenTemplateUnknown'));
             return;
         }
-        const current = loadImageGenConfig(wsPath);
         const applied = applyWorkflowTemplateToSnapshot(current, template, bundledRoot);
         saveImageGenConfig(wsPath, applied);
         postImageGenConfig(wsPath);

@@ -133,7 +133,7 @@ export function familyFromFilename(name: string): MediaModelFamily {
 export function modeForFamily(family: MediaModelFamily, sidecarLabel: string): WorkflowPromptMode | '' {
     if (family === 'pony') { return 'pony'; }
     if (family === 'sdxl') {
-        return sidecarLabel.toLowerCase().includes('pony') ? 'pony' : 'illustrious';
+        return /illustrious|noobai|noob/i.test(sidecarLabel) ? 'illustrious' : 'natural';
     }
     return '';
 }
@@ -195,7 +195,7 @@ export function suggestImageGenModel(input: {
         reasons.push('Anima checkpoints are not assigned an SDXL scene template.');
     }
 
-    const mode = status === 'ready' ? modeForFamily(modelFamily, sidecarBaseModel) : '';
+    const mode = status === 'ready' ? modeForFamily(modelFamily, `${sidecarBaseModel} ${input.comfyName}`) : '';
     const profileId = status === 'ready' ? profileForFamily(modelFamily, mode) : '';
     const workflowTemplateId = status === 'ready' && (modelFamily === 'sdxl' || modelFamily === 'pony')
         ? 'scene-sdxl-square'

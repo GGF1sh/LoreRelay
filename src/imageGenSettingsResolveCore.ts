@@ -39,10 +39,11 @@ function positiveSize(value: number): boolean {
 export function resolveSceneTemplate(
     snapshot: ImageGenSettingsSnapshot,
     catalog: BundledWorkflowCatalog,
+    bundledRoot?: string,
 ): BundledWorkflowTemplate | undefined {
     if (snapshot.workflowTemplateId) {
         const byId = getCatalogTemplate(catalog, snapshot.workflowTemplateId);
-        if (byId && byId.kind !== 'world_map') {
+        if (byId && listSceneTemplates(catalog).includes(byId)) {
             return byId;
         }
     }
@@ -50,7 +51,7 @@ export function resolveSceneTemplate(
     if (!workflowPath) {
         return undefined;
     }
-    return listSceneTemplates(catalog).find((entry) => templateMatchesWorkflowPath(entry, workflowPath));
+    return listSceneTemplates(catalog).find((entry) => templateMatchesWorkflowPath(entry, workflowPath, bundledRoot));
 }
 
 export function resolveBundledWorkflowPath(bundledRoot: string, file: string): string {
@@ -91,12 +92,13 @@ export interface WorkspaceImageGenResolution {
 export function resolveImageGenExecutionSettings(
     snapshot: ImageGenSettingsSnapshot,
     catalog: BundledWorkflowCatalog,
+    bundledRoot?: string,
 ): ImageGenResolvedSettings {
     const mapTemplate = snapshot.cartographyTemplateId
         ? getCatalogTemplate(catalog, snapshot.cartographyTemplateId)
         : undefined;
     const cartographyTemplate = mapTemplate?.kind === 'world_map' ? mapTemplate : undefined;
-    const template = resolveSceneTemplate(snapshot, catalog);
+    const template = resolveSceneTemplate(snapshot, catalog, bundledRoot);
     const sizeFollowsTemplate = snapshot.sizeFollowsTemplate !== false;
     const configuredWidth = snapshot.width;
     const configuredHeight = snapshot.height;
@@ -119,7 +121,7 @@ export function resolveImageGenExecutionSettings(
 
     const stale = (positiveSize(configuredWidth) && configuredWidth !== template.width)
         || (positiveSize(configuredHeight) && configuredHeight !== template.height);
-    const useTemplateSize = sizeFollowsTemplate || !positiveSize(configuredWidth) || !positiveSize(configuredHeight);
+    const useTemplateSize = sizeFollowsTemplate || (!positiveSize(configuredWidth) && !positiveSize(configuredHeight));
     return {
         generationPath: 'scene',
         templateId: template.id,
@@ -127,8 +129,8 @@ export function resolveImageGenExecutionSettings(
         cartographyTemplateId: cartographyTemplate?.id || '',
         cartographyTemplate,
         workflowFile: template.file,
-        width: useTemplateSize ? template.width : configuredWidth,
-        height: useTemplateSize ? template.height : configuredHeight,
+        width: useTemplateSize || !positiveSize(configuredWidth) ? template.width : configuredWidth,
+        height: useTemplateSize || !positiveSize(configuredHeight) ? template.height : configuredHeight,
         sizeSource: useTemplateSize ? 'template' : 'manual-override',
         ignoredStaleSize: useTemplateSize && stale
             ? { width: configuredWidth, height: configuredHeight }
@@ -158,7 +160,7 @@ export function resolveWorkspaceImageGenSettings(input: {
     bundledRoot: string;
     cartographyFallbackFile?: string;
 }): WorkspaceImageGenResolution {
-    const resolved = resolveImageGenExecutionSettings(input.snapshot, input.catalog);
+    const resolved = resolveImageGenExecutionSettings(input.snapshot, input.catalog, input.bundledRoot);
     const cartographyFile = resolveCartographyWorkflowFile(
         input.snapshot,
         input.catalog,

@@ -4311,12 +4311,13 @@ function renderImageGenSuggestions(payload) {
 
   sceneSelect?.addEventListener('change', () => {
     if (imageGenSaveTimer) { clearTimeout(imageGenSaveTimer); imageGenSaveTimer = null; }
+    const config = collectImageGenConfigFromForm();
     imageGenManualSize = false;
-    vscode.postMessage({ type: 'selectImageGenTemplate', group: 'scene', id: sceneSelect.value });
+    vscode.postMessage({ type: 'selectImageGenTemplate', group: 'scene', id: sceneSelect.value, config });
   });
   mapSelect?.addEventListener('change', () => {
     if (imageGenSaveTimer) { clearTimeout(imageGenSaveTimer); imageGenSaveTimer = null; }
-    vscode.postMessage({ type: 'selectImageGenTemplate', group: 'map', id: mapSelect.value });
+    vscode.postMessage({ type: 'selectImageGenTemplate', group: 'map', id: mapSelect.value, config: collectImageGenConfigFromForm() });
   });
   suggestBtn?.addEventListener('click', () => {
     const status = document.getElementById('ig-suggest-status');

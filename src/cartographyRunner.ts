@@ -143,6 +143,7 @@ function buildCartographyEnv(wsPath: string, extPath: string): NodeJS.ProcessEnv
         ? getCatalogTemplate(catalog, config.cartographyTemplateId)
         : undefined;
     if (mapTemplate?.kind === 'world_map') {
+        if (mapTemplate.graphFamily === 'sdxl_cartography_direct') env.TA_LAYOUT_MODE = 'lineart';
         env.TA_WIDTH = String(mapTemplate.width);
         env.TA_HEIGHT = String(mapTemplate.height);
     } else {

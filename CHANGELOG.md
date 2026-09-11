@@ -10,6 +10,7 @@
 ## [Unreleased]
 
 ### Added
+- Bundled ComfyUI scene templates for portrait (896×1152), landscape (1152×896), and wide (1536×640), plus `comfyui/templates.json` so LoreRelay users can pick a workflow by use rather than inventing graphs.
 - NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
 - Campaign combat spectator soak (`qa:combat:quick`): story `encounterOps` → spectator resolve → PENDING → exactly-once apply → consequence ACK → reload does not double-apply.
 

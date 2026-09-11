@@ -91,6 +91,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_media_paths.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_image_gen_circuit_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_media_profile_compatibility.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_comfyui_workflow_catalog.js' },
     { category: 'unit', file: 'test_comfyui_media_contract.py', runner: 'python' },
     { category: 'unit', file: 'test_comfyui_job_lifecycle.py', runner: 'python' },
     { category: 'unit', file: 'test_portrait_artifact_adoption.py', runner: 'python' },

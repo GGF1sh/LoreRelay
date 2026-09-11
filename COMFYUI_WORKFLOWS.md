@@ -1,65 +1,86 @@
 # ComfyUI Workflows (Bundled)
 
-LoreRelay ships API-format ComfyUI workflows for local scene image generation.
+LoreRelay は、用途別に選べる **API 形式** の ComfyUI ワークフローを同梱します。  
+一覧の正本は [`comfyui/templates.json`](comfyui/templates.json) です。
 
-| File | Resolution | Typical use |
-|------|------------|-------------|
-| `comfyui/workflow_api.json` | 512×512 | SD 1.5 checkpoints, fast previews |
-| `comfyui/workflow_sdxl_1024.json` | 1024×1024 | SDXL / Illustrious / Pony XL checkpoints |
-| `comfyui/workflow_cartography_sdxl_canny.json` | 1024×1024 | World map (Cartography Option A) — SDXL Canny ControlNet |
+これらはユーザーの PC スペック診断ではなく、**情景・立ち絵・地図** を切り替えるためのテンプレートです。checkpoint（Illustrious / Pony / SDXL / SD1.5）は自分の ComfyUI にあるファイル名を指定します。
 
-## Cartography world map
+## どれを選ぶか
 
-See [`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md). Optional map LoRAs: [`docs/CARTOGRAPHY_RECOMMENDED_LORAS.md`](docs/CARTOGRAPHY_RECOMMENDED_LORAS.md) (first pick: [Mapcraft on Civitai](https://civitai.com/models/799901/mapcraft-the-ultimate-ttrpg-mapmaker)).
+| 使いたいもの | テンプレート | ファイル | 既定サイズ | mode の目安 |
+| --- | --- | --- | --- | --- |
+| 普通の情景 | 情景・SDXL・正方形 | `comfyui/workflow_sdxl_1024.json` | 1024×1024 | `illustrious` または `pony` |
+| 人物・立ち絵 | 立ち絵・SDXL・縦長 | `comfyui/workflow_sdxl_portrait.json` | 896×1152 | 同上 |
+| 場所の横構図 | 情景・SDXL・横長 | `comfyui/workflow_sdxl_landscape.json` | 1152×896 | 同上 |
+| 広い風景 | 情景・SDXL・パノラマ | `comfyui/workflow_sdxl_wide.json` | 1536×640 | 同上 |
+| 軽い確認 | 情景・SD1.5・正方形 | `comfyui/workflow_api.json` | 512×512 | `standard` |
+| 世界地図 | 世界地図・SDXL・Canny | `comfyui/workflow_cartography_sdxl_canny.json` | 1024×1024 | Cartography スクリプト |
+| 世界地図（Canny なし） | 世界地図・SDXL・直接 | `comfyui/workflow_cartography_sdxl_direct.json` | 1024×1024 | Cartography スクリプト |
+
+縦長・横長・パノラマの画素数は、ComfyUI 公式 SDXL 例（1024×1024 と同画素、または 1536×640）に合わせています。
+
+Illustrious と Pony は **同じ SDXL グラフ** に checkpoint と `mode` を差し替えます。Flux / Qwen / Z-Image 用の別グラフは、現行のシーン生成ランナーがまだ注入できないため同梱していません。
+
+## 設定
+
+1. ComfyUI（または Stability Matrix）を `http://127.0.0.1:8188` で起動する。
+2. **LoreRelay: List Image Models** で checkpoint 名をコピーする。
+3. ワークスペースの `image_gen_config.json`、または VS Code 設定で:
+
+```json
+{
+  "mode": "illustrious",
+  "checkpoint": "YOUR_CHECKPOINT.safetensors",
+  "workflowPath": "C:\\\\path\\\\to\\\\LoreRelay\\\\comfyui\\\\workflow_sdxl_portrait.json",
+  "steps": 28,
+  "cfg": 7
+}
+```
+
+`workflowPath` を立ち絵テンプレートにすると縦構図、`workflow_sdxl_1024.json` にすると正方形情景になります。`mode` はプロンプトプリセットです（`illustrious` / `pony` / `natural` / `standard`）。グラフそのものではありません。
+
+サイズを設定の `width` / `height` で上書きすると、テンプレートの既定サイズよりそちらが優先されます。テンプレートの構図を使いたいときは width/height を 0 のままにするか省略します。
+
+## 地図
+
+[`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md)。任意 LoRA: [`docs/CARTOGRAPHY_RECOMMENDED_LORAS.md`](docs/CARTOGRAPHY_RECOMMENDED_LORAS.md)。
 
 ```powershell
 python scripts/render_cartography_layout.py .\world_forge.json .\world_map.layout.png
 python scripts/comfyui_generate_cartography.py .\world_forge.json .\output
 ```
 
-## Quick setup
+## CLI / GM スクリプト
 
-1. Start ComfyUI (or Stability Matrix) on `http://127.0.0.1:8188`.
-2. Run **LoreRelay: List Image Models** and copy an exact checkpoint name.
-3. In VS Code settings or workspace `image_gen_config.json`, set:
-   - `workflowPath`  Eabsolute path to one of the bundled JSON files above
-   - `checkpoint`  Ename from step 2 (may include subfolder, e.g. `IL\\model.safetensors`)
-   - `mode`  E`illustrious` / `pony` / `natural` / `standard` (prompt presets)
+`comfyui_generate.py` は次を受けます。
 
-Example `image_gen_config.json` (workspace root):
-
-```json
-{
-  "mode": "illustrious",
-  "checkpoint": "YOUR_CHECKPOINT.safetensors",
-  "workflowPath": "C:\\AI\\text-adventure-vsce\\comfyui\\workflow_sdxl_1024.json",
-  "steps": 28,
-  "cfg": 7,
-  "width": 1024,
-  "height": 1024
-}
-```
-
-Or via VS Code settings:
-
-```json
-{
-  "textAdventure.imageGen.workflowPath": "C:\\AI\\text-adventure-vsce\\comfyui\\workflow_sdxl_1024.json",
-  "textAdventure.imageGen.checkpoint": "YOUR_CHECKPOINT.safetensors"
-}
-```
-
-## Environment variables (CLI / GM scripts)
-
-`comfyui_generate.py` also accepts:
-
-- `TA_WORKFLOW`  Eworkflow JSON path
+- `TA_WORKFLOW` — 上の JSON へのパス
 - `TA_CHECKPOINT`, `TA_STEPS`, `TA_CFG`, `TA_WIDTH`, `TA_HEIGHT`, `TA_MODE`
 
-Default workflow when unset: `TextAdventureGMSkill/scripts/workflow_api.json` (same graph as `comfyui/workflow_api.json`).
+未指定時の既定: `TextAdventureGMSkill/scripts/workflow_api.json`（`comfyui/workflow_api.json` と同じグラフ）。
 
-## Troubleshooting
+シーン生成テンプレートは、ランナーが次のノード ID に書き込みます。
 
-- **Checkpoint not found**  Erun List Image Models; names must match ComfyUI exactly.
-- **Sampler / scheduler warnings**  Ecustom workflows may omit fields; LoreRelay ignores unsupported keys safely.
-- **VRAM**  Euse `workflow_api.json` (512) on low-VRAM GPUs; SDXL at 1024 needs more memory.
+| ID | 役割 |
+| --- | --- |
+| 3 | KSampler（steps / cfg / seed / sampler） |
+| 4 | CheckpointLoaderSimple |
+| 5 | EmptyLatentImage（width / height） |
+| 6 | Positive `CLIPTextEncode` |
+| 7 | Negative `CLIPTextEncode` |
+
+自作 API グラフを足す場合も、この契約に合わせます。
+
+## まだ同梱していないもの
+
+次は公式 ComfyUI テンプレートはありますが、LoreRelay のシーン生成注入（上記ノード契約）と Media Profile がまだ対応していません。ファイルだけ置いても動きません。
+
+- Flux.1 / Flux.2 / Z-Image / Qwen-Image の T2I
+- Qwen-Image-Edit、Flux Kontext などの編集専用グラフ
+- Partner API（Nano Banana、Grok Imagine 等）
+
+## トラブル
+
+- **Checkpoint not found** — List Image Models の名前と完全一致させる。
+- **Sampler / scheduler warnings** — 未対応キーは無視する。
+- 生成が重いとき — まず `workflow_api.json`（512）で経路を確認してから SDXL テンプレートへ戻す。

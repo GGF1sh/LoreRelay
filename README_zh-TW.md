@@ -1,179 +1,205 @@
 <h1 align="center">LoreRelay</h1>
-<p align="center"><strong>Bring your AI. Keep your world.</strong></p>
+<p align="center"><strong>踏上旅途。遇見誰。用自己的話，決定接下來怎麼走。</strong><br /><sub>Bring your AI. Keep your world.</sub></p>
 
 <p align="center"><a href="README.md">日本語</a> · <a href="README_en.md">English</a> · <a href="README_zh-CN.md">简体中文</a> · <a href="README_zh-TW.md">繁體中文</a></p>
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license" /></a>
-  <a href="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml"><img src="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="docs/VERSION_TRUTH.md"><img src="https://img.shields.io/github/package-json/v/GGF1sh/LoreRelay?label=version&amp;color=blue" alt="Source version" /></a>
-</p>
+在霧氣籠罩的港鎮追查謎團。看著地圖深入地下迷宮。在荒廢的世界裡搜集物資，再把它們帶回據點。也可以暫時放下冒險，和喜歡的角色好好聊上一晚。
 
-**你來遊玩，AI擔任遊戲主持人，世界保存在你手中。**
+**LoreRelay 是一款讓你用自己的話決定行動、由 AI 遊戲主持人繼續推動故事的角色扮演 RPG。** 可以從和一個角色的對話開始，也可以和夥伴一起旅行，逐漸玩成包含探索、交易與據點經營的長期 Campaign。先從你想去的世界、想認識的人開始就好。
 
-LoreRelay是一款在VS Code中執行的角色扮演／持久世界RPG擴充套件。從角色對話，到隊伍冒險、交易與據點經營，你可以連接受支援的官方AI用戶端作為GM，直接從遊戲介面傳送行動。
+這是一個在 VS Code 上執行、仍在開發中的開源作品。你可以選擇支援的 AI 擔任 GM，同時把角色、世界設定和冒險紀錄保存在自己的電腦上。
 
-**AI Connection V2**已完成Codex、Grok和Antigravity的真實服務GM驗證。Claude與DeepSeek也已實作連接功能，但尚未驗證真實服務。使用額度和計費方式因連接而異。
+[可以怎麼玩？](#onboarding) · [開始第一場冒險](#how-to-play) · [看看更多畫面](#screenshots) · [可用 AI 與費用](#ai-connections) · [安裝](#setup)
 
-[開始遊玩](#how-to-play) · [連接AI](#ai-connections) · [查看介面](#screenshots) · [安裝](#setup)
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="實際的管理介面：同時顯示 AI 對話、世界地圖與交易狀態。" /></a></p>
 
-### 從對話，到地圖與交易
+<p align="center"><sub>1.85.3 的實際畫面：用對話推進冒險，再從地圖與交易介面確認世界的變化。</sub></p>
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="真實管理介面，同時查看AI對話、世界示意圖和商隊狀態。" /></a></p>
+**[▶ 用 75 秒看一段冒險](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 對話 → 在市場購買 → 重新開啟面板確認狀態仍然保留。影片使用驗證用的範例世界錄製，並縮短了等待時間。
 
-<p align="center"><sub>1.85.3真實介面：AI對話、世界示意圖與交易集中展示。</sub></p>
-
-**[▶ 觀看75秒實演](docs/PUBLIC_LAUNCH_MEDIA.md)** — 真實GM回覆 → 確認並購買 → 重新開啟面板。合成測試世界的實際錄影，已縮短等待時間。
-
-| 在地圖上尋找目的地 | 確認價格後交易 |
+| 下一站，去哪裡？ | 買什麼，又要帶什麼回去？ |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="購買完成後的Action Hub：小麥1、資金11、市場庫存49。" /></a> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map：在生成地圖上顯示區域名稱、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="完成購買後的 Action Hub：小麥 1、資金 11、市場庫存 49。" /></a> |
 
-地圖為早期功能截圖；交易畫面為1.85.3購買完成後的結果。點擊圖片可開啟原圖。
+<p align="center"><sub>地圖來自較早的功能展示，交易畫面則是 1.85.3 中實際完成購買後的結果。點擊圖片可查看原始尺寸。</sub></p>
 
 <a id="onboarding"></a>
 
-## 選擇你的玩法
+## 下一步，用你自己的話說出來
 
-| 玩法 | 內容 |
+「去港口打聽消息。」「調查遺跡。」「今天先回城。」你可以選擇系統提供的行動，也可以直接寫下自己真正想做的事。
+
+**閱讀場景 → 行動 → 看 GM 的描寫與已經確定的結果 → 決定下一步。**
+
+想聊天時，就把注意力放在人物之間的交流上。想冒險時，就打開地圖或追蹤任務。世界啟用了交易時，可以看著資金與載重決定要買什麼。閱讀故事和做遊戲裡的判斷，可以按照自己的節奏來回切換。
+
+### 可以追查謎團，也可以靠從廢墟帶回來的東西生活
+
+不必一開始就把整個世界設定寫完。內建場景提供了幾種不同的入口。
+
+| 今晚想玩什麼？ | 場景 |
 | --- | --- |
-| **Parlor：從對話開始** | 一對一角色扮演，可匯入SillyTavern角色卡與世界書。 |
-| **In-World：成為世界中的居民** | 結合世界背景與角色交流。 |
-| **Campaign：冒險與世界變化** | 同伴、探索、任務、資源與交易，使用你啟用的遊戲系統。 |
+| **霧港裡的謎團。** 從人物對話與調查開始，一步步追進故事深處。 | `harbor-mist` |
+| **地下迷宮探索。** 看著地圖，踏進還沒有去過的地方。 | `lost-catacombs` |
+| **末日後的拾荒生活。** 探索廢墟，把找到的物資帶回去，再在據點與交易網路中生活。 | `scrapbound-settlement` |
+| **賽博龐克故事。** 在霓虹照亮的世界裡進行角色扮演。 | `neon-rain` |
+| **以經商為主軸的旅程。** 走訪市場，在價格、庫存與載重之間做交易選擇。 | `trade-routes` |
 
-介面可選擇**故事、管理、演出**，分別突出文字、狀態或背景與立繪。這些是顯示設定，不會改變玩法或世界規則。沒有圖片也能遊玩。
+想自己搭舞台，也可以回答 Start Hub 的問題開始，或直接帶入已有的角色與世界設定。也支援 SillyTavern 角色卡與 Lorebook。
 
-世界推進方式是另一項設定。以**安定生活、變化的世界、艱難經營**為起點，可分別調整經濟、食物需求、衝突與關係進展。NOAI支援無需呼叫模型的世界處理，以及交易、市場移動和結束一天。它不取代生成開放式故事的GM。
+### 想和一個角色慢慢聊，還是走進整個世界？
 
-<a id="ai-connections"></a>
+| 你想怎麼玩 | 模式 |
+| --- | --- |
+| **和喜歡的角色好好聊。** 從一對一對話與角色扮演開始。 | **Parlor** |
+| **以這個世界居民的身分交談。** 讓世界設定成為背景，與其中的人物互動。 | **In-World** |
+| **和夥伴旅行，在探索中經營生活。** 使用任務、資源、交易，以及你啟用的其他系統。 | **Campaign** |
 
-## 讓你正在使用的AI擔任GM
+不需要一開始就把所有系統都打開。世界推進方式也可以從**安穩生活、持續變化的世界、具有挑戰性的經營**開始，再分別調整經濟、食物需求、衝突與關係推進。交易、據點與世界模擬中包含實驗性功能，可用範圍會隨場景與設定而變化。[各功能狀態](docs/FEATURE_MATRIX.md)
 
-可選擇受支援的訂閱用戶端、按量計費API或本機LLM。**訂閱額度不等於免費或無限使用。** 可用模型與額度取決於帳戶及官方用戶端。
+### 把喜歡的場景留成旅途中的一張圖
 
-| 服務 | LoreRelay的GM連接方式 | 額度／計費 | 真實服務驗證 |
-| --- | --- | --- | --- |
-| **ChatGPT / Codex** | 官方Codex App Server | ChatGPT帳戶的Codex額度 | 已驗證 |
-| **Grok** | Grok Build / ACP | 官方用戶端的帳戶額度 | 已驗證 |
-| **Gemini / Antigravity** | Antigravity CLI | 官方用戶端的帳戶額度 | 已驗證 |
-| **Claude** | Claude Code | 受支援的Claude訂閱驗證 | 已實作，未驗證 |
-| **DeepSeek** | OpenAI相容API | API金鑰，按量計費 | 已實作，未驗證 |
+如果讀到的風景、或某段讓你想記住的對話值得畫下來，就打開 **「Illustrate this scene / 將這個場景畫出來」**。編輯畫面指示，把提示詞複製到 ChatGPT、Gemini、Grok 或其他圖像工具，再把生成結果帶回 LoreRelay。喜歡的圖片可以設成該回合的插圖或目前背景。
 
-以上為**2026-09-08、1.85.2版本**的驗證快照。已驗證的三家服務分別在隔離的真實Host／Webview中完成了Campaign與純對話各三個回合，以及停止操作。並非對所有模型、環境的保證。[測試模型、用戶端版本與連接步驟](docs/AI_CONNECTIONS.md)
+提示詞建立與圖片匯入不需要額外的 AI 連線或 API Key。實際生成條件與使用額度取決於你使用的外部服務。ComfyUI 自動生成仍是另一項可選功能。[場景圖像化指南](docs/VISUAL_COMPOSER_V1.md)
 
-原有的**VS Code LM、Ollama、KoboldCPP、OpenRouter及剪貼簿／手動連接**仍可使用。VS Code LM只能使用VS Code模型API公開的模型。此功能不會把一般網頁聊天訂閱轉換成API金鑰。[原有Bridge設定](GM_BRIDGE_PRESETS.md)
-
-### AI提出候選，LoreRelay驗證並儲存
-
-```mermaid
-flowchart LR
-    Human["你的行動"] --> Host["LoreRelay"]
-    Host --> AI["你選擇的AI GM"]
-    AI --> Candidate["敘述與狀態更新候選"]
-    Candidate --> Accept["Host驗證並提交"]
-    Accept --> Local["本機儲存與遊戲介面"]
-    Local --> Human
-```
-
-AI Connection V2不會要求AI直接編輯遊戲的權威狀態檔案。Host透過現有Accepted Turn流程驗證候選，儲存已確認的結果。串流輸出中的文字尚未確定。
-
-首次連接會展示傳送內容。GM上下文可能包含輸入、對話歷史及必要的非公開世界設定。**不會自動切換到API計費、自動更換模型或自動重送。** 連接就緒與實際模型回覆成功也會分別顯示。
+下一次繼續冒險時，從保存下來的世界接著玩。也可以回顧對話紀錄、Lorebook 與 Chronicle，或把旅程匯出成 Markdown / HTML 回放。
 
 <a id="how-to-play"></a>
 
 ## 開始第一場冒險
 
-1. **準備擴充套件。** 若要體驗新連接，請使用[下方的原始碼啟動步驟](#setup)，並開啟專用遊玩資料夾。
-2. **選擇AI。** 在命令選擇區執行 `LoreRelay: AI Connections`（日文介面為 `LoreRelay: AI接続`）。Codex／Claude Code選擇「GMとして使う」（作為GM）；Google／Grok選擇「Antigravity CLI — GM」／「Grok Build — GM」。完成官方登入、確認傳送內容並選擇模型。可取得模型清單的連接提供選擇器，需要時也可手動輸入ID。
-3. **開啟遊戲。** 執行 `LoreRelay: Open Game UI`，在Start Hub回答建立問題，或使用既有角色／世界。已有存檔可以選擇繼續。
-4. **採取一個行動。** 傳送選項或自由輸入，確認GM敘述與已提交的結果。啟用Commerce後，可從共用行動入口進入交易、市場移動和結束一天。
+1. **準備遊玩環境。** 完成[安裝](#setup)，然後打開一個專門用來遊玩的資料夾。要體驗最新功能，請從目前原始碼啟動。
+2. **選擇 GM。** 從命令面板打開 `LoreRelay: AI Connections`（日文 UI 為 `LoreRelay: AI接続`），完成所需連線的登入與設定。[不同連線與費用](#ai-connections)
+3. **選擇舞台與角色。** 執行 `LoreRelay: Open Game UI` → 在 Start Hub 回答問題開始，或使用已有角色／世界。也可以從 Demo 清單或 `LoreRelay: Load Scenario Pack` 選擇內建場景。已有存檔則選擇 Continue。
+4. **送出第一句話。** 選擇行動或直接輸入自己的做法，再確認 GM 的描寫與已經確定的結果。啟用 Commerce 的世界裡，可以從統一的 Actions 入口進行交易、市場移動與結束一天。
 
-想先試示範，可使用Start Hub的示範群組或 `LoreRelay: Load Scenario Pack`。**顯示情境開篇，不代表後續回合所需的AI連接已經就緒。**
-
-| 內建情境 | 起點 |
-| --- | --- |
-| `harbor-mist` | 港口謎案 |
-| `lost-catacombs` | 地城探索與地圖 |
-| `scrapbound-settlement` | 末世回收、據點與交易 |
-| `neon-rain` / `trade-routes` | 賽博龐克／交易世界 |
-| `debug-sandbox` | 開發與驗證 |
+即使還沒有連接 AI，也可以先顯示場景的開場畫面。要讓 GM 繼續推動故事，則需要先完成連線準備。不清楚設定方式時，請參閱 [AI Connections](docs/AI_CONNECTIONS.md)。
 
 <a id="screenshots"></a>
 
-## 更多場景與玩法
+## 冒險繼續下去，還會看到這些
 
-地圖UI、物流、場景圖、同伴、世界書和戰鬥截圖為較早的功能展示，版面配置可能與目前介面不同。點擊圖片可放大。
+下面是一些能夠擴充玩法的功能畫廊。地圖 UI、物流、場景圖片、夥伴、Lorebook 與戰鬥部分使用了較早的展示截圖，因此版面可能與目前版本不同。點擊圖片可放大。
 
-| 在明亮介面中閱讀 | 在深色介面中閱讀 |
+### 有時沉浸於故事，有時俯瞰整個世界
+
+想讀故事時用**故事顯示**，想看資源與地圖時用**管理顯示**，想欣賞背景與立繪時用**演出顯示**。這些只改變呈現方式，不改變玩法模式與世界規則。即使完全不用圖片也能玩。
+
+| 在明亮介面中跟進對話 | 在沉靜介面中閱讀故事 |
 | :---: | :---: |
-| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="淺色主題的真實Webview，顯示市場對話、建議行動與自由輸入。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事介面，在同一畫面查看市場對話和下一步行動。" /></a> |
+| <a href="docs/assets/readme-light-v1.85.2.png"><img src="docs/assets/readme-light-v1.85.2.png" width="390" alt="淺色主題的實際 Webview：顯示市場對話、行動建議與自由輸入。" /></a> | <a href="docs/assets/readme-story-v1.85.2.png"><img src="docs/assets/readme-story-v1.85.2.png" width="390" alt="深色故事顯示：同時展示市場對話與下一步行動。" /></a> |
 
-1.85.2真實介面，展示同一段已儲存的合成測試對話。切換主題不會改變對話內容。
+<p align="center"><sub>1.85.2 中顯示同一段已儲存的範例對話。切換主題不會改變對話內容。</sub></p>
 
-### 讓生成的地圖成為冒險舞台
+### 打開地圖，就會有想去的地方
 
-從區域配置透過ComfyUI生成地圖背景：綠色平原、森林與道路。在遊戲中疊加地點、貿易路線與未探索區域，尋找下一站。
+平原盡頭的城鎮、穿過森林的道路、還沒調查過的遺跡。生成的地圖背景上可以疊加地點與未探索區域，讓你打開目的地資訊，再決定下一趟旅程要去哪裡。
 
-<p align="center"><a href="docs/assets/worldmap-showcase-fixture/world_map.png"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="根據World Forge區域配置生成的地圖背景，包含綠色平原、森林、道路與中央城鎮。" /></a></p>
+<p align="center"><a href="docs/assets/worldmap-showcase-fixture/world_map.png"><img src="docs/assets/worldmap-showcase-fixture/world_map.png" width="760" alt="根據 World Forge 區域配置生成的地圖背景：綠色平原、森林、道路與中央城鎮。" /></a></p>
 
-<p align="center"><sub>內建生成範例。地圖插畫與遊戲疊加的地點、迷霧、路線是不同圖層。</sub></p>
+<p align="center"><sub>內建的 ComfyUI 地圖背景範例。地點、迷霧與交易路線會在遊戲畫面中作為獨立圖層疊加。</sub></p>
 
-| 尋找目的地 | 查看地點資訊 |
+| 在地圖上尋找下一站 | 打開遺跡資訊，考慮出發前的準備 |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map介面，在生成地圖上顯示區域名、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/screenshot-world-map-detail.png"><img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="選中的遺跡地點，展示危險度、所屬區域以及移動和調查操作。" /></a> |
+| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map：在生成地圖上顯示區域名稱、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/screenshot-world-map-detail.png"><img src="docs/assets/screenshot-world-map-detail.png" width="390" alt="在地圖中選取遺跡，查看危險度、區域資訊、移動與調查操作。" /></a> |
 
-### 在市場交易，用路線連接據點
+### 賣掉帶回來的東西，為下一趟旅程做準備
 
-從一次買賣到跨區域物流：購買前查看價格、庫存、資金和載貨量，再透過物流網路觀察市場、聚落與設施之間的聯繫。
+有了物資之後，就要決定什麼賣掉、什麼留下。市場會在交易前顯示價格、庫存、資金與載重。探索不只是抵達終點——帶回來的東西也會影響之後的生活與下一趟旅程。
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="480" alt="購買完成後的Action Hub：小麥1、資金11、市場庫存49。" /></a></p>
+<p align="center"><a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="480" alt="完成購買後的 Action Hub：小麥 1、資金 11、市場庫存 49。" /></a></p>
 
-<p align="center"><sub>1.85.3實際購買結果：資金20→11，小麥0→1。</sub></p>
+<p align="center"><sub>1.85.3 中實際完成一次購買後的結果：資金 20→11，小麥 0→1。介面會顯示買了什麼、花了多少。</sub></p>
 
-<p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網路介面，展示港口、市場、聚落、設施之間的路線、流量與狀態篩選。" /></a></p>
+如果想更偏經營一些，可以打開物流網路，把市場、聚落與設施連接起來。領地、行會、車輛據點等系統也作為可選的實驗功能存在。如果你只想聊天，這些都不必啟用。
 
-<p align="center"><sub>透過網路圖查看據點之間的聯繫。較早的功能截圖，展示目前狀態預覽。</sub></p>
+<p align="center"><a href="docs/assets/screenshot-logistics.png"><img src="docs/assets/screenshot-logistics.png" width="900" alt="物流網路：顯示港口、市場、聚落與設施之間的交易路線、流量與狀態篩選。" /></a></p>
 
-### 把敘述變成畫面，讓同伴參與對話
+<p align="center"><sub>俯瞰地點之間連接關係的物流畫面。這是較早的功能展示圖，顯示的是目前狀態預覽。</sub></p>
 
-為冒險日誌添加場景圖，調整同伴發言頻率與關係，並透過世界書整理角色與背景。圖片生成需要另行設定ComfyUI等工具。
+### 留下風景，也和夥伴多聊一會兒
 
-<p align="center"><a href="docs/assets/screenshot-comfyui.png"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒險日誌中的ComfyUI生成場景：燈籠照亮的石造地下走廊。" /></a></p>
+地下迴廊裡的燈光、旅途中看見的遠景。替場景加上圖片，也會讓人更想回頭翻看曾經的對話。下面是現有 ComfyUI 連動生成的場景圖片範例。
 
-<p align="center"><sub>把故事抵達的風景留成圖片。較早的場景圖片連接範例。</sub></p>
+<p align="center"><a href="docs/assets/screenshot-comfyui.png"><img src="docs/assets/screenshot-comfyui.png" width="620" alt="冒險日誌中的 ComfyUI 生成圖：燈籠照亮石砌地下迴廊。" /></a></p>
 
-| 同伴對話與關係 | 人物與世界設定 |
+夥伴對話中，可以調整誰更常說話，以及人物之間的關係。角色與世界設定可以整理到 Lorebook。場景圖、立繪、BGM／音效、TTS 也都只需要在你想用時加入。圖像與音訊等外部工具、模型需要另外準備。
+
+| 想多聽誰說一些？ | 把人物與世界設定放在手邊 |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-party-director.png"><img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director同伴卡片，可調整發言量、靜音、強制發言與人物關係。" /></a> | <a href="docs/assets/screenshot-lorebook.png"><img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook人物、勢力和領地條目，提供啟用與釘選控制。" /></a> |
+| <a href="docs/assets/screenshot-party-director.png"><img src="docs/assets/screenshot-party-director.png" width="390" alt="Party Director 夥伴卡：可調整發言頻率、靜音、強制發言與人物關係。" /></a> | <a href="docs/assets/screenshot-lorebook.png"><img src="docs/assets/screenshot-lorebook.png" width="390" alt="Lorebook 設定列表：人物、勢力與領地條目可啟用或固定。" /></a> |
 
-- **建立世界：** World Forge、經濟、勢力、NPC關係、聚落、領地、公會和載具據點，按需啟用。
-- **留下故事：** 對話歷史、記憶、世界書、編年史、檢查點與Markdown／HTML重播匯出。
-- **增添氛圍：** ComfyUI場景圖和地圖、立繪、BGM／音效、TTS、VLM視覺記憶。外部工具與模型需另行設定。
-- **一起遊玩：** 透過區域網路Remote Play參與或旁觀，無需以公開到網際網路為前提。
+<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="氣氛概念圖：在燈火溫暖的酒館裡，和 AI GM 開始一場冒險。" /></a></p>
 
-<p align="center"><a href="docs/assets/hero-ui.jpg"><img src="docs/assets/hero-ui.jpg" width="840" alt="在燈光溫暖的酒館裡，與AI主持人開始冒險的概念插畫。" /></a></p>
-
-<p align="center"><sub>表現冒險氛圍的插畫，並非實際操作介面。 <a href="docs/assets/README.md">Image provenance</a></sub></p>
+<p align="center"><sub>表現冒險氣氛的概念插圖，並非實際操作畫面。 <a href="docs/assets/README.md">圖片來源</a></sub></p>
 
 <a id="combat"></a>
 
-<p align="center"><a href="docs/assets/screenshot-battle-view.png"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View展示敵我HP、自動戰術、移動命令與戰鬥日誌。" /></a></p>
+### 安排隊伍如何行動（實驗中）
 
-戰鬥模擬器與Battle View屬於**實驗性功能**。目前透過命令啟動；尚未提供GM根據故事自動發起戰鬥的流程，也未提供單一角色的直接操控UI。[功能狀態](docs/FEATURE_MATRIX.md) · [戰鬥設計與限制](docs/COMBAT_SYSTEM_DESIGN.md)
+戰鬥模擬器與 Battle View 可以查看我方／敵方 HP、Gambit、移動命令與戰鬥日誌。這是一項獨立於對話與經營循環之外、用來嘗試戰鬥玩法的實驗功能。
 
-### 讓AI遊玩或調查問題
+<p align="center"><a href="docs/assets/screenshot-battle-view.png"><img src="docs/assets/screenshot-battle-view.png" width="900" alt="Battle View：顯示我方與敵方 HP、Gambit、移動命令與戰鬥日誌。" /></a></p>
 
-面向人類玩家的GM連接之外，還提供Player操作委託、隔離的真實Extension Host QA和明確啟動的操作錄製。Player僅支援**交易、市場移動和結束一天**。QA內部資訊與Player公開資訊使用不同會話。自動檢查不等於Human Play。[Player Lab、QA與紀錄](docs/AI_CONNECTION_V2_PLAYER_LAB.md)
+**目前戰鬥需要從命令啟動。** 尚未提供由 GM 從劇情自動切入戰鬥的流程，也沒有直接控制單一角色的操作 UI。[功能狀態](docs/FEATURE_MATRIX.md) · [戰鬥設計與限制](docs/COMBAT_SYSTEM_DESIGN.md)
+
+還可以透過區域網路 **Remote Play** 加入或旁觀。它並不是以直接暴露到公網為前提設計的功能。
+
+<a id="ai-connections"></a>
+
+## 連這場冒險的 GM，也由你來選
+
+LoreRelay 的 GM 可以來自支援的訂閱制官方客戶端、按量計費 API 或本地 LLM。如果你已經在使用某個支援的 AI，也可能直接利用該帳號既有的使用額度。
+
+**訂閱額度不代表免費或無限使用。** 可用模型、額度與計費方式取決於連線服務與帳號。
+
+| 服務 | LoreRelay 的 GM 連線方式 | 使用額度／計費 | 真實服務驗證 |
+| --- | --- | --- | --- |
+| **ChatGPT / Codex** | 官方 Codex App Server | ChatGPT 帳號中的 Codex 使用額度 | 已驗證 |
+| **Grok** | Grok Build / ACP | 官方客戶端帳號的使用額度 | 已驗證 |
+| **Gemini / Antigravity** | Antigravity CLI | 官方客戶端帳號的使用額度 | 已驗證 |
+| **Claude** | Claude Code | 支援的 Claude 訂閱認證 | 已實作；未驗證 |
+| **DeepSeek** | OpenAI 相容 API | API Key；按量計費 | 已實作；未驗證 |
+
+驗證範圍是 **2026-09-08 時的 1.85.2**。前三種連線均在隔離的真實 Host／Webview 中，分別完成 Campaign 與純對話模式各 3 回合以及停止案例。這不保證所有模型與環境都能得到相同結果。[已測試模型、客戶端版本與連線步驟](docs/AI_CONNECTIONS.md)
+
+在連線選單中，Codex／Claude Code 選擇「GMとして使う」，Google／Grok 選擇「Antigravity CLI — GM」／「Grok Build — GM」。完成官方登入與傳送同意後再設定模型。能夠取得候選模型清單的連線會提供選擇器，必要時也可以手動輸入。
+
+既有的 **VS Code LM、Ollama、KoboldCPP、OpenRouter、剪貼簿／手動連動**也仍然可用。VS Code LM 只能使用 VS Code 模型 API 公開的模型。LoreRelay 不會把一般 Web 聊天訂閱轉換成 API Key。[舊版 Bridge 設定](GM_BRIDGE_PRESETS.md)
+
+<details>
+<summary>會把什麼傳送給 AI，以及遊戲結果如何確定並儲存</summary>
+
+AI Connection V2 不會讓 AI 直接編輯遊戲的權威資料檔案。Host 會透過既有 Accepted Turn 流程驗證候選結果，只儲存已經確認的內容。串流輸出中的文字仍是未確定狀態。
+
+```mermaid
+flowchart LR
+    Human["你的行動"] --> Host["LoreRelay"]
+    Host --> AI["你選擇的 AI GM"]
+    AI --> Candidate["敘事／狀態更新候選"]
+    Candidate --> Accept["Host 驗證並確定"]
+    Accept --> Local["本機儲存／遊戲畫面"]
+    Local --> Human
+```
+
+首次連線時會顯示即將傳送的內容。除了你的輸入與對話紀錄外，GM 上下文在必要時也可能包含非公開的世界設定。**LoreRelay 不會自動切換到 API 計費、自動更換模型或自動重送請求。** 「連線已準備好」和「模型實際成功回應」也會分別回報。
+
+NOAI 可以在不呼叫 AI 的情況下推進支援的世界處理，以及交易、市場移動與結束一天。它無法取代能自由生成劇情的 GM。
+
+除了面向玩家的 GM 連線外，LoreRelay 也提供 AI Player 操作委派、隔離 QA 與明確的操作錄製。Player 目前只涵蓋**交易、市場移動、結束一天**三種操作。QA 的內部資訊與 Player 可見的公開資訊使用不同工作階段。AI 自動驗證不會被視為真人遊玩。[Player Lab／QA 與紀錄](docs/AI_CONNECTION_V2_PLAYER_LAB.md)
+
+</details>
 
 <a id="setup"></a>
 
 ## 安裝
 
-**原始碼版本與發行VSIX版本不同。** 2026-09-08確認的原始碼為1.85.2，最新GitHub Release為v1.71.0。僅安裝舊Release無法使用AI Connection V2。[下載](https://github.com/GGF1sh/LoreRelay/releases) · [版本權威紀錄](docs/VERSION_TRUTH.md)
+**本 README 描述的是 `main` 上的功能，已發布的 VSIX 不一定包含完全相同的功能。** 要嘗試較新的 AI 連線或場景插圖流程，請從目前原始碼啟動。[發布檔案](https://github.com/GGF1sh/LoreRelay/releases) · [版本事實來源](docs/VERSION_TRUTH.md)
 
 ### 從目前原始碼啟動
 
-準備VS Code **1.93以上**、Node.js／npm和Git。
+請準備 VS Code **1.93 或更新版本**、Node.js／npm 和 Git。
 
 ```sh
 git clone https://github.com/GGF1sh/LoreRelay.git
@@ -182,25 +208,44 @@ npm ci
 npm run compile
 ```
 
-在VS Code開啟此資料夾並按 **F5**。在啟動的Extension Development Host中開啟遊玩資料夾。需要VSIX時執行 `npx @vscode/vsce package`，再使用VS Code的「從VSIX安裝」。
+在 VS Code 中開啟此資料夾並按 **F5**。在開啟的 Extension Development Host 中選擇用來遊玩的工作區。需要打包 VSIX 時，執行 `npx @vscode/vsce package`，再透過 VS Code 的「Install from VSIX...」安裝。
 
-AI Connection V2需要所選官方用戶端與專用登入，或DeepSeek API金鑰。原有指令碼連接、骰子、地圖等功能按需準備Python／`TextAdventureGMSkill`。`textAdventure.skillPath`應填寫技能中 `scripts/comfyui_generate.py` 的絕對路徑。
+AI Connection V2 需要所選服務的官方客戶端與專用登入，或 DeepSeek API Key。Python／`TextAdventureGMSkill` 用於舊版腳本連動，以及骰子、地圖等可選功能。`textAdventure.skillPath` 是 Skill 端 `scripts/comfyui_generate.py` 的絕對路徑。
 
-如需集中設定原有技能連接，把 `TextAdventureGMSkill` 放在儲存庫旁；Windows執行 `.\scripts\setup.ps1`，macOS／Linux執行 `bash scripts/setup.sh`。此安裝流程會安裝相依套件、編譯並執行測試。ComfyUI與VLM均為選用。
+如需一次設定舊版 Skill 連動，請把 `TextAdventureGMSkill` 放在 LoreRelay 旁邊，並在 Windows 執行 `.\scripts\setup.ps1`，在 macOS／Linux 執行 `bash scripts/setup.sh`。該腳本會安裝相依套件、編譯並執行測試。ComfyUI 與 VLM 都是可選項。
 
-## 文件與參與開發
+## 功能狀態與詳細指南
 
-| 目的 | 文件 |
+LoreRelay 是一個持續開發中的開源專案。它可以從人物對話一路擴展到世界經營，但不同功能的成熟度並不一致。先挑一種真正讓你感興趣的玩法試起來就好。
+
+| 我想…… | 指南 |
 | --- | --- |
-| 新GM連接、登入與額度 | [AI Connections](docs/AI_CONNECTIONS.md) |
-| 匯入角色與世界設定 | [SillyTavern相容](SILLYTAVERN_COMPAT.md) |
-| 圖片、地圖與語音 | [ComfyUI](COMFYUI_WORKFLOWS.md) · [Cartography](docs/CARTOGRAPHY_COMFYUI.md) · [TTS](docs/TTS_QUICKSTART.md) |
-| 原有本機／API／手動GM | [Bridge設定](GM_BRIDGE_PRESETS.md) · [舊Antigravity流程](ANTIGRAVITY_GUIDE.md) |
-| 目前狀態與更新 | [功能表](docs/FEATURE_MATRIX.md) · [CHANGELOG](CHANGELOG.md) · [Roadmap](AI_ROADMAP.md) |
-| 開發與相關測試 | [開發流程](docs/AI_WORKFLOW.md) · [Test Console](docs/TEST_CONSOLE.md) |
+| 帶入自己的角色或世界設定 | [SillyTavern 相容](SILLYTAVERN_COMPAT.md) |
+| 玩探索／拾荒型 Campaign | [Campaign Kit](docs/CAMPAIGN_KIT_QUICKSTART.md) |
+| 把場景變成插圖或背景 | [場景提示詞與圖片匯入](docs/VISUAL_COMPOSER_V1.md) |
+| 加入圖片、地圖或語音 | [ComfyUI](COMFYUI_WORKFLOWS.md) · [Cartography](docs/CARTOGRAPHY_COMFYUI.md) · [TTS](docs/TTS_QUICKSTART.md) |
+| 查看 GM 連線、登入與使用額度 | [AI Connections](docs/AI_CONNECTIONS.md) |
+| 設定本地／API／手動 GM | [Bridge 設定](GM_BRIDGE_PRESETS.md) · [舊版 Antigravity 指南](ANTIGRAVITY_GUIDE.md) |
+| 查看可用功能與變更紀錄 | [功能列表](docs/FEATURE_MATRIX.md) · [CHANGELOG](CHANGELOG.md) · [Roadmap](AI_ROADMAP.md) |
+| 參與開發或執行測試 | [開發流程](docs/AI_WORKFLOW.md) · [Test Console](docs/TEST_CONSOLE.md) |
 
-`npm run test:console` 或 `LoreRelay_Test_Console.bat` 可開啟根據修改檔案選擇相關測試的面板，無需每次小修改都重複整套測試。
+<details>
+<summary>驗證範圍與本頁圖片說明</summary>
 
-LoreRelay是實驗性開源專案。有限的AI連接測試情境不代表任意世界的品質或平衡保證。**Human Play尚未進行，也未被自動化取代。**
+AI 連線驗證只表示在有限的測試場景中，真實服務確實曾成功運作；它不保證任意世界下的長期遊玩品質或平衡。
+
+使用者已回報在實機上完成一次 Scene Composer V1 的完整往返：產生場景提示詞 → 用外部 AI 生成圖片 → 匯入 LoreRelay → 採用 → 關閉後重新開啟。這是場景圖片 V1 的範圍內確認，並不代表整個 Campaign 的長期真人遊玩已經完成。
+
+開頭的 Demo 和 1.85.2 對話畫面使用了為驗證準備的合成 fixture。Demo 縮短了等待時間，持久化範例是重新開啟面板，而不是重新啟動作業系統。地圖、物流、夥伴、Lorebook、戰鬥等較早的展示圖，也與非遊戲畫面的氣氛插圖明確區分。[Demo／媒體紀錄](docs/PUBLIC_LAUNCH_MEDIA.md) · [圖片來源](docs/assets/README.md)
+
+內建的 `debug-sandbox` 場景用於開發與驗證。`npm run test:console` 或 `LoreRelay_Test_Console.bat` 會開啟一個依照改動檔案選擇相關測試的儀表板。專案不會因為每一次小改動都重複執行完整測試套件。
+
+</details>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT license" /></a>
+  <a href="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml"><img src="https://github.com/GGF1sh/LoreRelay/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="docs/VERSION_TRUTH.md"><img src="https://img.shields.io/github/package-json/v/GGF1sh/LoreRelay?label=version&amp;color=blue" alt="Source version" /></a>
+</p>
 
 [回報問題或提出建議](https://github.com/GGF1sh/LoreRelay/issues) · [MIT License](LICENSE) · [支持開發 ☕](https://ko-fi.com/promptpalette)

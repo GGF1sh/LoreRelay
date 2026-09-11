@@ -36,6 +36,57 @@ const normalize = d => { const r = normalizeWorldGenesisInput(d, defaults); asse
   // across two host lifetimes. No full extension activation or campaign writes.
   const vm = require('vm'), fs = require('fs'), path = require('path');
   const extension = fs.readFileSync(path.join(__dirname, '../out/extension.js'), 'utf8');
+  // Run the actual host adoption handler with file-backed stores and fail each
+  // write in turn. Both existing campaigns and an empty workspace must recover.
+  const adoption = extension.slice(extension.indexOf('async function handleApplyWorldGenesis('), extension.indexOf('\nfunction ', extension.indexOf('async function handleApplyWorldGenesis(')));
+  const files = ['world_forge.json', 'npc_registry.json', 'world_state.json', 'game_rules.json'];
+  for (const existing of [false, true]) for (let failAt = 0; failAt < 4; failAt++) {
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'genesis-rollback-'));
+    if (existing) for (const file of files) {
+      fs.writeFileSync(path.join(dir, file), `old:${file}`);
+      fs.writeFileSync(path.join(dir, `${file}.bak`), `backup:${file}`);
+    }
+    const before = Object.fromEntries(fs.readdirSync(dir).map(file => [file, fs.readFileSync(path.join(dir, file), 'utf8')]));
+    const mutate = index => {
+      if (index === failAt) throw new Error('injected write failure');
+      const target = path.join(dir, files[index]);
+      if (fs.existsSync(target)) fs.copyFileSync(target, `${target}.bak`);
+      fs.writeFileSync(target, `new:${index}`);
+    };
+    const messages = [], cacheCleared = new Set();
+    const context = vm.createContext({
+      console: { error() {}, warn() {} }, fs, path,
+      panel: { webview: { postMessage: m => messages.push(m) } },
+      worldGenesisApplyInProgress: false, worldGenesisPreviewSession: preview,
+      worldGenesisSetupCore_2: require('../out/worldGenesisSetupCore'),
+      worldGenesisSetupCore_1: require('../out/worldGenesisSetupCore'),
+      worldGenesisExperienceCore_1: require('../out/worldGenesisExperienceCore'),
+      worldGenesisRollback_1: require('../out/worldGenesisRollback'),
+      worldForgeGenerator_1: { getDefaultGeneratorInput: () => defaults, worldForgeFileExists: () => existing,
+        generateAndSaveWorldForge: async () => { try { mutate(0); return { success: true, warnings: [] }; } catch { return { success: false, error: 'save-failed' }; } } },
+      worldForge_1: { loadWorldForge: () => forge, bootstrapNpcRegistryFromForge: () => mutate(1), clearWorldForgeCache: () => cacheCleared.add('forge') },
+      worldState_1: { resetWorldStateFromForge: () => mutate(2), clearWorldStateCache: () => cacheCleared.add('state') },
+      npcRegistry_1: { clearNpcRegistryCache: () => cacheCleared.add('npc') },
+      gameRules_1: { saveGameRules: () => { try { mutate(3); return true; } catch { return false; } }, clearGameRulesCache: () => cacheCleared.add('rules') },
+      workspacePaths_1: { getWorkspacePath: () => dir, getGameStatePath: () => undefined },
+      vscode: { window: { showWarningMessage: async (_m, _o, label) => label, showErrorMessage() {}, showInformationMessage() {} } },
+      i18n_1: { t: s => s }, sendGameRules() {}, sendUiState: async () => {}, pushWorldViewToWebview() {},
+    });
+    vm.runInContext(adoption, context);
+    await context.handleApplyWorldGenesis(draft);
+    assert(messages.some(m => m.type === 'worldGenesisApplyEnd' && m.status === 'failed'));
+    assert.deepEqual(Object.fromEntries(fs.readdirSync(dir).map(file => [file, fs.readFileSync(path.join(dir, file), 'utf8')])), before, `rollback existing=${existing} failAt=${failAt}`);
+    assert.equal(cacheCleared.size, 4);
+  }
+  for (const locale of ['ja', 'zh-CN', 'zh-TW']) {
+    const localized = previewWorldGenesis(normalize({ ...draft, experience: { ...experience, locale } })).canonicalContent;
+    for (const row of [...localized.geography.regions, ...localized.geography.locations]) {
+      for (const old of [...en.canonicalContent.geography.regions, ...en.canonicalContent.geography.locations]) {
+        assert(!row.imagePromptHint?.includes(old.name), `stale image hint: ${old.name}`);
+      }
+    }
+    if (locale === 'zh-CN') assert(!/[營會騎團議據點宮遺脈]/.test([...localized.geography.regions, ...localized.geography.locations, ...localized.factions].map(r => r.name).join('')));
+  }
   const handler = extension.slice(extension.indexOf('let worldGenesisPresetSaving'), extension.indexOf('function sendWorldGenesisSetup'));
   const storage = new Map(), replies = [];
   const startHost = () => {

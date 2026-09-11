@@ -68,7 +68,9 @@ import {
 } from './debugTraceHostCore';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
-import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument } from './worldForge';
+import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument, clearWorldForgeCache } from './worldForge';
+import { captureWorldGenesisRollback } from './worldGenesisRollback';
+import { clearNpcRegistryCache } from './npcRegistry';
 import {
     applyWorldGenesisPreview,
     buildWorldGenesisPrefill,
@@ -80,7 +82,7 @@ import {
     type WorldGenesisPreviewSession,
 } from './worldGenesisSetupCore';
 import { resolveCommerceForge } from './livingWorldBridge';
-import { resetWorldStateFromForge } from './worldState';
+import { resetWorldStateFromForge, clearWorldStateCache } from './worldState';
 import { buildLocationImagePrompt } from './locationImageBuilder';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { buildChronicleForWorkspace } from './chronicleLoader';
@@ -1794,6 +1796,14 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
         return;
     }
 
+    let rollback: (() => void) | undefined;
+    const restore = () => {
+        try { rollback?.(); }
+        finally {
+            clearWorldForgeCache(); clearNpcRegistryCache(); clearWorldStateCache(); clearGameRulesCache();
+        }
+        rollback = undefined;
+    };
     worldGenesisApplyInProgress = true;
     panel.webview.postMessage({ type: 'worldGenesisApplyStart' });
     try {
@@ -1818,18 +1828,17 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
                     );
                     return answer === confirmLabel;
                 },
-                save: (input, expectedCanonicalContent) => generateAndSaveWorldForge(
-                    input,
-                    { createBackup: true, expectedCanonicalContent }
-                ),
+                save: (input, expectedCanonicalContent) => {
+                    const workspace = getWorkspacePath();
+                    if (!workspace) throw new Error('No workspace open');
+                    rollback = captureWorldGenesisRollback(workspace);
+                    return generateAndSaveWorldForge(input, { createBackup: true, expectedCanonicalContent });
+                },
                 loadSavedForge: () => loadWorldForge(),
                 onApplied: async (forge, isOverwrite) => {
                     bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: isOverwrite });
                     resetWorldStateFromForge(forge, isOverwrite);
                     if (!saveGameRules(worldGenesisRules(normalized.input.experience))) throw new Error('World rules could not be saved');
-                    sendGameRules();
-                    await sendUiState(0, true);
-                    pushWorldViewToWebview();
                 },
             }
         );
@@ -1839,12 +1848,17 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
             return;
         }
         if (result.status === 'failed') {
+            restore();
             console.error('[worldGenesis] apply failed:', result.error);
             panel.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'failed', reason: result.error });
             vscode.window.showErrorMessage(t('extension.worldGenesis.applyFailed'));
             return;
         }
 
+        rollback = undefined; // All four stores committed; UI refresh cannot undo adoption.
+        sendGameRules();
+        await sendUiState(0, true);
+        pushWorldViewToWebview();
         if (result.warnings.length > 0) {
             console.warn('[worldGenesis] generation warnings:', result.warnings);
         }
@@ -1861,6 +1875,10 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
             npcCount: result.forge.initialNpcs.length,
         }));
     } catch (error) {
+        try { restore(); } catch (restoreError) {
+            console.error('[worldGenesis] rollback failed', restoreError);
+            vscode.window.showErrorMessage(String(restoreError));
+        }
         console.error('[worldGenesis] apply failed', error);
         panel?.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'failed' });
         vscode.window.showErrorMessage(t('extension.worldGenesis.applyFailed'));

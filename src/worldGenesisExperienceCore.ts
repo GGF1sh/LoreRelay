@@ -49,23 +49,28 @@ export function localizeWorldGenesisNames(forge: WorldForge, experience?: WorldG
     const suffixes: Record<string, string> = ja
         ? { wilderness: '平原', urban: '都市圏', dungeon: '迷宮', ruins: '遺跡', ocean: '海', mountains: '山脈', forest: 'の森', other: '辺境' }
         : traditional ? { wilderness: '平原', urban: '城域', dungeon: '迷宮', ruins: '遺跡', ocean: '海', mountains: '山脈', forest: '森林', other: '邊境' }
-            : { wilderness: '平原', urban: '城区', dungeon: '迷宫', ruins: '遗迹', ocean: '海', mountains: '山脈', forest: '森林', other: '边境' };
+            : { wilderness: '平原', urban: '城区', dungeon: '迷宫', ruins: '遗迹', ocean: '海', mountains: '山脉', forest: '森林', other: '边境' };
     const names = ja ? ['アエラ', 'ブレン', 'クララ', 'ドーン', 'エラ', 'フェン', 'ガラ', 'ホルト', 'イーラ', 'ジェルド', 'ミラ', 'ソレン', 'リラ', 'レオン', 'ネッサ', 'カエデ', 'レン', 'ソラ', 'ユナ', 'アキ']
-        : ['艾拉', '布伦', '克拉拉', '多恩', '伊拉', '芬恩', '加拉', '霍尔特', '伊娜', '杰德', '米拉', '索伦', '莉拉', '莱昂', '妮莎', '枫', '莲', '空', '优娜', '秋'];
+        : traditional ? ['艾拉', '布倫', '克拉拉', '多恩', '伊拉', '芬恩', '加拉', '霍爾特', '伊娜', '傑德', '米拉', '索倫', '莉拉', '萊昂', '妮莎', '楓', '蓮', '空', '優娜', '秋']
+            : ['艾拉', '布伦', '克拉拉', '多恩', '伊拉', '芬恩', '加拉', '霍尔特', '伊娜', '杰德', '米拉', '索伦', '莉拉', '莱昂', '妮莎', '枫', '莲', '空', '优娜', '秋'];
     const offset = hash(forge.meta.worldSeed || '') % prefixes.length;
     const changes = new Map<string, string>();
     const rename = (item: { name: string }, name: string) => { changes.set(item.name, name); item.name = name; };
     forge.meta.worldName = `${prefixes[offset]}${ja ? 'の世界' : '世界'} · ${hash(forge.meta.worldSeed || '').toString(36).slice(0, 5)}`;
     forge.geography.regions.forEach((r, i) => rename(r, `${prefixes[(offset + i) % prefixes.length]}${suffixes[r.type]}`));
     const locations: Record<string, string> = ja ? { settlement: 'の里', dungeon: 'の迷宮', landmark: 'の塔', ruins: 'の遺構', wilderness: 'の野営地', other: 'の拠点' }
-        : { settlement: '村', dungeon: '迷宮', landmark: '塔', ruins: '遺址', wilderness: '營地', other: '據點' };
+        : traditional ? { settlement: '村', dungeon: '迷宮', landmark: '塔', ruins: '遺址', wilderness: '營地', other: '據點' }
+            : { settlement: '村', dungeon: '迷宫', landmark: '塔', ruins: '遗址', wilderness: '营地', other: '据点' };
     forge.geography.locations.forEach((l, i) => rename(l, `${prefixes[(offset + i) % prefixes.length]}${locations[l.type]}${i < prefixes.length ? '' : `・${Math.floor(i / prefixes.length) + 1}`}`));
-    const groups = ja ? ['同盟', '商会', '騎士団', '評議会', '組合', '旅団'] : ['同盟', '商會', '騎士團', '議會', '公會', '旅團'];
+    const groups = ja ? ['同盟', '商会', '騎士団', '評議会', '組合', '旅団'] : traditional ? ['同盟', '商會', '騎士團', '議會', '公會', '旅團'] : ['同盟', '商会', '骑士团', '议会', '公会', '旅团'];
     forge.factions.forEach((f, i) => rename(f, `${prefixes[(offset + i) % prefixes.length]}${groups[i % groups.length]}`));
     const npcOffset = hash(forge.meta.worldSeed || '') % names.length;
     forge.initialNpcs.forEach((n, i) => rename(n, names[(npcOffset + i) % names.length]));
     // Keep references in existing generated descriptions aligned with renamed entities.
     for (const row of [...forge.geography.regions, ...forge.geography.locations, ...forge.factions, ...forge.initialNpcs]) {
         if (row.description) for (const [oldName, name] of [...changes].sort((a, b) => b[0].length - a[0].length)) row.description = row.description.split(oldName).join(name);
+    }
+    for (const row of [...forge.geography.regions, ...forge.geography.locations]) {
+        if (row.imagePromptHint) for (const [oldName, name] of [...changes].sort((a, b) => b[0].length - a[0].length)) row.imagePromptHint = row.imagePromptHint.split(oldName).join(name);
     }
 }

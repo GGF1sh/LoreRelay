@@ -42,7 +42,7 @@ import {
 } from './worldViewSettlementFocusCore';
 
 import { isCampaignKitPromptActive } from './gmPromptBuilderCore';
-import { resolveWorldMapImagePath } from './cartographyRunner';
+import { resolveWorldMapImagePath, resolveWorldMapLayoutPath } from './cartographyRunner';
 import { getGameStatePath, getWorkspacePath } from './workspacePaths';
 import type { GameState, GameStateWorld } from './types/GameState';
 import {
@@ -637,8 +637,12 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
 
     const wsPath = getWorkspacePath();
     const worldMapImagePath = resolveWorldMapImagePath(wsPath);
-    const cartographyImage = worldMapImagePath && fs.existsSync(worldMapImagePath)
-        ? safeImageUri(worldMapImagePath) ?? null
+    const worldMapLayoutPath = resolveWorldMapLayoutPath(wsPath);
+    const illustratedExists = Boolean(worldMapImagePath && fs.existsSync(worldMapImagePath));
+    const layoutExists = Boolean(worldMapLayoutPath && fs.existsSync(worldMapLayoutPath));
+    const cartographyImagePath = illustratedExists ? worldMapImagePath : layoutExists ? worldMapLayoutPath : undefined;
+    const cartographyImage = cartographyImagePath
+        ? safeImageUri(cartographyImagePath) ?? null
         : null;
     const cartographyPins = maskCartographyPinsForFog(
         buildCartographyPinPositions(forge),
@@ -910,6 +914,7 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         overmapThemeKey,
         worldMap,
         cartographyImage,
+        cartographySource: illustratedExists ? 'illustrated' : layoutExists ? 'layout' : null,
         cartographyPins,
         cartographyRegionLabels,
         cartographyRouteEdges,

@@ -214,6 +214,71 @@ export function sanitizeMediaProfile(input: unknown): MediaProfile | undefined {
     };
 }
 
+export interface WorldMapStylePick {
+    id: string;
+    label: string;
+    description: string;
+    detail: string;
+    profileId: string;
+    promptMode: MediaPromptMode;
+}
+
+/** Prompt styles plus cartography graphs. Esc-cancel is empty; never auto-bind Canny. */
+export function listWorldMapStylePicks(): WorldMapStylePick[] {
+    const canny = 'm1-cartography-sdxl-canny-guard';
+    const direct = 'm1-cartography-sdxl-direct-guard';
+    return [
+        {
+            id: 'illustrious',
+            label: 'Illustrious',
+            description: 'prompt mode: illustrious',
+            detail: 'Cartography Canny. Use an Illustrious / SDXL checkpoint.',
+            profileId: canny,
+            promptMode: 'illustrious',
+        },
+        {
+            id: 'pony',
+            label: 'Pony',
+            description: 'prompt mode: pony',
+            detail: 'Cartography Canny. Use a Pony XL checkpoint.',
+            profileId: canny,
+            promptMode: 'pony',
+        },
+        {
+            id: 'natural',
+            label: 'Natural / Generic',
+            description: 'prompt mode: natural',
+            detail: 'Cartography Canny. Natural-language prompt, SDXL checkpoint.',
+            profileId: canny,
+            promptMode: 'natural',
+        },
+        {
+            id: 'anima',
+            label: 'Anima',
+            description: 'prompt mode: illustrious',
+            detail: 'Listed for completeness. The map graph is SDXL and rejects Anima checkpoints.',
+            profileId: canny,
+            promptMode: 'illustrious',
+        },
+        {
+            id: 'canny',
+            label: 'SDXL Cartography Canny',
+            description: canny,
+            detail: 'Line-art ControlNet from the layout PNG.',
+            profileId: canny,
+            promptMode: 'illustrious',
+        },
+        {
+            id: 'direct',
+            label: 'SDXL Cartography Direct',
+            description: direct,
+            detail: 'Layout PNG as the base image, no Canny.',
+            profileId: direct,
+            promptMode: 'illustrious',
+        },
+    ];
+}
+
 export function listBuiltInMediaProfiles(): MediaProfile[] {
     return BUILT_IN_MEDIA_PROFILES.map(profile => ({
         ...profile,

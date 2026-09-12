@@ -5,6 +5,7 @@ import type { ChildProcess } from 'child_process';
 import { spawnWithTimeout } from './spawnWithTimeout';
 import { t } from './i18n';
 import { buildImageGenEnv, getResolvedImageMode } from './imageGenRunner';
+import type { MediaPromptMode } from './mediaProfileCore';
 import { loadImageGenConfig } from './imageGenConfig';
 import { loadBundledWorkflowCatalog } from './imageGenSettingsHost';
 import { resolveCartographyWorkflowFile } from './imageGenSettingsResolveCore';
@@ -288,7 +289,6 @@ export async function runCartographyLayoutGeneration(forgePath: string): Promise
         vscode.window.showErrorMessage(t('extension.error.worldMapLayoutFailed'));
     } else {
         channel.appendLine(`Saved layout map → ${prepared.layoutPath}`);
-        vscode.window.showInformationMessage(t('extension.info.worldMapLayoutSaved'));
     }
     getPanel()?.webview.postMessage({ type: 'worldMapLayoutGenEnd', success: ok });
     return ok;
@@ -302,7 +302,11 @@ function workflowPathForWorldMapProfile(extPath: string, profileId: string): str
 }
 
 /** Illustrated parchment via ComfyUI. Requires an explicit world_map Media Profile. */
-export async function runCartographyGeneration(forgePath: string, profileId: string): Promise<boolean> {
+export async function runCartographyGeneration(
+    forgePath: string,
+    profileId: string,
+    promptMode?: MediaPromptMode
+): Promise<boolean> {
     if (!profileId.trim()) {
         vscode.window.showErrorMessage(t('extension.error.worldMapNeedProfile'));
         return false;
@@ -333,6 +337,9 @@ export async function runCartographyGeneration(forgePath: string, profileId: str
     const channel = getCartographyOutputChannel();
     const rawEnv = buildCartographyEnv(wsPath, extPath);
     rawEnv.TA_WORKFLOW = workflowPathForWorldMapProfile(extPath, profileId);
+    if (promptMode) {
+        rawEnv.TA_MODE = promptMode;
+    }
     const workflowPath = String(rawEnv.TA_WORKFLOW || '');
     const preflight = preflightWorldMapGeneration(wsPath, rawEnv, workflowPath, profileId);
     if (!preflight.ok) {

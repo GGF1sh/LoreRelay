@@ -75,6 +75,9 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         if (msg.type === 'worldMapLayoutGenEnd') {
             setWorldMapLayoutBusy(false, !msg.success);
+            if (msg.success) {
+                setWorldMapMode('parchment');
+            }
         }
         if (msg.type === 'worldMapGenStart') {
             setWorldMapGenBusy(true);
@@ -157,7 +160,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const genMapLayoutBtn = document.getElementById('world-gen-map-layout-btn');
     if (genMapLayoutBtn) {
         genMapLayoutBtn.addEventListener('click', () => {
-            setWorldMapLayoutBusy(true);
             vscode.postMessage({ type: 'generateWorldMapLayout' });
         });
     }
@@ -165,7 +167,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const genMapBtn = document.getElementById('world-gen-map-btn');
     if (genMapBtn) {
         genMapBtn.addEventListener('click', () => {
-            setWorldMapGenBusy(true);
             vscode.postMessage({ type: 'generateWorldMapImage' });
         });
     }

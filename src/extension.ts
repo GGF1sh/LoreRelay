@@ -204,9 +204,11 @@ import {
     runCartographyGeneration,
     runCartographyLayoutGeneration,
     killCartographyProcess,
-    isCartographyGenerationBusy
+    isCartographyGenerationBusy,
+    resolveWorldMapImagePath,
+    resolveWorldMapLayoutPath,
 } from './cartographyRunner';
-import { listBuiltInMediaProfiles } from './mediaProfileCore';
+import { listWorldMapStylePicks } from './mediaProfileCore';
 import { resolveValidatedForgePath } from './cartographyPathCore';
 import {
     initProtagonistBootstrap,
@@ -1923,17 +1925,26 @@ async function handleGenerateWorldMapLayout(): Promise<void> {
     const ok = await runCartographyLayoutGeneration(forgePath);
     if (ok) {
         pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+        const layoutPath = resolveWorldMapLayoutPath();
+        const reveal = t('extension.worldMap.revealFile');
+        const choice = await vscode.window.showInformationMessage(
+            t('extension.info.worldMapLayoutSaved', { path: layoutPath || 'world_map.layout.png' }),
+            reveal
+        );
+        if (choice === reveal && layoutPath) {
+            void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(layoutPath));
+        }
     }
 }
 
-async function pickWorldMapMediaProfileId(): Promise<string | undefined> {
-    const profiles = listBuiltInMediaProfiles().filter((profile) => profile.mediaKinds.includes('world_map'));
+async function pickWorldMapStyle(): Promise<{ profileId: string; promptMode: 'pony' | 'illustrious' | 'natural' | 'standard' } | undefined> {
     const picked = await vscode.window.showQuickPick(
-        profiles.map((profile) => ({
-            label: profile.displayName,
-            description: profile.id,
-            detail: profile.graphFamily,
-            id: profile.id,
+        listWorldMapStylePicks().map((style) => ({
+            label: style.label,
+            description: style.description,
+            detail: style.detail,
+            profileId: style.profileId,
+            promptMode: style.promptMode,
         })),
         {
             title: t('extension.worldMap.pickProfileTitle'),
@@ -1941,7 +1952,10 @@ async function pickWorldMapMediaProfileId(): Promise<string | undefined> {
             ignoreFocusOut: true,
         }
     );
-    return picked?.id;
+    if (!picked) {
+        return undefined;
+    }
+    return { profileId: picked.profileId, promptMode: picked.promptMode };
 }
 
 async function handleGenerateWorldMapImage(): Promise<void> {
@@ -1953,15 +1967,17 @@ async function handleGenerateWorldMapImage(): Promise<void> {
         vscode.window.showWarningMessage('World map generation is already running.');
         return;
     }
-    const profileId = await pickWorldMapMediaProfileId();
-    if (!profileId) {
-        vscode.window.showWarningMessage(t('extension.error.worldMapNeedProfile'));
+    const style = await pickWorldMapStyle();
+    if (!style) {
         return;
     }
-    const ok = await runCartographyGeneration(forgePath, profileId);
+    const ok = await runCartographyGeneration(forgePath, style.profileId, style.promptMode);
     if (ok) {
         pushWorldViewToWebview(getCurrentLocationIdForWorldView());
-        vscode.window.showInformationMessage('World map image saved as world_map.png.');
+        const imagePath = resolveWorldMapImagePath();
+        vscode.window.showInformationMessage(
+            t('extension.info.worldMapImageSaved', { path: imagePath || 'world_map.png' })
+        );
     } else {
         vscode.window.showErrorMessage('World map generation failed. See LoreRelay: Cartography output.');
     }

@@ -101,6 +101,7 @@ export interface WebviewHandlerDeps {
     sendWorldGenesisSetup(): void;
     handlePreviewWorldGenesis(raw: Record<string, unknown>, reroll: boolean): Promise<void>;
     handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<void>;
+    handleGenerateWorldMapLayout(): Promise<void>;
     handleGenerateWorldMapImage(): Promise<void>;
     handleGenerateLocationImage(locationId: string): Promise<void>;
     handleSavePartyDirector(director: unknown): Promise<void>;
@@ -390,6 +391,9 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'applyWorldGenesis':
             await deps.handleApplyWorldGenesis(message);
+            break;
+        case 'generateWorldMapLayout':
+            await deps.handleGenerateWorldMapLayout();
             break;
         case 'generateWorldMapImage':
             await deps.handleGenerateWorldMapImage();

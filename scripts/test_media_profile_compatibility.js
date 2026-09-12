@@ -194,10 +194,18 @@ const goodPreflight = compatibility.preflightSceneGeneration(
 
 // 16-17. World-map guard rejects inherited Anima and preserves SDXL canny/direct paths.
 {
+    const guessed = compatibility.preflightWorldMapGeneration(
+        explicitSdxlWs,
+        { TA_CHECKPOINT: 'installed_checkpoint.safetensors', TA_MODE: 'illustrious' },
+        cannyWorkflow
+    );
+    check(!guessed.ok, 'world-map preflight does not silently bind SDXL Canny without an explicit profile');
+
     const badMap = compatibility.preflightWorldMapGeneration(
         explicitAnimaWs,
         { TA_CHECKPOINT: 'installed_anima_checkpoint.safetensors', TA_MODE: 'illustrious' },
-        cannyWorkflow
+        cannyWorkflow,
+        'm1-cartography-sdxl-canny-guard'
     );
     check(!badMap.ok && hasReason(badMap, 'MODEL_GRAPH_MISMATCH'), 'world-map Anima inheritance is rejected');
     let mapSpawnCalls = 0;
@@ -207,12 +215,14 @@ const goodPreflight = compatibility.preflightSceneGeneration(
     const goodCanny = compatibility.preflightWorldMapGeneration(
         explicitSdxlWs,
         { TA_CHECKPOINT: 'installed_checkpoint.safetensors', TA_MODE: 'illustrious' },
-        cannyWorkflow
+        cannyWorkflow,
+        'm1-cartography-sdxl-canny-guard'
     );
     const goodDirect = compatibility.preflightWorldMapGeneration(
         explicitSdxlWs,
         { TA_CHECKPOINT: 'installed_checkpoint.safetensors', TA_MODE: 'illustrious' },
-        directWorkflow
+        directWorkflow,
+        'm1-cartography-sdxl-direct-guard'
     );
     check(goodCanny.ok, `SDXL canny world-map binding passes: ${goodCanny.message}`);
     check(goodDirect.ok, `SDXL direct world-map binding passes: ${goodDirect.message}`);

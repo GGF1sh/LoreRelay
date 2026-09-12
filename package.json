@@ -48,6 +48,7 @@
     "onCommand:textadventure.stopRemotePlay",
     "onCommand:textadventure.rotateRemotePlayToken",
     "onCommand:textadventure.generateWorldForge",
+    "onCommand:textadventure.generateWorldMapLayout",
     "onCommand:textadventure.generateWorldMapImage",
     "onCommand:textadventure.resetProtagonistBootstrap",
     "onCommand:textadventure.promoteParlorToCampaign",
@@ -166,6 +167,10 @@
       {
         "command": "textadventure.listLmModels",
         "title": "%command.listLmModels%"
+      },
+      {
+        "command": "textadventure.generateWorldMapLayout",
+        "title": "%command.generateWorldMapLayout%"
       },
       {
         "command": "textadventure.generateWorldMapImage",

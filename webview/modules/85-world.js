@@ -70,6 +70,12 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        if (msg.type === 'worldMapLayoutGenStart') {
+            setWorldMapLayoutBusy(true);
+        }
+        if (msg.type === 'worldMapLayoutGenEnd') {
+            setWorldMapLayoutBusy(false, !msg.success);
+        }
         if (msg.type === 'worldMapGenStart') {
             setWorldMapGenBusy(true);
         }
@@ -145,6 +151,14 @@ window.addEventListener('DOMContentLoaded', () => {
                 setWorldSceneImageBusy(true);
                 vscode.postMessage({ type: 'generateLocationImage', locationId: currentWorldLocationId });
             }
+        });
+    }
+
+    const genMapLayoutBtn = document.getElementById('world-gen-map-layout-btn');
+    if (genMapLayoutBtn) {
+        genMapLayoutBtn.addEventListener('click', () => {
+            setWorldMapLayoutBusy(true);
+            vscode.postMessage({ type: 'generateWorldMapLayout' });
         });
     }
 
@@ -3974,6 +3988,20 @@ function setWorldGenBusy(busy) {
     } else {
         btn.classList.remove('generating');
         btn.innerHTML = `<span>${T('webview.world.forgeBtn')}</span>`;
+    }
+}
+
+function setWorldMapLayoutBusy(busy, failed = false) {
+    const btn = document.getElementById('world-gen-map-layout-btn');
+    if (!btn) { return; }
+    btn.disabled = busy;
+    btn.classList.toggle('generating', busy);
+    if (busy) {
+        btn.textContent = T('webview.world.mapLayoutGenerating');
+    } else if (failed) {
+        btn.textContent = T('webview.world.mapLayoutFailed');
+    } else {
+        btn.textContent = T('webview.world.mapLayout');
     }
 }
 

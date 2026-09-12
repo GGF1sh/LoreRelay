@@ -230,6 +230,14 @@ const goodPreflight = compatibility.preflightSceneGeneration(
     equal(mapSpawnCalls, 1, 'valid world map reaches existing executor seam');
 }
 
+{
+    const picks = core.listWorldMapStylePicks();
+    const ids = picks.map((p) => p.id);
+    check(ids.includes('illustrious') && ids.includes('pony') && ids.includes('anima'), 'map style picker lists Illustrious, Pony, and Anima');
+    check(ids.includes('canny') && ids.includes('direct'), 'map style picker still lists Canny and Direct graphs');
+    check(picks.every((p) => p.profileId.startsWith('m1-cartography-')), 'style picks bind a cartography profile, not a silent default');
+}
+
 // 18. The real compatibility wording and Japanese user-facing copy are drift guards.
 {
     const mismatch = badPreflight.reasons.find(reason => reason.code === 'MODEL_GRAPH_MISMATCH');

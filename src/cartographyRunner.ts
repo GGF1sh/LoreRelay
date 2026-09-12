@@ -295,9 +295,10 @@ export async function runCartographyLayoutGeneration(forgePath: string): Promise
 }
 
 function workflowPathForWorldMapProfile(extPath: string, profileId: string): string {
-    return profileId.includes('direct')
-        ? path.join(extPath, 'comfyui', 'workflow_cartography_sdxl_direct.json')
-        : resolveCartographyWorkflow(extPath);
+    const file = profileId.includes('direct')
+        ? 'workflow_cartography_sdxl_direct.json'
+        : 'workflow_cartography_sdxl_canny.json';
+    return path.join(extPath, 'comfyui', file);
 }
 
 /** Illustrated parchment via ComfyUI. Requires an explicit world_map Media Profile. */

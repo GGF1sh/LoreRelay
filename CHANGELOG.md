@@ -12,6 +12,9 @@
 ### Added
 - World Genesis **Routes** control (sparse / normal / dense). Dense extra links prefer matching biomes. Omitted density stays the legacy ring + 1–2 chords.
 
+### Added
+- Illustrated-map picker can copy a ChatGPT / Gemini / Grok / Claude brief (with region list) and point at `world_map.layout.png` to attach. No auto-upload.
+
 ### Changed
 - Illustrated-map picker lists Illustrious / Pony / Natural / Anima plus Canny and Direct. Esc cancel no longer leaves the button stuck or warns. Layout PNG is shown on the parchment view and the save toast includes the full path with a reveal action.
 - World tab map buttons are split: **Map layout** writes `world_map.layout.png` with no ComfyUI/Media Profile; **Illustrated map** asks for an explicit world-map Media Profile instead of silently binding SDXL Canny.

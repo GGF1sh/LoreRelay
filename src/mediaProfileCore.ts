@@ -214,22 +214,37 @@ export function sanitizeMediaProfile(input: unknown): MediaProfile | undefined {
     };
 }
 
+export const WORLD_MAP_EXTERNAL_DESTINATIONS = ['ChatGPT', 'Gemini', 'Grok', 'Claude'] as const;
+export type WorldMapExternalDestination = (typeof WORLD_MAP_EXTERNAL_DESTINATIONS)[number];
+
 export interface WorldMapStylePick {
     id: string;
     label: string;
     description: string;
     detail: string;
-    profileId: string;
-    promptMode: MediaPromptMode;
+    path: 'comfy' | 'external';
+    profileId?: string;
+    promptMode?: MediaPromptMode;
+    destination?: WorldMapExternalDestination;
 }
 
-/** Prompt styles plus cartography graphs. Esc-cancel is empty; never auto-bind Canny. */
+/** Prompt styles, cartography graphs, and copy-to-ChatGPT/Gemini/Grok/Claude. */
 export function listWorldMapStylePicks(): WorldMapStylePick[] {
     const canny = 'm1-cartography-sdxl-canny-guard';
     const direct = 'm1-cartography-sdxl-direct-guard';
+    const external: WorldMapStylePick[] = WORLD_MAP_EXTERNAL_DESTINATIONS.map((destination) => ({
+        id: `external-${destination.toLowerCase()}`,
+        label: destination,
+        description: 'Copy prompt + layout image',
+        detail: 'No ComfyUI. Copies a map brief and opens the layout PNG to attach.',
+        path: 'external',
+        destination,
+    }));
     return [
+        ...external,
         {
             id: 'illustrious',
+            path: 'comfy',
             label: 'Illustrious',
             description: 'prompt mode: illustrious',
             detail: 'Cartography Canny. Use an Illustrious / SDXL checkpoint.',
@@ -238,6 +253,7 @@ export function listWorldMapStylePicks(): WorldMapStylePick[] {
         },
         {
             id: 'pony',
+            path: 'comfy',
             label: 'Pony',
             description: 'prompt mode: pony',
             detail: 'Cartography Canny. Use a Pony XL checkpoint.',
@@ -246,6 +262,7 @@ export function listWorldMapStylePicks(): WorldMapStylePick[] {
         },
         {
             id: 'natural',
+            path: 'comfy',
             label: 'Natural / Generic',
             description: 'prompt mode: natural',
             detail: 'Cartography Canny. Natural-language prompt, SDXL checkpoint.',
@@ -254,6 +271,7 @@ export function listWorldMapStylePicks(): WorldMapStylePick[] {
         },
         {
             id: 'anima',
+            path: 'comfy',
             label: 'Anima',
             description: 'prompt mode: illustrious',
             detail: 'Listed for completeness. The map graph is SDXL and rejects Anima checkpoints.',
@@ -262,6 +280,7 @@ export function listWorldMapStylePicks(): WorldMapStylePick[] {
         },
         {
             id: 'canny',
+            path: 'comfy',
             label: 'SDXL Cartography Canny',
             description: canny,
             detail: 'Line-art ControlNet from the layout PNG.',
@@ -270,6 +289,7 @@ export function listWorldMapStylePicks(): WorldMapStylePick[] {
         },
         {
             id: 'direct',
+            path: 'comfy',
             label: 'SDXL Cartography Direct',
             description: direct,
             detail: 'Layout PNG as the base image, no Canny.',

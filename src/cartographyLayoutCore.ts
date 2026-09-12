@@ -213,6 +213,56 @@ const CARTOGRAPHY_NEGATIVE_CORE = [
     'lowres, worst quality, blurry',
 ].join(', ');
 
+export const CARTOGRAPHY_EXTERNAL_DESTINATIONS = ['ChatGPT', 'Gemini', 'Grok', 'Claude'] as const;
+export type CartographyExternalDestination = (typeof CARTOGRAPHY_EXTERNAL_DESTINATIONS)[number];
+
+const EXTERNAL_PREAMBLE: Record<CartographyExternalDestination, string> = {
+    ChatGPT: 'Create one square illustrated overworld map image. Use the attached layout diagram as the geography to follow (colored region blobs and connecting roads).',
+    Gemini: 'Generate one square illustrated world map. The attached image is a layout diagram — keep region positions, biomes, and roads.',
+    Grok: 'Generate one square illustrated overworld map. Follow the attached layout image for region placement and routes.',
+    Claude: 'Please generate one square illustrated overworld map. Treat the attached image as a spatial layout (region blobs and roads) to follow, not as the final art style.',
+};
+
+/** Natural-language map brief for ChatGPT / Gemini / Grok / Claude. Attach the layout PNG. */
+export function buildExternalCartographyPrompt(
+    forge: WorldForge,
+    destination: CartographyExternalDestination
+): string {
+    const spec = buildCartographyLayoutSpec(forge);
+    const style = resolveCartographyThemeStyle(spec.theme);
+    const byId = new Map(spec.regions.map((region) => [region.id, region]));
+    const regionLines = spec.regions.map((region) => {
+        const neighborNames = spec.edges
+            .filter((edge) => edge.fromId === region.id || edge.toId === region.id)
+            .map((edge) => {
+                const otherId = edge.fromId === region.id ? edge.toId : edge.fromId;
+                return byId.get(otherId)?.name || otherId;
+            });
+        const routes = neighborNames.length > 0 ? `; routes to ${neighborNames.join(', ')}` : '';
+        return `- ${region.name} (${region.biome})${routes}`;
+    });
+    return [
+        EXTERNAL_PREAMBLE[destination],
+        '',
+        'Requirements:',
+        `- Style: ${style.mapType}, ${style.renderStyle}`,
+        '- Top-down / orthographic; the map fills the frame edge to edge',
+        '- Follow the attached layout for positions, relative sizes, and connecting routes',
+        '- No text, labels, UI, compass rose, characters, or extra continents',
+        '',
+        `World: ${spec.worldName}`,
+        `Theme: ${spec.theme ?? 'fantasy'}`,
+        'Regions:',
+        ...regionLines,
+        '',
+        'Optional tags:',
+        buildCartographyPositivePrompt(spec),
+        '',
+        'Avoid:',
+        buildCartographyNegativePrompt(spec.theme),
+    ].join('\n');
+}
+
 export function buildCartographyNegativePrompt(theme?: string): string {
     const style = resolveCartographyThemeStyle(theme);
     const parts = [CARTOGRAPHY_NEGATIVE_CORE];

@@ -24,22 +24,25 @@ Illustrious と Pony は **同じ SDXL グラフ** に checkpoint と `mode` を
 ## 設定
 
 1. ComfyUI（または Stability Matrix）を `http://127.0.0.1:8188` で起動する。
-2. **LoreRelay: List Image Models** で checkpoint 名をコピーする。
-3. ワークスペースの `image_gen_config.json`、または VS Code 設定で:
+2. 画像生成設定の **用途テンプレート** から、情景・立ち絵・地図を選ぶ。正本は `comfyui/templates.json`。
+3. **LoreRelay: List Image Models**、または設定パネルのローカルモデル提案で checkpoint 名を確認する。提案の適用はボタン操作のみ。判定はファイル名とローカル sidecar（`.json` / `.civitai.info` / `.cm-info.json`）に限り、Civitai への照会はこの段階では行わない。
 
 ```json
 {
   "mode": "illustrious",
   "checkpoint": "YOUR_CHECKPOINT.safetensors",
-  "workflowPath": "C:\\\\path\\\\to\\\\LoreRelay\\\\comfyui\\\\workflow_sdxl_portrait.json",
+  "workflowTemplateId": "portrait-sdxl",
+  "sizeFollowsTemplate": true,
   "steps": 28,
   "cfg": 7
 }
 ```
 
-`workflowPath` を立ち絵テンプレートにすると縦構図、`workflow_sdxl_1024.json` にすると正方形情景になります。`mode` はプロンプトプリセットです（`illustrious` / `pony` / `natural` / `standard`）。グラフそのものではありません。
+用途テンプレートを選ぶと、対応する workflow とサイズが使われます。以前保存した `width` / `height`（例: 1024×1024）は、立ち絵を選んでも正方形に戻しません。サイズ入力を自分で変えたときだけ手動上書きになります。
 
-サイズを設定の `width` / `height` で上書きすると、テンプレートの既定サイズよりそちらが優先されます。テンプレートの構図を使いたいときは width/height を 0 のままにするか省略します。
+地図用テンプレートは世界地図生成経路だけが使います。情景生成の `TA_WORKFLOW` には載せません。
+
+`mode` はプロンプトプリセットです（`illustrious` / `pony` / `natural` / `standard`）。グラフそのものではありません。
 
 ## 地図
 

@@ -188,6 +188,9 @@ import {
     runListImageModels,
     sendImageGenConfig,
     handleUpdateImageGenConfig,
+    handleSelectImageGenTemplate,
+    handleRequestImageGenModelSuggestions,
+    handleApplyImageGenModelSuggestion,
     killImageGenerationProcess,
     enqueueImageGeneration,
     getResolvedImageMode
@@ -419,7 +422,7 @@ export function activate(context: vscode.ExtensionContext) {
     clearGameRulesCache();
     initI18n(context.extensionPath);
 
-    initImageGenRunner({ getPanel, subscriptions: context.subscriptions });
+    initImageGenRunner({ getPanel, extensionPath: context.extensionPath, subscriptions: context.subscriptions });
     initCartographyRunner({ getPanel, extensionPath: context.extensionPath, subscriptions: context.subscriptions });
     initMediaAgent({ getPanel, subscriptions: context.subscriptions });
     initMediaManifest({ getPanel });
@@ -2722,6 +2725,9 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         },
         sendImageGenConfig,
         handleUpdateImageGenConfig,
+        handleSelectImageGenTemplate,
+        handleRequestImageGenModelSuggestions,
+        handleApplyImageGenModelSuggestion,
         sendGameRules,
         sendDebugCapabilities,
         handleUpdateGameRules,

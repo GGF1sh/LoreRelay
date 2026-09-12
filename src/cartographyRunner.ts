@@ -5,6 +5,10 @@ import type { ChildProcess } from 'child_process';
 import { spawnWithTimeout } from './spawnWithTimeout';
 import { t } from './i18n';
 import { buildImageGenEnv, getResolvedImageMode } from './imageGenRunner';
+import { loadImageGenConfig } from './imageGenConfig';
+import { loadBundledWorkflowCatalog } from './imageGenSettingsHost';
+import { resolveCartographyWorkflowFile } from './imageGenSettingsResolveCore';
+import { getCatalogTemplate } from './comfyWorkflowCatalogCore';
 import { getWorkspacePath } from './workspacePaths';
 import { resolveAllowedImagePath } from './mediaPaths';
 import { resolvePythonCommand } from './skillScriptRunner';
@@ -91,10 +95,6 @@ function resolveLayoutScript(extPath: string): string {
     return path.join(extPath, 'scripts', 'render_cartography_layout.py');
 }
 
-function resolveCartographyWorkflow(extPath: string): string {
-    return path.join(extPath, 'comfyui', 'workflow_cartography_sdxl_canny.json');
-}
-
 function resolveCartographyLoraFromConfig(): { lora?: string; weight: string; source: 'env' | 'settings' | 'none' } {
     const envLora = process.env.TA_LORA?.trim();
     if (envLora) {
@@ -119,15 +119,37 @@ function resolveCartographyLoraFromConfig(): { lora?: string; weight: string; so
     return { lora: settingsLora, weight, source: 'settings' };
 }
 
+function cartographyFallbackFile(layoutMode: string): string {
+    return layoutMode === 'lineart'
+        ? 'workflow_cartography_sdxl_direct.json'
+        : 'workflow_cartography_sdxl_canny.json';
+}
+
 function buildCartographyEnv(wsPath: string, extPath: string): NodeJS.ProcessEnv {
     const env = buildImageGenEnv(wsPath);
     env.TA_LAYOUT_MODE = process.env.TA_LAYOUT_MODE || 'voronoi';
     env.TA_FORCE_LAYOUT = '1';
     env.TA_MODE = getResolvedImageMode();
-    const layoutMode = env.TA_LAYOUT_MODE;
-    env.TA_WORKFLOW = layoutMode === 'lineart'
-        ? path.join(extPath, 'comfyui', 'workflow_cartography_sdxl_direct.json')
-        : resolveCartographyWorkflow(extPath);
+    const layoutMode = String(env.TA_LAYOUT_MODE || '');
+    const catalog = loadBundledWorkflowCatalog(path.join(extPath, 'comfyui'));
+    const config = loadImageGenConfig(wsPath);
+    const workflowFile = resolveCartographyWorkflowFile(
+        config,
+        catalog,
+        cartographyFallbackFile(layoutMode),
+    );
+    env.TA_WORKFLOW = path.join(extPath, 'comfyui', workflowFile);
+    const mapTemplate = config.cartographyTemplateId
+        ? getCatalogTemplate(catalog, config.cartographyTemplateId)
+        : undefined;
+    if (mapTemplate?.kind === 'world_map') {
+        if (mapTemplate.graphFamily === 'sdxl_cartography_direct') env.TA_LAYOUT_MODE = 'lineart';
+        env.TA_WIDTH = String(mapTemplate.width);
+        env.TA_HEIGHT = String(mapTemplate.height);
+    } else {
+        env.TA_WIDTH = '1024';
+        env.TA_HEIGHT = '1024';
+    }
     const controlNet = vscode.workspace.getConfiguration('textAdventure')
         .get<string>('imageGen.controlNet', '')
         .trim();

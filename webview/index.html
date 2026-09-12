@@ -1060,6 +1060,15 @@
     </div>
     <div class="img-gen-panel-body">
       <p class="img-gen-hint" data-i18n="webview.imageGen.hint">Saved to image_gen_config.json in your workspace. 0 = workflow default.</p>
+      <label data-i18n="webview.imageGen.useTemplate">Use template</label>
+      <select id="ig-workflow-template" class="img-gen-select"></select>
+      <p id="ig-workflow-template-summary" class="img-gen-hint"></p>
+      <p id="ig-resolved-size" class="img-gen-hint"></p>
+      <p id="ig-ignored-stale-size" class="img-gen-hint hidden"></p>
+      <label data-i18n="webview.imageGen.cartographyTemplate">Map template</label>
+      <select id="ig-cartography-template" class="img-gen-select"></select>
+      <p id="ig-cartography-template-summary" class="img-gen-hint"></p>
+      <p class="img-gen-hint" data-i18n="webview.imageGen.mapHint">Map templates are used by world-map generation. They do not replace the scene workflow.</p>
       <label data-i18n="webview.imageGen.profile">Media Profile</label>
       <select id="ig-profile">
         <option value="" data-i18n="webview.imageGen.profileUnresolved">Unresolved legacy/custom</option>
@@ -1076,6 +1085,9 @@
       </select>
       <label data-i18n="webview.imageGen.checkpoint">Checkpoint</label>
       <input type="text" id="ig-checkpoint" class="img-gen-input" data-field="checkpoint" />
+      <button type="button" id="ig-suggest-models" class="glass-btn img-gen-suggest-btn" data-i18n="webview.imageGen.suggestFromLocal">Suggest from local models</button>
+      <p id="ig-suggest-status" class="img-gen-hint"></p>
+      <div id="ig-suggest-list" class="img-gen-suggest-list"></div>
       <label data-i18n="webview.imageGen.mode">Mode</label>
       <select id="ig-mode" class="img-gen-input" data-field="mode">
         <option value="illustrious">illustrious</option>

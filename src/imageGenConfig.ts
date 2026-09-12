@@ -20,6 +20,9 @@ export interface ImageGenConfig {
     profileId: string;
     modelFamily: MediaModelFamily;
     checkpoint: string;
+    workflowTemplateId: string;
+    cartographyTemplateId: string;
+    sizeFollowsTemplate: boolean;
     workflowPath: string;
     mode: string;
     steps: number;
@@ -62,6 +65,9 @@ export const DEFAULT_IMAGE_GEN_CONFIG: ImageGenConfig = {
     profileId: '',
     modelFamily: 'unknown',
     checkpoint: '',
+    workflowTemplateId: '',
+    cartographyTemplateId: '',
+    sizeFollowsTemplate: true,
     workflowPath: '',
     mode: 'illustrious',
     steps: 0,
@@ -168,6 +174,9 @@ export function sanitizeImageGenConfig(input: unknown): ImageGenConfig {
         version: 2,
         profileId,
         modelFamily,
+        workflowTemplateId: sanitizeStr(src.workflowTemplateId, 80).toLowerCase(),
+        cartographyTemplateId: sanitizeStr(src.cartographyTemplateId, 80).toLowerCase(),
+        sizeFollowsTemplate: src.sizeFollowsTemplate !== false,
         legacy: isV2 ? retainedLegacy : values,
     };
 }

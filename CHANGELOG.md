@@ -10,6 +10,8 @@
 ## [Unreleased]
 
 ### Added
+- Image-gen settings can pick a bundled use template from `comfyui/templates.json`. Scene and portrait picks apply the matching workflow and size; leftover width/height no longer square a 立ち絵 unless the user edits size. Map templates feed cartography only.
+- Local filename and sidecar metadata can suggest model family, mode, and a matching template, with the judgment shown in the panel. Apply is a user action. Comfy checkpoint names are checked when available. Online model lookup is out of this slice.
 - Bundled ComfyUI scene templates for portrait (896×1152), landscape (1152×896), and wide (1536×640), plus `comfyui/templates.json` so LoreRelay users can pick a workflow by use rather than inventing graphs.
 - NOAI soak `merchant_route` policy: trade only at the current market, travel to another listed market, then end the day (no teleport `applyTradeOp`). Scenario `noai_merchant_route_100` is in `qa:noai:quick`.
 - Campaign combat spectator soak (`qa:combat:quick`): story `encounterOps` → spectator resolve → PENDING → exactly-once apply → consequence ACK → reload does not double-apply.

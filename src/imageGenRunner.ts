@@ -37,6 +37,22 @@ import {
     preflightSceneGeneration,
     type MediaPreflightResult,
 } from './mediaCompatibility';
+import {
+    getCatalogTemplate,
+    listMapTemplates,
+    listSceneTemplates,
+} from './comfyWorkflowCatalogCore';
+import { parseComfyCheckpointListOutput } from './imageGenModelSuggestCore';
+import {
+    applyWorkflowTemplateToSnapshot,
+} from './imageGenSettingsResolveCore';
+import {
+    collectLocalImageGenModelSuggestions,
+    getBundledComfyRoot,
+    loadBundledWorkflowCatalog,
+    resolveWorkspaceImageGenSettings,
+    resolvedSettingsPreview,
+} from './imageGenSettingsHost';
 
 let imageOutputChannel: vscode.OutputChannel | undefined;
 let imageGenerationProcess: ChildProcess | undefined;
@@ -60,6 +76,7 @@ let imageGenCircuit: ImageGenCircuitState = createImageGenCircuitState();
 
 export interface ImageGenRunnerDeps {
     getPanel: () => vscode.WebviewPanel | undefined;
+    extensionPath: string;
     subscriptions: vscode.Disposable[];
 }
 
@@ -229,11 +246,22 @@ export function getSkillDir(): string | undefined {
     return path.dirname(path.dirname(scriptPath));
 }
 
+function getImageGenExtensionPath(): string {
+    return deps?.extensionPath || path.join(__dirname, '..');
+}
+
+function getConfiguredModelScanRoots(): string[] {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    return config.get<string[]>('modelScan.roots', [])
+        .filter((v) => typeof v === 'string' && v.trim().length > 0);
+}
+
 /** 画像生成バックエンド設定を comfyui_generate.py へ渡す環境変数として構築する。 */
 export function buildImageGenEnv(wsPath?: string, requestedMode?: string): NodeJS.ProcessEnv {
     const vsConfig = vscode.workspace.getConfiguration('textAdventure');
     const env: NodeJS.ProcessEnv = { ...process.env };
     const wsConfig = wsPath ? loadImageGenConfig(wsPath) : undefined;
+    const workspace = wsPath ? resolveWorkspaceImageGenSettings(wsPath, getImageGenExtensionPath()) : undefined;
 
     if (wsPath) {
         env.TA_IMAGE_CONFIG = getImageGenConfigPath(wsPath);
@@ -245,16 +273,20 @@ export function buildImageGenEnv(wsPath?: string, requestedMode?: string): NodeJ
     const checkpoint = wsConfig?.checkpoint || vsConfig.get<string>('imageGen.checkpoint', '').trim();
     if (checkpoint) { env.TA_CHECKPOINT = checkpoint; }
 
-    const workflowPath = wsConfig?.workflowPath || vsConfig.get<string>('imageGen.workflowPath', '').trim();
-    if (workflowPath) { env.TA_WORKFLOW = workflowPath; }
+    const resolvedWorkflow = workspace?.sceneWorkflowPath
+        || wsConfig?.workflowPath
+        || vsConfig.get<string>('imageGen.workflowPath', '').trim();
+    if (resolvedWorkflow) { env.TA_WORKFLOW = resolvedWorkflow; }
 
     const steps = (wsConfig && wsConfig.steps > 0) ? wsConfig.steps : vsConfig.get<number>('imageGen.steps', 0);
     if (steps > 0) { env.TA_STEPS = String(steps); }
     const cfgVal = (wsConfig && wsConfig.cfg > 0) ? wsConfig.cfg : vsConfig.get<number>('imageGen.cfg', 0);
     if (cfgVal > 0) { env.TA_CFG = String(cfgVal); }
-    const width = (wsConfig && wsConfig.width > 0) ? wsConfig.width : vsConfig.get<number>('imageGen.width', 0);
+    const resolvedWidth = workspace?.resolved.width || 0;
+    const resolvedHeight = workspace?.resolved.height || 0;
+    const width = resolvedWidth > 0 ? resolvedWidth : vsConfig.get<number>('imageGen.width', 0);
     if (width > 0) { env.TA_WIDTH = String(width); }
-    const height = (wsConfig && wsConfig.height > 0) ? wsConfig.height : vsConfig.get<number>('imageGen.height', 0);
+    const height = resolvedHeight > 0 ? resolvedHeight : vsConfig.get<number>('imageGen.height', 0);
     if (height > 0) { env.TA_HEIGHT = String(height); }
 
     if (wsConfig?.samplerName) { env.TA_SAMPLER = wsConfig.samplerName; }
@@ -285,20 +317,34 @@ export function reportMediaCompatibilityFailure(
     vscode.window.showErrorMessage(t('extension.error.mediaCompatibility', { detail: preflight.message }));
 }
 
-export function sendImageGenConfig(): void {
+function postImageGenConfig(wsPath?: string): void {
     const { getPanel } = requireDeps();
     const panel = getPanel();
-    const wsPath = getWorkspacePath();
-    if (!wsPath) {
-        panel?.webview.postMessage({ type: 'imageGenConfig', config: sanitizeImageGenConfig({}) });
-        return;
-    }
-    panel?.webview.postMessage({ type: 'imageGenConfig', config: loadImageGenConfig(wsPath) });
+    const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
+    const catalog = loadBundledWorkflowCatalog(bundledRoot);
+    const config = wsPath ? loadImageGenConfig(wsPath) : sanitizeImageGenConfig({});
+    const workspace = wsPath
+        ? resolveWorkspaceImageGenSettings(wsPath, getImageGenExtensionPath())
+        : undefined;
+    const resolved = workspace?.resolved;
+    panel?.webview.postMessage({
+        type: 'imageGenConfig',
+        config,
+        catalog: {
+            scene: listSceneTemplates(catalog),
+            map: listMapTemplates(catalog),
+        },
+        resolved: resolved
+            ? resolvedSettingsPreview(resolved, workspace?.cartographyWorkflowFile || '')
+            : undefined,
+    });
+}
+
+export function sendImageGenConfig(): void {
+    postImageGenConfig(getWorkspacePath());
 }
 
 export async function handleUpdateImageGenConfig(raw: unknown): Promise<void> {
-    const { getPanel } = requireDeps();
-    const panel = getPanel();
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
@@ -307,10 +353,149 @@ export async function handleUpdateImageGenConfig(raw: unknown): Promise<void> {
     try {
         const current = loadImageGenConfig(wsPath);
         const partial = (raw && typeof raw === 'object') ? raw as Partial<ImageGenConfig> : {};
-        const saved = saveImageGenConfig(wsPath, { ...current, ...partial, templates: { ...current.templates, ...(partial.templates || {}) } });
-        panel?.webview.postMessage({ type: 'imageGenConfig', config: saved });
+        saveImageGenConfig(wsPath, { ...current, ...partial, templates: { ...current.templates, ...(partial.templates || {}) } });
+        postImageGenConfig(wsPath);
     } catch (e) {
         console.error('Failed to save image_gen_config.json:', e);
+        vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
+    }
+}
+
+export async function handleSelectImageGenTemplate(raw: unknown): Promise<void> {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    const source = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+    const group = source.group === 'map' ? 'map' : 'scene';
+    const id = typeof source.id === 'string' ? source.id.trim().toLowerCase() : '';
+    const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
+    const catalog = loadBundledWorkflowCatalog(bundledRoot);
+    try {
+        const stored = loadImageGenConfig(wsPath);
+        const edits = source.config && typeof source.config === 'object' && !Array.isArray(source.config)
+            ? source.config as Partial<ImageGenConfig> : {};
+        const current = sanitizeImageGenConfig({ ...stored, ...edits, templates: { ...stored.templates, ...(edits.templates || {}) } });
+        if (!id) {
+            if (group === 'map') {
+                saveImageGenConfig(wsPath, { ...current, cartographyTemplateId: '' });
+            } else {
+                saveImageGenConfig(wsPath, { ...current, workflowTemplateId: '', workflowPath: '' });
+            }
+            postImageGenConfig(wsPath);
+            return;
+        }
+        const template = getCatalogTemplate(catalog, id);
+        if (!template || (group === 'map' ? template.kind !== 'world_map' : !listSceneTemplates(catalog).includes(template))) {
+            vscode.window.showWarningMessage(t('extension.error.imageGenTemplateUnknown'));
+            return;
+        }
+        const applied = applyWorkflowTemplateToSnapshot(current, template, bundledRoot);
+        saveImageGenConfig(wsPath, applied);
+        postImageGenConfig(wsPath);
+    } catch (e) {
+        console.error('Failed to apply image-gen template:', e);
+        vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
+    }
+}
+
+async function collectKnownComfyCheckpointNames(wsPath: string): Promise<string[] | undefined> {
+    if (listModelsProcess || !vscode.workspace.isTrusted) {
+        return undefined;
+    }
+    const scriptPath = resolveComfyScript(wsPath);
+    if (!scriptPath) {
+        return undefined;
+    }
+    const python = resolvePythonCommand();
+    const env = buildImageGenEnv(wsPath);
+    let stdout = '';
+    const { child, result } = spawnWithTimeout(
+        python,
+        [scriptPath, '--list-models'],
+        { env, timeoutMs: 15_000 },
+        {
+            stdout: (out) => { stdout += out; },
+        }
+    );
+    listModelsProcess = child;
+    try {
+        const { code, timedOut } = await result;
+        if (timedOut || code !== 0) {
+            return undefined;
+        }
+        const names = parseComfyCheckpointListOutput(stdout);
+        return names.length > 0 ? names : undefined;
+    } finally {
+        listModelsProcess = undefined;
+    }
+}
+
+export async function handleRequestImageGenModelSuggestions(): Promise<void> {
+    const { getPanel } = requireDeps();
+    const panel = getPanel();
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    const roots = getConfiguredModelScanRoots();
+    const knownComfyNames = await collectKnownComfyCheckpointNames(wsPath);
+    const suggestions = collectLocalImageGenModelSuggestions({ roots, knownComfyNames });
+    panel?.webview.postMessage({
+        type: 'imageGenModelSuggestions',
+        suggestions,
+        comfyVerified: Array.isArray(knownComfyNames),
+        rootCount: roots.length,
+    });
+}
+
+export async function handleApplyImageGenModelSuggestion(raw: unknown): Promise<void> {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    const comfyName = typeof raw === 'string'
+        ? raw.trim()
+        : (raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>).comfyName === 'string'
+            ? String((raw as Record<string, unknown>).comfyName).trim()
+            : '');
+    if (!comfyName) {
+        return;
+    }
+    const roots = getConfiguredModelScanRoots();
+    const knownComfyNames = await collectKnownComfyCheckpointNames(wsPath);
+    const suggestion = collectLocalImageGenModelSuggestions({ roots, knownComfyNames })
+        .find((row) => row.comfyName === comfyName);
+    if (!suggestion || suggestion.status === 'unresolved') {
+        vscode.window.showWarningMessage(t('extension.error.imageGenSuggestionUnresolved'));
+        return;
+    }
+    try {
+        const current = loadImageGenConfig(wsPath);
+        const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
+        const catalog = loadBundledWorkflowCatalog(bundledRoot);
+        let next: Partial<ImageGenConfig> = {
+            checkpoint: suggestion.comfyName,
+            modelFamily: suggestion.modelFamily,
+            mode: suggestion.mode || current.mode,
+            profileId: suggestion.profileId || current.profileId,
+        };
+        if (suggestion.workflowTemplateId) {
+            const template = getCatalogTemplate(catalog, suggestion.workflowTemplateId);
+            if (template && template.kind !== 'world_map') {
+                next = {
+                    ...next,
+                    ...applyWorkflowTemplateToSnapshot({ ...current, ...next, width: current.width, height: current.height }, template, bundledRoot),
+                };
+            }
+        }
+        saveImageGenConfig(wsPath, next);
+        postImageGenConfig(wsPath);
+    } catch (e) {
+        console.error('Failed to apply image-gen model suggestion:', e);
         vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
     }
 }
@@ -633,12 +818,6 @@ export function runListImageModels(): void {
         }
         appendLocalModelScan(channel);
     });
-}
-
-function getConfiguredModelScanRoots(): string[] {
-    const config = vscode.workspace.getConfiguration('textAdventure');
-    return config.get<string[]>('modelScan.roots', [])
-        .filter((v) => typeof v === 'string' && v.trim().length > 0);
 }
 
 function appendLocalModelScan(channel: vscode.OutputChannel): LocalModelFile[] {

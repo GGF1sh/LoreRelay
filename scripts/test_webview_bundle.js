@@ -27,6 +27,7 @@ const expectedSymbols = [
     'renderWorldView',
     'renderCartographyMap',
     'world-cartography-stage',
+    'generateWorldMapLayout',
     'generateWorldMapImage',
     'latestImageRawPath',
     'imagePathsLooselyMatch',

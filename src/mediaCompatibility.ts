@@ -157,17 +157,15 @@ export function preflightExpressionGeneration(
 export function preflightWorldMapGeneration(
     wsPath: string,
     env: NodeJS.ProcessEnv,
-    workflowPath: string
+    workflowPath: string,
+    profileIdOverride?: string
 ): MediaPreflightResult {
-    const profileIdOverride = path.basename(workflowPath).includes('direct')
-        ? 'm1-cartography-sdxl-direct-guard'
-        : 'm1-cartography-sdxl-canny-guard';
     return preflightMediaGeneration({
         wsPath,
         env: { ...env, TA_WORKFLOW: workflowPath },
         defaultWorkflowPath: workflowPath,
         mediaKind: 'world_map',
-        profileIdOverride,
+        ...(profileIdOverride ? { profileIdOverride } : {}),
     });
 }
 

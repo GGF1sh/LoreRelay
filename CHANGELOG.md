@@ -9,6 +9,9 @@
 
 ## [Unreleased]
 
+### Changed
+- World tab map buttons are split: **Map layout** writes `world_map.layout.png` with no ComfyUI/Media Profile; **Illustrated map** asks for an explicit world-map Media Profile instead of silently binding SDXL Canny.
+
 ### Added
 - Image-gen settings can pick a bundled use template from `comfyui/templates.json`. Scene and portrait picks apply the matching workflow and size; leftover width/height no longer square a 立ち絵 unless the user edits size. Map templates feed cartography only.
 - Local filename and sidecar metadata can suggest model family, mode, and a matching template, with the judgment shown in the panel. Apply is a user action. Comfy checkpoint names are checked when available. Online model lookup is out of this slice.

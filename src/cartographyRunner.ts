@@ -217,38 +217,26 @@ async function renderStableLayout(
     return !timedOut && code === 0 && fs.existsSync(layoutPath);
 }
 
-/** Generate parchment world map via ComfyUI; saves world_map.png in workspace root. */
-export async function runCartographyGeneration(forgePath: string): Promise<boolean> {
-    if (!vscode.workspace.isTrusted) {
-        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
-        return false;
-    }
-
-    const { getPanel } = requireDeps();
+function prepareCartographyWorkspace(forgePath: string): {
+    wsPath: string;
+    extPath: string;
+    validatedForge: string;
+    layoutPath: string;
+    targetMapPath: string;
+    validatedOutputDir: string;
+} | undefined {
+    requireDeps();
     const extPath = extensionPathRef || deps?.extensionPath || '';
     const wsPath = getWorkspacePath();
     if (!wsPath || !extPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
-        return false;
+        return undefined;
     }
-
-    if (isCartographyGenerationBusy()) {
-        vscode.window.showWarningMessage('World map generation is already running.');
-        return false;
-    }
-
-    const scriptPath = resolveCartographyScript(extPath);
-    if (!fs.existsSync(scriptPath)) {
-        vscode.window.showErrorMessage(`Cartography script not found: ${scriptPath}`);
-        return false;
-    }
-
     const validatedForge = validateForgePathInWorkspace(forgePath, wsPath);
     if (!validatedForge) {
         vscode.window.showErrorMessage('world_forge.json must exist in the workspace root.');
-        return false;
+        return undefined;
     }
-
     const layoutPath = validateCartographyOutputPath(
         path.join(wsPath, WORLD_MAP_LAYOUT_FILENAME),
         wsPath,
@@ -262,13 +250,91 @@ export async function runCartographyGeneration(forgePath: string): Promise<boole
     const validatedOutputDir = validateCartographyOutputDir(wsPath, wsPath);
     if (!layoutPath || !targetMapPath || !validatedOutputDir) {
         vscode.window.showErrorMessage('Invalid cartography output paths.');
+        return undefined;
+    }
+    return { wsPath, extPath, validatedForge, layoutPath, targetMapPath, validatedOutputDir };
+}
+
+/** Model-free layout PNG (biome blobs + roads). Never inspects ComfyUI / Media Profile. */
+export async function runCartographyLayoutGeneration(forgePath: string): Promise<boolean> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return false;
+    }
+    const prepared = prepareCartographyWorkspace(forgePath);
+    if (!prepared) {
+        return false;
+    }
+    if (isCartographyGenerationBusy()) {
+        vscode.window.showWarningMessage('World map generation is already running.');
+        return false;
+    }
+    const { getPanel } = requireDeps();
+    const channel = getCartographyOutputChannel();
+    channel.appendLine('=== Cartography layout (no ComfyUI) ===');
+    channel.appendLine(`Forge: ${prepared.validatedForge}`);
+    channel.appendLine(`Layout: ${prepared.layoutPath}`);
+    getPanel()?.webview.postMessage({ type: 'worldMapLayoutGenStart' });
+    const env = buildImageGenEnv(prepared.wsPath);
+    const ok = await renderStableLayout(
+        prepared.validatedForge,
+        prepared.layoutPath,
+        prepared.extPath,
+        env,
+        channel
+    );
+    if (!ok) {
+        channel.appendLine('Layout preview failed.');
+        vscode.window.showErrorMessage(t('extension.error.worldMapLayoutFailed'));
+    } else {
+        channel.appendLine(`Saved layout map → ${prepared.layoutPath}`);
+        vscode.window.showInformationMessage(t('extension.info.worldMapLayoutSaved'));
+    }
+    getPanel()?.webview.postMessage({ type: 'worldMapLayoutGenEnd', success: ok });
+    return ok;
+}
+
+function workflowPathForWorldMapProfile(extPath: string, profileId: string): string {
+    const file = profileId.includes('direct')
+        ? 'workflow_cartography_sdxl_direct.json'
+        : 'workflow_cartography_sdxl_canny.json';
+    return path.join(extPath, 'comfyui', file);
+}
+
+/** Illustrated parchment via ComfyUI. Requires an explicit world_map Media Profile. */
+export async function runCartographyGeneration(forgePath: string, profileId: string): Promise<boolean> {
+    if (!profileId.trim()) {
+        vscode.window.showErrorMessage(t('extension.error.worldMapNeedProfile'));
+        return false;
+    }
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return false;
+    }
+
+    const prepared = prepareCartographyWorkspace(forgePath);
+    if (!prepared) {
+        return false;
+    }
+    const { getPanel } = requireDeps();
+    const { wsPath, extPath, validatedForge, layoutPath, targetMapPath, validatedOutputDir } = prepared;
+
+    if (isCartographyGenerationBusy()) {
+        vscode.window.showWarningMessage('World map generation is already running.');
+        return false;
+    }
+
+    const scriptPath = resolveCartographyScript(extPath);
+    if (!fs.existsSync(scriptPath)) {
+        vscode.window.showErrorMessage(`Cartography script not found: ${scriptPath}`);
         return false;
     }
 
     const channel = getCartographyOutputChannel();
     const rawEnv = buildCartographyEnv(wsPath, extPath);
+    rawEnv.TA_WORKFLOW = workflowPathForWorldMapProfile(extPath, profileId);
     const workflowPath = String(rawEnv.TA_WORKFLOW || '');
-    const preflight = preflightWorldMapGeneration(wsPath, rawEnv, workflowPath);
+    const preflight = preflightWorldMapGeneration(wsPath, rawEnv, workflowPath, profileId);
     if (!preflight.ok) {
         channel.show(true);
         channel.appendLine('[Compatibility] World-map generation rejected before layout/ComfyUI spawn.');

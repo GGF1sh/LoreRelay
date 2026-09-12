@@ -202,9 +202,11 @@ import {
 import {
     initCartographyRunner,
     runCartographyGeneration,
+    runCartographyLayoutGeneration,
     killCartographyProcess,
     isCartographyGenerationBusy
 } from './cartographyRunner';
+import { listBuiltInMediaProfiles } from './mediaProfileCore';
 import { resolveValidatedForgePath } from './cartographyPathCore';
 import {
     initProtagonistBootstrap,
@@ -663,6 +665,10 @@ export function activate(context: vscode.ExtensionContext) {
         void handleRotateRemotePlayToken();
     });
 
+    const generateWorldMapLayoutCmd = vscode.commands.registerCommand('textadventure.generateWorldMapLayout', async () => {
+        if (await requireModCanonicalMutationAllowed()) await handleGenerateWorldMapLayout();
+    });
+
     const generateWorldMapImageCmd = vscode.commands.registerCommand('textadventure.generateWorldMapImage', async () => {
         if (await requireModCanonicalMutationAllowed()) await handleGenerateWorldMapImage();
     });
@@ -876,6 +882,7 @@ export function activate(context: vscode.ExtensionContext) {
         rotateRemotePlayTokenCmd,
         listLmModelsCmd,
         generateWorldForgeCmd,
+        generateWorldMapLayoutCmd,
         generateWorldMapImageCmd,
         resetProtagonistBootstrapCmd,
         exportReplayCmd,
@@ -1890,22 +1897,68 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
     }
 }
 
-async function handleGenerateWorldMapImage(): Promise<void> {
+function requireWorldForgePath(): string | undefined {
     if (!isWorldForgeEnabled()) {
         vscode.window.showErrorMessage('World Forge not enabled or missing world_forge.json.');
-        return;
+        return undefined;
     }
     const wsPath = getWorkspacePath();
     const forgePath = wsPath ? resolveValidatedForgePath(wsPath) : undefined;
     if (!forgePath) {
         vscode.window.showErrorMessage('world_forge.json not found in workspace root.');
+        return undefined;
+    }
+    return forgePath;
+}
+
+async function handleGenerateWorldMapLayout(): Promise<void> {
+    const forgePath = requireWorldForgePath();
+    if (!forgePath) {
         return;
     }
     if (isCartographyGenerationBusy()) {
         vscode.window.showWarningMessage('World map generation is already running.');
         return;
     }
-    const ok = await runCartographyGeneration(forgePath);
+    const ok = await runCartographyLayoutGeneration(forgePath);
+    if (ok) {
+        pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+    }
+}
+
+async function pickWorldMapMediaProfileId(): Promise<string | undefined> {
+    const profiles = listBuiltInMediaProfiles().filter((profile) => profile.mediaKinds.includes('world_map'));
+    const picked = await vscode.window.showQuickPick(
+        profiles.map((profile) => ({
+            label: profile.displayName,
+            description: profile.id,
+            detail: profile.graphFamily,
+            id: profile.id,
+        })),
+        {
+            title: t('extension.worldMap.pickProfileTitle'),
+            placeHolder: t('extension.worldMap.pickProfilePlaceholder'),
+            ignoreFocusOut: true,
+        }
+    );
+    return picked?.id;
+}
+
+async function handleGenerateWorldMapImage(): Promise<void> {
+    const forgePath = requireWorldForgePath();
+    if (!forgePath) {
+        return;
+    }
+    if (isCartographyGenerationBusy()) {
+        vscode.window.showWarningMessage('World map generation is already running.');
+        return;
+    }
+    const profileId = await pickWorldMapMediaProfileId();
+    if (!profileId) {
+        vscode.window.showWarningMessage(t('extension.error.worldMapNeedProfile'));
+        return;
+    }
+    const ok = await runCartographyGeneration(forgePath, profileId);
     if (ok) {
         pushWorldViewToWebview(getCurrentLocationIdForWorldView());
         vscode.window.showInformationMessage('World map image saved as world_map.png.');
@@ -2717,6 +2770,7 @@ function createWebviewHandlerDeps(): WebviewHandlerDeps {
         sendWorldGenesisSetup,
         handlePreviewWorldGenesis,
         handleApplyWorldGenesis,
+        handleGenerateWorldMapLayout,
         handleGenerateWorldMapImage,
         handleGenerateLocationImage,
         handleSavePartyDirector,

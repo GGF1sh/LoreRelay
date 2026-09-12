@@ -235,7 +235,14 @@ const goodPreflight = compatibility.preflightSceneGeneration(
     const ids = picks.map((p) => p.id);
     check(ids.includes('illustrious') && ids.includes('pony') && ids.includes('anima'), 'map style picker lists Illustrious, Pony, and Anima');
     check(ids.includes('canny') && ids.includes('direct'), 'map style picker still lists Canny and Direct graphs');
-    check(picks.every((p) => p.profileId.startsWith('m1-cartography-')), 'style picks bind a cartography profile, not a silent default');
+    check(
+        ['ChatGPT', 'Gemini', 'Grok', 'Claude'].every((name) => picks.some((p) => p.path === 'external' && p.destination === name)),
+        'map style picker lists ChatGPT, Gemini, Grok, and Claude copy destinations'
+    );
+    check(
+        picks.filter((p) => p.path === 'comfy').every((p) => String(p.profileId || '').startsWith('m1-cartography-')),
+        'ComfyUI style picks bind a cartography profile, not a silent default'
+    );
 }
 
 // 18. The real compatibility wording and Japanese user-facing copy are drift guards.

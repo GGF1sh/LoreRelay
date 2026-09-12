@@ -6,6 +6,7 @@ const {
     buildCartographyPositivePrompt,
     buildCartographyLoraPromptPrefix,
     buildCartographyNegativePrompt,
+    buildExternalCartographyPrompt,
     resolveCartographyThemeStyle,
     buildCartographyPinPositions,
     buildCartographyRegionLabels,
@@ -56,6 +57,15 @@ else { ok('mapCoordToPercent'); }
 const pos = buildCartographyPositivePrompt(spec);
 if (!pos.includes('Test Realm') || !pos.includes('overworld') || !pos.includes('no labels')) { fail('positive prompt missing keywords'); }
 else { ok('positive prompt'); }
+
+const chatgpt = buildExternalCartographyPrompt(forge, 'ChatGPT');
+if (!chatgpt.includes('attached layout') || !chatgpt.includes('Greenwood') || !chatgpt.includes('Deep Sea')) {
+    fail('ChatGPT external prompt missing layout/region facts');
+} else { ok('ChatGPT external prompt'); }
+const claude = buildExternalCartographyPrompt(forge, 'Claude');
+if (!claude.includes('spatial layout') || !claude.includes('Iron Peaks')) {
+    fail('Claude external prompt missing destination/region facts');
+} else { ok('Claude external prompt'); }
 
 const mapcraftPrefix = buildCartographyLoraPromptPrefix('mapcraft_il_v1.safetensors', 'scifi');
 if (!mapcraftPrefix.includes('mapcraft') || !mapcraftPrefix.includes('sci-fi')) { fail('mapcraft lora prefix'); }

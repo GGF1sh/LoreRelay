@@ -208,7 +208,8 @@ import {
     resolveWorldMapImagePath,
     resolveWorldMapLayoutPath,
 } from './cartographyRunner';
-import { listWorldMapStylePicks } from './mediaProfileCore';
+import { listWorldMapStylePicks, type WorldMapExternalDestination, type WorldMapStylePick } from './mediaProfileCore';
+import { buildExternalCartographyPrompt } from './cartographyLayoutCore';
 import { resolveValidatedForgePath } from './cartographyPathCore';
 import {
     initProtagonistBootstrap,
@@ -1937,14 +1938,13 @@ async function handleGenerateWorldMapLayout(): Promise<void> {
     }
 }
 
-async function pickWorldMapStyle(): Promise<{ profileId: string; promptMode: 'pony' | 'illustrious' | 'natural' | 'standard' } | undefined> {
+async function pickWorldMapStyle(): Promise<WorldMapStylePick | undefined> {
     const picked = await vscode.window.showQuickPick(
         listWorldMapStylePicks().map((style) => ({
             label: style.label,
             description: style.description,
             detail: style.detail,
-            profileId: style.profileId,
-            promptMode: style.promptMode,
+            style,
         })),
         {
             title: t('extension.worldMap.pickProfileTitle'),
@@ -1952,10 +1952,49 @@ async function pickWorldMapStyle(): Promise<{ profileId: string; promptMode: 'po
             ignoreFocusOut: true,
         }
     );
-    if (!picked) {
-        return undefined;
+    return picked?.style;
+}
+
+async function exportCartographyPromptForExternal(
+    forgePath: string,
+    destination: WorldMapExternalDestination
+): Promise<void> {
+    const forge = loadWorldForge();
+    if (!forge) {
+        vscode.window.showErrorMessage('World Forge not enabled or missing world_forge.json.');
+        return;
     }
-    return { profileId: picked.profileId, promptMode: picked.promptMode };
+    let layoutPath = resolveWorldMapLayoutPath();
+    if (!layoutPath || !fs.existsSync(layoutPath)) {
+        const laidOut = await runCartographyLayoutGeneration(forgePath);
+        if (!laidOut) {
+            return;
+        }
+        layoutPath = resolveWorldMapLayoutPath();
+    }
+    if (!layoutPath || !fs.existsSync(layoutPath)) {
+        vscode.window.showErrorMessage(t('extension.error.worldMapLayoutFailed'));
+        return;
+    }
+    const prompt = buildExternalCartographyPrompt(forge, destination);
+    const workspace = getWorkspacePath();
+    if (workspace) {
+        fs.writeFileSync(path.join(workspace, 'world_map.prompt.txt'), `${prompt}\n`, 'utf8');
+    }
+    await vscode.env.clipboard.writeText(prompt);
+    pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+    const reveal = t('extension.worldMap.revealFile');
+    const openImage = t('extension.worldMap.openLayoutImage');
+    const choice = await vscode.window.showInformationMessage(
+        t('extension.info.worldMapExternalCopied', { destination, path: layoutPath }),
+        reveal,
+        openImage
+    );
+    if (choice === reveal) {
+        void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(layoutPath));
+    } else if (choice === openImage) {
+        void vscode.commands.executeCommand('vscode.open', vscode.Uri.file(layoutPath));
+    }
 }
 
 async function handleGenerateWorldMapImage(): Promise<void> {
@@ -1969,6 +2008,13 @@ async function handleGenerateWorldMapImage(): Promise<void> {
     }
     const style = await pickWorldMapStyle();
     if (!style) {
+        return;
+    }
+    if (style.path === 'external' && style.destination) {
+        await exportCartographyPromptForExternal(forgePath, style.destination);
+        return;
+    }
+    if (!style.profileId || !style.promptMode) {
         return;
     }
     const ok = await runCartographyGeneration(forgePath, style.profileId, style.promptMode);

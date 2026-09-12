@@ -52,6 +52,7 @@ const JS_MODULE_ORDER = [
     '89d-combat-loadout.js',
     '89e-ability-workshop.js',
     '89f-combat-lab.js',
+    '89-world-genesis-experience.js',
     '90-bootstrap.js'
 ];
 

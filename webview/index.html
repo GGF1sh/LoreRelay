@@ -203,6 +203,10 @@
             </div>
           </div>
           <div id="world-genesis-warning" class="world-genesis-notice hidden" role="status"></div>
+          <details id="world-genesis-current-overview" class="hidden" open>
+            <summary data-i18n="webview.worldGenesis.currentOverview">使用中の世界の全体図</summary>
+            <div id="world-genesis-current-map"></div>
+          </details>
           <div class="world-genesis-form-grid">
             <label class="world-genesis-field world-genesis-field-wide">
               <span data-i18n="webview.worldGenesis.worldType">世界の種類</span>
@@ -241,8 +245,10 @@
                 <h3 id="world-genesis-preview-title"></h3>
               </div>
               <span id="world-genesis-preview-preset" class="world-genesis-pill"></span>
+              <button type="button" id="world-genesis-reroll-preview-btn" class="glass-btn" data-i18n="webview.worldGenesis.reroll">🎲 別の世界を生成</button>
             </div>
             <div id="world-genesis-preview-facts" class="world-genesis-preview-facts"></div>
+            <div id="world-genesis-overview"></div>
             <div class="world-genesis-preview-block">
               <strong data-i18n="webview.worldGenesis.composition">地域構成</strong>
               <div id="world-genesis-preview-composition" class="world-genesis-composition"></div>

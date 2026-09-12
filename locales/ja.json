@@ -1,4 +1,5 @@
 {
+  "webview.worldGenesis.error.preset-limit": "保存は20件までです。同名で更新できます。",
   "extension.action.applyVehicleMigration": "移行を適用",
   "extension.action.cancel": "キャンセル",
   "extension.action.restoreVehicleMigration": "バックアップを復元",
@@ -1313,7 +1314,11 @@
   "webview.worldGenesis.regionType.ruins": "廃墟",
   "webview.worldGenesis.regionType.urban": "都市",
   "webview.worldGenesis.regionType.wilderness": "原野",
-  "webview.worldGenesis.reroll": "新しいシード",
+  "webview.worldGenesis.reroll": "🎲 別の世界を生成",
+  "webview.worldGenesis.currentOverview": "使用中の世界の全体図",
+  "webview.worldGenesis.presetSaved": "プリセットを保存しました",
+  "webview.worldGenesis.error.invalid-settings": "設定を確認してください",
+  "webview.worldGenesis.error.preset-save-failed": "設定を確認してください",
   "webview.worldGenesis.rerolling": "新しいシードを選び、書き込みなしでプレビューしています…",
   "webview.worldGenesis.sampleRegions": "生成される地域名の例",
   "webview.worldGenesis.seed": "シード",

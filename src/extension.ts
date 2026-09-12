@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { WORLD_GENESIS_FEATURES, worldGenesisRules } from './worldGenesisExperienceCore';
+import { worldGenesisOverview } from './worldGenesisSetupCore';
 import * as fs from 'fs';
 import * as path from 'path';
 import { renderWebviewHtml } from './webviewHtmlCore';
@@ -66,7 +68,9 @@ import {
 } from './debugTraceHostCore';
 import { initVlmQueue } from './vlmQueue';
 import { generateAndSaveWorldForge, worldForgeFileExists, getDefaultGeneratorInput } from './worldForgeGenerator';
-import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument } from './worldForge';
+import { bootstrapNpcRegistryFromForge, isWorldForgeEnabled, loadWorldForge, loadWorldForgeDocument, clearWorldForgeCache } from './worldForge';
+import { captureWorldGenesisRollback } from './worldGenesisRollback';
+import { clearNpcRegistryCache } from './npcRegistry';
 import {
     applyWorldGenesisPreview,
     buildWorldGenesisPrefill,
@@ -78,7 +82,7 @@ import {
     type WorldGenesisPreviewSession,
 } from './worldGenesisSetupCore';
 import { resolveCommerceForge } from './livingWorldBridge';
-import { resetWorldStateFromForge } from './worldState';
+import { resetWorldStateFromForge, clearWorldStateCache } from './worldState';
 import { buildLocationImagePrompt } from './locationImageBuilder';
 import { loadWorldState, isWorldStateEnabled } from './worldState';
 import { buildChronicleForWorkspace } from './chronicleLoader';
@@ -379,6 +383,7 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'worldGenesisPresetSave') { await saveWorldGenesisUserPreset(message); return; }
     if (message.type === 'visualComposer') { await visualComposerHandle(message, panel); return; }
     if (message.type === 'getUiPresentation') { uiPresentation?.send(); return; }
     if (message.type === 'setUiPresentation') {
@@ -1697,6 +1702,26 @@ function createFreshWorldGenesisSeed(): string {
     return createWorldGenesisSeed(Date.now(), randomBytes(6).toString('hex'));
 }
 
+let worldGenesisPresetSaving = false;
+async function saveWorldGenesisUserPreset(raw: Record<string, unknown>): Promise<void> {
+    if (!extensionContext || worldGenesisPresetSaving) return;
+    const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 80) : '';
+    const normalized = normalizeWorldGenesisInput({ ...raw, seed: 'user-preset' }, getDefaultGeneratorInput());
+    if (!name || !normalized.ok) { panel?.webview.postMessage({ type: 'worldGenesisError', reason: 'invalid-settings' }); return; }
+    worldGenesisPresetSaving = true;
+    try {
+        const saved = extensionContext.globalState.get<Array<{ name: string; draft: WorldGenesisDraft }>>('worldGenesis.userPresets.v1', []);
+        const presets = saved.filter(p => p && typeof p.name === 'string' && p.name !== name);
+        if (presets.length >= 20) { panel?.webview.postMessage({ type: 'worldGenesisError', reason: 'preset-limit' }); return; }
+        const input = normalized.input;
+        presets.push({ name, draft: { presetId: input.presetId, presetVersion: input.presetVersion, regionCount: input.regionCount, factionCount: input.factionCount, npcCount: input.npcCount, experience: input.experience } });
+        await extensionContext.globalState.update('worldGenesis.userPresets.v1', presets);
+        panel?.webview.postMessage({ type: 'worldGenesisUserPresets', presets, saved: true });
+    } catch {
+        panel?.webview.postMessage({ type: 'worldGenesisError', reason: 'preset-save-failed' });
+    } finally { worldGenesisPresetSaving = false; }
+}
+
 function sendWorldGenesisSetup(): void {
     if (!panel) { return; }
     worldGenesisPreviewSession = undefined;
@@ -1705,8 +1730,15 @@ function sendWorldGenesisSetup(): void {
         getDefaultGeneratorInput(),
         createFreshWorldGenesisSeed()
     );
+    if (!prefill.experience) prefill.experience = {
+        version: 1,
+        locale: getConfiguredLocale(),
+        features: Object.fromEntries(WORLD_GENESIS_FEATURES.map(key => [key, ['commerce', 'reputation', 'encounters', 'relationships'].includes(key)])) as NonNullable<typeof prefill.experience>['features'],
+    };
     panel.webview.postMessage({
         type: 'worldGenesisSetup',
+        userPresets: extensionContext?.globalState.get('worldGenesis.userPresets.v1', []) || [],
+        currentOverview: loadWorldForge() ? { worldName: loadWorldForge()!.meta.worldName, ...worldGenesisOverview(loadWorldForge()!) } : undefined,
         presets: getPublishedWorldGenesisPresets().map(preset => ({
             presetId: preset.presetId,
             presetVersion: preset.presetVersion,
@@ -1744,6 +1776,7 @@ async function handlePreviewWorldGenesis(raw: Record<string, unknown>, reroll: b
                 regionCount: normalized.input.regionCount,
                 factionCount: normalized.input.factionCount,
                 npcCount: normalized.input.npcCount,
+                experience: normalized.input.experience,
             },
             summary: worldGenesisPreviewSession.summary,
         });
@@ -1766,6 +1799,14 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
         return;
     }
 
+    let rollback: (() => void) | undefined;
+    const restore = () => {
+        try { rollback?.(); }
+        finally {
+            clearWorldForgeCache(); clearNpcRegistryCache(); clearWorldStateCache(); clearGameRulesCache();
+        }
+        rollback = undefined;
+    };
     worldGenesisApplyInProgress = true;
     panel.webview.postMessage({ type: 'worldGenesisApplyStart' });
     try {
@@ -1790,18 +1831,17 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
                     );
                     return answer === confirmLabel;
                 },
-                save: (input, expectedCanonicalContent) => generateAndSaveWorldForge(
-                    input,
-                    { createBackup: true, expectedCanonicalContent }
-                ),
+                save: (input, expectedCanonicalContent) => {
+                    const workspace = getWorkspacePath();
+                    if (!workspace) throw new Error('No workspace open');
+                    rollback = captureWorldGenesisRollback(workspace);
+                    return generateAndSaveWorldForge(input, { createBackup: true, expectedCanonicalContent });
+                },
                 loadSavedForge: () => loadWorldForge(),
                 onApplied: async (forge, isOverwrite) => {
                     bootstrapNpcRegistryFromForge(forge, { createBackup: true, overwrite: isOverwrite });
                     resetWorldStateFromForge(forge, isOverwrite);
-                    saveGameRules({ enableWorldForge: true, enableNpcRegistry: true });
-                    sendGameRules();
-                    await sendUiState(0, true);
-                    pushWorldViewToWebview();
+                    if (!saveGameRules(worldGenesisRules(normalized.input.experience))) throw new Error('World rules could not be saved');
                 },
             }
         );
@@ -1811,12 +1851,17 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
             return;
         }
         if (result.status === 'failed') {
+            restore();
             console.error('[worldGenesis] apply failed:', result.error);
             panel.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'failed', reason: result.error });
             vscode.window.showErrorMessage(t('extension.worldGenesis.applyFailed'));
             return;
         }
 
+        rollback = undefined; // All four stores committed; UI refresh cannot undo adoption.
+        sendGameRules();
+        await sendUiState(0, true);
+        pushWorldViewToWebview();
         if (result.warnings.length > 0) {
             console.warn('[worldGenesis] generation warnings:', result.warnings);
         }
@@ -1833,6 +1878,10 @@ async function handleApplyWorldGenesis(raw: Record<string, unknown>): Promise<vo
             npcCount: result.forge.initialNpcs.length,
         }));
     } catch (error) {
+        try { restore(); } catch (restoreError) {
+            console.error('[worldGenesis] rollback failed', restoreError);
+            vscode.window.showErrorMessage(String(restoreError));
+        }
         console.error('[worldGenesis] apply failed', error);
         panel?.webview.postMessage({ type: 'worldGenesisApplyEnd', status: 'failed' });
         vscode.window.showErrorMessage(t('extension.worldGenesis.applyFailed'));

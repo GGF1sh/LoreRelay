@@ -1,4 +1,5 @@
 import type { LocationVehicleAccess } from './vehicleCore';
+import { normalizeWorldGenesisExperience, type WorldGenesisExperience } from './worldGenesisExperienceCore';
 import { parseLocationVehicleAccess } from './vehicleCore';
 import { parseFactionFoodSupply, type FactionFoodSupply } from './worldPacingCore';
 
@@ -11,6 +12,7 @@ export type LocationType = 'settlement' | 'dungeon' | 'landmark' | 'ruins' | 'wi
 export type FactionType = 'hostile' | 'neutral' | 'friendly' | 'player-faction';
 
 export interface WorldGenProvenance {
+    experience?: WorldGenesisExperience;
     presetId: string;
     presetVersion: number;
     resolvedFrom: 'explicit' | 'genre' | 'theme-keyword' | 'default';
@@ -168,6 +170,7 @@ function parseWorldGenProvenance(raw: unknown): WorldGenProvenance | undefined {
         regionCount: regionCount!,
         factionCount: factionCount!,
         npcCount: npcCount!,
+        ...(normalizeWorldGenesisExperience(r.experience) ? { experience: normalizeWorldGenesisExperience(r.experience) } : {}),
     };
 }
 

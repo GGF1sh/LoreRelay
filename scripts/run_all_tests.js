@@ -396,6 +396,7 @@ const MANIFEST = [
     { category: 'validate', file: 'validate_cartography_workflow_direct.js' },
     { category: 'unit', file: 'test_world_forge_generator.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_world_genesis_setup.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_world_genesis_experience.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_location_image_builder.js', consumesCompiledOutput: true },
 
     { category: 'unit', file: 'test_npc_bridge.js', consumesCompiledOutput: true },

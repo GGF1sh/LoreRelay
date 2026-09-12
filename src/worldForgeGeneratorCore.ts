@@ -20,7 +20,9 @@ import type {
     RegionHazard,
     LocationType,
     FactionType,
+    WorldConnectionDensity,
 } from './worldForgeCore';
+import { normalizeWorldConnectionDensity } from './worldForgeCore';
 
 // ---------------------------------------------------------------------------
 // Public interface
@@ -36,6 +38,8 @@ export interface WorldForgeGeneratorInput {
     regionCount: number;   // 3–12
     factionCount: number;  // 2–6
     npcCount: number;      // 2–20
+    /** Hyperlane-style connection density. Missing → `normal` (legacy ring + 1–2 chords). */
+    connectionDensity?: WorldConnectionDensity;
 }
 
 export interface GeneratedWorldForge {
@@ -275,11 +279,118 @@ function placeRegionOnMap(
 // Step 1: Region graph (ring + chords)
 // ---------------------------------------------------------------------------
 
+const BIOME_NEIGHBORS: Partial<Record<RegionBiome, readonly RegionBiome[]>> = {
+    forest: ['plains', 'mountain', 'swamp', 'snow'],
+    plains: ['forest', 'city', 'coast', 'desert'],
+    mountain: ['forest', 'snow', 'volcanic', 'plains'],
+    sea: ['coast'],
+    coast: ['sea', 'plains', 'city'],
+    city: ['plains', 'coast'],
+    desert: ['plains', 'wasteland', 'mountain'],
+    swamp: ['forest', 'plains', 'coast'],
+    wasteland: ['desert', 'ruins', 'plains'],
+    ruins: ['wasteland', 'dungeon', 'city'],
+    dungeon: ['ruins', 'underground', 'mountain'],
+    underground: ['dungeon', 'mountain'],
+    snow: ['mountain', 'forest'],
+    volcanic: ['mountain', 'wasteland'],
+};
+
+function biomeAffinity(a?: RegionBiome, b?: RegionBiome): number {
+    if (!a || !b) {
+        return 1;
+    }
+    if (a === b) {
+        return 4;
+    }
+    if (BIOME_NEIGHBORS[a]?.includes(b) || BIOME_NEIGHBORS[b]?.includes(a)) {
+        return 2;
+    }
+    return 1;
+}
+
+function addUndirectedEdge(regions: Region[], i: number, j: number): void {
+    const left = regions[i];
+    const right = regions[j];
+    if (!left.connectedTo!.includes(right.id)) {
+        left.connectedTo!.push(right.id);
+    }
+    if (!right.connectedTo!.includes(left.id)) {
+        right.connectedTo!.push(left.id);
+    }
+}
+
+function connectNormalChords(rng: () => number, regions: Region[]): void {
+    const count = regions.length;
+    if (count < 4) {
+        return;
+    }
+    const chordCount = count >= 6 ? 2 : 1;
+    for (let c = 0; c < chordCount; c++) {
+        const a = randInt(rng, 0, count - 1);
+        let b = randInt(rng, 0, count - 1);
+        let attempts = 0;
+        while ((b === a || Math.abs(b - a) === 1 || Math.abs(b - a) === count - 1) && attempts < 10) {
+            b = randInt(rng, 0, count - 1);
+            attempts++;
+        }
+        if (b !== a && !regions[a].connectedTo!.includes(regions[b].id)) {
+            addUndirectedEdge(regions, a, b);
+        }
+    }
+}
+
+function connectBiomeWeightedChords(rng: () => number, regions: Region[], extraCount: number): void {
+    const count = regions.length;
+    for (let c = 0; c < extraCount; c++) {
+        const candidates: Array<[number, number, number]> = [];
+        for (let i = 0; i < count; i++) {
+            for (let j = i + 1; j < count; j++) {
+                if (regions[i].connectedTo!.includes(regions[j].id)) {
+                    continue;
+                }
+                candidates.push([i, j, biomeAffinity(regions[i].biome, regions[j].biome)]);
+            }
+        }
+        if (candidates.length === 0) {
+            break;
+        }
+        const total = candidates.reduce((sum, [, , score]) => sum + score, 0);
+        let roll = rng() * total;
+        let picked = candidates[candidates.length - 1];
+        for (const candidate of candidates) {
+            roll -= candidate[2];
+            if (roll <= 0) {
+                picked = candidate;
+                break;
+            }
+        }
+        addUndirectedEdge(regions, picked[0], picked[1]);
+    }
+}
+
+function connectRegionGraph(rng: () => number, regions: Region[], density: WorldConnectionDensity): void {
+    const count = regions.length;
+    for (let i = 0; i < count; i++) {
+        addUndirectedEdge(regions, i, (i + 1) % count);
+    }
+    if (density === 'sparse') {
+        return;
+    }
+    if (density === 'normal') {
+        connectNormalChords(rng, regions);
+        return;
+    }
+    const extra = Math.min(count - 1, Math.max(3, Math.floor(count / 2)));
+    connectBiomeWeightedChords(rng, regions, extra);
+}
+
 function generateRegions(
     rng: () => number,
     theme: string,
     count: number,
-    preset: GenreWorldPreset
+    preset: GenreWorldPreset,
+    density: WorldConnectionDensity
 ): Region[] {
     const parts = preset.nameParts ?? getPreset('fantasy-temperate', 1)!.nameParts!;
     const prefixes = shuffle(rng, [...parts[0]]);
@@ -319,36 +430,7 @@ function generateRegions(
         regions.push(region);
     }
 
-    // Ring topology: each region connects to the next
-    for (let i = 0; i < count; i++) {
-        const next = (i + 1) % count;
-        if (!regions[i].connectedTo!.includes(regions[next].id)) {
-            regions[i].connectedTo!.push(regions[next].id);
-        }
-        if (!regions[next].connectedTo!.includes(regions[i].id)) {
-            regions[next].connectedTo!.push(regions[i].id);
-        }
-    }
-
-    // Add 1–2 chord connections for worlds with ≥4 regions
-    if (count >= 4) {
-        const chordCount = count >= 6 ? 2 : 1;
-        for (let c = 0; c < chordCount; c++) {
-            const a = randInt(rng, 0, count - 1);
-            let b = randInt(rng, 0, count - 1);
-            // avoid same or already-adjacent
-            let attempts = 0;
-            while ((b === a || Math.abs(b - a) === 1 || Math.abs(b - a) === count - 1) && attempts < 10) {
-                b = randInt(rng, 0, count - 1);
-                attempts++;
-            }
-            if (b !== a && !regions[a].connectedTo!.includes(regions[b].id)) {
-                regions[a].connectedTo!.push(regions[b].id);
-                regions[b].connectedTo!.push(regions[a].id);
-            }
-        }
-    }
-
+    connectRegionGraph(rng, regions, density);
     return regions;
 }
 
@@ -642,8 +724,9 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
     }
 
     const rng = makePrng(`${seed}:${theme}`);
+    const connectionDensity = normalizeWorldConnectionDensity(input.connectionDensity);
 
-    const regions = generateRegions(rng, theme, regionCount, preset);
+    const regions = generateRegions(rng, theme, regionCount, preset, connectionDensity);
     const locations = generateLocations(rng, regions);
     const factions = generateFactions(rng, theme, factionCount);
     buildFactionRelations(rng, factions);
@@ -670,6 +753,7 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
                 regionCount,
                 factionCount,
                 npcCount,
+                connectionDensity,
                 ...(input.experience ? { experience: input.experience } : {}),
             },
         },

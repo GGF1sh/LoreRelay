@@ -149,6 +149,52 @@ function generate(overrides = {}) {
     }
 }
 
+function undirectedEdgeCount(forge) {
+    return forge.geography.regions.reduce((n, region) => n + (region.connectedTo || []).length, 0) / 2;
+}
+
+{
+    const base = { worldSeed: 'lane-density', theme: 'default', regionCount: 12, factionCount: 3, npcCount: 6 };
+    const omitted = generateWorldForge(base);
+    const normal = generateWorldForge({ ...base, connectionDensity: 'normal' });
+    const sparse = generateWorldForge({ ...base, connectionDensity: 'sparse' });
+    const dense = generateWorldForge({ ...base, connectionDensity: 'dense' });
+    check('omitted connectionDensity matches explicit normal', () => {
+        assert.deepStrictEqual(canonicalContentOf(omitted.forge), canonicalContentOf(normal.forge));
+    });
+    check('sparse has only the ring (12 edges for 12 regions)', () => {
+        assert.strictEqual(undirectedEdgeCount(sparse.forge), 12);
+    });
+    check('dense has more routes than sparse', () => {
+        assert.ok(undirectedEdgeCount(dense.forge) > undirectedEdgeCount(sparse.forge));
+    });
+    check('normal has more routes than sparse for a 12-region world', () => {
+        assert.ok(undirectedEdgeCount(normal.forge) > undirectedEdgeCount(sparse.forge));
+    });
+    check('dense prefers at least one same-biome extra link when biomes repeat', () => {
+        const regions = dense.forge.geography.regions;
+        const ring = new Set(regions.map((region, i) => {
+            const next = regions[(i + 1) % regions.length].id;
+            return [region.id, next].sort().join('|');
+        }));
+        const extras = [];
+        for (const region of regions) {
+            for (const dest of region.connectedTo || []) {
+                const key = [region.id, dest].sort().join('|');
+                if (!ring.has(key)) extras.push(key);
+            }
+        }
+        const uniqueExtras = [...new Set(extras)];
+        assert.ok(uniqueExtras.length > 0, 'dense must add chords');
+        const byId = new Map(regions.map((region) => [region.id, region]));
+        const sameBiome = uniqueExtras.some((key) => {
+            const [a, b] = key.split('|');
+            return byId.get(a)?.biome && byId.get(a).biome === byId.get(b)?.biome;
+        });
+        assert.ok(sameBiome || uniqueExtras.length >= 3, 'dense should form biome clusters or several extra routes');
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Different seeds → different output
 // ---------------------------------------------------------------------------
@@ -471,6 +517,7 @@ check('all existing theme keys retain exact-base canonical parsed content', () =
             regionCount: 5,
             factionCount: 3,
             npcCount: 6,
+            connectionDensity: 'normal',
         });
     }
 });
@@ -682,6 +729,7 @@ check('free-text generation matches explicit fantasy-temperate@1 with the same t
             regionCount: 5,
             factionCount: 3,
             npcCount: 6,
+            connectionDensity: 'normal',
         });
         assert.deepStrictEqual(explicit.forge.meta.generationProvenance, {
             presetId: 'fantasy-temperate',
@@ -690,6 +738,7 @@ check('free-text generation matches explicit fantasy-temperate@1 with the same t
             regionCount: 5,
             factionCount: 3,
             npcCount: 6,
+            connectionDensity: 'normal',
         });
     }
 });

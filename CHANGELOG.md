@@ -9,6 +9,9 @@
 
 ## [Unreleased]
 
+### Added
+- World Genesis **Routes** control (sparse / normal / dense). Dense extra links prefer matching biomes. Omitted density stays the legacy ring + 1–2 chords.
+
 ### Changed
 - World tab map buttons are split: **Map layout** writes `world_map.layout.png` with no ComfyUI/Media Profile; **Illustrated map** asks for an explicit world-map Media Profile instead of silently binding SDXL Canny.
 

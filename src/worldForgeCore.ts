@@ -11,6 +11,14 @@ export type RegionHazard = 'radiation' | 'toxic' | 'infested' | 'quarantine' | '
 export type LocationType = 'settlement' | 'dungeon' | 'landmark' | 'ruins' | 'wilderness' | 'other';
 export type FactionType = 'hostile' | 'neutral' | 'friendly' | 'player-faction';
 
+export const WORLD_CONNECTION_DENSITIES = ['sparse', 'normal', 'dense'] as const;
+export type WorldConnectionDensity = (typeof WORLD_CONNECTION_DENSITIES)[number];
+
+/** Missing or unknown values become `normal` (legacy ring + 1–2 chords). */
+export function normalizeWorldConnectionDensity(value: unknown): WorldConnectionDensity {
+    return value === 'sparse' || value === 'dense' ? value : 'normal';
+}
+
 export interface WorldGenProvenance {
     experience?: WorldGenesisExperience;
     presetId: string;
@@ -19,6 +27,7 @@ export interface WorldGenProvenance {
     regionCount: number;
     factionCount: number;
     npcCount: number;
+    connectionDensity?: WorldConnectionDensity;
 }
 
 export interface WorldForgeMeta {
@@ -171,6 +180,9 @@ function parseWorldGenProvenance(raw: unknown): WorldGenProvenance | undefined {
         factionCount: factionCount!,
         npcCount: npcCount!,
         ...(normalizeWorldGenesisExperience(r.experience) ? { experience: normalizeWorldGenesisExperience(r.experience) } : {}),
+        ...(r.connectionDensity === 'sparse' || r.connectionDensity === 'normal' || r.connectionDensity === 'dense'
+            ? { connectionDensity: r.connectionDensity }
+            : {}),
     };
 }
 

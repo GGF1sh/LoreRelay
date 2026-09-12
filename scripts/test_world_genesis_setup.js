@@ -72,6 +72,14 @@ async function main() {
     assert.strictEqual(previewA.summary.regionCount, 6);
     assert.strictEqual(previewA.summary.factionCount, 3);
     assert.strictEqual(previewA.summary.npcCount, 6);
+    assert.strictEqual(previewA.summary.connectionDensity, 'normal');
+    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'nope' }).connectionDensity, 'normal');
+    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'dense' }).connectionDensity, 'dense');
+    assert.notStrictEqual(
+        genesis.worldGenesisInputKey(normalize()),
+        genesis.worldGenesisInputKey(normalize({ ...cyberDraft, connectionDensity: 'dense' })),
+        'density must be part of the reproduction key'
+    );
     assert(previewA.summary.regionComposition.some(entry => entry.type === 'urban'), 'cyberpunk preview should expose its actual urban composition');
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lorerelay-world-genesis-'));
@@ -158,6 +166,7 @@ async function main() {
             regionCount: 6,
             factionCount: 3,
             npcCount: 6,
+            connectionDensity: 'normal',
         });
 
         const prefill = genesis.buildWorldGenesisPrefill(applied.forge, defaults, 'fallback-seed');
@@ -168,6 +177,7 @@ async function main() {
             regionCount: 6,
             factionCount: 3,
             npcCount: 6,
+            connectionDensity: 'normal',
         }, 'usable provenance must prefill the current generation settings');
 
         const unavailable = JSON.parse(JSON.stringify(applied.forge));

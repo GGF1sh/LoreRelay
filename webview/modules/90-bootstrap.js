@@ -428,6 +428,7 @@ function collectWorldGenesisDraft() {
     regionCount: Number(document.getElementById('world-genesis-region-count')?.value),
     factionCount: Number(document.getElementById('world-genesis-faction-count')?.value),
     npcCount: Number(document.getElementById('world-genesis-npc-count')?.value),
+    connectionDensity: document.getElementById('world-genesis-connection-density')?.value || 'normal',
   };
 }
 
@@ -440,6 +441,7 @@ function applyWorldGenesisInput(input) {
     'world-genesis-region-count': input.regionCount,
     'world-genesis-faction-count': input.factionCount,
     'world-genesis-npc-count': input.npcCount,
+    'world-genesis-connection-density': input.connectionDensity || 'normal',
   };
   Object.entries(values).forEach(([id, value]) => {
     const el = document.getElementById(id);
@@ -492,6 +494,12 @@ function renderWorldGenesisPreview(summary) {
   addWorldGenesisFact(facts, summary.locationCount, 'webview.worldGenesis.locationCount');
   addWorldGenesisFact(facts, summary.factionCount, 'webview.worldGenesis.factionCount');
   addWorldGenesisFact(facts, summary.npcCount, 'webview.worldGenesis.npcCount');
+  const densityKey = summary.connectionDensity === 'sparse'
+    ? 'webview.worldGenesis.connectionSparse'
+    : summary.connectionDensity === 'dense'
+      ? 'webview.worldGenesis.connectionDense'
+      : 'webview.worldGenesis.connectionNormal';
+  addWorldGenesisFact(facts, T(densityKey), 'webview.worldGenesis.connectionDensity');
 
   composition.innerHTML = '';
   (summary.regionComposition || []).forEach((entry) => {
@@ -517,7 +525,8 @@ function setWorldGenesisApplying(applying) {
   worldGenesisApplying = applying;
   [
     'world-genesis-preset', 'world-genesis-seed', 'world-genesis-region-count',
-    'world-genesis-faction-count', 'world-genesis-npc-count', 'world-genesis-preview-btn',
+    'world-genesis-faction-count', 'world-genesis-npc-count', 'world-genesis-connection-density',
+    'world-genesis-preview-btn',
     'world-genesis-reroll-btn', 'world-genesis-back-btn'
   ].forEach((id) => {
     const el = document.getElementById(id);
@@ -663,6 +672,7 @@ function initStartHub() {
   }
   ['world-genesis-seed', 'world-genesis-region-count', 'world-genesis-faction-count', 'world-genesis-npc-count']
     .forEach((id) => document.getElementById(id)?.addEventListener('input', invalidateWorldGenesisPreview));
+  document.getElementById('world-genesis-connection-density')?.addEventListener('change', invalidateWorldGenesisPreview);
   if (worldGenesisPreviewBtn) {
     worldGenesisPreviewBtn.addEventListener('click', () => {
       invalidateWorldGenesisPreview();

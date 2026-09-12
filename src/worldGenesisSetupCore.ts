@@ -9,7 +9,8 @@ import {
 import { normalizeWorldGenesisExperience, type WorldGenesisExperience } from './worldGenesisExperienceCore';
 import type { GenreWorldPreset, WorldReproductionUnavailableReason } from './genreWorldPresetCore';
 import { isValidEventId } from './worldEventLogCore';
-import type { RegionType, WorldForge } from './worldForgeCore';
+import type { RegionType, WorldForge, WorldConnectionDensity } from './worldForgeCore';
+import { normalizeWorldConnectionDensity } from './worldForgeCore';
 import {
     generateWorldForge,
     type WorldForgeGeneratorInput,
@@ -33,6 +34,7 @@ export interface WorldGenesisDraft {
     regionCount?: unknown;
     factionCount?: unknown;
     npcCount?: unknown;
+    connectionDensity?: unknown;
 }
 
 export interface NormalizedWorldGenesisInput extends WorldForgeGeneratorInput {
@@ -58,6 +60,7 @@ export interface WorldGenesisPreviewSummary {
     locationCount: number;
     factionCount: number;
     npcCount: number;
+    connectionDensity: WorldConnectionDensity;
     sampleRegionNames: string[];
     warnings: string[];
 }
@@ -77,6 +80,7 @@ export interface WorldGenesisPrefill {
     regionCount: number;
     factionCount: number;
     npcCount: number;
+    connectionDensity?: WorldConnectionDensity;
     warning?: WorldReproductionUnavailableReason | 'legacy-defaults' | 'recorded-theme-unavailable';
 }
 
@@ -160,6 +164,7 @@ export function normalizeWorldGenesisInput(
             regionCount: clampWorldGenCount(draft.regionCount, 3, 12, safeDefaults.regionCount),
             factionCount: clampWorldGenCount(draft.factionCount, 2, 6, safeDefaults.factionCount),
             npcCount: clampWorldGenCount(draft.npcCount, 2, 20, safeDefaults.npcCount),
+            connectionDensity: normalizeWorldConnectionDensity(draft.connectionDensity),
         },
     };
 }
@@ -173,6 +178,7 @@ export function worldGenesisInputKey(input: NormalizedWorldGenesisInput): string
         regionCount: input.regionCount,
         factionCount: input.factionCount,
         npcCount: input.npcCount,
+        connectionDensity: normalizeWorldConnectionDensity(input.connectionDensity),
         ...(input.experience ? { experience: input.experience } : {}),
     });
 }
@@ -219,6 +225,7 @@ export function previewWorldGenesis(input: NormalizedWorldGenesisInput): WorldGe
             locationCount: generated.forge.geography.locations.length,
             factionCount: generated.forge.factions.length,
             npcCount: generated.forge.initialNpcs.length,
+            connectionDensity: normalizeWorldConnectionDensity(input.connectionDensity),
             sampleRegionNames: generated.forge.geography.regions.slice(0, 4).map(region => region.name),
             warnings: [...generated.warnings],
         },
@@ -274,6 +281,7 @@ export function buildWorldGenesisPrefill(
         regionCount: availability.provenance.regionCount,
         factionCount: availability.provenance.factionCount,
         npcCount: availability.provenance.npcCount,
+        connectionDensity: normalizeWorldConnectionDensity(availability.provenance.connectionDensity),
         ...(availability.provenance.experience ? { experience: availability.provenance.experience } : {}),
     };
 }

@@ -233,6 +233,15 @@
               <span data-i18n="webview.worldGenesis.npcCount">登場人物</span>
               <input id="world-genesis-npc-count" type="number" min="2" max="20" step="1" />
             </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.connectionDensity">つながり</span>
+              <select id="world-genesis-connection-density">
+                <option value="sparse" data-i18n="webview.worldGenesis.connectionSparse">疎</option>
+                <option value="normal" selected data-i18n="webview.worldGenesis.connectionNormal">普通</option>
+                <option value="dense" data-i18n="webview.worldGenesis.connectionDense">密</option>
+              </select>
+              <small data-i18n="webview.worldGenesis.connectionHelp">レーンの本数。密は同じバイオーム同士がつながりやすい。</small>
+            </label>
           </div>
           <div class="world-genesis-actions">
             <button type="button" id="world-genesis-preview-btn" class="glass-btn" data-i18n="webview.worldGenesis.preview">プレビュー</button>

@@ -42,12 +42,13 @@ import {
     listMapTemplates,
     listSceneTemplates,
 } from './comfyWorkflowCatalogCore';
-import { parseComfyCheckpointListOutput } from './imageGenModelSuggestCore';
+import { parseComfyCheckpointListOutput, suggestImageGenModel } from './imageGenModelSuggestCore';
 import {
     applyWorkflowTemplateToSnapshot,
 } from './imageGenSettingsResolveCore';
 import {
     collectLocalImageGenModelSuggestions,
+    readLocalModelSidecar,
     getBundledComfyRoot,
     loadBundledWorkflowCatalog,
     resolveWorkspaceImageGenSettings,
@@ -449,6 +450,51 @@ export async function handleRequestImageGenModelSuggestions(): Promise<void> {
         comfyVerified: Array.isArray(knownComfyNames),
         rootCount: roots.length,
     });
+}
+
+/** Local inventory plus the existing ComfyUI checkpoint probe; never downloads models. */
+export async function handleWorldMapModels(message: Record<string, unknown>): Promise<void> {
+    const panel = requireDeps().getPanel(), wsPath = getWorkspacePath();
+    if (!wsPath) return;
+    const post = (value: object) => { void panel?.webview.postMessage({ type: 'worldMapModelsState', ...value }); };
+    try {
+        if (message.action === 'addRoot') {
+            const selected = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false,
+                canSelectMany: true, title: 'ComfyUI / Stability Matrix / モデルフォルダ' });
+            if (!selected?.length) { post({ status: 'cancelled' }); return; }
+            const config = vscode.workspace.getConfiguration('textAdventure');
+            const roots = [...new Set([...getConfiguredModelScanRoots(), ...selected.map(uri => uri.fsPath)])];
+            await config.update('modelScan.roots', roots, vscode.ConfigurationTarget.Workspace);
+        }
+        post({ status: 'loading' });
+        const roots = getConfiguredModelScanRoots();
+        const known = vscode.workspace.isTrusted ? await collectKnownComfyCheckpointNames(wsPath) : undefined;
+        const rows = scanLocalModelRoots(roots).map(model => {
+            const sidecar = readLocalModelSidecar(model.absolutePath);
+            const suggestion = suggestImageGenModel({ comfyName: model.comfyName, relativePath: model.relativePath,
+                category: model.category, ...sidecar, knownComfyNames: known });
+            const metadata = sidecar.sidecar as Record<string, any> | undefined;
+            const modelType = String(metadata?.type || metadata?.Type || metadata?.model?.type || metadata?.Model?.Type || '');
+            const compatible = !/lora|locon|embedding|vae|controlnet/i.test(modelType)
+                && ['checkpoint', 'other'].includes(model.category) && suggestion.status !== 'unresolved'
+                && ['sdxl', 'pony'].includes(suggestion.modelFamily);
+            return { ...suggestion, compatible, id: model.absolutePath, size: formatModelSize(model.sizeBytes),
+                reason: compatible ? 'SDXL map workflow; image quality is not evaluated.'
+                    : 'Not a verified SDXL checkpoint for the current map workflow. ' + suggestion.reasons.join(' ') };
+        });
+        if (message.action === 'apply') {
+            const selected = rows.find(row => row.id === message.id);
+            if (!selected?.compatible || !['map-sdxl-canny', 'map-sdxl-direct'].includes(String(message.templateId))) {
+                throw new Error('Model or map workflow is incompatible; refresh the list');
+            }
+            saveImageGenConfig(wsPath, { checkpoint: selected.comfyName, modelFamily: selected.modelFamily,
+                profileId: selected.profileId,
+                mode: selected.mode || 'natural', cartographyTemplateId: String(message.templateId) });
+            postImageGenConfig(wsPath);
+        }
+        post({ status: message.action === 'apply' ? 'applied' : 'ready', roots, rows,
+            comfyVerified: Array.isArray(known), selected: loadImageGenConfig(wsPath).checkpoint });
+    } catch (error) { post({ status: 'error', error: error instanceof Error ? error.message : String(error) }); }
 }
 
 export async function handleApplyImageGenModelSuggestion(raw: unknown): Promise<void> {

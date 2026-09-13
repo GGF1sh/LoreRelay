@@ -854,11 +854,14 @@
             </div>
             <button id="world-gen-map-layout-btn" class="small-btn" data-i18n="webview.world.mapLayout" data-i18n-title="webview.world.mapLayoutTitle">地図レイアウト</button>
             <button id="world-gen-map-btn" class="small-btn" data-i18n="webview.world.mapImage" data-i18n-title="webview.world.mapImageTitle">イラスト地図</button>
+            <button id="world-import-map-btn" class="small-btn" data-i18n="webview.mapAssets.import">画像を取り込む</button>
+            <button id="world-map-models-btn" class="small-btn" data-i18n="webview.mapAssets.models">手持ちモデル</button>
             <button id="world-gen-image-btn" class="small-btn primary" style="display: none;" title="Generate Scene Image for Current Location">🎨 Scene Image</button>
             <span id="world-stats" style="margin-left:auto;opacity:0.5;font-size:0.8em;"></span>
           </div>
 
           <!-- World map: Mermaid diagram or parchment image -->
+          <section id="world-map-models" class="hidden" aria-label="Map models"></section>
           <details id="world-map-details" open>
             <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.mapTitle">World Map</summary>
             <div id="world-map-mode-bar" class="world-map-mode-bar" role="tablist" aria-label="Map view mode">

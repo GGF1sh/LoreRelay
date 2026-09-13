@@ -4175,6 +4175,20 @@ body.vscode-high-contrast #status-drawer-scrim {
   border-color: var(--vscode-focusBorder, #4a90e2);
 }
 
+/* --- 85a-cartography-assets.css --- */
+.map-asset-controls { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; padding: .4rem; }
+.map-asset-controls [hidden] { display: none !important; }
+#map-asset-status { white-space: pre-wrap; margin: .4rem; }
+#map-asset-viewport { max-height: 70vh; overflow: auto; width: 100%; }
+#map-asset-viewport .world-cartography-stage { width: 100%; margin: 0 auto; touch-action: none; }
+#map-asset-viewport img { width: 100%; height: auto; max-height: none; object-fit: contain; }
+.map-asset-editing [data-map-pin], .map-asset-editing [data-map-region] { cursor: grab; outline: 1px dashed var(--vscode-focusBorder, #70b7ee); }
+.map-asset-editing [data-map-region] { pointer-events: auto !important; }
+#world-map-models { border: 1px solid var(--vscode-panel-border); padding: .75rem; margin: .5rem 0; }
+#world-map-models table { width: 100%; border-collapse: collapse; font-size: .9em; }
+#world-map-models th, #world-map-models td { padding: .4rem; text-align: left; border-bottom: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere; }
+.map-model-list { overflow: auto; max-height: 50vh; }
+
 /* --- 85b-economy-logistics.css --- */
 /* NOAI-ECON-FLOWS-005 — read-only logistics network. */
 

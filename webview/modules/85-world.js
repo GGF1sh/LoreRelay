@@ -1583,9 +1583,11 @@ function applyWorldMapModeVisibility() {
     if (typeof updateDioramaWaterAnimationState === 'function') {
         updateDioramaWaterAnimationState();
     }
+    if (worldMapMode === 'parchment' && typeof mapAssetSizeStage === 'function') mapAssetSizeStage();
 }
 
 function renderCartographyMap(msg) {
+    if (typeof overlayCartographyMessage === 'function') msg = overlayCartographyMessage(msg);
     const stage = document.getElementById('world-cartography-stage');
     const img = document.getElementById('world-cartography-img');
     const pinsEl = document.getElementById('world-cartography-pins');
@@ -1621,6 +1623,8 @@ function renderCartographyMap(msg) {
         if (visibility === 'unknown') { continue; }
         const el = document.createElement('span');
         el.className = 'world-map-region-label';
+        el.dataset.mapRegion = label.regionId;
+        el.hidden = msg.cartographyShowLabels === false;
         if (visibility === 'rumored') { el.classList.add('is-rumored'); }
         el.style.left = `${label.leftPct}%`;
         el.style.top = `${label.topPct}%`;
@@ -1638,6 +1642,7 @@ function renderCartographyMap(msg) {
         const pinMeta = findWorldPinMeta(pin.locationId);
         const wrap = document.createElement('span');
         wrap.className = 'world-map-pin-wrap';
+        wrap.dataset.mapPin = pin.locationId;
         wrap.style.left = `${pin.leftPct}%`;
         wrap.style.top = `${pin.topPct}%`;
         if (_selectedPinId && pin.locationId === _selectedPinId) {
@@ -1680,6 +1685,7 @@ function renderCartographyMap(msg) {
 /** Trade-road / travel-route lines between connected regions (parchment overlay only). */
 function renderCartographyRoutes(routesEl, msg) {
     if (!routesEl) { return; }
+    routesEl.style.display = msg.cartographyShowRoutes === false ? 'none' : '';
     routesEl.setAttribute('viewBox', '0 0 100 100');
     routesEl.setAttribute('preserveAspectRatio', 'none');
     routesEl.innerHTML = '';

@@ -385,6 +385,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_map_feedback_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_auto_location_image_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_cartography_layout_core.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_cartography_assets.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_world_map_models.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_cartography_path_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_cartography_path_utils.js' },
     { category: 'smoke', file: 'test_cartography_layout_smoke.js' },

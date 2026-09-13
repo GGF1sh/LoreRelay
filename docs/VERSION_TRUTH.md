@@ -71,6 +71,8 @@ INSTALLER-RELEASE-001 の既存ルールを、2026-09-13 のユーザー依頼�
 
 修正と新機能が同じ候補に含まれる場合は minor、破壊的変更を含む場合は major の判断を優先します。小さなUI修正と新しい遊び方の追加を、単なる変更行数で区別しません。データ形式の版番号はパッケージ版とは別契約であり、機械的に同時更新しません。
 
+現行の整合性チェックは数値3要素の `X.Y.Z` を前提にしています。`-rc` や `+SHA` を `package.json.version` へ勝手に追加せず、候補の区分・SHAは別欄に記録します。
+
 ### いつ採番するか
 
 - 同じ機能フェーズの実装・レビュー修正をまとめている間は、各コミットや各PRで必ず上げる必要はありません。未採番の実装は `[Unreleased]` に記録し、関連PRに次の採番タイミングを残します。
@@ -142,10 +144,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 | Domain Mode | D1–D5 + **D3 UI 完了** (v1.40.0) · F7–F10 engine + World タブ UI · v1.40.1 hardening |
 | Guild Master (F11) | **G1–G4 完了** (v1.41.0–v1.44.1) · v1.44.1 hardening · `enableGuildMode` 既定 OFF |
 | Parlor Mode | v1.34.0 出荷済 |
-| Living World (LW1) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
+| Living World (履歴) | v1.23–v1.34 (Commerce / Agency / LW3) · Domain v1.39.x–v1.40.x |
 | Debug Trace | P1 contracts (v1.77.14) · retention/coalesce/live run (v1.77.15) · Inspector UI Phase B + UX polish |
 | MEDIA-M1 | Compatibility Gate + Media Profile Spine（v1.78.0）· 独立敵対的検証 PASS（`docs/ai-tasks/MEDIA-M1-INDEPENDENT-VERIFY.md`）· post-merge installer smoke は INSTALLER-RELEASE-001 待ち |
 | MEDIA-COMFY-001 | ComfyUI long-load job lifecycle repair（v1.78.2）· human-smoke 候補 |
-| NOAI-PLAY-P3 | Deterministic end-day integrated with P2/P3 shared mutation serialization and hermetic installer fixture repairs; live installer and combined P2/P3/P4 human smoke are deferred |
+| NOAI-PLAY-P3 | Deterministic end-day integrated with P2/P3 shared mutation serialization and hermetic installer tests; live installer and combined P2/P3/P4 human smoke are deferred |
 | GitHub Release latest | **v1.59.0** (`lorerelay-1.59.0.vsix` · タグ push で自動更新) ※コード版より遅れることがある |
 | テスト | `npm test` expects **251/251** on this branch (adds `test_relay_banner_recovery.js`); static harnesses are not real extension-host human smoke |

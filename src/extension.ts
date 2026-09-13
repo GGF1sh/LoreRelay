@@ -27,6 +27,7 @@ import {
 } from './i18n';
 import { handleWebviewMessage, type WebviewHandlerDeps, type WebviewMessage } from './webviewHandlers';
 import { visualComposerHandle } from './visualComposerHost';
+import { handleStructureArt } from './structureArtHost';
 import { AbilityDefinition, AbilityFixtureDocument, StatusDefinition } from './combatAbilityTypes';
 import { CustomAbilityLibrary, duplicateBuiltinAbility, emptyCustomAbilityLibrary, exportCustomAbilityLibrary, importCustomAbilityLibrary, removeCustomAbility, saveCustomAbility, validateWorkshopAbility, workshopShot } from './combatAbilityWorkshopCore';
 import { loadCustomAbilityLibrary, writeCustomAbilityLibrary } from './combatAbilityWorkshopStore';
@@ -391,6 +392,14 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'structureArt') {
+        const workspace = getWorkspacePath();
+        if (workspace && panel && await requireModCanonicalMutationAllowed()) {
+            pushWorldViewToWebview(getCurrentLocationIdForWorldView());
+            await handleStructureArt(message, workspace, panel);
+        }
+        return;
+    }
     if (message.type === 'worldMapAsset') {
         const workspace = getWorkspacePath();
         if (workspace && await requireModCanonicalMutationAllowed()) {

@@ -43,6 +43,7 @@ const JS_MODULE_ORDER = [
     '86b0-settlement-iso-geometry.js',
     '86b-settlement-isometric.js',
     '86c-settlement-diorama.js',
+    '86d-structure-art.js',
     '87-parlor-settings.js',
     '88-world-observatory.js',
     '89a-vehicle-labels.js',

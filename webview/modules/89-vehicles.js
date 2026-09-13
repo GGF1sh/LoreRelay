@@ -265,6 +265,7 @@
         list.innerHTML = garage.vehicles.map(renderListItem).join('');
         const activeItem = garage.vehicles.find((v) => v.id === selectedVehicleId);
         detail.innerHTML = renderDetail(activeItem);
+        if (activeItem && typeof mountStructureArtVehicle === 'function') mountStructureArtVehicle(detail, activeItem.id);
         wireListClicks(garage);
         wireDetailActions();
 

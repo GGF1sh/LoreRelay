@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [1.87.0] - 2026-09-13
+
+### Added
+- Structure artwork: export settlement floor plans, isometric reference PNGs and editable vehicle/settlement briefs for external image AIs; preview and adopt exterior and per-layer interior images with world-bound storage and replacement history. Vehicle and linked mobile-base entry points share artwork. This is a code candidate, not a published Release.
+
 ## [1.86.0] - 2026-09-13
 
 Code candidate; no tag, VSIX or GitHub Release is published by this version change. Includes the previously unnumbered changes below.

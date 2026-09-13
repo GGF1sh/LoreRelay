@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import { handleWorldMapAsset } from './cartographyAssetHost';
+import { handleWorldMapModels } from './imageGenRunner';
+import { loadImageGenConfig } from './imageGenConfig';
 import { WORLD_GENESIS_FEATURES, worldGenesisRules } from './worldGenesisExperienceCore';
 import { worldGenesisOverview } from './worldGenesisSetupCore';
 import * as fs from 'fs';
@@ -388,6 +391,19 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'worldMapAsset') {
+        const workspace = getWorkspacePath();
+        if (workspace && await requireModCanonicalMutationAllowed()) {
+            await handleWorldMapAsset(message, { workspace, forge: () => loadWorldForge() || undefined,
+                post: value => { void panel?.webview.postMessage(value); },
+                refresh: () => pushWorldViewToWebview(getCurrentLocationIdForWorldView()) });
+        }
+        return;
+    }
+    if (message.type === 'worldMapModels') {
+        if (await requireModCanonicalMutationAllowed()) await handleWorldMapModels(message);
+        return;
+    }
     if (message.type === 'worldGenesisPresetSave') { await saveWorldGenesisUserPreset(message); return; }
     if (message.type === 'visualComposer') { await visualComposerHandle(message, panel); return; }
     if (message.type === 'getUiPresentation') { uiPresentation?.send(); return; }
@@ -1939,8 +1955,17 @@ async function handleGenerateWorldMapLayout(): Promise<void> {
 }
 
 async function pickWorldMapStyle(): Promise<WorldMapStylePick | undefined> {
+    const styles = listWorldMapStylePicks();
+    const workspace = getWorkspacePath();
+    const selected = workspace ? loadImageGenConfig(workspace) : undefined;
+    if (selected?.checkpoint && ['map-sdxl-canny', 'map-sdxl-direct'].includes(selected.cartographyTemplateId)) {
+        styles.unshift({ id: 'configured-map-model', label: '選択したモデルで生成', description: selected.checkpoint,
+            detail: selected.cartographyTemplateId, path: 'comfy',
+            profileId: selected.cartographyTemplateId === 'map-sdxl-direct' ? 'm1-cartography-sdxl-direct-guard' : 'm1-cartography-sdxl-canny-guard',
+            promptMode: selected.mode as WorldMapStylePick['promptMode'] });
+    }
     const picked = await vscode.window.showQuickPick(
-        listWorldMapStylePicks().map((style) => ({
+        styles.map((style) => ({
             label: style.label,
             description: style.description,
             detail: style.detail,
@@ -1985,15 +2010,19 @@ async function exportCartographyPromptForExternal(
     pushWorldViewToWebview(getCurrentLocationIdForWorldView());
     const reveal = t('extension.worldMap.revealFile');
     const openImage = t('extension.worldMap.openLayoutImage');
+    const importImage = '生成画像を取り込む';
     const choice = await vscode.window.showInformationMessage(
         t('extension.info.worldMapExternalCopied', { destination, path: layoutPath }),
         reveal,
-        openImage
+        openImage,
+        importImage
     );
     if (choice === reveal) {
         void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(layoutPath));
     } else if (choice === openImage) {
         void vscode.commands.executeCommand('vscode.open', vscode.Uri.file(layoutPath));
+    } else if (choice === importImage) {
+        await dispatchGateCheckedWebviewMessage({ type: 'worldMapAsset', action: 'import' });
     }
 }
 

@@ -23,6 +23,14 @@ VS Codeで動く、開発中のオープンソース作品です。対応するA
 
 <p align="center"><sub>地図は以前の機能紹介画面、取引は1.85.3の購入後です。画像はクリックで拡大できます。</sub></p>
 
+### 自分で作った地図を、冒険の舞台に
+
+ChatGPTなどで作った地図を取り込み、地名・地点・現在地を重ねて使えます。ピンと地名はドラッグで位置合わせ。主人公は標準の人型マーカーで表示し、好きなアイコン画像を後から設定して、いつでも切り替えられます。[イラスト地図の使い方](docs/ILLUSTRATED_MAPS.md)
+
+<p align="center"><a href="docs/assets/illustrated-map-v1/map-with-player-marker.png"><img src="docs/assets/illustrated-map-v1/map-with-player-marker.png" width="840" alt="ChatGPTで作成したイラスト地図に、地域名・地点ピン・金色の主人公マーカーを重ねた表示。春風都市圏の地名もピンに隠れず表示。" /></a></p>
+
+<p align="center"><sub>提供されたChatGPT生成地図を、現行の地図表示コンポーネントで描画した確認画像です。現在地と位置合わせは表示テスト用で、ゲーム進行を収録した画面ではありません。</sub></p>
+
 <a id="onboarding"></a>
 
 ## 次の一手は、あなたの言葉で

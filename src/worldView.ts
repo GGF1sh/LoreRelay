@@ -1,4 +1,6 @@
 import * as fs from 'fs';
+import { loadCartographyAsset, cartographyAssetPath } from './cartographyAssetStore';
+import { cartographyWorldKey } from './cartographyOverlayCore';
 import { projectWorldPacing } from './worldPacingCore';
 import * as vscode from 'vscode';
 import { loadWorldForge, loadWorldForgeDocument, isWorldForgeEnabled } from './worldForge';
@@ -636,7 +638,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         : [];
 
     const wsPath = getWorkspacePath();
-    const worldMapImagePath = resolveWorldMapImagePath(wsPath);
+    let mapAsset;
+    let mapAssetError = '';
+    try { mapAsset = wsPath ? loadCartographyAsset(wsPath, forge) : undefined; }
+    catch (error) { mapAssetError = error instanceof Error ? error.message : String(error); }
+    const worldMapImagePath = mapAsset && wsPath ? cartographyAssetPath(wsPath, mapAsset) : resolveWorldMapImagePath(wsPath);
     const worldMapLayoutPath = resolveWorldMapLayoutPath(wsPath);
     const illustratedExists = Boolean(worldMapImagePath && fs.existsSync(worldMapImagePath));
     const layoutExists = Boolean(worldMapLayoutPath && fs.existsSync(worldMapLayoutPath));
@@ -914,6 +920,17 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         overmapThemeKey,
         worldMap,
         cartographyImage,
+        cartographyWorldKey: cartographyWorldKey(forge),
+        cartographyAssetError: mapAssetError,
+        cartographyMarker: {
+            mode: mapAsset?.marker?.mode || 'standard',
+            image: mapAsset?.marker?.image && wsPath
+                ? safeImageUri(cartographyAssetPath(wsPath, { ...mapAsset, file: mapAsset.marker.image })) || null : null,
+        },
+        cartographyAsset: mapAsset ? { worldKey: mapAsset.worldKey, imageKey: mapAsset.imageKey, revision: mapAsset.revision,
+            overlay: { ...mapAsset.overlay,
+                pins: Object.fromEntries(Object.entries(mapAsset.overlay.pins).filter(([id]) => cartographyPins.some(p => p.locationId === id))),
+                regions: Object.fromEntries(Object.entries(mapAsset.overlay.regions).filter(([id]) => cartographyRegionLabels.some(r => r.regionId === id))) } } : null,
         cartographySource: illustratedExists ? 'illustrated' : layoutExists ? 'layout' : null,
         cartographyPins,
         cartographyRegionLabels,

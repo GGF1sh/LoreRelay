@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.86.0] - 2026-09-13
+
+Code candidate; no tag, VSIX or GitHub Release is published by this version change. Includes the previously unnumbered changes below.
+
+### Added
+- Import externally generated PNG/JPEG/WebP world maps through overlay preview and adoption, with world-bound assets, replacement history, pin/region positioning, visibility toggles and aspect-ratio-preserving fit/zoom.
+- Configure a protagonist portrait and switch between it and the standard gold person marker; region labels avoid pins and render above them.
+- Register local ComfyUI/Stability Matrix/model folders, inspect Civitai sidecars and offline compatibility, and select supported SDXL map profiles.
+
 ### Added
 - World Genesis **Routes** control (sparse / normal / dense). Dense extra links prefer matching biomes. Omitted density stays the legacy ring + 1–2 chords.
 

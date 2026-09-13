@@ -74,22 +74,22 @@ function categoryFromSegments(segments: string[], extension: string): LocalModel
     if (extension === '.gguf' || lower.some((s) => s.includes('gguf'))) {
         return 'gguf';
     }
-    if (lower.some((s) => s === 'checkpoints' || s === 'checkpoint' || s === 'ckpt')) {
+    if (lower.some((s) => s === 'checkpoints' || s === 'checkpoint' || s === 'ckpt' || s === 'stablediffusion')) {
         return 'checkpoint';
     }
     if (lower.some((s) => s === 'controlnet' || s === 'control_net' || s === 'control-nets' || s === 'controlnets')) {
         return 'controlnet';
     }
-    if (lower.some((s) => s === 'loras' || s === 'lora')) {
+    if (lower.some((s) => s === 'loras' || s === 'lora' || s === 'lycoris')) {
         return 'lora';
     }
-    if (lower.some((s) => s === 'vae' || s === 'vae_approx')) {
+    if (lower.some((s) => s === 'vae' || s === 'vae_approx' || s === 'approxvae')) {
         return 'vae';
     }
-    if (lower.some((s) => s === 'diffusion_models' || s === 'unet' || s === 'unets')) {
+    if (lower.some((s) => s === 'diffusion_models' || s === 'diffusionmodels' || s === 'unet' || s === 'unets')) {
         return 'diffusion';
     }
-    if (lower.some((s) => s === 'text_encoders' || s === 'clip')) {
+    if (lower.some((s) => s === 'text_encoders' || s === 'textencoders' || s === 'clip' || s === 'clipvision')) {
         return 'text-encoder';
     }
     return 'other';
@@ -98,13 +98,13 @@ function categoryFromSegments(segments: string[], extension: string): LocalModel
 function categoryAnchorIndex(segments: string[], category: LocalModelCategory): number {
     const lower = segments.map((s) => s.toLowerCase());
     const aliases: Record<LocalModelCategory, string[]> = {
-        checkpoint: ['checkpoints', 'checkpoint', 'ckpt'],
+        checkpoint: ['checkpoints', 'checkpoint', 'ckpt', 'stablediffusion'],
         controlnet: ['controlnet', 'control_net', 'control-nets', 'controlnets'],
-        lora: ['loras', 'lora'],
-        vae: ['vae', 'vae_approx'],
+        lora: ['loras', 'lora', 'lycoris'],
+        vae: ['vae', 'vae_approx', 'approxvae'],
         gguf: ['gguf'],
-        diffusion: ['diffusion_models', 'unet', 'unets'],
-        'text-encoder': ['text_encoders', 'clip'],
+        diffusion: ['diffusion_models', 'diffusionmodels', 'unet', 'unets'],
+        'text-encoder': ['text_encoders', 'textencoders', 'clip', 'clipvision'],
         other: []
     };
     return lower.findIndex((s) => aliases[category].includes(s));
@@ -136,7 +136,7 @@ function maybeModelFile(filePath: string, root: string): LocalModelFile | undefi
 
     const relativePath = normalizeRelative(path.relative(root, filePath));
     const segments = relativePath.split(/[\\/]+/).filter(Boolean);
-    const category = categoryFromSegments(segments, extension);
+    const category = categoryFromSegments([path.basename(root), ...segments], extension);
     return {
         absolutePath: filePath,
         root,
@@ -153,18 +153,20 @@ export function scanLocalModelRoots(rawRoots: string[], options: LocalModelScanO
     const maxFiles = Math.max(1, Math.min(10000, options.maxFiles ?? 2000));
     const results: LocalModelFile[] = [];
     const seen = new Set<string>();
+    const seenDirectories = new Set<string>();
 
     const roots = rawRoots
         .map(normalizeRoot)
         .filter((v): v is string => Boolean(v));
 
     function add(filePath: string, root: string): void {
-        const resolved = path.resolve(filePath);
+        let resolved: string;
+        try { resolved = fs.realpathSync(filePath); } catch { return; }
         const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
         if (seen.has(key) || results.length >= maxFiles) {
             return;
         }
-        const model = maybeModelFile(resolved, root);
+        const model = maybeModelFile(filePath, root);
         if (!model) {
             return;
         }
@@ -178,6 +180,10 @@ export function scanLocalModelRoots(rawRoots: string[], options: LocalModelScanO
         }
         let entries: fs.Dirent[];
         try {
+            const real = fs.realpathSync(dir);
+            const key = process.platform === 'win32' ? real.toLowerCase() : real;
+            if (seenDirectories.has(key)) return;
+            seenDirectories.add(key);
             entries = fs.readdirSync(dir, { withFileTypes: true });
         } catch {
             return;
@@ -187,11 +193,16 @@ export function scanLocalModelRoots(rawRoots: string[], options: LocalModelScanO
                 return;
             }
             const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
+            let directory = entry.isDirectory(), file = entry.isFile();
+            if (entry.isSymbolicLink()) {
+                try { const stat = fs.statSync(fullPath); directory = stat.isDirectory(); file = stat.isFile(); }
+                catch { continue; }
+            }
+            if (directory) {
                 if (!SKIP_DIRS.has(entry.name.toLowerCase())) {
                     walk(fullPath, root, depth + 1);
                 }
-            } else if (entry.isFile()) {
+            } else if (file) {
                 add(fullPath, root);
             }
         }
@@ -201,7 +212,8 @@ export function scanLocalModelRoots(rawRoots: string[], options: LocalModelScanO
         if (!fs.existsSync(root)) {
             continue;
         }
-        const stat = fs.statSync(root);
+        let stat: fs.Stats;
+        try { stat = fs.statSync(root); } catch { continue; }
         if (stat.isFile()) {
             add(root, path.dirname(root));
         } else if (stat.isDirectory()) {

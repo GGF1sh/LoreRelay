@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.88.1] - 2026-09-14
+
+### Fixed
+- Allow a damaged world-map manifest or missing/corrupt image to be replaced through the image picker, while retaining the old manifest and rejecting changes after preview.
+- Keep the displayed map/structure-art preview usable when a replacement image picker is cancelled.
+- Patch human-test candidate following 1.88.0; no tag or Release published.
+
 ## [1.88.0] - 2026-09-14
 
 ### Added

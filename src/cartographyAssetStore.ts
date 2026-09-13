@@ -77,16 +77,47 @@ function regularFile(file: string): boolean {
     return fs.existsSync(file) && !fs.lstatSync(file).isSymbolicLink() && fs.statSync(file).isFile();
 }
 function digest(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }
+class CorruptCartographyAssetError extends Error {}
+
+/** Raw on-disk witness used by import preview/adopt, including broken manifests. */
+export function cartographyAssetDiskRevision(workspace: string, forge: WorldForge): string {
+    const dir = assetDir(workspace), manifest = path.join(dir, `${cartographyWorldKey(forge)}.json`);
+    let raw = '', exists = false;
+    if (fs.existsSync(manifest)) {
+        if (!regularFile(manifest)) throw new Error('Invalid map manifest');
+        exists = true;
+        raw = fs.readFileSync(manifest, 'utf8');
+    }
+    let parsed: { file?: unknown } | null = null;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+    let referenced = '';
+    if (parsed && typeof parsed.file === 'string') {
+        if (!/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(parsed.file)) referenced = 'invalid-file';
+        else {
+            const image = path.join(dir, parsed.file);
+            if (fs.existsSync(image)) {
+                if (!regularFile(image)) throw new Error('Invalid map image');
+                referenced = digest(fs.readFileSync(image));
+            } else referenced = 'missing';
+        }
+    }
+    return digest(Buffer.from(JSON.stringify([exists, raw, referenced])));
+}
 
 export function loadCartographyAsset(workspace: string, forge: WorldForge): CartographyAssetState | undefined {
     const worldKey = cartographyWorldKey(forge);
     const dir = assetDir(workspace), manifest = path.join(dir, `${worldKey}.json`);
     if (!regularFile(manifest)) return undefined;
-    const raw = JSON.parse(fs.readFileSync(manifest, 'utf8')) as CartographyAssetState;
-    if (raw.version !== 1 || raw.worldKey !== worldKey || !/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(raw.file)
-        || raw.file.split('.')[0] !== raw.imageKey || typeof raw.revision !== 'string') throw new Error('Invalid map asset');
+    const text = fs.readFileSync(manifest, 'utf8');
+    let raw: CartographyAssetState;
+    try { raw = JSON.parse(text); }
+    catch (error) { if (error instanceof SyntaxError) throw new CorruptCartographyAssetError('Invalid map asset'); throw error; }
+    if (!raw || raw.version !== 1 || raw.worldKey !== worldKey || typeof raw.file !== 'string' || !/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(raw.file)
+        || raw.file.split('.')[0] !== raw.imageKey || typeof raw.revision !== 'string') throw new CorruptCartographyAssetError('Invalid map asset');
     const image = path.join(dir, raw.file);
-    if (!regularFile(image) || digest(fs.readFileSync(image)) !== raw.imageKey) throw new Error('Map image changed or missing');
+    if (!regularFile(image) || digest(fs.readFileSync(image)) !== raw.imageKey) throw new CorruptCartographyAssetError('Map image changed or missing');
     // A missing/corrupt portrait falls back to the standard marker, not a missing world map.
     const markerImage = raw.marker?.image;
     const validMarker = typeof markerImage === 'string' && /^[a-f0-9]{64}\.(png|jpg|webp)$/.test(markerImage)
@@ -118,14 +149,25 @@ function storeRasterImage(workspace: string, image: ReturnType<typeof readCartog
     if (!/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(file)) throw new Error('Invalid image extension');
     const target = path.join(dir, file);
     if (fs.existsSync(target)) {
-        if (!regularFile(target) || digest(fs.readFileSync(target)) !== imageKey) throw new Error('Invalid existing map image');
+        if (!regularFile(target)) throw new Error('Invalid existing map image');
+        if (digest(fs.readFileSync(target)) !== imageKey) {
+            // Preserve corrupt bytes before restoring this content-addressed image from the selected source.
+            fs.copyFileSync(target, path.join(dir, `${imageKey}.previous-${randomUUID()}.${image.extension}`), fs.constants.COPYFILE_EXCL);
+            const temporary = path.join(dir, `${imageKey}.${randomUUID()}.tmp`);
+            fs.writeFileSync(temporary, image.bytes, { flag: 'wx' });
+            fs.renameSync(temporary, target);
+        }
     } else fs.writeFileSync(target, image.bytes, { flag: 'wx' });
     return { file, imageKey };
 }
 
 export function adoptCartographyAsset(workspace: string, forge: WorldForge,
     image: ReturnType<typeof readCartographyImage>): CartographyAssetState {
-    const previous = loadCartographyAsset(workspace, forge);
+    let previous: CartographyAssetState | undefined;
+    try { previous = loadCartographyAsset(workspace, forge); }
+    catch (error) {
+        if (!(error instanceof CorruptCartographyAssetError)) throw error;
+    }
     const { file, imageKey } = storeRasterImage(workspace, image);
     const state: CartographyAssetState = { version: 1, worldKey: cartographyWorldKey(forge), imageKey,
         file, revision: randomUUID(), overlay: emptyCartographyOverlay(), marker: previous?.marker };

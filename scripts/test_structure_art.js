@@ -46,6 +46,9 @@ const message={world:'host-world',target:target.id,sourceHash:target.sourceHash,
 (async()=>{
  host.registerStructureArtTargets(root,'host-world',[target]);
  await host.handleStructureArt({...message,action:'import'},root,panel);const preview=posts.at(-1).preview;assert(preview);
+ selected=undefined;await host.handleStructureArt({...message,action:'import'},root,panel);assert(posts.at(-1).notice);
+ // Cancelling a replacement picker must not invalidate the preview still shown in the UI.
+ selected=source;
  await host.handleStructureArt({...message,action:'adopt',world:'wrong',token:preview.token},root,panel);assert(posts.at(-1).error);
  await host.handleStructureArt({...message,action:'adopt',token:preview.token},root,panel);assert(posts.at(-1).adopted);
  await host.handleStructureArt({...message,action:'adopt',token:preview.token},root,panel);assert(posts.at(-1).error);

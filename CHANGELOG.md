@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.88.2] - 2026-09-14
+
+### Fixed
+- Distinguish host-authorized checkpoint/timeline restoration and new-campaign publication from ordinary travel. Replacement mode or an AI payload alone cannot bypass navigation checks; pending navigation still requires recovery.
+- Reject travel between distinct ports sharing the same water node instead of accepting an empty, zero-distance route. Such ports require distinct actual water connections; no unmodeled connector is fabricated.
+- Quickstart resolves interrupted navigation before replacing the world and checks state/history publication results.
+
 ## [1.88.1] - 2026-09-14
 
 ### Fixed

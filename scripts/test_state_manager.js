@@ -78,3 +78,40 @@ if (failed > 0) {
     process.exit(1);
 }
 console.log('stateManager: all tests passed.');
+
+// Exercise the real persistence boundary: only explicit host publication intent bypasses travel.
+{
+    const assert = require('assert/strict'), os = require('os'), Module = require('module');
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'state-publication-'));
+    const statePath = path.join(workspace, 'game_state.json');
+    fs.writeFileSync(path.join(workspace, 'world_forge.json'), JSON.stringify({ geography: { waterways: {} } }));
+    const original = { ...validState, world: { currentLocationId: 'old-port' } };
+    const restored = { ...validState, world: { currentLocationId: 'restored-port' } };
+    const load = Module._load;
+    Module._load = function(id, parent, ...args) {
+        if (parent?.filename.endsWith('stateManager.js')) {
+            if (id === './workspacePaths') return { getGameStatePath: () => statePath, writeJsonAtomic: (p, value) => fs.writeFileSync(p, JSON.stringify(value)) };
+            if (id === './workspaceStateQueue') return { isGameStateWriteCircuitOpen: () => false, runSerializedGameStateMutation: fn => fn() };
+            if (id === './mods/modActivationGateHost') return { areModCanonicalWritesAllowed: () => true };
+        }
+        return load.call(this, id, parent, ...args);
+    };
+    const { commitGameState } = require('../out/stateManager');
+    Module._load = load;
+    const reset = () => fs.writeFileSync(statePath, JSON.stringify(original));
+    reset();
+    assert.equal(commitGameState(restored, { mergeProfile: 'replace' }).ok, false, 'replace alone does not authorize travel');
+    assert.deepEqual(JSON.parse(fs.readFileSync(statePath)), original);
+    assert.equal(commitGameState({ ...restored, navigationPublication: 'timeline-restore' }, { mergeProfile: 'replace' }).ok, false, 'AI payload cannot authorize publication');
+    assert.equal(commitGameState(restored, { navigationPublication: 'timeline-restore' }).ok, false, 'publication requires explicit replacement profile');
+    assert.equal(commitGameState(restored, { mergeProfile: 'replace', navigationPublication: 'timeline-restore' }).ok, true);
+    assert.equal(JSON.parse(fs.readFileSync(statePath)).world.currentLocationId, 'restored-port');
+    reset();
+    assert.equal(commitGameState(validState, { mergeProfile: 'replace', navigationPublication: 'campaign-reset' }).ok, true);
+    assert.equal(JSON.parse(fs.readFileSync(statePath)).world, undefined, 'new campaign can replace old position');
+    reset();
+    fs.writeFileSync(path.join(workspace, '.water-navigation.json'), JSON.stringify({ version: 1, phase: 'prepared', worldHash: 'old', requestId: 'pending', writes: [], receipts: [] }));
+    assert.equal(commitGameState(restored, { mergeProfile: 'replace', navigationPublication: 'timeline-restore' }).ok, false, 'pending navigation still blocks publication');
+    assert.deepEqual(JSON.parse(fs.readFileSync(statePath)), original);
+    console.log('stateManager: host publication intent, travel rejection and pending navigation passed.');
+}

@@ -89,4 +89,21 @@ assert.strictEqual(call(root, { action: 'preview', destination: 'missing' }).val
 fs.writeFileSync(path.join(root, 'world_forge.json'), '{bad json');
 assert.strictEqual(call(root, { action: 'preview', destination: 'a' }).value.ok, false);
 
+// Two distinct locations sharing one port must not yield an accepted zero-edge quote.
+const sharedRoot = workspace();
+const sharedForge = JSON.parse(fs.readFileSync(path.join(sharedRoot, 'world_forge.json'), 'utf8'));
+sharedForge.geography.waterways.ports.b = 'wa';
+fs.writeFileSync(path.join(sharedRoot, 'world_forge.json'), JSON.stringify(sharedForge));
+const sharedPreview = call(sharedRoot, { action: 'preview', destination: 'b', vehicleId: 'boat' });
+assert.strictEqual(sharedPreview.value.ok, true);
+assert.strictEqual(sharedPreview.value.quoteId, null, 'blocked shared-port route must not create a quote');
+assert.strictEqual(sharedPreview.value.route.status, 'blocked');
+assert.match(sharedPreview.value.route.reasons.join(' '), /別々.*接続点|実際.*水上接続/);
+const sharedDepart = call(sharedRoot, { action: 'depart', quoteId: 'shared-zero-edge' });
+assert.strictEqual(sharedDepart.value.ok, false);
+assert.strictEqual(JSON.parse(fs.readFileSync(path.join(sharedRoot, 'game_state.json'), 'utf8')).world.currentLocationId, 'a');
+const sharedVehicle = JSON.parse(fs.readFileSync(path.join(sharedRoot, 'vehicle_state.json'), 'utf8')).vehicles[0];
+assert.strictEqual(sharedVehicle.locationId, 'a');
+assert.strictEqual(sharedVehicle.durability.hp, 100);
+
 console.log('water navigation host: all guard tests passed');

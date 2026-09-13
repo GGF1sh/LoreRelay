@@ -1,3 +1,4 @@
+import { recoverWaterNavigation } from './waterNavigationStore';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -277,6 +278,7 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
     }
 
     try {
+        if (workspaceRoot) recoverWaterNavigation(workspaceRoot);
         if (fs.existsSync(statePath)) {
             const raw = fs.readFileSync(statePath, 'utf-8');
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

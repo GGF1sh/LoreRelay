@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.88.0] - 2026-09-14
+
+### Added
+- Deterministic, persisted 128×128 hydrology for new terrestrial worlds: tributaries, rivers, major rivers, estuaries, coastal/offshore sea, explicit bridges and ferries.
+- Shared water geometry in diagram/tile maps and external-AI layout PNGs; zoom detail preserves the exploration boundary.
+- Host-evaluated vessel routes with width, draft, bridge clearance, seaworthiness, range and destination access checks. Safe detours take priority; dangerous shortcuts require explicit predicted-HP confirmation.
+- Journalled joint player/vehicle movement and hull damage, stale-quote rejection and replay protection. Legacy market travel directs water-enabled worlds to the navigation panel; legacy location and vehicle writes cannot bypass its checks.
+- Isolated family demo generator and navigation guide. Minor code candidate; no tag or Release published.
+
 ## [1.87.0] - 2026-09-13
 
 ### Added

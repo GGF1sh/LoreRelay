@@ -214,12 +214,29 @@ let memoValue: TileOvermap | undefined;
 export function buildTileOvermap(forge: WorldForge, size: number = TILE_OVERMAP_SIZE): TileOvermap {
     const spec = buildCartographyLayoutSpec(forge);
     const seed = hashStringToSeed(forge.meta.worldSeed ?? forge.meta.worldName ?? '');
-    const key = `${size}:${seed}:${JSON.stringify(spec.regions)}:${JSON.stringify(spec.edges)}`;
+    const key = `${size}:${seed}:${JSON.stringify(spec.regions)}:${JSON.stringify(spec.edges)}:${JSON.stringify(forge.geography.waterways)}`;
     if (memoValue && key === memoKey) {
         return memoValue;
     }
     memoKey = key;
     memoValue = buildTileOvermapFromSpec(spec, seed, size);
+    const water = forge.geography.waterways;
+    if (water) {
+        memoValue.tileRows = memoValue.tileRows.map((row, y) => [...row].map((code, x) => {
+            const sea = water.seaRows[Math.round(y * 127 / (size - 1))][Math.round(x * 127 / (size - 1))];
+            if (sea !== '0') return 's';
+            if (code !== 's') return code;
+            const p = { x: x * 1000 / (size - 1), y: y * 1000 / (size - 1) };
+            const nearest = spec.regions.filter(r => r.biome !== 'sea').sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) / a.radius - Math.hypot(b.x - p.x, b.y - p.y) / b.radius)[0];
+            return nearest ? TILE_BIOME_CODES[nearest.biome] : 'p';
+        }).join(''));
+        const roads = new Map<string, [number, number]>();
+        for (const road of water.roads) for (let i = 1; i < road.points.length; i++) {
+            const a = road.points[i - 1], b = road.points[i];
+            for (const p of bresenham(regionTileCenter(a.x, size), regionTileCenter(a.y, size), regionTileCenter(b.x, size), regionTileCenter(b.y, size))) roads.set(p.join(','), p);
+        }
+        memoValue.roads = [...roads.values()];
+    }
     return memoValue;
 }
 

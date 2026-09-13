@@ -1,3 +1,5 @@
+import { handleWaterNavigation } from './waterNavigationHost';
+import { clearVehicleStateCache } from './vehicleState';
 import * as vscode from 'vscode';
 import { handleWorldMapAsset } from './cartographyAssetHost';
 import { handleWorldMapModels } from './imageGenRunner';
@@ -392,6 +394,18 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'waterNavigation') {
+        const workspace = getWorkspacePath();
+        if (workspace && panel && await requireModCanonicalMutationAllowed()) {
+            const result = await deterministicWorkspaceMutationGate.run(workspace, { actionKind: 'waterNavigation', requestId: String(message.quoteId || 'preview') }, () =>
+                handleWaterNavigation(workspace, message, value => { void panel?.webview.postMessage(value); }));
+            if (result.status === 'completed' && result.value) {
+                clearVehicleStateCache();
+                await sendCurrentState();
+            } else if (result.status !== 'completed') void panel.webview.postMessage({ type: 'waterNavigationResult', ok: false, error: '別の保存処理中です。完了後に再確認してください。' });
+        }
+        return;
+    }
     if (message.type === 'structureArt') {
         const workspace = getWorkspacePath();
         if (workspace && panel && await requireModCanonicalMutationAllowed()) {

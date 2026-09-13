@@ -152,6 +152,7 @@ def load_spec(path: Path, size: int) -> dict:
         "size": size,
         "regions": regions,
         "edges": edges,
+        "waterways": data.get("geography", {}).get("waterways") if isinstance(data.get("geography", {}).get("waterways"), dict) else None,
     }
 
 
@@ -184,15 +185,15 @@ class Canvas:
                     if r2_inner < d2 <= r2_outer:
                         self.set_px(x, y, rgb)
 
-    def draw_line(self, x0: int, y0: int, x1: int, y1: int, rgb: tuple[int, int, int]) -> None:
+    def draw_line(self, x0: int, y0: int, x1: int, y1: int, rgb: tuple[int, int, int], width: int = 5) -> None:
         dx = abs(x1 - x0)
         dy = -abs(y1 - y0)
         sx = 1 if x0 < x1 else -1
         sy = 1 if y0 < y1 else -1
         err = dx + dy
         while True:
-            for oy in range(-2, 3):
-                for ox in range(-2, 3):
+            for oy in range(-(width // 2), width // 2 + 1):
+                for ox in range(-(width // 2), width // 2 + 1):
                     self.set_px(x0 + ox, y0 + oy, rgb)
             if x0 == x1 and y0 == y1:
                 break
@@ -203,6 +204,10 @@ class Canvas:
             if e2 <= dx:
                 err += dx
                 y0 += sy
+
+    def draw_polyline(self, points: list[tuple[int, int]], rgb: tuple[int, int, int], width: int = 5) -> None:
+        for a, b in zip(points, points[1:]):
+            self.draw_line(a[0], a[1], b[0], b[1], rgb, width)
 
     def to_png(self) -> bytes:
         raw = b"".join(
@@ -292,6 +297,13 @@ def draw_region_centers(canvas: Canvas, regions: list, size: int, rgb: tuple[int
 def draw_road_network(canvas: Canvas, spec: dict, rgb: tuple[int, int, int]) -> None:
     """Legacy straight center-to-center roads (full/roads modes)."""
     size = spec["size"]
+    waterways = spec.get("waterways")
+    if isinstance(waterways, dict) and isinstance(waterways.get("roads"), list):
+        for road in waterways["roads"]:
+            points = road.get("points") if isinstance(road, dict) else None
+            if isinstance(points, list) and len(points) >= 2:
+                canvas.draw_polyline([(map_to_px(p["x"], size), map_to_px(p["y"], size)) for p in points if isinstance(p, dict) and isinstance(p.get("x"), (int, float)) and isinstance(p.get("y"), (int, float))], rgb)
+        return
     by_id = {r["id"]: r for r in spec["regions"]}
     for a, b in spec["edges"]:
         ra, rb = by_id.get(a), by_id.get(b)
@@ -300,6 +312,38 @@ def draw_road_network(canvas: Canvas, spec: dict, rgb: tuple[int, int, int]) -> 
         x0, y0 = map_to_px(ra["x"], size), map_to_px(ra["y"], size)
         x1, y1 = map_to_px(rb["x"], size), map_to_px(rb["y"], size)
         canvas.draw_line(x0, y0, x1, y1, rgb)
+
+
+def draw_waterways(canvas: Canvas, spec: dict, rgb: tuple[int, int, int], lineart: bool = False) -> None:
+    size = spec["size"]
+    waterways = spec.get("waterways")
+    if not isinstance(waterways, dict):
+        return
+    rows = waterways.get("seaRows")
+    if isinstance(rows, list) and len(rows) == 128 and all(isinstance(row, str) and len(row) == 128 for row in rows):
+        for py in range(size):
+            row = rows[round(py * 127 / max(1, size - 1))]
+            for px in range(size):
+                value = row[round(px * 127 / max(1, size - 1))]
+                if value in ("1", "2"):
+                    canvas.set_px(px, py, (225, 225, 225) if lineart else BIOME_RGB["coast" if value == "1" else "sea"])
+                elif not lineart:
+                    i = (py * canvas.w + px) * 3
+                    if tuple(canvas.pixels[i:i+3]) in (BIOME_RGB["coast"], BIOME_RGB["sea"]):
+                        canvas.set_px(px, py, PARCHMENT)
+    draw_road_network(canvas, spec, rgb)
+    for edge in waterways.get("edges", []):
+        if not isinstance(edge, dict) or edge.get("kind") not in ("stream", "river", "major"):
+            continue
+        points = edge.get("points")
+        if isinstance(points, list) and len(points) >= 2:
+            valid = [(map_to_px(p["x"], size), map_to_px(p["y"], size)) for p in points if isinstance(p, dict) and isinstance(p.get("x"), (int, float)) and isinstance(p.get("y"), (int, float))]
+            if len(valid) >= 2:
+                canvas.draw_polyline(valid, (0, 0, 0) if lineart else (50, 160, 225), {"stream": 1, "river": 3, "major": 5}[edge["kind"]])
+    for crossing in waterways.get("crossings", []):
+        if isinstance(crossing, dict) and isinstance(crossing.get("x"), (int, float)) and isinstance(crossing.get("y"), (int, float)):
+            cx, cy = map_to_px(crossing["x"], size), map_to_px(crossing["y"], size)
+            canvas.fill_circle(cx, cy, 4, (150, 80, 30) if crossing.get("kind") == "ferry" else rgb)
 
 
 def draw_border_roads(
@@ -351,7 +395,11 @@ def render_voronoi_layout(spec: dict, lineart_only: bool = False) -> bytes:
         paint_voronoi_regions(canvas, regions, owners, size)
 
     stroke_voronoi_borders(canvas, owners, size, BORDER_RGB, width=2)
-    draw_border_roads(canvas, spec, owners, regions, size, LINE_RGB)
+    if not (isinstance(spec.get("waterways"), dict) and isinstance(spec["waterways"].get("roads"), list)):
+        draw_border_roads(canvas, spec, owners, regions, size, LINE_RGB)
+    else:
+        draw_road_network(canvas, spec, LINE_RGB)
+    draw_waterways(canvas, spec, LINE_RGB, lineart_only)
     return canvas.to_png()
 
 
@@ -367,6 +415,7 @@ def render_layout(spec: dict, layout_mode: str = "voronoi") -> bytes:
 
     if layout_mode == "roads":
         draw_region_centers(canvas, spec["regions"], size, LINE_RGB)
+        draw_waterways(canvas, spec, LINE_RGB)
         return canvas.to_png()
 
     for r in spec["regions"]:
@@ -376,6 +425,7 @@ def render_layout(spec: dict, layout_mode: str = "voronoi") -> bytes:
         canvas.fill_circle(cx, cy, max(12, pr), rgb)
         canvas.stroke_circle(cx, cy, max(12, pr), LINE_RGB, width=3)
 
+    draw_waterways(canvas, spec, LINE_RGB)
     return canvas.to_png()
 
 

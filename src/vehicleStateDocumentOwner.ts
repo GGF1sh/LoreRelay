@@ -1,3 +1,4 @@
+import { navigationVehicleWriteError } from './waterNavigationAuthority';
 // NOAI-GAMEPLAY-SPINE-005B-PRE3A: durable host owner for normal vehicle_state.json mutations.
 // Coordinates document read / mechanical mutation / version-preserving replacement.
 // Does not create receipts, migrate v1→v2, or perform Gameplay Spine repair.
@@ -403,6 +404,8 @@ function replaceVehicleStateDocumentDurably(
     let tempPath: string;
     let payload: string;
     try {
+        const navigationError = navigationVehicleWriteError(path.dirname(statePath), JSON.parse(deps.readFileUtf8(statePath)), outDocument);
+        if (navigationError) throw Error(navigationError);
         tempPath = deps.allocateTempPath(statePath);
         if (!isSafeSameDirectoryTempPath(statePath, tempPath)) {
             throw new Error('unsafe vehicle document temp path');

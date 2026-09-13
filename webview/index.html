@@ -878,6 +878,18 @@
                  between a data-bearing and a no-data location never moves the
                  button row — only the viewport below it changes size. -->
             <div id="world-location-navigator" class="world-location-navigator hidden" role="group"></div>
+            <details id="water-navigation" class="hidden"><summary>航路・渡河</summary>
+              <label>移動手段 <select id="water-vehicle"></select></label>
+              <label>目的地 <select id="water-destination"></select></label>
+              <button type="button" id="water-preview">経路を確認</button>
+              <button type="button" id="water-shortcut" hidden>危険な近道を確認</button>
+              <label>地図倍率 <select id="water-zoom"><option value="0.75">0.75×（大河）</option><option value="1" selected>1×（河川以上）</option><option value="2">2×（小河川まで）</option><option value="3">3×</option></select></label>
+              <p id="water-result" role="status" aria-live="polite"></p>
+              <label id="water-confirm-label" hidden><input type="checkbox" id="water-confirm" />予告された船体損傷を了承する</label>
+              <button type="button" id="water-depart" disabled>この経路で出発</button>
+              <button type="button" id="water-cancel">キャンセル</button>
+              <p>幅・水深・橋・渡し場の条件を満たす経路を選びます。危険な連続海域ごとに最大船体HPの5％の損傷。</p>
+            </details>
             <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
               <div id="world-mermaid" class="mermaid world-map-panel"></div>
               <div id="world-cartography" class="world-map-panel hidden">

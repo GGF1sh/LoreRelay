@@ -42,6 +42,7 @@ function mapAssetSizeStage() {
     if (!viewport || !stage || !image?.naturalWidth || !viewport.clientWidth) return;
     const fitWidth = Math.min(viewport.clientWidth, window.innerHeight * .7 * image.naturalWidth / image.naturalHeight);
     stage.style.width = `${fitWidth * mapAssetZoom}px`;
+    if (typeof renderWaterCartography === 'function') renderWaterCartography();
     scheduleCartographyLabelLayout();
 }
 function mapAssetStartEdit() {

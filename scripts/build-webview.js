@@ -32,6 +32,7 @@ const JS_MODULE_ORDER = [
     '84a-webview-anim.js',
     '84b-responsive-shell.js',
     '85-world.js',
+    '85-water-navigation.js',
     '85a-cartography-assets.js',
     '85b1-logistics-layout.js',
     '85b2-logistics-route-geometry.js',

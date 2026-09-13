@@ -97,6 +97,9 @@ import {
     mobileBaseSystemEnabled,
 } from './mobileBaseBridge';
 import { buildVehicleGarageWebviewPayload } from './vehicleBridge';
+import { buildStructureArtTarget, type StructureArtTarget } from './structureArtCore';
+import { registerStructureArtTargets } from './structureArtHost';
+import { resolveMobileBaseSettlementDocuments } from './settlementLocationResolveHost';
 import { loadVehicleState } from './vehicleState';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
@@ -521,6 +524,7 @@ function buildNpcWhereaboutsPayload(
  * gameStateSync から呼ばれる（scenarioDirector の push パターンに倣う）。
  */
 export function pushWorldViewToWebview(currentLocationId?: string): void {
+    registerStructureArtTargets('', '', []);
     const panel = getPanelRef?.();
     if (!panel) { return; }
 
@@ -911,9 +915,20 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             .slice(-MAX_OBSERVATORY_CHRONICLE_EVENTS)
         : [];
 
+    const artTargets: StructureArtTarget[] = [];
+    if (settlementState && displaySettlementLocationId) artTargets.push(buildStructureArtTarget(
+        'fixed:' + displaySettlementLocationId, settlementState, settlementLayout));
+    const garageForArt = buildVehicleGarageWebviewPayload(actualCurrentLocationId ?? worldBlock?.currentLocationId);
+    for (const vehicle of garageForArt?.vehicles || []) {
+        const link = loadVehicleState()?.vehicles.find(v => v.id === vehicle.id)?.mobileBase?.settlementId;
+        const resolved = wsPath && link ? resolveMobileBaseSettlementDocuments({ workspaceRoot: wsPath, activeMobileBaseSettlementId: link }) : undefined;
+        artTargets.push(buildStructureArtTarget('vehicle:' + vehicle.id,
+            resolved?.ok ? resolved.state : undefined, resolved?.ok ? resolved.layout : undefined, vehicle));
+    }
     panel.webview.postMessage({
         type: 'worldView',
         enabled: true,
+        structureArtTargets: wsPath ? registerStructureArtTargets(wsPath, cartographyWorldKey(forge), artTargets) : [],
         worldPacing: simEnabled ? projectWorldPacing(forge, worldState, fog.discoveredRegionIds) : null,
         worldName: forge.meta.worldName,
         theme: forge.meta.theme ?? '',

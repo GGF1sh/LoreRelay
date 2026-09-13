@@ -8,12 +8,14 @@
 2. Read this file, then [development verification policy](DEVELOPMENT_VERIFICATION_POLICY.md).
 3. Before assigning an AI/model, read [AI Model Assignment Policy](AI_MODEL_ASSIGNMENT_POLICY.md).
 4. Read only the task-specific documents named by the task or current state below. Do not bulk-read `docs/ai-tasks`.
+5. Before finalizing a PR or handing a build to the user, read [version update criteria](VERSION_TRUTH.md#versioning-policy) and record `Version decision: none / patch / minor / major`, the before/after version, and the reason. A changed human-play candidate needs a new package version and an exact HEAD; a version bump does not authorize publishing a release.
 
 ## Route the task
 
 | Need | Source of truth / action |
 | --- | --- |
 | Risk tier and verification scope | [Development Verification Policy](DEVELOPMENT_VERIFICATION_POLICY.md) |
+| Version bump, human-play candidate identity, source vs. distribution | [Version Truth and update criteria](VERSION_TRUTH.md#versioning-policy) |
 | Model assignment and retired models | [AI Model Assignment Policy](AI_MODEL_ASSIGNMENT_POLICY.md) |
 | Exploration limit | [AI Exploration Budget Policy](AI_EXPLORATION_BUDGET_POLICY.md) |
 | Compact handoff | [AI Prompt Handoff Policy](AI_PROMPT_HANDOFF_POLICY.md) |
@@ -51,4 +53,4 @@ The Console proposes evidence; the risk tier decides whether a full suite is req
 
 ## Standard close
 
-Commit, push, create the PR, and merge eligible narrow work in the same task. The final handoff reports only the current JST, exact base/final SHA, risk tier, checks, remaining issue, and verdict.
+Commit, push, create the PR, and merge eligible narrow work in the same task. The final handoff reports only the current JST, exact base/final SHA, risk tier, checks, remaining issue, and verdict. Include the version decision and whether a distribution artifact was actually published; do not treat source integration as an installed-user update.

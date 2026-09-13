@@ -8,6 +8,7 @@ import { sendCurrentState, setGameEntryHistoryWithSeenIds, saveHistoryToDisk } f
 import { sendBgmManifest, sendSfxManifest } from './mediaManifest';
 import { resolvePythonCommand } from './skillScriptRunner';
 import { commitGameState } from './stateManager';
+import { publishNewCampaignState } from './campaignStatePublication';
 import { resetGmBridgeSessions } from './gmBridgeRunner';
 import {
     parseScenarioDirectorTemplate,
@@ -306,17 +307,13 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
             throw new Error('MOD activation authorization changed before scenario reset');
         }
         resetGmBridgeSessions();
-        const commit = commitGameState(state, {
-            mergeProfile: 'replace',
-            navigationPublication: 'campaign-reset',
-            runtimeAcceptedTurnWitnessMode: 'clear',
+        await publishNewCampaignState(wsPath, state, () => {
+            if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
+                throw new Error('MOD activation authorization changed before scenario history write');
+            }
+            setGameEntryHistoryWithSeenIds([openingEntry]);
+            if (!saveHistoryToDisk()) throw new Error('Scenario history save failed');
         });
-        if (!commit.ok) throw new Error(commit.reason.join('; '));
-        if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
-            throw new Error('MOD activation authorization changed before scenario history write');
-        }
-        setGameEntryHistoryWithSeenIds([openingEntry]);
-        saveHistoryToDisk();
         ensureScenarioStarterProtagonist(localizedScenario);
         if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
             throw new Error('MOD activation authorization changed during scenario activation');

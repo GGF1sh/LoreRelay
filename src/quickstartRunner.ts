@@ -9,7 +9,7 @@ import { resetWorldStateFromForge } from './worldState';
 import { maybeBootstrapProtagonist, quickstartFieldsToDraft } from './protagonistBootstrap';
 import { resetGmBridgeSessions } from './gmBridgeRunner';
 import { setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
-import { commitGameState } from './stateManager';
+import { publishNewCampaignState } from './campaignStatePublication';
 import { recoverWaterNavigation } from './waterNavigationStore';
 import type { GameEntry } from './types/GameState';
 
@@ -150,10 +150,12 @@ Output ONLY valid JSON. Do not include markdown formatting or extra text.`;
             guidanceMode: 'sandbox',
         },
     };
-    const published = commitGameState(initialState, { mergeProfile: 'replace', navigationPublication: 'campaign-reset' });
-    if (!published.ok) return { success: false, error: published.reason.join('; ') };
-    setGameEntryHistoryWithSeenIds([openingEntry]);
-    if (!saveHistoryToDisk()) return { success: false, error: 'Quickstart history save failed.' };
+    try {
+        await publishNewCampaignState(ws, initialState, () => {
+            setGameEntryHistoryWithSeenIds([openingEntry]);
+            if (!saveHistoryToDisk()) throw new Error('Quickstart history save failed.');
+        });
+    } catch (error) { return { success: false, error: String(error) }; }
 
     const draft = quickstartFieldsToDraft({
         characterName: parsed.characterName,

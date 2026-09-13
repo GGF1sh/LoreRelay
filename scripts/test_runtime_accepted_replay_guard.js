@@ -622,6 +622,33 @@ async function run() {
         assert(next.kind === 'unseen', 'next valid TurnResult after rebind is usable under new campaign ledger');
     }
 
+    // New campaign publication must rebind ledger authority, not only clear its canonical witness.
+    {
+        const { publishNewCampaignState } = withMockedRequire({ vscode: createVscodeStub() }, () => require('../out/campaignStatePublication'));
+        const ws = tempWorkspace();
+        acceptWithWitness(ws, guard, core, baseTurn({ turnId: 'old-water-campaign' }), '1'.repeat(64));
+        const oldScope = guard.ensureAcceptedTurnScope(ws);
+        const oldState = readJson(path.join(ws, 'game_state.json'));
+        writeJson(path.join(ws, 'game_state.json'), { ...oldState, world: { currentLocationId: 'old-port' } });
+        writeJson(path.join(ws, 'world_forge.json'), { geography: { waterways: {} } });
+        writeJson(path.join(ws, 'turn_result.json'), baseTurn({ turnId: 'retained-old-campaign' }));
+        await publishNewCampaignState(ws, { schemaVersion: 2, entries: [], status: {}, options: [] }, () => {});
+        const nextScope = guard.ensureAcceptedTurnScope(ws);
+        assert(nextScope.campaignInstanceId !== oldScope.campaignInstanceId, 'scenario publication rebinds campaign scope');
+        assert(!readJson(path.join(ws, 'game_state.json')).runtimeAcceptedTurn, 'new scenario has no old witness');
+        assert(!fs.existsSync(path.join(ws, 'turn_result.json')), 'scenario publication quarantines retained response');
+        assert(fs.readdirSync(guard.getAcceptedTurnRuntimeDir(ws)).some(name => name.includes('accepted_turn_ledger.json.campaign-rebind')), 'scenario publication archives old ledger');
+        assert(guard.preflightAcceptedTurn(ws, baseTurn({ turnId: 'new-scenario-turn' }), '2'.repeat(64), 'new-scenario').kind === 'unseen', 'next GM turn after scenario publication can proceed');
+
+        const failedWs = tempWorkspace();
+        acceptWithWitness(failedWs, guard, core, baseTurn({ turnId: 'before-failed-reset' }), '3'.repeat(64));
+        let rejected = false;
+        try { await publishNewCampaignState(failedWs, { schemaVersion: 2, entries: [], status: {}, options: [] }, () => { throw Error('injected history failure'); }); }
+        catch { rejected = true; }
+        assert(rejected, 'publication reports history failure');
+        assert(guard.preflightAcceptedTurn(failedWs, baseTurn({ turnId: 'after-failed-reset' }), '4'.repeat(64), 'failed-reset').kind === 'repairRequired', 'failed publication retains replay repair latch');
+    }
+
     // V4: writer lease blocks live owners, heartbeats, recovers dead/orphaned authority, and fails closed on fresh malformed authority.
     {
         guard.resetAcceptedTurnReplayGuardForTests();

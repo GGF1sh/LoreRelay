@@ -1,3 +1,4 @@
+import { navigationGameWriteError } from './waterNavigationAuthority';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { GameState } from './types/GameState';
@@ -66,6 +67,8 @@ function writeGameStatePlan(
         profile: options.mergeProfile,
     });
     const witnessOwned = applyRuntimeAcceptedTurnWitnessAuthority(merged, disk, options);
+    const navigationError = navigationGameWriteError(path.dirname(statePath), disk, witnessOwned);
+    if (navigationError) return { ok: false, action: 'skip', reason: [navigationError] };
 
     const plan = resolveGameStatePersistPlan(witnessOwned, mode);
     if (plan.action === 'skip') {

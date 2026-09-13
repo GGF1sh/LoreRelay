@@ -88,6 +88,10 @@ async function hostTests() {
     await host.handleWorldMapAsset({ action: 'adopt', token: preview.token }, deps); assert.equal(messages.at(-1).status, 'error');
     await host.handleWorldMapAsset({ action: 'import' }, deps);
     const fresh = messages.at(-1);
+    selected = undefined;
+    await host.handleWorldMapAsset({ action: 'import' }, deps);
+    selected = source;
+    // A cancelled replacement must leave the displayed preview adoptable.
     await host.handleWorldMapAsset({ action: 'adopt', token: fresh.token }, deps); assert.equal(messages.at(-1).status, 'adopted');
     await host.handleWorldMapAsset({ action: 'adopt', token: fresh.token }, deps); assert.equal(messages.at(-1).status, 'error');
     selected = undefined;
@@ -104,6 +108,40 @@ async function hostTests() {
     await host.handleWorldMapAsset({ action: 'markerMode', worldKey: 'wrong', revision: portraitRevision, mode: 'standard' }, deps);
     assert.equal(messages.at(-1).status, 'error');
     assert.equal(store.loadCartographyAsset(dir, forge).revision, portraitRevision);
+
+    for (const failure of ['malformed', 'null', 'invalid-shape', 'missing', 'digest']) {
+        const recoveryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'map-recovery-'));
+        const originalState = store.adoptCartographyAsset(recoveryRoot, forge, image);
+        const assetRoot = path.join(recoveryRoot, '.lorerelay-map-assets');
+        const stateFile = path.join(assetRoot, `${originalState.worldKey}.json`);
+        const imageFile = path.join(assetRoot, originalState.file);
+        if (failure === 'malformed') fs.writeFileSync(stateFile, '{broken');
+        if (failure === 'null') fs.writeFileSync(stateFile, 'null');
+        if (failure === 'invalid-shape') fs.writeFileSync(stateFile, '{}');
+        if (failure === 'missing') fs.renameSync(imageFile, path.join(recoveryRoot, 'saved-original.png'));
+        if (failure === 'digest') fs.writeFileSync(imageFile, 'corrupt image bytes');
+        const oldManifest = fs.readFileSync(stateFile, 'utf8');
+        const recoveryDeps = { ...deps, workspace: recoveryRoot };
+        await host.handleWorldMapAsset({ action: 'import' }, recoveryDeps);
+        assert.equal(messages.at(-1).status, 'preview', failure);
+        const recoveryPreview = messages.at(-1);
+        await host.handleWorldMapAsset({ action: 'adopt', token: recoveryPreview.token }, recoveryDeps);
+        assert.equal(messages.at(-1).status, 'adopted', `${failure}: ${JSON.stringify(messages.at(-1))}`);
+        assert(store.loadCartographyAsset(recoveryRoot, forge));
+        assert(fs.readdirSync(assetRoot).filter(n => n.includes('.previous-') && n.endsWith('.json'))
+            .some(n => fs.readFileSync(path.join(assetRoot, n), 'utf8') === oldManifest), 'old manifest retained');
+        if (failure === 'digest') assert(fs.readdirSync(assetRoot).filter(n => n.includes('.previous-') && n.endsWith('.png'))
+            .some(n => fs.readFileSync(path.join(assetRoot, n), 'utf8') === 'corrupt image bytes'));
+
+        // Two different broken revisions must never compare equal.
+        fs.writeFileSync(stateFile, '{broken-first');
+        await host.handleWorldMapAsset({ action: 'import' }, recoveryDeps);
+        const stale = messages.at(-1); assert.equal(stale.status, 'preview');
+        fs.writeFileSync(stateFile, '{broken-second');
+        await host.handleWorldMapAsset({ action: 'adopt', token: stale.token }, recoveryDeps);
+        assert.equal(messages.at(-1).status, 'error');
+        assert.equal(fs.readFileSync(stateFile, 'utf8'), '{broken-second');
+    }
 
     const context = vm.createContext({ window: { addEventListener() {} }, document: { getElementById: () => null }, vscode: {} });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../webview/modules/85a-cartography-assets.js'), 'utf8'), context);

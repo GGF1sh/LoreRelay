@@ -17,6 +17,7 @@ const {
     validatePresetForGeneration,
 } = require('../out/genreWorldPresetCore');
 const { parseWorldForge } = require('../out/worldForgeCore');
+const { parseWaterways } = require('../out/waterwayCore');
 const { buildInitialWorldState } = require('../out/worldStateCore');
 const assert = require('assert');
 const fs = require('fs');
@@ -509,7 +510,25 @@ check('all existing theme keys retain exact-base canonical parsed content', () =
             factionCount: 3,
             npcCount: 6,
         });
-        assert.deepStrictEqual(canonicalContentOf(forge), expected, `canonical parity failed for ${theme}`);
+        const canonicalNew = JSON.parse(JSON.stringify(canonicalContentOf(forge)));
+        if (canonicalNew.geography.waterways) {
+            assert.deepStrictEqual(parseWaterways(canonicalNew.geography.waterways), canonicalNew.geography.waterways);
+            for (const location of canonicalNew.geography.locations) {
+                if (Array.isArray(location.services)) {
+                    location.services = location.services.filter(service => service !== 'river_landing');
+                    if (!location.services.length) delete location.services;
+                }
+                const expectedLocation = expected.geography.locations.find(item => item.id === location.id);
+                if (expectedLocation && expectedLocation.vehicleAccess !== undefined) {
+                    assert.deepStrictEqual(location.vehicleAccess, expectedLocation.vehicleAccess);
+                } else {
+                    assert.ok(location.vehicleAccess, `new vehicleAccess default missing for ${location.id}`);
+                    delete location.vehicleAccess;
+                }
+            }
+            delete canonicalNew.geography.waterways;
+        }
+        assert.deepStrictEqual(canonicalNew, expected, `canonical parity failed for ${theme}`);
         assert.deepStrictEqual(forge.meta.generationProvenance, {
             presetId: EXPECTED_PRESET_BY_THEME[theme],
             presetVersion: 1,

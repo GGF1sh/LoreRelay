@@ -37,7 +37,7 @@ export async function handleStructureArt(message: Record<string, unknown>, works
         } else if (message.action === 'reveal') {
             if (lastExport?.workspace === workspace) await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(lastExport.path));
         } else if (message.action === 'import') {
-            pending = undefined;
+            // Keep the visible preview usable until another image has been selected and validated.
             const revision = store.read().revision;
             const uris = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { Images: ['png','jpg','jpeg','webp'] }, title: '完成画像を取り込む' });
             if (!uris?.[0]) { await post({ notice: 'キャンセルしました' }); return; }

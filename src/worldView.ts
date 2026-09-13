@@ -1,3 +1,5 @@
+import { buildNavigationView } from './waterNavigationHost';
+import { recoverWaterNavigation } from './waterNavigationStore';
 import * as fs from 'fs';
 import { loadCartographyAsset, cartographyAssetPath } from './cartographyAssetStore';
 import { cartographyWorldKey } from './cartographyOverlayCore';
@@ -524,6 +526,11 @@ function buildNpcWhereaboutsPayload(
  * gameStateSync から呼ばれる（scenarioDirector の push パターンに倣う）。
  */
 export function pushWorldViewToWebview(currentLocationId?: string): void {
+    const navigationWorkspace = getWorkspacePath();
+    if (navigationWorkspace) {
+        try { recoverWaterNavigation(navigationWorkspace); }
+        catch (e) { void getPanelRef?.()?.webview.postMessage({ type: 'waterNavigationResult', ok: false, error: String(e) }); return; }
+    }
     registerStructureArtTargets('', '', []);
     const panel = getPanelRef?.();
     if (!panel) { return; }
@@ -925,8 +932,14 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         artTargets.push(buildStructureArtTarget('vehicle:' + vehicle.id,
             resolved?.ok ? resolved.state : undefined, resolved?.ok ? resolved.layout : undefined, vehicle));
     }
+    let navigation: ReturnType<typeof buildNavigationView> = null;
+    if (wsPath && forge.geography.waterways) {
+        try { navigation = buildNavigationView(wsPath, forge, fog.discoveredRegionIds); }
+        catch (e) { void panel.webview.postMessage({ type: 'waterNavigationResult', ok: false, error: String(e) }); }
+    }
     panel.webview.postMessage({
         type: 'worldView',
+        navigation,
         enabled: true,
         structureArtTargets: wsPath ? registerStructureArtTargets(wsPath, cartographyWorldKey(forge), artTargets) : [],
         worldPacing: simEnabled ? projectWorldPacing(forge, worldState, fog.discoveredRegionIds) : null,

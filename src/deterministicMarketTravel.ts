@@ -12,6 +12,7 @@ import type { WorldForge, WorldLocation } from './worldForgeCore';
 import { publishedMarketLocationIds } from './publishedMarketLocationsCore';
 
 export type MarketTravelFailureCode =
+    | 'NAVIGATION_REQUIRED'
     | 'CONFIRMATION_REQUIRED' | 'COMMERCE_OFF' | 'NO_FORGE' | 'NO_GAME_STATE'
     | 'NO_WORLD' | 'NO_LOCATION' | 'NO_DESTINATIONS' | 'SAME_LOCATION' | 'UNKNOWN_DESTINATION'
     | 'PERSIST_FAILED' | 'PARTIAL_PERSIST_FAILED' | 'VERIFY_FAILED';
@@ -145,6 +146,9 @@ export function previewMarketTravel(destinationId?: string, deps: MarketTravelHo
         return failure('NO_FORGE', '世界設定を確認できません。', 'World Forge を確認してください。');
     }
     const forge = deps.loadWorldForge();
+    if (forge?.geography.waterways) {
+        return failure('NAVIGATION_REQUIRED', 'この世界では水系・橋・渡し場の確認が必要です。', 'ワールドの「航路・渡河」で移動手段と市場を選び、経路を確認してください。');
+    }
     const commerce = resolveCommerce(deps, forge);
     if (!forge || !commerce) {
         return failure('NO_FORGE', '市場の定義を確認できません。', 'world_forge.json の commerce.markets を確認してください。');

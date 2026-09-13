@@ -1,3 +1,4 @@
+import type { VesselProfile, WaterBand } from './waterwayCore';
 // Vehicle System V1: pure parser, access checks, fleet validation, prompt summaries (no vscode/fs/DOM).
 
 import { normalizeCountCap } from './settlementDioramaCore';
@@ -245,6 +246,8 @@ export interface VehicleMobileBaseLinkRaw {
 }
 
 export interface VehicleEntry {
+    waterProfile?: VesselProfile;
+    crossingProfile?: { width: WaterBand; load: WaterBand };
     id: string;
     name: string;
     kind: VehicleKind;
@@ -614,6 +617,12 @@ function parseVehicleEntry(raw: unknown): VehicleEntry | undefined {
         durability: parseDurability(r.durability),
     };
     const locationId = asId(r.locationId);
+    const wp = r.waterProfile as VesselProfile | undefined;
+    if (wp && [wp.width, wp.draft, wp.airDraft].every(v => [1, 2, 3].includes(v)) && [0, 1, 2].includes(wp.seaworthiness)) {
+        entry.waterProfile = { width: wp.width, draft: wp.draft, airDraft: wp.airDraft, seaworthiness: wp.seaworthiness };
+    }
+    const cp = r.crossingProfile as VehicleEntry['crossingProfile'];
+    if (cp && [cp.width, cp.load].every(v => [1, 2, 3].includes(v))) entry.crossingProfile = { width: cp.width, load: cp.load };
     if (locationId) { entry.locationId = locationId; }
     const parkedAt = parseParking(r.parkedAt);
     if (parkedAt) { entry.parkedAt = parkedAt; }
@@ -949,6 +958,10 @@ function summarizeVehicleLine(vehicle: VehicleEntry, state: VehicleState): strin
         `Vehicle: ${vehicle.name} (${vehicle.kind}, ${vehicle.access.sizeClass})${locPart}.`
     ));
     const cap = vehicle.capacity;
+    if (vehicle.waterProfile) {
+        const p = vehicle.waterProfile;
+        lines.push(clampPromptLine(`Water navigation: width ${p.width}, draft ${p.draft}, air draft ${p.airDraft}, seaworthiness ${p.seaworthiness}. Route/damage are host-owned; use the player's navigation confirmation, never infer permission from narration.`));
+    } else if (vehicle.kind === 'boat' || vehicle.kind === 'ship') lines.push('Water navigation profile unset: new water routes are blocked.');
     lines.push(clampPromptLine(
         `Capacity: crew ${cap.crewRequired}/${cap.crewCapacity}, passengers ${cap.passengerCapacity}, cargo ${cap.currentCargoLoad ?? 0}/${cap.cargoCapacity}.`
     ));

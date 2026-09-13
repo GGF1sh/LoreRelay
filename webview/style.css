@@ -4174,6 +4174,14 @@ body.vscode-high-contrast #status-drawer-scrim {
   color: var(--vscode-button-foreground, #fff);
   border-color: var(--vscode-focusBorder, #4a90e2);
 }
+#water-navigation { margin: 12px 0; padding: 12px; border: 1px solid var(--vscode-panel-border, #455563); border-radius: 8px; background: var(--vscode-editor-background, #151923); }
+#water-navigation summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+#water-navigation label { display: inline-block; margin: 5px 8px 5px 0; }
+#water-navigation select, #water-navigation button { color: var(--vscode-input-foreground, #ddd); background: var(--vscode-input-background, #222936); border: 1px solid var(--vscode-input-border, #526070); border-radius: 4px; padding: 5px 7px; max-width: 100%; }
+#water-navigation button { cursor: pointer; }
+#water-navigation button:disabled { opacity: .45; cursor: default; }
+#water-navigation select { max-width: 360px; }
+#water-result { line-height: 1.6; }
 
 /* --- 85a-cartography-assets.css --- */
 .map-asset-controls { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; padding: .4rem; }

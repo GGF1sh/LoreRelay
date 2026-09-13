@@ -1,3 +1,4 @@
+import { generateWaterways } from './waterwayCore';
 import { inferRegionBiomeFromType } from './worldForgeCore';
 import { localizeWorldGenesisNames, type WorldGenesisExperience } from './worldGenesisExperienceCore';
 import {
@@ -764,6 +765,15 @@ export function generateWorldForge(input: WorldForgeGeneratorInput): GeneratedWo
     };
 
     localizeWorldGenesisNames(forge, input.experience);
+    if (!/space|galaxy|宇宙/i.test(forge.meta.theme || "")) {
+        forge.geography.waterways = generateWaterways(forge);
+        for (const location of forge.geography.locations) {
+            if (forge.geography.waterways.ports[location.id]) {
+                location.services = [...new Set([...(location.services || []), 'river_landing'])];
+                location.vehicleAccess ??= { allowedVehicleSizeMax: 'huge' };
+            } else location.vehicleAccess ??= { allowedVehicleSizeMax: location.type === 'dungeon' ? 'small' : 'large' };
+        }
+    }
     const warnings = validateForge(forge);
     const valid =
         forge.geography.regions.length >= 1 &&

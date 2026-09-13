@@ -251,6 +251,7 @@ function renderWorldView(msg) {
     }
 
     // Mermaid + parchment + tile maps
+    if (typeof renderWaterNavigationControls === 'function') renderWaterNavigationControls(msg);
     renderMermaidMap(msg.worldMap, msg);
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
@@ -1757,6 +1758,7 @@ function renderCartographyLegend(pinMetas) {
 
 function renderMermaidMap(mmdCode, msg) {
     const container = document.getElementById('world-mermaid');
+    if (container && msg?.navigation && typeof renderWaterDiagram === 'function') { renderWaterDiagram(container, msg); return; }
     if (!container || !mmdCode) { return; }
 
     container.removeAttribute('data-processed');
@@ -1831,6 +1833,7 @@ function applyMapTransform(viewport) {
     const { scale, tx, ty } = _mapPanState;
     svg.style.transform = `matrix(${scale},0,0,${scale},${tx},${ty})`;
     svg.style.transformOrigin = '0 0';
+    if (typeof updateWaterDetail === 'function') updateWaterDetail(svg, scale);
 }
 
 function addMapPanZoomHint(viewport) {

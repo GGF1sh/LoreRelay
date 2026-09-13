@@ -47,4 +47,14 @@ assert.strictEqual(evaluateNavigation(riskyWorld, 'a', 'b', boat({ durability: {
 for (const args of [['missing', 'b'], ['a', 'missing'], ['a', 'a']]) assert.strictEqual(evaluateNavigation(riskyWorld, ...args, boat()).preferred.status, 'blocked');
 assert.strictEqual(evaluateNavigation(riskyWorld, 'a', 'b', boat({ locationId: 'elsewhere' })).preferred.status, 'blocked', 'vehicle position must match origin');
 assert.strictEqual(evaluateNavigation(riskyWorld, 'a', 'b').preferred.status, 'blocked', 'no vehicle cannot use water port route');
+
+// Distinct ports that collapse onto one node must not become a zero-edge teleport.
+const sharedPortWorld = { ...base, geography: { ...base.geography, waterways: waterways([river]) } };
+sharedPortWorld.geography.waterways.ports = { a: 'wa', b: 'wa' };
+const sharedPort = evaluateNavigation(sharedPortWorld, 'a', 'b', boat());
+assert.strictEqual(sharedPort.preferred.status, 'blocked', 'shared water node must fail closed');
+assert.deepStrictEqual(sharedPort.preferred.edgeIds, []);
+assert.strictEqual(sharedPort.preferred.distance, 0);
+assert.strictEqual(sharedPort.preferred.damage, 0);
+assert.match(sharedPort.preferred.reasons.join(' '), /別々.*接続点|実際.*水上接続/);
 console.log('water navigation core: all tests passed');

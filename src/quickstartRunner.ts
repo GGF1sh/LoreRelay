@@ -9,7 +9,8 @@ import { resetWorldStateFromForge } from './worldState';
 import { maybeBootstrapProtagonist, quickstartFieldsToDraft } from './protagonistBootstrap';
 import { resetGmBridgeSessions } from './gmBridgeRunner';
 import { setGameEntryHistoryWithSeenIds, saveHistoryToDisk } from './gameStateSync';
-import { commitGameState } from './stateManager';
+import { publishNewCampaignState } from './campaignStatePublication';
+import { recoverWaterNavigation } from './waterNavigationStore';
 import type { GameEntry } from './types/GameState';
 
 interface QuickstartResult {
@@ -74,6 +75,10 @@ Output ONLY valid JSON. Do not include markdown formatting or extra text.`;
             scenarioObjective: "Survive and explore."
         };
     }
+
+    // Resolve an interrupted old-world move before replacing any campaign files.
+    try { recoverWaterNavigation(ws); }
+    catch (error) { return { success: false, error: String(error) }; }
 
     // 1. Generate World Forge
     const forgeInput = {
@@ -145,9 +150,12 @@ Output ONLY valid JSON. Do not include markdown formatting or extra text.`;
             guidanceMode: 'sandbox',
         },
     };
-    setGameEntryHistoryWithSeenIds([openingEntry]);
-    saveHistoryToDisk();
-    commitGameState(initialState, { mergeProfile: 'replace' });
+    try {
+        await publishNewCampaignState(ws, initialState, () => {
+            setGameEntryHistoryWithSeenIds([openingEntry]);
+            if (!saveHistoryToDisk()) throw new Error('Quickstart history save failed.');
+        });
+    } catch (error) { return { success: false, error: String(error) }; }
 
     const draft = quickstartFieldsToDraft({
         characterName: parsed.characterName,

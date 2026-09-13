@@ -32,6 +32,8 @@ export interface CommitGameStateOptions {
     /** Revision when the caller read game_state.json (optimistic concurrency). */
     baseRevision?: number;
     mergeProfile?: GameStateMergeProfile;
+    /** Host-selected publication intent; never derive this from game state or AI output. */
+    navigationPublication?: 'timeline-restore' | 'campaign-reset';
     runtimeAcceptedTurnWitness?: AcceptedTurnWitness;
     runtimeAcceptedTurnWitnessMode?: 'preserve' | 'install' | 'clear';
 }
@@ -67,7 +69,8 @@ function writeGameStatePlan(
         profile: options.mergeProfile,
     });
     const witnessOwned = applyRuntimeAcceptedTurnWitnessAuthority(merged, disk, options);
-    const navigationError = navigationGameWriteError(path.dirname(statePath), disk, witnessOwned);
+    const navigationError = navigationGameWriteError(path.dirname(statePath), disk, witnessOwned,
+        options.mergeProfile === 'replace' ? options.navigationPublication : undefined);
     if (navigationError) return { ok: false, action: 'skip', reason: [navigationError] };
 
     const plan = resolveGameStatePersistPlan(witnessOwned, mode);

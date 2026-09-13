@@ -33,6 +33,7 @@ import { invokeGmBridge, fallbackToClipboard, resetGmBridgeSessions } from './gm
 import { runSkillScript } from './skillScriptRunner';
 import { computeAndSetArchiveMilestone } from './gmPromptBuilder';
 import { commitGameState } from './stateManager';
+import { recoverWaterNavigation } from './waterNavigationStore';
 import {
     runAcceptedTurnTimelineRestoreTransaction,
 } from './acceptedTurnReplayGuard';
@@ -95,7 +96,7 @@ function writeGameStateToDisk(
 ): boolean {
     return commitGameState(state, {
         mergeProfile: 'replace',
-        ...(clearRuntimeWitness ? { runtimeAcceptedTurnWitnessMode: 'clear' as const } : {}),
+        ...(clearRuntimeWitness ? { runtimeAcceptedTurnWitnessMode: 'clear' as const, navigationPublication: 'timeline-restore' as const } : {}),
     }).ok;
 }
 
@@ -110,17 +111,20 @@ async function runTimelineRestore(
         vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks timeline mutation until the MOD lock is repaired.');
         return false;
     }
-    const executeRestore = () => runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
-        clearTurnResultRawHashAuthorityForEpochChange();
-        if (!isModCanonicalAuthorizationCurrent(authorization)) {
-            throw new Error('MOD activation authorization changed before timeline restore');
-        }
-        const ok = await restoreMutation();
-        if (!ok) {
-            throw new Error('restore mutation did not complete');
-        }
-        return true;
-    });
+    const executeRestore = () => {
+        recoverWaterNavigation(ws);
+        return runAcceptedTurnTimelineRestoreTransaction(ws, reason, async () => {
+            clearTurnResultRawHashAuthorityForEpochChange();
+            if (!isModCanonicalAuthorizationCurrent(authorization)) {
+                throw new Error('MOD activation authorization changed before timeline restore');
+            }
+            const ok = await restoreMutation();
+            if (!ok) {
+                throw new Error('restore mutation did not complete');
+            }
+            return true;
+        });
+    };
     const mutationGate = requireDeps().mutationGate;
     const guarded = mutationGate
         ? await mutationGate.run(

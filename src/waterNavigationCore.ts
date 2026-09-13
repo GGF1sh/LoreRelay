@@ -34,6 +34,7 @@ export function evaluateNavigation(forge: WorldForge, origin: string, destinatio
     }
     const start = boat ? w.ports[origin] : origin, end = boat ? w.ports[destination] : destination;
     if (!start || !end) return fail('出発地または目的地に水系への接続点がありません。');
+    if (boat && start === end) return fail('出発地と目的地に別々の水系接続点が必要です。実際の水上接続を追加してください。');
     const edges: (WaterEdge | WaterRoad)[] = boat ? w.edges : w.roads;
     const adjacency = new Map<string, { edge: WaterEdge | WaterRoad; to: string; hazard: boolean }[]>();
     const barriers = new Set<string>();

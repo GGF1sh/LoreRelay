@@ -6,10 +6,12 @@ import { evaluateNavigation } from './waterNavigationCore';
 import { navigationPending, navigationWriteActive } from './waterNavigationStore';
 
 /** Legacy movement may only commit an evaluated safe walk; vehicle travel belongs to the multi-ledger owner. */
-export function navigationGameWriteError(root: string, before: Record<string, unknown> | undefined, after: Record<string, unknown>): string | undefined {
+export function navigationGameWriteError(root: string, before: Record<string, unknown> | undefined, after: Record<string, unknown>, publication?: 'timeline-restore' | 'campaign-reset'): string | undefined {
     if (navigationWriteActive(root)) return;
     try {
         if (navigationPending(root)) return '未完了の航行があります。ワールド画面を開いて復元してください。';
+        // Restoring a timeline or publishing a new campaign is not movement within the current world.
+        if (publication === 'timeline-restore' || publication === 'campaign-reset') return;
         const from = (before?.world as { currentLocationId?: string } | undefined)?.currentLocationId;
         const to = (after.world as { currentLocationId?: string } | undefined)?.currentLocationId;
         if (!from || from === to) return;

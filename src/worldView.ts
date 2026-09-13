@@ -922,6 +922,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         cartographyImage,
         cartographyWorldKey: cartographyWorldKey(forge),
         cartographyAssetError: mapAssetError,
+        cartographyMarker: {
+            mode: mapAsset?.marker?.mode || 'standard',
+            image: mapAsset?.marker?.image && wsPath
+                ? safeImageUri(cartographyAssetPath(wsPath, { ...mapAsset, file: mapAsset.marker.image })) || null : null,
+        },
         cartographyAsset: mapAsset ? { worldKey: mapAsset.worldKey, imageKey: mapAsset.imageKey, revision: mapAsset.revision,
             overlay: { ...mapAsset.overlay,
                 pins: Object.fromEntries(Object.entries(mapAsset.overlay.pins).filter(([id]) => cartographyPins.some(p => p.locationId === id))),

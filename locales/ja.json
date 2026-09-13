@@ -2105,5 +2105,11 @@
   "webview.mapAssets.evidence": "判定根拠",
   "webview.mapAssets.compatibility": "地図への対応",
   "webview.mapAssets.useModel": "このモデルを使う",
-  "webview.mapAssets.unsupported": "現在の地図では非対応・未判定"
+  "webview.mapAssets.unsupported": "現在の地図では非対応・未判定",
+  "webview.mapAssets.marker": "主人公マーカー",
+  "webview.mapAssets.markerStandard": "標準（人型）",
+  "webview.mapAssets.markerCustom": "設定した画像",
+  "webview.mapAssets.markerImage": "アイコン画像を設定",
+  "webview.mapAssets.markerSaved": "主人公マーカーを保存しました。標準と設定画像をいつでも切り替えられます。",
+  "webview.mapAssets.currentLocation": "現在地"
 }

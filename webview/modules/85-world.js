@@ -1665,7 +1665,7 @@ function renderCartographyMap(msg) {
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
         const typeIcon = LOCATION_TYPE_ICON[pinMeta?.locationType] || LOCATION_TYPE_ICON.other;
         el.title = visibility === 'rumored' ? T('webview.world.pinRumoredTooltip') : (pin.locationName || pin.locationId || '');
-        el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : typeIcon);
+        el.textContent = visibility === 'rumored' ? '?' : typeIcon;
         el.setAttribute('aria-label', pinLabel || 'Location');
         if (_selectedPinId && pin.locationId === _selectedPinId) {
             el.classList.add('is-selected');
@@ -1675,11 +1675,16 @@ function renderCartographyMap(msg) {
             appendMapEventBadge(wrap, pinMeta);
         }
         wireParchmentWorldPin(el, pin, msg);
+        if (pin.locationId === msg.currentLocationId && typeof appendCartographyCurrentMarker === 'function') {
+            wrap.classList.add('is-player');
+            appendCartographyCurrentMarker(el, msg, pin);
+        }
         wrap.appendChild(el);
         pinsEl.appendChild(wrap);
     }
 
     renderCartographyLegend(pins.map((pin) => findWorldPinMeta(pin.locationId)).filter(Boolean));
+    if (typeof scheduleCartographyLabelLayout === 'function') scheduleCartographyLabelLayout();
 }
 
 /** Trade-road / travel-route lines between connected regions (parchment overlay only). */

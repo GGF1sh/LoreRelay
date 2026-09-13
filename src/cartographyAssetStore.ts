@@ -11,6 +11,7 @@ export interface CartographyAssetState {
     file: string;
     revision: string;
     overlay: CartographyOverlay;
+    marker?: { mode: 'standard' | 'custom'; image?: string };
 }
 export function emptyCartographyOverlay(): CartographyOverlay {
     return { pins: {}, regions: {}, showLabels: true, showRoutes: true };
@@ -86,7 +87,14 @@ export function loadCartographyAsset(workspace: string, forge: WorldForge): Cart
         || raw.file.split('.')[0] !== raw.imageKey || typeof raw.revision !== 'string') throw new Error('Invalid map asset');
     const image = path.join(dir, raw.file);
     if (!regularFile(image) || digest(fs.readFileSync(image)) !== raw.imageKey) throw new Error('Map image changed or missing');
-    return { ...raw, overlay: validateCartographyOverlay(raw.overlay, forge) };
+    // A missing/corrupt portrait falls back to the standard marker, not a missing world map.
+    const markerImage = raw.marker?.image;
+    const validMarker = typeof markerImage === 'string' && /^[a-f0-9]{64}\.(png|jpg|webp)$/.test(markerImage)
+        && regularFile(path.join(dir, markerImage))
+        && digest(fs.readFileSync(path.join(dir, markerImage))) === markerImage.split('.')[0];
+    const marker: CartographyAssetState['marker'] = { mode: validMarker && raw.marker?.mode === 'custom' ? 'custom' : 'standard',
+        ...(validMarker ? { image: markerImage } : {}) };
+    return { ...raw, marker, overlay: validateCartographyOverlay(raw.overlay, forge) };
 }
 
 export function cartographyAssetPath(workspace: string, state: CartographyAssetState): string {
@@ -104,8 +112,7 @@ function commit(workspace: string, state: CartographyAssetState): void {
     fs.renameSync(temporary, file);
 }
 
-export function adoptCartographyAsset(workspace: string, forge: WorldForge,
-    image: ReturnType<typeof readCartographyImage>): CartographyAssetState {
+function storeRasterImage(workspace: string, image: ReturnType<typeof readCartographyImage>) {
     const dir = assetDir(workspace, true), imageKey = digest(image.bytes);
     const file = `${imageKey}.${image.extension}`;
     if (!/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(file)) throw new Error('Invalid image extension');
@@ -113,8 +120,28 @@ export function adoptCartographyAsset(workspace: string, forge: WorldForge,
     if (fs.existsSync(target)) {
         if (!regularFile(target) || digest(fs.readFileSync(target)) !== imageKey) throw new Error('Invalid existing map image');
     } else fs.writeFileSync(target, image.bytes, { flag: 'wx' });
+    return { file, imageKey };
+}
+
+export function adoptCartographyAsset(workspace: string, forge: WorldForge,
+    image: ReturnType<typeof readCartographyImage>): CartographyAssetState {
+    const previous = loadCartographyAsset(workspace, forge);
+    const { file, imageKey } = storeRasterImage(workspace, image);
     const state: CartographyAssetState = { version: 1, worldKey: cartographyWorldKey(forge), imageKey,
-        file, revision: randomUUID(), overlay: emptyCartographyOverlay() };
+        file, revision: randomUUID(), overlay: emptyCartographyOverlay(), marker: previous?.marker };
+    commit(workspace, state);
+    return state;
+}
+
+export function saveCartographyMarker(workspace: string, forge: WorldForge, expected: unknown,
+    mode: unknown, image?: ReturnType<typeof readCartographyImage>): CartographyAssetState {
+    const current = loadCartographyAsset(workspace, forge);
+    if (!current || expected !== current.revision) throw new Error('Map changed; reopen marker settings');
+    if (mode !== 'standard' && mode !== 'custom') throw new Error('Invalid marker mode');
+    if (image && image.bytes.length > 4 * 1024 * 1024) throw new Error('Marker image must be at most 4 MiB');
+    const file = image ? storeRasterImage(workspace, image).file : current.marker?.image;
+    if (mode === 'custom' && !file) throw new Error('Choose a marker image first');
+    const state: CartographyAssetState = { ...current, revision: randomUUID(), marker: { mode, ...(file ? { image: file } : {}) } };
     commit(workspace, state);
     return state;
 }

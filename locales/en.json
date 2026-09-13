@@ -2105,5 +2105,11 @@
   "webview.mapAssets.evidence": "Evidence",
   "webview.mapAssets.compatibility": "Map compatibility",
   "webview.mapAssets.useModel": "Use this model",
-  "webview.mapAssets.unsupported": "Unsupported / unresolved"
+  "webview.mapAssets.unsupported": "Unsupported / unresolved",
+  "webview.mapAssets.marker": "Player marker",
+  "webview.mapAssets.markerStandard": "Standard (silhouette)",
+  "webview.mapAssets.markerCustom": "Custom image",
+  "webview.mapAssets.markerImage": "Set icon image",
+  "webview.mapAssets.markerSaved": "Player marker saved. You can switch between standard and custom at any time.",
+  "webview.mapAssets.currentLocation": "Current location"
 }

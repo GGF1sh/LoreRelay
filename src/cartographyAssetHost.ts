@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { WorldForge } from './worldForgeCore';
 import { cartographyWorldKey } from './cartographyOverlayCore';
 import { adoptCartographyAsset, readCartographyImage, saveCartographyOverlay,
-    loadCartographyAsset } from './cartographyAssetStore';
+    loadCartographyAsset, saveCartographyMarker } from './cartographyAssetStore';
 
 let pending: { token: string; workspace: string; worldKey: string; revision?: string;
     image: ReturnType<typeof readCartographyImage> } | undefined;
@@ -50,6 +50,20 @@ export async function handleWorldMapAsset(message: Record<string, unknown>, deps
             }
             deps.refresh();
             post({ status: 'edit' });
+        } else if (message.action === 'markerMode' || message.action === 'markerImage') {
+            if (message.worldKey !== worldKey) throw new Error('World changed; reopen the map');
+            let image;
+            if (message.action === 'markerImage') {
+                const selected = await vscode.window.showOpenDialog({ canSelectMany: false,
+                    filters: { 'Marker image': ['png', 'jpg', 'jpeg', 'webp'] }, title: '主人公アイコンを設定（最大4 MiB）' });
+                if (!selected?.[0]) { post({ status: 'markerCancelled' }); return; }
+                if (!deps.forge() || cartographyWorldKey(deps.forge()!) !== worldKey) throw new Error('World changed; choose the icon again');
+                image = readCartographyImage(selected[0].fsPath);
+            }
+            saveCartographyMarker(deps.workspace, forge, message.revision,
+                image ? 'custom' : message.mode, image);
+            deps.refresh();
+            post({ status: 'markerSaved' });
         } else if (message.action === 'save') {
             if (message.worldKey !== worldKey) throw new Error('World changed; reopen the map');
             saveCartographyOverlay(deps.workspace, forge, message.revision, message.overlay);

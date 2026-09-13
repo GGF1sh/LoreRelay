@@ -2105,5 +2105,11 @@
   "webview.mapAssets.evidence": "Evidence",
   "webview.mapAssets.compatibility": "Map compatibility",
   "webview.mapAssets.useModel": "Use this model",
-  "webview.mapAssets.unsupported": "Unsupported / unresolved"
+  "webview.mapAssets.unsupported": "Unsupported / unresolved",
+  "webview.mapAssets.marker": "主角标记",
+  "webview.mapAssets.markerStandard": "标准（人形）",
+  "webview.mapAssets.markerCustom": "自选图片",
+  "webview.mapAssets.markerImage": "设置图标图片",
+  "webview.mapAssets.markerSaved": "主角标记已保存，可随时切换标准图标和自选图片。",
+  "webview.mapAssets.currentLocation": "当前位置"
 }

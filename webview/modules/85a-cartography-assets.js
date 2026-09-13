@@ -42,6 +42,7 @@ function mapAssetSizeStage() {
     if (!viewport || !stage || !image?.naturalWidth || !viewport.clientWidth) return;
     const fitWidth = Math.min(viewport.clientWidth, window.innerHeight * .7 * image.naturalWidth / image.naturalHeight);
     stage.style.width = `${fitWidth * mapAssetZoom}px`;
+    scheduleCartographyLabelLayout();
 }
 function mapAssetStartEdit() {
     if (!_worldViewMsg?.cartographyAsset) return;
@@ -65,6 +66,11 @@ function mapAssetUpdateControls(msg, overlay) {
         input.checked = overlay[key];
         input.disabled = preview;
     }
+    const marker = controls.querySelector('[data-map-marker-mode]');
+    marker.value = msg.cartographyMarker?.mode || 'standard';
+    marker.disabled = preview || mapAssetEditing || !msg.cartographyAsset;
+    marker.querySelector('[value="custom"]').disabled = !msg.cartographyMarker?.image;
+    controls.querySelector('[data-map-action="markerImage"]').disabled = marker.disabled;
     document.getElementById('world-cartography-stage')?.classList.toggle('map-asset-editing', mapAssetEditing);
 }
 
@@ -82,6 +88,19 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     button('adopt', 'adopt'); button('edit', 'edit'); button('save', 'save'); button('reset', 'reset');
     button('cancel', 'cancel'); button('out', 'zoomOut'); button('fit', 'fit'); button('in', 'zoomIn');
+    const markerLabel = document.createElement('label');
+    const markerText = document.createElement('span'); markerText.dataset.i18n = 'webview.mapAssets.marker';
+    markerText.textContent = T(markerText.dataset.i18n);
+    const markerSelect = document.createElement('select'); markerSelect.dataset.mapMarkerMode = '';
+    markerSelect.dataset.i18nAriaLabel = 'webview.mapAssets.marker';
+    markerSelect.setAttribute('aria-label', T('webview.mapAssets.marker'));
+    for (const mode of ['standard', 'custom']) {
+        const option = document.createElement('option'); option.value = mode;
+        option.dataset.i18n = `webview.mapAssets.marker${mode === 'standard' ? 'Standard' : 'Custom'}`;
+        option.textContent = T(option.dataset.i18n); markerSelect.appendChild(option);
+    }
+    markerLabel.append(markerText, markerSelect); controls.appendChild(markerLabel);
+    button('markerImage', 'markerImage');
     for (const [key, label] of [['showLabels', 'labels'], ['showRoutes', 'routes']]) {
         const wrapper = document.createElement('label'), input = document.createElement('input');
         input.type = 'checkbox'; input.checked = true; input.dataset.mapToggle = key;
@@ -104,6 +123,9 @@ window.addEventListener('DOMContentLoaded', () => {
         } else if (action === 'save') {
             mapAssetPost('save', { worldKey: _worldViewMsg.cartographyWorldKey,
                 revision: _worldViewMsg.cartographyAsset?.revision, overlay: mapAssetDraft });
+        } else if (action === 'markerImage') {
+            mapAssetPost('markerImage', { worldKey: _worldViewMsg.cartographyWorldKey,
+                revision: _worldViewMsg.cartographyAsset?.revision });
         } else if (action === 'reset') {
             mapAssetDraft = { ...mapAssetDraft, pins: {}, regions: {} }; mapAssetRedraw();
         } else if (action === 'cancel') {
@@ -116,6 +138,11 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
     controls.addEventListener('change', e => {
+        if (e.target.hasAttribute('data-map-marker-mode')) {
+            mapAssetPost('markerMode', { worldKey: _worldViewMsg.cartographyWorldKey,
+                revision: _worldViewMsg.cartographyAsset?.revision, mode: e.target.value });
+            return;
+        }
         const key = e.target.dataset.mapToggle;
         if (!key || !_worldViewMsg) return;
         if (!mapAssetDraft) mapAssetDraft = mapAssetClone(_worldViewMsg.cartographyAsset?.overlay || mapAssetEmptyOverlay());
@@ -179,11 +206,72 @@ window.addEventListener('DOMContentLoaded', () => {
         } else if (msg.status === 'adopted' || msg.status === 'saved' || msg.status === 'cancelled') {
             mapAssetPreview = null; mapAssetDraft = null; mapAssetEditing = false;
             mapAssetRedraw(); setWorldMapMode('parchment'); mapAssetStatus(msg.status === 'cancelled' ? '' : T('webview.mapAssets.saved'));
-        } else if (msg.status === 'edit') mapAssetStartEdit();
-        else if (msg.status === 'error') mapAssetStatus(msg.error);
+        } else if (msg.status === 'markerSaved') {
+            mapAssetStatus(T('webview.mapAssets.markerSaved')); mapAssetRedraw();
+        } else if (msg.status === 'markerCancelled') mapAssetRedraw();
+        else if (msg.status === 'edit') mapAssetStartEdit();
+        else if (msg.status === 'error') { mapAssetRedraw(); mapAssetStatus(msg.error); }
     });
     mapAssetRedraw();
 });
+
+function appendCartographyCurrentMarker(button, msg, pin) {
+    button.classList.add('world-player-marker');
+    const title = `${T('webview.mapAssets.currentLocation')}: ${pin.locationName || pin.locationId}`;
+    button.title = title; button.setAttribute('aria-label', title);
+    const standard = () => {
+        button.replaceChildren();
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+        const head = document.createElementNS(svg.namespaceURI, 'circle');
+        head.setAttribute('cx', '12'); head.setAttribute('cy', '7'); head.setAttribute('r', '4');
+        const body = document.createElementNS(svg.namespaceURI, 'path');
+        body.setAttribute('d', 'M4 22v-3a8 8 0 0 1 16 0v3Z'); svg.append(head, body); button.appendChild(svg);
+    };
+    if (msg.cartographyMarker?.mode === 'custom' && msg.cartographyMarker.image) {
+        const image = document.createElement('img'); image.className = 'world-player-portrait'; image.alt = '';
+        image.onerror = standard; image.onload = scheduleCartographyLabelLayout;
+        image.src = msg.cartographyMarker.image; button.replaceChildren(image);
+    } else standard();
+}
+
+let cartographyLabelFrame = 0;
+function scheduleCartographyLabelLayout() {
+    if (cartographyLabelFrame) cancelAnimationFrame(cartographyLabelFrame);
+    cartographyLabelFrame = requestAnimationFrame(() => { cartographyLabelFrame = 0; layoutCartographyLabels(); });
+}
+function layoutCartographyLabels() {
+    const stage = document.getElementById('world-cartography-stage');
+    if (!stage || !stage.clientWidth) return;
+    const labels = [...stage.querySelectorAll('[data-map-region]')];
+    labels.forEach(label => { label.style.transform = 'translate(-50%, 0)'; });
+    if (mapAssetEditing) return;
+    const bounds = stage.getBoundingClientRect();
+    const obstacles = [...stage.querySelectorAll('.world-map-pin')].map(pin => pin.getBoundingClientRect());
+    const overlaps = (a, b) => a.left < b.right + 5 && a.right > b.left - 5 && a.top < b.bottom + 5 && a.bottom > b.top - 5;
+    for (const label of labels) {
+        if (label.hidden) continue;
+        const initial = label.getBoundingClientRect();
+        const candidates = [[0,0]];
+        for (let distance = 1; distance <= 5; distance++) {
+            const y = distance * (initial.height + 8), x = distance * (initial.width / 2 + 12);
+            candidates.push([0,y],[0,-y],[x,0],[-x,0],[x,y],[-x,y],[x,-y],[-x,-y]);
+        }
+        let best, score = Infinity;
+        for (const [dx,dy] of candidates) {
+            const left = Math.max(bounds.left + 3, Math.min(bounds.right - initial.width - 3, initial.left + dx));
+            const top = Math.max(bounds.top + 3, Math.min(bounds.bottom - initial.height - 3, initial.top + dy));
+            const rect = { left, top, right: left + initial.width, bottom: top + initial.height };
+            const cost = obstacles.filter(other => overlaps(rect,other)).length * 100000 + Math.hypot(left-initial.left,top-initial.top);
+            if (cost < score) { best = rect; score = cost; }
+            if (cost === 0) break;
+        }
+        if (best) {
+            label.style.transform = `translate(calc(-50% + ${best.left-initial.left}px), ${best.top-initial.top}px)`;
+            obstacles.push(best);
+        }
+    }
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     const panel = document.getElementById('world-map-models');

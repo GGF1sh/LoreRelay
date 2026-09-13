@@ -1,4 +1,8 @@
+import { buildNavigationView } from './waterNavigationHost';
+import { recoverWaterNavigation } from './waterNavigationStore';
 import * as fs from 'fs';
+import { loadCartographyAsset, cartographyAssetPath } from './cartographyAssetStore';
+import { cartographyWorldKey } from './cartographyOverlayCore';
 import { projectWorldPacing } from './worldPacingCore';
 import * as vscode from 'vscode';
 import { loadWorldForge, loadWorldForgeDocument, isWorldForgeEnabled } from './worldForge';
@@ -95,6 +99,9 @@ import {
     mobileBaseSystemEnabled,
 } from './mobileBaseBridge';
 import { buildVehicleGarageWebviewPayload } from './vehicleBridge';
+import { buildStructureArtTarget, type StructureArtTarget } from './structureArtCore';
+import { registerStructureArtTargets } from './structureArtHost';
+import { resolveMobileBaseSettlementDocuments } from './settlementLocationResolveHost';
 import { loadVehicleState } from './vehicleState';
 
 let getPanelRef: (() => vscode.WebviewPanel | undefined) | undefined;
@@ -519,6 +526,12 @@ function buildNpcWhereaboutsPayload(
  * gameStateSync から呼ばれる（scenarioDirector の push パターンに倣う）。
  */
 export function pushWorldViewToWebview(currentLocationId?: string): void {
+    const navigationWorkspace = getWorkspacePath();
+    if (navigationWorkspace) {
+        try { recoverWaterNavigation(navigationWorkspace); }
+        catch (e) { void getPanelRef?.()?.webview.postMessage({ type: 'waterNavigationResult', ok: false, error: String(e) }); return; }
+    }
+    registerStructureArtTargets('', '', []);
     const panel = getPanelRef?.();
     if (!panel) { return; }
 
@@ -636,7 +649,11 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         : [];
 
     const wsPath = getWorkspacePath();
-    const worldMapImagePath = resolveWorldMapImagePath(wsPath);
+    let mapAsset;
+    let mapAssetError = '';
+    try { mapAsset = wsPath ? loadCartographyAsset(wsPath, forge) : undefined; }
+    catch (error) { mapAssetError = error instanceof Error ? error.message : String(error); }
+    const worldMapImagePath = mapAsset && wsPath ? cartographyAssetPath(wsPath, mapAsset) : resolveWorldMapImagePath(wsPath);
     const worldMapLayoutPath = resolveWorldMapLayoutPath(wsPath);
     const illustratedExists = Boolean(worldMapImagePath && fs.existsSync(worldMapImagePath));
     const layoutExists = Boolean(worldMapLayoutPath && fs.existsSync(worldMapLayoutPath));
@@ -905,15 +922,43 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
             .slice(-MAX_OBSERVATORY_CHRONICLE_EVENTS)
         : [];
 
+    const artTargets: StructureArtTarget[] = [];
+    if (settlementState && displaySettlementLocationId) artTargets.push(buildStructureArtTarget(
+        'fixed:' + displaySettlementLocationId, settlementState, settlementLayout));
+    const garageForArt = buildVehicleGarageWebviewPayload(actualCurrentLocationId ?? worldBlock?.currentLocationId);
+    for (const vehicle of garageForArt?.vehicles || []) {
+        const link = loadVehicleState()?.vehicles.find(v => v.id === vehicle.id)?.mobileBase?.settlementId;
+        const resolved = wsPath && link ? resolveMobileBaseSettlementDocuments({ workspaceRoot: wsPath, activeMobileBaseSettlementId: link }) : undefined;
+        artTargets.push(buildStructureArtTarget('vehicle:' + vehicle.id,
+            resolved?.ok ? resolved.state : undefined, resolved?.ok ? resolved.layout : undefined, vehicle));
+    }
+    let navigation: ReturnType<typeof buildNavigationView> = null;
+    if (wsPath && forge.geography.waterways) {
+        try { navigation = buildNavigationView(wsPath, forge, fog.discoveredRegionIds); }
+        catch (e) { void panel.webview.postMessage({ type: 'waterNavigationResult', ok: false, error: String(e) }); }
+    }
     panel.webview.postMessage({
         type: 'worldView',
+        navigation,
         enabled: true,
+        structureArtTargets: wsPath ? registerStructureArtTargets(wsPath, cartographyWorldKey(forge), artTargets) : [],
         worldPacing: simEnabled ? projectWorldPacing(forge, worldState, fog.discoveredRegionIds) : null,
         worldName: forge.meta.worldName,
         theme: forge.meta.theme ?? '',
         overmapThemeKey,
         worldMap,
         cartographyImage,
+        cartographyWorldKey: cartographyWorldKey(forge),
+        cartographyAssetError: mapAssetError,
+        cartographyMarker: {
+            mode: mapAsset?.marker?.mode || 'standard',
+            image: mapAsset?.marker?.image && wsPath
+                ? safeImageUri(cartographyAssetPath(wsPath, { ...mapAsset, file: mapAsset.marker.image })) || null : null,
+        },
+        cartographyAsset: mapAsset ? { worldKey: mapAsset.worldKey, imageKey: mapAsset.imageKey, revision: mapAsset.revision,
+            overlay: { ...mapAsset.overlay,
+                pins: Object.fromEntries(Object.entries(mapAsset.overlay.pins).filter(([id]) => cartographyPins.some(p => p.locationId === id))),
+                regions: Object.fromEntries(Object.entries(mapAsset.overlay.regions).filter(([id]) => cartographyRegionLabels.some(r => r.regionId === id))) } } : null,
         cartographySource: illustratedExists ? 'illustrated' : layoutExists ? 'layout' : null,
         cartographyPins,
         cartographyRegionLabels,

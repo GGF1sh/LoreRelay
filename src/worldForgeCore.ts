@@ -1,3 +1,4 @@
+import { parseWaterways, type Waterways } from './waterwayCore';
 import type { LocationVehicleAccess } from './vehicleCore';
 import { normalizeWorldGenesisExperience, type WorldGenesisExperience } from './worldGenesisExperienceCore';
 import { parseLocationVehicleAccess } from './vehicleCore';
@@ -104,6 +105,7 @@ export interface InitialNpc {
 }
 
 export interface WorldGeography {
+    waterways?: Waterways;
     regions: Region[];
     locations: WorldLocation[];
 }
@@ -399,6 +401,8 @@ export function parseWorldForge(raw: unknown): WorldForge | undefined {
             ? geoRaw!.locations.slice(0, MAX_PARSE_LOCATIONS).map(parseWorldLocation).filter((x): x is WorldLocation => x !== undefined)
             : []
     };
+
+    if (geoRaw?.waterways !== undefined) geography.waterways = parseWaterways(geoRaw.waterways, new Set(geography.locations.map(l => l.id)), new Set(geography.regions.map(r => r.id)));
 
     const factions = Array.isArray(doc.factions)
         ? doc.factions.slice(0, MAX_PARSE_FACTIONS).map(parseFaction).filter((x): x is Faction => x !== undefined)

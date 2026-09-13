@@ -248,6 +248,7 @@ export function buildExternalCartographyPrompt(
         `- Style: ${style.mapType}, ${style.renderStyle}`,
         '- Top-down / orthographic; the map fills the frame edge to edge',
         '- Follow the attached layout for positions, relative sizes, and connecting routes',
+        ...(forge.geography.waterways ? ['- Preserve the blue waterways, river confluences, coastal/offshore water and marked bridges/ferries exactly. Do not invent extra crossings or navigable channels. These come from the game navigation graph.'] : []),
         '- No text, labels, UI, compass rose, characters, or extra continents',
         '',
         `World: ${spec.worldName}`,

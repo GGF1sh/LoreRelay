@@ -668,7 +668,7 @@ function drawTileOvermap() {
     const panelWidth = panel ? panel.clientWidth : 0;
     if (!panelWidth) { return; }
 
-    const cell = Math.max(5, Math.floor(panelWidth / om.cols));
+    const cell = Math.max(5, Math.floor(panelWidth / om.cols)) * (typeof waterTileZoom === 'number' ? waterTileZoom : 1);
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = om.cols * cell;
     const cssHeight = om.rows * cell;
@@ -775,6 +775,7 @@ function drawTileOvermap() {
         return bestId;
     }
 
+    if (typeof drawWaterNavigationCanvas === 'function') drawWaterNavigationCanvas(ctx, msg, cssWidth, cssHeight);
     const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
     ctx.font = `600 ${Math.max(8, cell)}px "Courier New", monospace`;
     let currentPin = null;

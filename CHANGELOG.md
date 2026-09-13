@@ -9,6 +9,36 @@
 
 ## [Unreleased]
 
+## [1.88.1] - 2026-09-14
+
+### Fixed
+- Allow a damaged world-map manifest or missing/corrupt image to be replaced through the image picker, while retaining the old manifest and rejecting changes after preview.
+- Keep the displayed map/structure-art preview usable when a replacement image picker is cancelled.
+- Patch human-test candidate following 1.88.0; no tag or Release published.
+
+## [1.88.0] - 2026-09-14
+
+### Added
+- Deterministic, persisted 128×128 hydrology for new terrestrial worlds: tributaries, rivers, major rivers, estuaries, coastal/offshore sea, explicit bridges and ferries.
+- Shared water geometry in diagram/tile maps and external-AI layout PNGs; zoom detail preserves the exploration boundary.
+- Host-evaluated vessel routes with width, draft, bridge clearance, seaworthiness, range and destination access checks. Safe detours take priority; dangerous shortcuts require explicit predicted-HP confirmation.
+- Journalled joint player/vehicle movement and hull damage, stale-quote rejection and replay protection. Legacy market travel directs water-enabled worlds to the navigation panel; legacy location and vehicle writes cannot bypass its checks.
+- Isolated family demo generator and navigation guide. Minor code candidate; no tag or Release published.
+
+## [1.87.0] - 2026-09-13
+
+### Added
+- Structure artwork: export settlement floor plans, isometric reference PNGs and editable vehicle/settlement briefs for external image AIs; preview and adopt exterior and per-layer interior images with world-bound storage and replacement history. Vehicle and linked mobile-base entry points share artwork. This is a code candidate, not a published Release.
+
+## [1.86.0] - 2026-09-13
+
+Code candidate; no tag, VSIX or GitHub Release is published by this version change. Includes the previously unnumbered changes below.
+
+### Added
+- Import externally generated PNG/JPEG/WebP world maps through overlay preview and adoption, with world-bound assets, replacement history, pin/region positioning, visibility toggles and aspect-ratio-preserving fit/zoom.
+- Configure a protagonist portrait and switch between it and the standard gold person marker; region labels avoid pins and render above them.
+- Register local ComfyUI/Stability Matrix/model folders, inspect Civitai sidecars and offline compatibility, and select supported SDXL map profiles.
+
 ### Added
 - World Genesis **Routes** control (sparse / normal / dense). Dense extra links prefer matching biomes. Omitted density stays the legacy ring + 1–2 chords.
 

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { adoptCartographyAsset, readCartographyImage, loadCartographyAsset, cartographyAssetPath } from './cartographyAssetStore';
+import { cartographyWorldKey } from './cartographyOverlayCore';
 import type { ChildProcess } from 'child_process';
 import { spawnWithTimeout } from './spawnWithTimeout';
 import { t } from './i18n';
@@ -80,6 +82,13 @@ export function killCartographyProcess(): void {
 
 export function resolveWorldMapImagePath(wsPath?: string): string | undefined {
     const root = wsPath ?? getWorkspacePath();
+    if (root) {
+        try {
+            const forge = JSON.parse(fs.readFileSync(path.join(root, 'world_forge.json'), 'utf8'));
+            const asset = loadCartographyAsset(root, forge);
+            if (asset) return cartographyAssetPath(root, asset);
+        } catch { /* Legacy workspaces continue to use world_map.png. */ }
+    }
     return root ? resolveWorldMapImagePathCore(root) : undefined;
 }
 
@@ -321,7 +330,10 @@ export async function runCartographyGeneration(
         return false;
     }
     const { getPanel } = requireDeps();
-    const { wsPath, extPath, validatedForge, layoutPath, targetMapPath, validatedOutputDir } = prepared;
+    const { wsPath, extPath, validatedForge, layoutPath, validatedOutputDir } = prepared;
+    const generationForge = JSON.parse(fs.readFileSync(validatedForge, 'utf8'));
+    const generationWorldKey = cartographyWorldKey(generationForge);
+    const generationRevision = loadCartographyAsset(wsPath, generationForge)?.revision;
 
     if (isCartographyGenerationBusy()) {
         vscode.window.showWarningMessage('World map generation is already running.');
@@ -437,9 +449,13 @@ export async function runCartographyGeneration(
             return finish(false);
         }
         try {
-            fs.copyFileSync(srcPath, targetMapPath);
-            channel.appendLine(`Saved world map → ${targetMapPath}`);
-            if (srcPath !== targetMapPath && path.basename(srcPath).startsWith('world_map_')) {
+            if (cartographyWorldKey(JSON.parse(fs.readFileSync(validatedForge, 'utf8'))) !== generationWorldKey
+                || loadCartographyAsset(wsPath, generationForge)?.revision !== generationRevision) {
+                throw new Error('World or map changed during generation. Generated image retained for manual import.');
+            }
+            const adopted = adoptCartographyAsset(wsPath, generationForge, readCartographyImage(srcPath));
+            channel.appendLine(`Saved world map → ${cartographyAssetPath(wsPath, adopted)}`);
+            if (path.basename(srcPath).startsWith('world_map_')) {
                 try { fs.unlinkSync(srcPath); } catch { /* temp cleanup best-effort */ }
             }
             return finish(true);

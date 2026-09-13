@@ -8107,6 +8107,7 @@ function renderWorldView(msg) {
     }
 
     // Mermaid + parchment + tile maps
+    if (typeof renderWaterNavigationControls === 'function') renderWaterNavigationControls(msg);
     renderMermaidMap(msg.worldMap, msg);
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
@@ -9439,9 +9440,11 @@ function applyWorldMapModeVisibility() {
     if (typeof updateDioramaWaterAnimationState === 'function') {
         updateDioramaWaterAnimationState();
     }
+    if (worldMapMode === 'parchment' && typeof mapAssetSizeStage === 'function') mapAssetSizeStage();
 }
 
 function renderCartographyMap(msg) {
+    if (typeof overlayCartographyMessage === 'function') msg = overlayCartographyMessage(msg);
     const stage = document.getElementById('world-cartography-stage');
     const img = document.getElementById('world-cartography-img');
     const pinsEl = document.getElementById('world-cartography-pins');
@@ -9477,6 +9480,8 @@ function renderCartographyMap(msg) {
         if (visibility === 'unknown') { continue; }
         const el = document.createElement('span');
         el.className = 'world-map-region-label';
+        el.dataset.mapRegion = label.regionId;
+        el.hidden = msg.cartographyShowLabels === false;
         if (visibility === 'rumored') { el.classList.add('is-rumored'); }
         el.style.left = `${label.leftPct}%`;
         el.style.top = `${label.topPct}%`;
@@ -9494,6 +9499,7 @@ function renderCartographyMap(msg) {
         const pinMeta = findWorldPinMeta(pin.locationId);
         const wrap = document.createElement('span');
         wrap.className = 'world-map-pin-wrap';
+        wrap.dataset.mapPin = pin.locationId;
         wrap.style.left = `${pin.leftPct}%`;
         wrap.style.top = `${pin.topPct}%`;
         if (_selectedPinId && pin.locationId === _selectedPinId) {
@@ -9516,7 +9522,7 @@ function renderCartographyMap(msg) {
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
         const typeIcon = LOCATION_TYPE_ICON[pinMeta?.locationType] || LOCATION_TYPE_ICON.other;
         el.title = visibility === 'rumored' ? T('webview.world.pinRumoredTooltip') : (pin.locationName || pin.locationId || '');
-        el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : typeIcon);
+        el.textContent = visibility === 'rumored' ? '?' : typeIcon;
         el.setAttribute('aria-label', pinLabel || 'Location');
         if (_selectedPinId && pin.locationId === _selectedPinId) {
             el.classList.add('is-selected');
@@ -9526,16 +9532,22 @@ function renderCartographyMap(msg) {
             appendMapEventBadge(wrap, pinMeta);
         }
         wireParchmentWorldPin(el, pin, msg);
+        if (pin.locationId === msg.currentLocationId && typeof appendCartographyCurrentMarker === 'function') {
+            wrap.classList.add('is-player');
+            appendCartographyCurrentMarker(el, msg, pin);
+        }
         wrap.appendChild(el);
         pinsEl.appendChild(wrap);
     }
 
     renderCartographyLegend(pins.map((pin) => findWorldPinMeta(pin.locationId)).filter(Boolean));
+    if (typeof scheduleCartographyLabelLayout === 'function') scheduleCartographyLabelLayout();
 }
 
 /** Trade-road / travel-route lines between connected regions (parchment overlay only). */
 function renderCartographyRoutes(routesEl, msg) {
     if (!routesEl) { return; }
+    routesEl.style.display = msg.cartographyShowRoutes === false ? 'none' : '';
     routesEl.setAttribute('viewBox', '0 0 100 100');
     routesEl.setAttribute('preserveAspectRatio', 'none');
     routesEl.innerHTML = '';
@@ -9602,6 +9614,7 @@ function renderCartographyLegend(pinMetas) {
 
 function renderMermaidMap(mmdCode, msg) {
     const container = document.getElementById('world-mermaid');
+    if (container && msg?.navigation && typeof renderWaterDiagram === 'function') { renderWaterDiagram(container, msg); return; }
     if (!container || !mmdCode) { return; }
 
     container.removeAttribute('data-processed');
@@ -9676,6 +9689,7 @@ function applyMapTransform(viewport) {
     const { scale, tx, ty } = _mapPanState;
     svg.style.transform = `matrix(${scale},0,0,${scale},${tx},${ty})`;
     svg.style.transformOrigin = '0 0';
+    if (typeof updateWaterDetail === 'function') updateWaterDetail(svg, scale);
 }
 
 function addMapPanZoomHint(viewport) {
@@ -12909,6 +12923,496 @@ function buildGuildEventsSection(guild, msg) {
     });
     return el;
 }
+
+/* --- 85-water-navigation.js --- */
+/* Stored water geometry shared by the diagram, tile map and illustrated overlay. */
+let waterTileZoom = 1;
+let waterQuote = null;
+let waterRoute = null;
+let waterWorld = '';
+let waterState = '';
+let waterRequest = 0;
+const waterPost = (action, extra = {}) => vscode.postMessage({ type: 'waterNavigation', action, ...extra });
+const waterSvg = (tag, attributes = {}) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+    return node;
+};
+function waterClearQuote() {
+    if (waterQuote) waterPost('cancel', { quoteId: waterQuote });
+    waterRequest++;
+    waterQuote = null; waterRoute = null;
+    const button = document.getElementById('water-depart'); if (button) button.disabled = true;
+    const check = document.getElementById('water-confirm'); if (check) check.checked = false;
+    const label = document.getElementById('water-confirm-label'); if (label) label.hidden = true;
+}
+function renderWaterNavigationControls(msg) {
+    const controls = document.getElementById('water-navigation'); if (!controls) return;
+    controls.classList.toggle('hidden', !msg.navigation);
+    if (!msg.navigation) { waterClearQuote(); return; }
+    if (waterWorld !== msg.navigation.worldKey) { waterClearQuote(); waterWorld = msg.navigation.worldKey; }
+    if (waterState && waterState !== msg.navigation.stateKey) waterClearQuote();
+    waterState = msg.navigation.stateKey;
+    const fill = (id, entries) => {
+        const select = document.getElementById(id), previous = select.value; select.replaceChildren();
+        entries.forEach(e => { const option = document.createElement('option'); option.value = e.id; option.textContent = e.name; select.appendChild(option); });
+        if (entries.some(e => e.id === previous)) select.value = previous;
+    };
+    fill('water-vehicle', [{ id: '', name: '徒歩（船・車両はその場に残す）' }, ...msg.navigation.vehicles.map(v => ({ id: v.id, name: `${v.name} / HP ${v.hp}${v.waterProfile ? ` / 幅${v.waterProfile.width}・喫水${v.waterProfile.draft}・耐航${v.waterProfile.seaworthiness}` : ' / 水上性能未設定'}` }))]);
+    fill('water-destination', msg.navigation.destinations.filter(l => l.id !== msg.currentLocationId));
+    requestAnimationFrame(renderWaterCartography);
+}
+function updateWaterDetail(svg, scale) {
+    if (!svg) return;
+    const selected = new Set(waterRoute?.edgeIds || []);
+    svg.querySelectorAll('[data-river-kind]').forEach(el => {
+        el.style.display = selected.has(el.dataset.edgeId) || el.dataset.riverKind === 'major' || scale >= 1 && el.dataset.riverKind === 'river' || scale >= 2 ? '' : 'none';
+    });
+}
+function paintWaterSvg(svg, msg, sea) {
+    const nav = msg?.navigation; if (!nav) return;
+    if (sea) for (let y = 0; y < nav.seaRows.length; y++) {
+        const row = nav.seaRows[y];
+        for (let x = 0; x < row.length;) {
+            const code = row[x]; let end = x + 1; while (end < row.length && row[end] === code) end++;
+            if (code !== '0') svg.appendChild(waterSvg('rect', { x: x * 1000 / 128, y: y * 1000 / 128, width: (end - x) * 1000 / 128 + .1, height: 1000 / 128 + .1, fill: code === '1' ? '#235775' : '#122b54' }));
+            x = end;
+        }
+    }
+    const line = (edge, color, width, river) => {
+        const el = waterSvg('polyline', { points: edge.points.map(p => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+        if (river) { el.dataset.riverKind = edge.kind; el.dataset.edgeId = edge.id; }
+        svg.appendChild(el);
+    };
+    nav.roads.forEach(r => line(r, '#ac9467', 2, false));
+    nav.rivers.forEach(r => line(r, '#66b9eb', r.width * 1.7, true));
+    nav.crossings.forEach(c => {
+        const glyph = waterSvg('text', { x: c.x, y: c.y, fill: '#fff1b0', 'font-size': 13, 'text-anchor': 'middle', stroke: '#16202b', 'stroke-width': 3, 'paint-order': 'stroke' });
+        glyph.textContent = c.kind === 'bridge' ? '橋' : '渡'; svg.appendChild(glyph);
+    });
+    if (waterRoute) waterRoute.points.forEach(points => line({ points }, waterRoute.damage ? '#ff986b' : '#f5e45a', 4, false));
+}
+function renderWaterDiagram(container, msg) {
+    container.replaceChildren();
+    const svg = waterSvg('svg', { viewBox: '0 0 1000 1000', width: '100%', role: 'img', 'aria-label': '水系・道路・橋・渡し場の図解' });
+    const fit = Math.max(280, Math.min(container.clientWidth || 700, window.innerHeight * .55));
+    svg.style.width = fit + 'px'; svg.style.height = fit + 'px';
+    svg.style.background = '#15201e';
+    const known = new Set(msg.fog?.discoveredRegionIds || []);
+    (msg.fogRegionLayout || []).filter(r => known.has(r.regionId)).forEach(r => svg.appendChild(waterSvg('circle', { cx: r.leftPct * 10, cy: r.topPct * 10, r: r.radiusPct * 10, fill: '#344939', opacity: .5 })));
+    paintWaterSvg(svg, msg, true);
+    (msg.cartographyRegionLabels || []).forEach(r => {
+        if (msg.navigation.pins.some(p => p.regionId === r.regionId && p.locationName === r.regionName)) return;
+        const text = waterSvg('text', { x: r.leftPct * 10, y: r.topPct * 10 - 18, fill: '#ddd', 'font-size': 16, 'text-anchor': 'middle' }); text.textContent = r.regionName || ''; svg.appendChild(text);
+    });
+    msg.navigation.pins.forEach(p => {
+        const group = waterSvg('g', { role: 'button', tabindex: 0, 'aria-label': p.locationName });
+        group.style.cursor = 'pointer';
+        group.appendChild(waterSvg('circle', { cx: p.leftPct * 10, cy: p.topPct * 10, r: 6, fill: p.locationId === msg.currentLocationId ? '#ffe67a' : '#ddd' }));
+        const label = waterSvg('text', { x: p.leftPct * 10, y: p.topPct * 10 + 23, fill: '#fff', stroke: '#142018', 'stroke-width': 4, 'paint-order': 'stroke', 'font-size': 15, 'text-anchor': 'middle' });
+        label.textContent = (p.locationId === msg.currentLocationId ? '現在地 ' : '') + p.locationName; group.appendChild(label);
+        group.addEventListener('click', () => selectWorldLocationPin(p.locationId));
+        group.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectWorldLocationPin(p.locationId); } });
+        svg.appendChild(group);
+    });
+    container.appendChild(svg);
+    initMapPanZoomOnce(container); applyMapTransform(container); addMapPanZoomHint(container);
+}
+function renderWaterCartography() {
+    const stage = document.getElementById('world-cartography-stage'); if (!stage) return;
+    let svg = document.getElementById('water-cartography-overlay');
+    if (svg) svg.remove();
+    if (!_worldViewMsg?.navigation) return;
+    svg = waterSvg('svg', { id: 'water-cartography-overlay', viewBox: '0 0 1000 1000', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+    Object.assign(svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', zIndex: '1' });
+    paintWaterSvg(svg, _worldViewMsg, false); updateWaterDetail(svg, mapAssetZoom);
+    stage.appendChild(svg);
+}
+function drawWaterNavigationCanvas(ctx, msg, width, height) {
+    const nav = msg.navigation; if (!nav) return;
+    ctx.save(); ctx.scale(width / 1000, height / 1000);
+    const selected = new Set(waterRoute?.edgeIds || []);
+    const line = (points, color, size) => { ctx.beginPath(); points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.strokeStyle = color; ctx.lineWidth = size; ctx.stroke(); };
+    nav.rivers.filter(r => selected.has(r.id) || r.kind === 'major' || waterTileZoom >= 1 && r.kind === 'river' || waterTileZoom >= 2).forEach(r => line(r.points, '#66b9eb', r.width * 1.7));
+    ctx.font = '14px sans-serif'; ctx.fillStyle = '#fff1b0';
+    nav.crossings.forEach(c => ctx.fillText(c.kind === 'bridge' ? '橋' : '渡', c.x, c.y));
+    waterRoute?.points.forEach(p => line(p, waterRoute.damage ? '#ff986b' : '#f5e45a', 4));
+    ctx.restore();
+}
+function waterRedraw() {
+    if (!_worldViewMsg) return;
+    if (_worldViewMsg.navigation) renderWaterDiagram(document.getElementById('world-mermaid'), _worldViewMsg);
+    renderWaterCartography();
+    if (worldMapMode === 'tile') drawTileOvermap();
+}
+window.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('water-navigation')) return;
+    const preview = shortcut => { waterClearQuote(); waterPost('preview', { requestId: String(waterRequest), destination: document.getElementById('water-destination').value, vehicleId: document.getElementById('water-vehicle').value, shortcut }); document.getElementById('water-result').textContent = '経路を確認しています…'; };
+    document.getElementById('water-preview').onclick = () => preview(false);
+    document.getElementById('water-shortcut').onclick = () => preview(true);
+    for (const id of ['water-vehicle', 'water-destination']) document.getElementById(id).onchange = () => { waterClearQuote(); document.getElementById('water-result').textContent = '移動条件を変更しました。再確認してください。'; waterRedraw(); };
+    document.getElementById('water-cancel').onclick = () => { waterClearQuote(); document.getElementById('water-result').textContent = ''; waterRedraw(); };
+    document.getElementById('water-confirm').onchange = e => { document.getElementById('water-depart').disabled = !waterQuote || !e.target.checked; };
+    document.getElementById('water-depart').onclick = () => { if (waterQuote) { document.getElementById('water-depart').disabled = true; waterPost('depart', { quoteId: waterQuote, confirmDamage: document.getElementById('water-confirm').checked }); } };
+    document.getElementById('water-zoom').onchange = e => {
+        const scale = Number(e.target.value); waterTileZoom = scale; mapAssetZoom = scale; _mapPanState.scale = scale;
+        mapAssetSizeStage(); waterRedraw();
+    };
+    window.addEventListener('message', event => {
+        const msg = event.data; if (msg.type !== 'waterNavigationResult') return;
+        if (msg.requestId !== undefined && msg.requestId !== String(waterRequest)) return;
+        const result = document.getElementById('water-result');
+        if (!msg.ok) { waterClearQuote(); result.textContent = msg.error; waterRedraw(); return; }
+        if (msg.completed) { waterClearQuote(); result.textContent = msg.summary || 'この移動は保存済みです。'; waterRedraw(); return; }
+        waterQuote = msg.quoteId; waterRoute = msg.route;
+        const r = msg.route;
+        result.textContent = `${r.status === 'safe' ? '安全に通れます' : r.status === 'risky' ? '危険ですが通れます' : '通行不可'} / 距離 ${Math.round(r.distance)}${r.hpBefore !== undefined ? ` / 船体HP ${r.hpBefore} → ${r.hpAfter}` : ''}。${r.reasons.join(' / ')}`;
+        document.getElementById('water-shortcut').hidden = !msg.hasShortcut;
+        document.getElementById('water-confirm-label').hidden = !r.damage;
+        document.getElementById('water-depart').disabled = !waterQuote || !!r.damage;
+        waterRedraw();
+    });
+});
+
+/* --- 85a-cartography-assets.js --- */
+/* Illustrated maps: host-owned image adoption, presentation-only editing. */
+let mapAssetPreview = null;
+let mapAssetDraft = null;
+let mapAssetEditing = false;
+let mapAssetIdentity = '';
+let mapAssetZoom = 1;
+const mapAssetEmptyOverlay = () => ({ pins: {}, regions: {}, showLabels: true, showRoutes: true });
+const mapAssetClone = value => JSON.parse(JSON.stringify(value));
+const mapAssetPost = (action, extra = {}) => vscode.postMessage({ type: 'worldMapAsset', action, ...extra });
+
+function overlayCartographyMessage(msg) {
+    const identity = `${msg.cartographyWorldKey || ''}:${msg.cartographyAsset?.revision || ''}`;
+    if (identity !== mapAssetIdentity) {
+        mapAssetIdentity = identity;
+        mapAssetDraft = null;
+        mapAssetEditing = false;
+        if (mapAssetPreview && mapAssetPreview.worldKey !== msg.cartographyWorldKey) mapAssetPreview = null;
+    }
+    const overlay = mapAssetPreview ? mapAssetEmptyOverlay() : mapAssetDraft || msg.cartographyAsset?.overlay || mapAssetEmptyOverlay();
+    const result = { ...msg,
+        cartographyImage: mapAssetPreview?.image || msg.cartographyImage,
+        cartographyShowLabels: overlay.showLabels, cartographyShowRoutes: overlay.showRoutes,
+        cartographyPins: (msg.cartographyPins || []).map(p => ({ ...p, ...overlay.pins[p.locationId] })),
+        cartographyRegionLabels: (msg.cartographyRegionLabels || []).map(r => ({ ...r, ...overlay.regions[r.regionId] })),
+        cartographyRouteEdges: (msg.cartographyRouteEdges || []).map(e => {
+            const a = overlay.regions[e.fromRegionId], b = overlay.regions[e.toRegionId];
+            return { ...e, ...(a ? { x1Pct: a.leftPct, y1Pct: a.topPct } : {}),
+                ...(b ? { x2Pct: b.leftPct, y2Pct: b.topPct } : {}) };
+        }) };
+    mapAssetUpdateControls(msg, overlay);
+    return result;
+}
+function mapAssetStatus(text) {
+    const el = document.getElementById('map-asset-status');
+    if (el) el.textContent = text;
+}
+function mapAssetRedraw() { if (_worldViewMsg) renderCartographyMap(_worldViewMsg); }
+function mapAssetSizeStage() {
+    const viewport = document.getElementById('map-asset-viewport');
+    const stage = document.getElementById('world-cartography-stage');
+    const image = document.getElementById('world-cartography-img');
+    if (!viewport || !stage || !image?.naturalWidth || !viewport.clientWidth) return;
+    const fitWidth = Math.min(viewport.clientWidth, window.innerHeight * .7 * image.naturalWidth / image.naturalHeight);
+    stage.style.width = `${fitWidth * mapAssetZoom}px`;
+    if (typeof renderWaterCartography === 'function') renderWaterCartography();
+    scheduleCartographyLabelLayout();
+}
+function mapAssetStartEdit() {
+    if (!_worldViewMsg?.cartographyAsset) return;
+    mapAssetDraft = mapAssetClone(_worldViewMsg.cartographyAsset.overlay);
+    mapAssetEditing = true;
+    mapAssetRedraw();
+    mapAssetStatus(T('webview.mapAssets.dragHint'));
+}
+function mapAssetUpdateControls(msg, overlay) {
+    const controls = document.getElementById('map-asset-controls');
+    if (!controls) return;
+    const preview = Boolean(mapAssetPreview);
+    controls.querySelector('[data-map-action="adopt"]').hidden = !preview;
+    controls.querySelector('[data-map-action="adopt"]').disabled = !mapAssetPreview?.decoded;
+    controls.querySelector('[data-map-action="cancel"]').hidden = !preview && !mapAssetEditing;
+    controls.querySelector('[data-map-action="edit"]').hidden = preview || mapAssetEditing;
+    controls.querySelector('[data-map-action="edit"]').disabled = msg.cartographySource !== 'illustrated';
+    for (const action of ['save', 'reset']) controls.querySelector(`[data-map-action="${action}"]`).hidden = !mapAssetEditing;
+    for (const key of ['showLabels', 'showRoutes']) {
+        const input = controls.querySelector(`[data-map-toggle="${key}"]`);
+        input.checked = overlay[key];
+        input.disabled = preview;
+    }
+    const marker = controls.querySelector('[data-map-marker-mode]');
+    marker.value = msg.cartographyMarker?.mode || 'standard';
+    marker.disabled = preview || mapAssetEditing || !msg.cartographyAsset;
+    marker.querySelector('[value="custom"]').disabled = !msg.cartographyMarker?.image;
+    controls.querySelector('[data-map-action="markerImage"]').disabled = marker.disabled;
+    document.getElementById('world-cartography-stage')?.classList.toggle('map-asset-editing', mapAssetEditing);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const map = document.getElementById('world-cartography');
+    const stage = document.getElementById('world-cartography-stage');
+    if (!map || !stage) return;
+    const controls = document.createElement('div');
+    controls.id = 'map-asset-controls';
+    controls.className = 'map-asset-controls';
+    const button = (action, key) => {
+        const el = document.createElement('button'); el.type = 'button'; el.className = 'small-btn';
+        el.dataset.mapAction = action; el.dataset.i18n = `webview.mapAssets.${key}`;
+        el.textContent = T(el.dataset.i18n); controls.appendChild(el);
+    };
+    button('adopt', 'adopt'); button('edit', 'edit'); button('save', 'save'); button('reset', 'reset');
+    button('cancel', 'cancel'); button('out', 'zoomOut'); button('fit', 'fit'); button('in', 'zoomIn');
+    const markerLabel = document.createElement('label');
+    const markerText = document.createElement('span'); markerText.dataset.i18n = 'webview.mapAssets.marker';
+    markerText.textContent = T(markerText.dataset.i18n);
+    const markerSelect = document.createElement('select'); markerSelect.dataset.mapMarkerMode = '';
+    markerSelect.dataset.i18nAriaLabel = 'webview.mapAssets.marker';
+    markerSelect.setAttribute('aria-label', T('webview.mapAssets.marker'));
+    for (const mode of ['standard', 'custom']) {
+        const option = document.createElement('option'); option.value = mode;
+        option.dataset.i18n = `webview.mapAssets.marker${mode === 'standard' ? 'Standard' : 'Custom'}`;
+        option.textContent = T(option.dataset.i18n); markerSelect.appendChild(option);
+    }
+    markerLabel.append(markerText, markerSelect); controls.appendChild(markerLabel);
+    button('markerImage', 'markerImage');
+    for (const [key, label] of [['showLabels', 'labels'], ['showRoutes', 'routes']]) {
+        const wrapper = document.createElement('label'), input = document.createElement('input');
+        input.type = 'checkbox'; input.checked = true; input.dataset.mapToggle = key;
+        const text = document.createElement('span'); text.dataset.i18n = `webview.mapAssets.${label}`;
+        text.textContent = T(text.dataset.i18n); wrapper.append(input, text); controls.appendChild(wrapper);
+    }
+    const status = document.createElement('p'); status.id = 'map-asset-status'; status.setAttribute('role', 'status');
+    const viewport = document.createElement('div'); viewport.id = 'map-asset-viewport';
+    stage.before(viewport); viewport.appendChild(stage); map.prepend(controls, status);
+    document.getElementById('world-cartography-img').addEventListener('load', mapAssetSizeStage);
+    window.addEventListener('resize', mapAssetSizeStage);
+    controls.addEventListener('click', e => {
+        const action = e.target.closest('[data-map-action]')?.dataset.mapAction;
+        if (!action || !_worldViewMsg) return;
+        if (action === 'adopt' && mapAssetPreview?.decoded) {
+            mapAssetPost('adopt', { token: mapAssetPreview.token });
+        } else if (action === 'edit') {
+            if (_worldViewMsg.cartographyAsset) mapAssetStartEdit();
+            else mapAssetPost('prepareEdit', { worldKey: _worldViewMsg.cartographyWorldKey });
+        } else if (action === 'save') {
+            mapAssetPost('save', { worldKey: _worldViewMsg.cartographyWorldKey,
+                revision: _worldViewMsg.cartographyAsset?.revision, overlay: mapAssetDraft });
+        } else if (action === 'markerImage') {
+            mapAssetPost('markerImage', { worldKey: _worldViewMsg.cartographyWorldKey,
+                revision: _worldViewMsg.cartographyAsset?.revision });
+        } else if (action === 'reset') {
+            mapAssetDraft = { ...mapAssetDraft, pins: {}, regions: {} }; mapAssetRedraw();
+        } else if (action === 'cancel') {
+            if (mapAssetPreview) mapAssetPost('cancel', { token: mapAssetPreview.token });
+            mapAssetPreview = null; mapAssetDraft = null; mapAssetEditing = false; mapAssetStatus(''); mapAssetRedraw();
+        } else if (['in', 'out', 'fit'].includes(action)) {
+            mapAssetZoom = action === 'fit' ? 1 : Math.max(1, Math.min(4, mapAssetZoom * (action === 'in' ? 1.25 : .8)));
+            mapAssetSizeStage();
+            if (action === 'fit') { viewport.scrollLeft = 0; viewport.scrollTop = 0; }
+        }
+    });
+    controls.addEventListener('change', e => {
+        if (e.target.hasAttribute('data-map-marker-mode')) {
+            mapAssetPost('markerMode', { worldKey: _worldViewMsg.cartographyWorldKey,
+                revision: _worldViewMsg.cartographyAsset?.revision, mode: e.target.value });
+            return;
+        }
+        const key = e.target.dataset.mapToggle;
+        if (!key || !_worldViewMsg) return;
+        if (!mapAssetDraft) mapAssetDraft = mapAssetClone(_worldViewMsg.cartographyAsset?.overlay || mapAssetEmptyOverlay());
+        mapAssetDraft[key] = e.target.checked;
+        mapAssetRedraw();
+        if (!mapAssetEditing && _worldViewMsg.cartographyAsset) mapAssetPost('save', {
+            worldKey: _worldViewMsg.cartographyWorldKey, revision: _worldViewMsg.cartographyAsset.revision, overlay: mapAssetDraft });
+    });
+    let drag = null;
+    stage.addEventListener('click', e => { if (mapAssetEditing || mapAssetPreview) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+    stage.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        const target = e.target.closest('[data-map-pin], [data-map-region]');
+        if (mapAssetEditing && target) {
+            e.preventDefault(); e.stopPropagation();
+            drag = { target, id: target.dataset.mapPin || target.dataset.mapRegion,
+                kind: target.dataset.mapPin ? 'pins' : 'regions', identity: mapAssetIdentity };
+        } else if (!target) {
+            drag = { x: e.clientX, y: e.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+            e.preventDefault();
+        }
+        if (drag) stage.setPointerCapture(e.pointerId);
+    });
+    stage.addEventListener('pointermove', e => {
+        if (!drag) return;
+        if (drag.target) {
+            if (!mapAssetDraft || drag.identity !== mapAssetIdentity) { drag = null; return; }
+            const rect = stage.getBoundingClientRect();
+            const point = { leftPct: Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100)),
+                topPct: Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100)) };
+            mapAssetDraft[drag.kind][drag.id] = point;
+            drag.target.style.left = `${point.leftPct}%`; drag.target.style.top = `${point.topPct}%`;
+            renderCartographyRoutes(document.getElementById('world-cartography-routes'), overlayCartographyMessage(_worldViewMsg));
+        } else { viewport.scrollLeft = drag.left - e.clientX + drag.x; viewport.scrollTop = drag.top - e.clientY + drag.y; }
+    });
+    const finish = () => { if (drag?.target) mapAssetRedraw(); drag = null; };
+    stage.addEventListener('pointerup', finish); stage.addEventListener('pointercancel', finish);
+    document.getElementById('world-import-map-btn')?.addEventListener('click', () => {
+        mapAssetPost('import'); setWorldMapMode('parchment');
+    });
+    window.addEventListener('message', event => {
+        const msg = event.data;
+        if (msg.type === 'worldMapGenEnd' && msg.success) setWorldMapMode('parchment');
+        if (msg.type === 'worldView' && msg.cartographyAssetError) mapAssetStatus(msg.cartographyAssetError);
+        if (msg.type !== 'worldMapAssetState') return;
+        if (msg.status === 'preview') {
+            if (msg.worldKey !== _worldViewMsg?.cartographyWorldKey) return;
+            mapAssetPreview = { ...msg, decoded: false }; mapAssetEditing = false; mapAssetDraft = null;
+            const image = new Image();
+            image.onload = () => {
+                if (mapAssetPreview?.token !== msg.token) return;
+                mapAssetPreview.decoded = image.naturalWidth > 0 && image.naturalHeight > 0
+                    && image.naturalWidth <= 16384 && image.naturalHeight <= 16384
+                    && image.naturalWidth * image.naturalHeight <= 40000000;
+                mapAssetStatus(T(mapAssetPreview.decoded ? 'webview.mapAssets.previewHint' : 'webview.mapAssets.invalidImage'));
+                mapAssetRedraw();
+            };
+            image.onerror = () => { if (mapAssetPreview?.token === msg.token) mapAssetStatus(T('webview.mapAssets.invalidImage')); };
+            image.src = msg.image;
+            setWorldMapMode('parchment'); mapAssetRedraw();
+        } else if (msg.status === 'adopted' || msg.status === 'saved' || msg.status === 'cancelled') {
+            mapAssetPreview = null; mapAssetDraft = null; mapAssetEditing = false;
+            mapAssetRedraw(); setWorldMapMode('parchment'); mapAssetStatus(msg.status === 'cancelled' ? '' : T('webview.mapAssets.saved'));
+        } else if (msg.status === 'markerSaved') {
+            mapAssetStatus(T('webview.mapAssets.markerSaved')); mapAssetRedraw();
+        } else if (msg.status === 'markerCancelled') mapAssetRedraw();
+        else if (msg.status === 'edit') mapAssetStartEdit();
+        else if (msg.status === 'error') { mapAssetRedraw(); mapAssetStatus(msg.error); }
+    });
+    mapAssetRedraw();
+});
+
+function appendCartographyCurrentMarker(button, msg, pin) {
+    button.classList.add('world-player-marker');
+    const title = `${T('webview.mapAssets.currentLocation')}: ${pin.locationName || pin.locationId}`;
+    button.title = title; button.setAttribute('aria-label', title);
+    const standard = () => {
+        button.replaceChildren();
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+        const head = document.createElementNS(svg.namespaceURI, 'circle');
+        head.setAttribute('cx', '12'); head.setAttribute('cy', '7'); head.setAttribute('r', '4');
+        const body = document.createElementNS(svg.namespaceURI, 'path');
+        body.setAttribute('d', 'M4 22v-3a8 8 0 0 1 16 0v3Z'); svg.append(head, body); button.appendChild(svg);
+    };
+    if (msg.cartographyMarker?.mode === 'custom' && msg.cartographyMarker.image) {
+        const image = document.createElement('img'); image.className = 'world-player-portrait'; image.alt = '';
+        image.onerror = standard; image.onload = scheduleCartographyLabelLayout;
+        image.src = msg.cartographyMarker.image; button.replaceChildren(image);
+    } else standard();
+}
+
+let cartographyLabelFrame = 0;
+function scheduleCartographyLabelLayout() {
+    if (cartographyLabelFrame) cancelAnimationFrame(cartographyLabelFrame);
+    cartographyLabelFrame = requestAnimationFrame(() => { cartographyLabelFrame = 0; layoutCartographyLabels(); });
+}
+function layoutCartographyLabels() {
+    const stage = document.getElementById('world-cartography-stage');
+    if (!stage || !stage.clientWidth) return;
+    const labels = [...stage.querySelectorAll('[data-map-region]')];
+    labels.forEach(label => { label.style.transform = 'translate(-50%, 0)'; });
+    if (mapAssetEditing) return;
+    const bounds = stage.getBoundingClientRect();
+    const obstacles = [...stage.querySelectorAll('.world-map-pin')].map(pin => pin.getBoundingClientRect());
+    const overlaps = (a, b) => a.left < b.right + 5 && a.right > b.left - 5 && a.top < b.bottom + 5 && a.bottom > b.top - 5;
+    for (const label of labels) {
+        if (label.hidden) continue;
+        const initial = label.getBoundingClientRect();
+        const candidates = [[0,0]];
+        for (let distance = 1; distance <= 5; distance++) {
+            const y = distance * (initial.height + 8), x = distance * (initial.width / 2 + 12);
+            candidates.push([0,y],[0,-y],[x,0],[-x,0],[x,y],[-x,y],[x,-y],[-x,-y]);
+        }
+        let best, score = Infinity;
+        for (const [dx,dy] of candidates) {
+            const left = Math.max(bounds.left + 3, Math.min(bounds.right - initial.width - 3, initial.left + dx));
+            const top = Math.max(bounds.top + 3, Math.min(bounds.bottom - initial.height - 3, initial.top + dy));
+            const rect = { left, top, right: left + initial.width, bottom: top + initial.height };
+            const cost = obstacles.filter(other => overlaps(rect,other)).length * 100000 + Math.hypot(left-initial.left,top-initial.top);
+            if (cost < score) { best = rect; score = cost; }
+            if (cost === 0) break;
+        }
+        if (best) {
+            label.style.transform = `translate(calc(-50% + ${best.left-initial.left}px), ${best.top-initial.top}px)`;
+            obstacles.push(best);
+        }
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const panel = document.getElementById('world-map-models');
+    if (!panel) return;
+    const toolbar = document.createElement('div'); toolbar.className = 'map-asset-controls';
+    for (const [action, key] of [['addRoot', 'addFolder'], ['list', 'refresh'], ['close', 'close']]) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'small-btn';
+        button.dataset.i18n = `webview.mapAssets.${key}`; button.textContent = T(button.dataset.i18n);
+        button.onclick = () => action === 'close' ? panel.classList.add('hidden') : vscode.postMessage({ type: 'worldMapModels', action });
+        toolbar.appendChild(button);
+    }
+    const template = document.createElement('select'); template.setAttribute('aria-label', T('webview.mapAssets.workflow'));
+    template.dataset.i18nAriaLabel = 'webview.mapAssets.workflow';
+    for (const [id, title] of [['map-sdxl-canny', 'SDXL Canny / ControlNet'], ['map-sdxl-direct', 'SDXL Direct']]) {
+        const option = document.createElement('option'); option.value = id; option.textContent = title; template.appendChild(option);
+    }
+    toolbar.appendChild(template);
+    const hint = document.createElement('p'); hint.textContent = T('webview.mapAssets.modelHint');
+    hint.dataset.i18n = 'webview.mapAssets.modelHint';
+    const status = document.createElement('p'); status.setAttribute('role', 'status');
+    const roots = document.createElement('p');
+    const list = document.createElement('div'); list.className = 'map-model-list';
+    panel.append(toolbar, hint, roots, status, list);
+    document.getElementById('world-map-models-btn')?.addEventListener('click', () => {
+        panel.classList.remove('hidden'); vscode.postMessage({ type: 'worldMapModels', action: 'list' });
+    });
+    window.addEventListener('message', event => {
+        const msg = event.data;
+        if (msg.type !== 'worldMapModelsState') return;
+        const busy = msg.status === 'loading';
+        toolbar.querySelectorAll('button').forEach(button => { button.disabled = busy; });
+        list.querySelectorAll('button').forEach(button => { button.disabled = busy || button.dataset.compatible !== 'true'; });
+        if (busy) { status.textContent = T('webview.mapAssets.scanning'); return; }
+        if (msg.status === 'cancelled') { status.textContent = ''; return; }
+        if (msg.status === 'error') { status.textContent = msg.error; return; }
+        roots.textContent = (msg.roots || []).join(' / ');
+        status.textContent = `${T(msg.comfyVerified ? 'webview.mapAssets.verified' : 'webview.mapAssets.unverified')} · ${msg.rows?.length || 0} · ${msg.selected || ''}`;
+        list.replaceChildren();
+        const table = document.createElement('table'), head = document.createElement('tr');
+        for (const key of ['model', 'family', 'evidence', 'compatibility']) {
+            const th = document.createElement('th'); th.dataset.i18n = `webview.mapAssets.${key}`;
+            th.textContent = T(th.dataset.i18n); head.appendChild(th);
+        }
+        table.appendChild(head);
+        for (const row of msg.rows || []) {
+            const tr = document.createElement('tr');
+            for (const text of [row.comfyName, `${row.evidence.category} / ${row.evidence.sidecarBaseModel || row.modelFamily}`,
+                `${row.evidence.sidecarSource || 'filename'}: ${row.reasons.join(' ')}`]) {
+                const td = document.createElement('td'); td.textContent = text; tr.appendChild(td);
+            }
+            const td = document.createElement('td'), apply = document.createElement('button'); apply.type = 'button';
+            apply.className = 'small-btn'; apply.disabled = !row.compatible;
+            apply.dataset.compatible = String(row.compatible);
+            apply.textContent = T(row.compatible ? 'webview.mapAssets.useModel' : 'webview.mapAssets.unsupported');
+            apply.dataset.i18n = row.compatible ? 'webview.mapAssets.useModel' : 'webview.mapAssets.unsupported';
+            apply.title = row.reason;
+            apply.onclick = () => vscode.postMessage({ type: 'worldMapModels', action: 'apply',
+                id: row.id, templateId: template.value });
+            td.appendChild(apply); tr.appendChild(td); table.appendChild(tr);
+        }
+        list.appendChild(table);
+    });
+});
 
 /* --- 85b1-logistics-layout.js --- */
 // LOGISTICS-GRAPH-CANVAS-SLICE2 - pure deterministic regional layout.
@@ -17801,7 +18305,7 @@ function drawTileOvermap() {
     const panelWidth = panel ? panel.clientWidth : 0;
     if (!panelWidth) { return; }
 
-    const cell = Math.max(5, Math.floor(panelWidth / om.cols));
+    const cell = Math.max(5, Math.floor(panelWidth / om.cols)) * (typeof waterTileZoom === 'number' ? waterTileZoom : 1);
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = om.cols * cell;
     const cssHeight = om.rows * cell;
@@ -17908,6 +18412,7 @@ function drawTileOvermap() {
         return bestId;
     }
 
+    if (typeof drawWaterNavigationCanvas === 'function') drawWaterNavigationCanvas(ctx, msg, cssWidth, cssHeight);
     const pins = Array.isArray(msg.cartographyPins) ? msg.cartographyPins : [];
     ctx.font = `600 ${Math.max(8, cell)}px "Courier New", monospace`;
     let currentPin = null;
@@ -21171,6 +21676,124 @@ window.addEventListener('DOMContentLoaded', () => {
     initSettlementDioramaControls();
 });
 
+/* --- 86d-structure-art.js --- */
+/* Host-resolved structure artwork. No game-state mutations or provider calls. */
+let structureArtWorld = '';
+let structureArtTargets = [];
+let structureArtSession = null;
+
+function structureArtRaster(view, isometric) {
+    const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 1000;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#f3ebd5'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const project = (x,y) => isometric ? isoProjectRaw(x,y,0) : { sx:x*32, sy:y*32 };
+    const points = [...view.tiles, ...view.markers].map(t => project(t.x,t.y));
+    if (!points.length) return canvas;
+    const minX=Math.min(...points.map(p=>p.sx))-24, maxX=Math.max(...points.map(p=>p.sx))+40;
+    const minY=Math.min(...points.map(p=>p.sy))-40, maxY=Math.max(...points.map(p=>p.sy))+40;
+    const scale=Math.min(1100/(maxX-minX),900/(maxY-minY));
+    ctx.translate((1200-(maxX-minX)*scale)/2-minX*scale,(1000-(maxY-minY)*scale)/2-minY*scale); ctx.scale(scale,scale);
+    const colors={water:'#7bb8c8',wall:'#877969',gate:'#b89261',market:'#d2ad61',workshop:'#b27759',stockpile:'#b79768',quarters:'#d7c6a1',floor:'#e1d7b9',empty:'#ddd5bf',unknown:'#bab6ab'};
+    [...view.tiles].sort((a,b)=>(a.x+a.y)-(b.x+b.y)).forEach(t=>{
+        const p=project(t.x,t.y);ctx.fillStyle=colors[t.code]||'#b3bf91';ctx.strokeStyle='#796f5a';ctx.lineWidth=.6;
+        if(isometric){
+            const h=ISO_TILE_ELEVATION[t.code]||2;
+            ctx.beginPath();ctx.moveTo(p.sx-16,p.sy);ctx.lineTo(p.sx,p.sy+8);ctx.lineTo(p.sx+16,p.sy);ctx.lineTo(p.sx+16,p.sy+h);ctx.lineTo(p.sx,p.sy+8+h);ctx.lineTo(p.sx-16,p.sy+h);ctx.closePath();ctx.fill();ctx.stroke();
+            ctx.beginPath();ctx.moveTo(p.sx,p.sy-8);ctx.lineTo(p.sx+16,p.sy);ctx.lineTo(p.sx,p.sy+8);ctx.lineTo(p.sx-16,p.sy);ctx.closePath();ctx.fill();ctx.stroke();
+        }else{ctx.fillRect(p.sx,p.sy,31,31);ctx.strokeRect(p.sx,p.sy,31,31);}
+    });
+    if(!isometric)view.markers.forEach((m,i)=>{
+        const p=project(m.x,m.y);ctx.fillStyle='#25313c';ctx.beginPath();ctx.arc(p.sx+16,p.sy+16,10,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='white';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(i+1),p.sx+16,p.sy+16);
+    });
+    return canvas;
+}
+
+function structureArtElement(tag, text, parent) {
+    const e=document.createElement(tag);if(text)e.textContent=text;if(parent)parent.appendChild(e);return e;
+}
+function openStructureArt(target, origin) {
+    if(structureArtSession)structureArtSession.dialog.remove();
+    const dialog=structureArtElement('dialog');dialog.style.cssText='width:min(900px,90vw);max-height:90vh;overflow:auto;background:var(--vscode-editor-background,#20242b);color:var(--vscode-foreground,#eee);';
+    document.body.appendChild(dialog);
+    const session={target,world:structureArtWorld,dialog,origin,edits:{},preview:null};structureArtSession=session;
+    structureArtElement('h2',target.name+' — 画像と作成資料',dialog);
+    const select=structureArtElement('select','',dialog);session.select=select;
+    [['exterior','外観'],...target.layers.map(l=>[l.layerId,l.layerId+' 内装'])].forEach(([v,n])=>{const o=structureArtElement('option',n,select);o.value=v;});
+    const status=structureArtElement('p','',dialog);status.setAttribute('role','status');session.status=status;
+    const controls=structureArtElement('div','',dialog);
+    const send=(action,extra={})=>vscode.postMessage({type:'structureArt',action,world:session.world,target:target.id,sourceHash:target.sourceHash,slot:select.value,edits:session.edits,...extra});session.send=send;
+    const button=(name,action)=>{const b=structureArtElement('button',name,controls);b.type='button';b.style.margin='4px';b.onclick=action;return b;};
+    button('説明文をコピー',()=>send('copy'));
+    button('資料を保存',()=>{
+        const layers=select.value==='exterior'?target.layers:target.layers.filter(l=>l.layerId===select.value);
+        const images=layers.flatMap(l=>[false,true].map(iso=>({name:(iso?'iso-':'plan-')+l.layerId+'.png',data:structureArtRaster(l,iso).toDataURL('image/png').split(',')[1]})));
+        send('export',{images});status.textContent='資料を保存しています…';
+    });
+    button('保存先を開く',()=>send('reveal'));
+    button('完成画像を取り込む',()=>send('import'));
+    button('設計図・集落表示に戻る',()=>{dialog.close();dialog.remove();structureArtSession=null;});
+    const details=structureArtElement('details','',dialog);structureArtElement('summary','見た目の希望を編集',details);
+    [['material','材質'],['color','色'],['decoration','装飾'],['style','画風'],['request','追加要望']].forEach(([key,name])=>{
+        const label=structureArtElement('label',name,details);label.style.display='block';const input=structureArtElement('input','',label);input.maxLength=2000;input.placeholder='未指定（既存設定を尊重）';input.oninput=()=>session.edits[key]=input.value;
+    });
+    const images=structureArtElement('div','',dialog);session.images=images;
+    const drawings=structureArtElement('details','',dialog);structureArtElement('summary','設計図・斜め上からの参考図',drawings);
+    structureArtElement('p',target.facts.join('\n'),drawings);
+    for(const layer of target.layers){structureArtElement('h3',layer.layerId,drawings);for(const iso of [false,true]){const c=structureArtRaster(layer,iso);c.style.width='48%';c.style.height='auto';drawings.appendChild(c);}structureArtElement('p',layer.markers.map((m,i)=>`${i+1}. ${m.label}`).join(' / '),drawings);}
+    session.prompt=structureArtElement('pre','',dialog);session.prompt.style.whiteSpace='pre-wrap';
+    select.onchange=()=>{session.preview=null;send('list');};
+    dialog.addEventListener('cancel',()=>{dialog.remove();if(structureArtSession===session)structureArtSession=null;});
+    dialog.showModal();send('list');
+}
+function mountStructureArtVehicle(parent,id) {
+    const target=structureArtTargets.find(t=>t.vehicleId===id);if(!target)return;
+    const b=structureArtElement('button','この車両を絵にする・画像を見る',parent);b.type='button';b.onclick=()=>openStructureArt(target,parent);
+}
+window.addEventListener('message',event=>{
+    const m=event.data;
+    if(m.type==='worldView'){
+        // This is only the just-adopted preview. Never carry it into another location.
+        document.querySelectorAll('[data-structure-art-image]').forEach(img=>img.remove());
+        structureArtWorld=m.cartographyWorldKey||'';structureArtTargets=m.structureArtTargets||[];
+        setTimeout(()=>{
+            const mobile=document.getElementById('vehicles-mobile-base-panel');
+            const mobileTarget=structureArtTargets.find(t=>t.vehicleId===m.mobileBasePanel?.vehicleId);
+            if(mobile&&mobileTarget&&!mobile.querySelector('[data-structure-art-mobile]')){
+                const mb=structureArtElement('button','この拠点を絵にする・画像を見る',mobile);mb.dataset.structureArtMobile='true';mb.onclick=()=>openStructureArt(mobileTarget,mobile);
+            }
+            const canvas=document.getElementById('world-settlement-canvas');if(!canvas)return;
+            let b=document.getElementById('structure-art-settlement-button');if(!b){b=structureArtElement('button','この拠点を絵にする・画像を見る');b.id='structure-art-settlement-button';b.type='button';canvas.parentElement.insertBefore(b,canvas);}
+            b.onclick=()=>{const view=getSelectedSettlementView(m);const target=structureArtTargets.find(t=>t.settlementId===view?.settlementId);if(target)openStructureArt(target,canvas.parentElement);};
+            b.disabled=!structureArtTargets.some(t=>t.settlementId);
+        },0);
+        return;
+    }
+    const s=structureArtSession;if(m.type!=='structureArt'||!s)return;
+    if(m.target!==s.target.id||m.world!==s.world||m.sourceHash!==s.target.sourceHash||m.slot!==s.select.value)return;
+    if(m.error){s.status.textContent=m.error;return;}
+    if(m.notice)s.status.textContent=m.notice;
+    if(m.prompt)s.prompt.textContent=m.prompt;
+    if(m.images){s.images.replaceChildren();for(const item of m.images.filter(i=>i.slot===s.select.value)){
+        if(item.error){structureArtElement('p',item.error,s.images);continue;}
+        if(item.stale)structureArtElement('p','旧配置を基にした画像です。資料を再出力できます。',s.images);
+        const img=structureArtElement('img','',s.images);img.src=item.uri;img.alt=s.target.name;img.style.cssText='max-width:100%;height:auto;cursor:zoom-in';img.onclick=()=>{img.style.maxWidth=img.style.maxWidth==='none'?'100%':'none';};
+    }}
+    if(m.preview){
+        s.preview=m.preview;s.images.replaceChildren();structureArtElement('p',m.preview.name+' / '+m.preview.slot+' に採用',s.images);
+        const img=structureArtElement('img','',s.images);img.style.cssText='max-width:100%;height:auto';
+        const adopt=structureArtElement('button','この画像を採用',s.images);adopt.disabled=true;
+        img.onload=()=>adopt.disabled=false;img.onerror=()=>{s.status.textContent='画像をデコードできません';};img.src=m.preview.uri;
+        adopt.onclick=()=>{adopt.disabled=true;s.send('adopt',{token:m.preview.token});};
+        const cancel=structureArtElement('button','キャンセル',s.images);cancel.onclick=()=>s.send('cancel',{token:m.preview.token});
+    }
+    if(m.adopted){
+        const item=m.images?.find(i=>i.slot===s.select.value&&i.uri);
+        if(item&&s.origin?.isConnected){let img=s.origin.querySelector('[data-structure-art-image]');if(!img){img=structureArtElement('img','',s.origin);img.dataset.structureArtImage='true';}img.src=item.uri;img.alt=s.target.name;img.style.cssText='max-width:100%;max-height:360px;object-fit:contain';}
+        s.dialog.close();s.dialog.remove();structureArtSession=null;
+    }
+});
+
 /* --- 87-parlor-settings.js --- */
 /* global document, window, T, vscode, bgLayer */
 
@@ -22333,6 +22956,7 @@ window.addEventListener('DOMContentLoaded', () => {
         list.innerHTML = garage.vehicles.map(renderListItem).join('');
         const activeItem = garage.vehicles.find((v) => v.id === selectedVehicleId);
         detail.innerHTML = renderDetail(activeItem);
+        if (activeItem && typeof mountStructureArtVehicle === 'function') mountStructureArtVehicle(detail, activeItem.id);
         wireListClicks(garage);
         wireDetailActions();
 

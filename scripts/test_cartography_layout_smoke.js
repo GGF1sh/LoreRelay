@@ -40,6 +40,24 @@ const tmpForge = path.join(tmpWs, 'world_forge.json');
 fs.copyFileSync(forgePath, tmpForge);
 const tmpOut = path.join(tmpWs, 'world_map.layout.png');
 const python = process.platform === 'win32' ? 'python' : 'python3';
+// Regression: a 128-grid sea must cover every output pixel, not isolated dots;
+// rivers must remain blue in external-AI layouts and black in lineart masks.
+const hydroPixels = spawnSync(python, ['-c', `
+import sys
+sys.path.insert(0, sys.argv[1])
+import render_cartography_layout as r
+s = {"size":256,"waterways":{"seaRows":["1"*128]*128,"roads":[],"crossings":[],"edges":[{"kind":"major","points":[{"x":200,"y":500},{"x":800,"y":500}]}]}}
+c = r.Canvas(256,256,r.WHITE)
+r.draw_waterways(c,s,r.LINE_RGB)
+pixel = lambda x,y: tuple(c.pixels[(y*256+x)*3:(y*256+x)*3+3])
+assert pixel(20,20) == r.BIOME_RGB["coast"] and pixel(21,20) == r.BIOME_RGB["coast"]
+assert pixel(128,r.map_to_px(500,256)) == (50,160,225)
+assert c.to_png().startswith(bytes([137,80,78,71,13,10,26,10]))
+r.draw_waterways(c,s,r.LINE_RGB,True)
+assert pixel(128,r.map_to_px(500,256)) == (0,0,0)
+`, path.dirname(renderScript)], { encoding: 'utf8', timeout: 60000 });
+if (hydroPixels.status !== 0) fail(`hydrology PNG coverage/color failed: ${hydroPixels.stderr}`);
+else ok('hydrology covers full sea cells and preserves river color/lineart');
 const proc = spawnSync(python, [renderScript, tmpForge, tmpOut, '--size', '512', '--layout-mode', 'voronoi'], {
     encoding: 'utf-8',
     timeout: 60000,

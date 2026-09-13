@@ -251,6 +251,7 @@ function renderWorldView(msg) {
     }
 
     // Mermaid + parchment + tile maps
+    if (typeof renderWaterNavigationControls === 'function') renderWaterNavigationControls(msg);
     renderMermaidMap(msg.worldMap, msg);
     renderCartographyMap(msg);
     _tileOvermapMsg = msg;
@@ -1583,9 +1584,11 @@ function applyWorldMapModeVisibility() {
     if (typeof updateDioramaWaterAnimationState === 'function') {
         updateDioramaWaterAnimationState();
     }
+    if (worldMapMode === 'parchment' && typeof mapAssetSizeStage === 'function') mapAssetSizeStage();
 }
 
 function renderCartographyMap(msg) {
+    if (typeof overlayCartographyMessage === 'function') msg = overlayCartographyMessage(msg);
     const stage = document.getElementById('world-cartography-stage');
     const img = document.getElementById('world-cartography-img');
     const pinsEl = document.getElementById('world-cartography-pins');
@@ -1621,6 +1624,8 @@ function renderCartographyMap(msg) {
         if (visibility === 'unknown') { continue; }
         const el = document.createElement('span');
         el.className = 'world-map-region-label';
+        el.dataset.mapRegion = label.regionId;
+        el.hidden = msg.cartographyShowLabels === false;
         if (visibility === 'rumored') { el.classList.add('is-rumored'); }
         el.style.left = `${label.leftPct}%`;
         el.style.top = `${label.topPct}%`;
@@ -1638,6 +1643,7 @@ function renderCartographyMap(msg) {
         const pinMeta = findWorldPinMeta(pin.locationId);
         const wrap = document.createElement('span');
         wrap.className = 'world-map-pin-wrap';
+        wrap.dataset.mapPin = pin.locationId;
         wrap.style.left = `${pin.leftPct}%`;
         wrap.style.top = `${pin.topPct}%`;
         if (_selectedPinId && pin.locationId === _selectedPinId) {
@@ -1660,7 +1666,7 @@ function renderCartographyMap(msg) {
         const pinLabel = visibility === 'rumored' ? '?' : (pin.locationName || pin.locationId || '');
         const typeIcon = LOCATION_TYPE_ICON[pinMeta?.locationType] || LOCATION_TYPE_ICON.other;
         el.title = visibility === 'rumored' ? T('webview.world.pinRumoredTooltip') : (pin.locationName || pin.locationId || '');
-        el.textContent = visibility === 'rumored' ? '?' : (pin.locationId === msg.currentLocationId ? '@' : typeIcon);
+        el.textContent = visibility === 'rumored' ? '?' : typeIcon;
         el.setAttribute('aria-label', pinLabel || 'Location');
         if (_selectedPinId && pin.locationId === _selectedPinId) {
             el.classList.add('is-selected');
@@ -1670,16 +1676,22 @@ function renderCartographyMap(msg) {
             appendMapEventBadge(wrap, pinMeta);
         }
         wireParchmentWorldPin(el, pin, msg);
+        if (pin.locationId === msg.currentLocationId && typeof appendCartographyCurrentMarker === 'function') {
+            wrap.classList.add('is-player');
+            appendCartographyCurrentMarker(el, msg, pin);
+        }
         wrap.appendChild(el);
         pinsEl.appendChild(wrap);
     }
 
     renderCartographyLegend(pins.map((pin) => findWorldPinMeta(pin.locationId)).filter(Boolean));
+    if (typeof scheduleCartographyLabelLayout === 'function') scheduleCartographyLabelLayout();
 }
 
 /** Trade-road / travel-route lines between connected regions (parchment overlay only). */
 function renderCartographyRoutes(routesEl, msg) {
     if (!routesEl) { return; }
+    routesEl.style.display = msg.cartographyShowRoutes === false ? 'none' : '';
     routesEl.setAttribute('viewBox', '0 0 100 100');
     routesEl.setAttribute('preserveAspectRatio', 'none');
     routesEl.innerHTML = '';
@@ -1746,6 +1758,7 @@ function renderCartographyLegend(pinMetas) {
 
 function renderMermaidMap(mmdCode, msg) {
     const container = document.getElementById('world-mermaid');
+    if (container && msg?.navigation && typeof renderWaterDiagram === 'function') { renderWaterDiagram(container, msg); return; }
     if (!container || !mmdCode) { return; }
 
     container.removeAttribute('data-processed');
@@ -1820,6 +1833,7 @@ function applyMapTransform(viewport) {
     const { scale, tx, ty } = _mapPanState;
     svg.style.transform = `matrix(${scale},0,0,${scale},${tx},${ty})`;
     svg.style.transformOrigin = '0 0';
+    if (typeof updateWaterDetail === 'function') updateWaterDetail(svg, scale);
 }
 
 function addMapPanZoomHint(viewport) {

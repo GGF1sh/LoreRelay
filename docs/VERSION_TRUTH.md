@@ -108,8 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.85.3** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.85.3]** |
+| `package.json` | **1.88.1** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.88.1]** |
+
+Version decision: none; 1.88.1 → 1.88.1。このPRは版の判断基準を文書化する変更です。地図・拠点アート・水系の機能追加と画像取り込み修正の採番履歴はCHANGELOGを参照してください。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

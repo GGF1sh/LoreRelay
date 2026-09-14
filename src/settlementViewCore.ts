@@ -253,6 +253,19 @@ function clampViewSize(raw: number | undefined, fallback: number): number {
 
 function inferTileCode(label: string): SettlementTileCode {
     const lower = label.toLowerCase();
+    // Japanese display labels are also authored layout data, not just translations.
+    if (/市場|商店|交易所|広場/.test(label)) { return 'market'; }
+    if (/工房|鍛冶|整備室|修理場/.test(label)) { return 'workshop'; }
+    if (/倉庫|物資庫|貯蔵庫|船倉/.test(label)) { return 'stockpile'; }
+    if (/居住|寝室|寝台|客室|宿舎/.test(label)) { return 'quarters'; }
+    if (/診療|医療|病院/.test(label)) { return 'clinic'; }
+    if (/兵舎|詰所/.test(label)) { return 'barracks'; }
+    if (/神殿|祠|祭壇/.test(label)) { return 'shrine'; }
+    if (/水門|門扉|出入口|入口|エアロック/.test(label)) { return 'gate'; }
+    if (/水場|井戸|河川|運河|水路|貯水池/.test(label)) { return 'water'; }
+    if (/外壁|城壁|防壁|塀|柵/.test(label)) { return 'wall'; }
+    if (/廃墟|残骸/.test(label)) { return 'ruins'; }
+    if (/危険区域|汚染区域/.test(label)) { return 'hazard'; }
     if (/\b(market|bazaar|plaza|trade)\b/.test(lower)) { return 'market'; }
     if (/\b(workshop|forge|smith|craft)\b/.test(lower)) { return 'workshop'; }
     if (/\b(stock|store|warehouse|depot)\b/.test(lower)) { return 'stockpile'; }

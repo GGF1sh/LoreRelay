@@ -421,6 +421,17 @@ if (!baseState) {
     }
 }
 
+{
+    const labels = [['南の水門','gate'],['外壁','wall'],['運河','water'],['修繕工房','workshop'],['客室','quarters'],['物資倉庫','stockpile'],['診療室','clinic'],['中央通路','floor'],['water','water'],['workshop','workshop']];
+    const layout = parseSettlementLayout({ version: 1, settlementId: baseState.settlementId, layers: ['z0'],
+        zones: labels.map(([label], i) => ({id: 'ja_'+i, layerId:'z0', label, x:2+(i%4)*4, y:2+Math.floor(i/4)*4})), markers: [] });
+    const snap = buildSettlementViewSnapshot({state:baseState, layout});
+    for (let i=0;i<labels.length;i++) {
+        const tile=snap.tiles.find(t=>t.x===2+(i%4)*4 && t.y===2+Math.floor(i/4)*4);
+        if(tile?.code!==labels[i][1]) fail(`localized layout ${labels[i][0]}: ${tile?.code}`);
+    }
+}
+
 if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);
     process.exit(1);

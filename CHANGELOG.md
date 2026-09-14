@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.88.3] - 2026-09-15
+
+### Fixed
+- Resolve the current fixed settlement for GM context instead of describing the root mobile base as the town. Include bounded facility names, floors and public placement information.
+- Recognize Japanese settlement layout labels for walls, entrances, water, workshops and other existing facility types in 2D/3D views.
+- Add three-world diorama evidence, distinguishing authored fixtures, persisted layer expansion and GM verification.
+
 ## [1.88.2] - 2026-09-14
 
 ### Fixed

@@ -7,6 +7,7 @@ import {
     buildMobileBasePromptBlock,
     mobileBaseSystemEnabled,
     resolveActiveMobileBaseVehicle,
+    MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS,
 } from './mobileBaseCore';
 import {
     buildMobileBaseInteriorPayload,
@@ -40,9 +41,15 @@ export function buildMobileBasePromptContext(): string {
     }
 
     const settlement = loadSettlementState();
-    return buildMobileBasePromptBlock(vehicle, settlement, true, {
+    const block = buildMobileBasePromptBlock(vehicle, settlement, true, {
         carriedVehicleNames: buildCarriedVehicleNameMap(vehicleState),
     });
+    const interior = settlement ? buildMobileBaseInteriorPayload(vehicle, settlement,
+        loadSettlementLayout(), rules) : undefined;
+    const layers = interior?.settlementView?.layers.map(layer => layer.id).join(', ');
+    if (!layers) { return block; }
+    const layerLine = `Interior layers: ${layers}.\n`;
+    return layerLine + block.slice(0, MAX_MOBILE_BASE_PROMPT_BLOCK_CHARS - layerLine.length);
 }
 
 /** Read-only MB4 panel payload for Webview (triple gate). */

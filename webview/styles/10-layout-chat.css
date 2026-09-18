@@ -540,6 +540,30 @@ body.relay-mode-active #app {
   font-weight: 500;
 }
 
+.world-genesis-density-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.world-genesis-density-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--accent);
+}
+
+.world-genesis-density-row output {
+  min-width: 4.2em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 700;
+}
+
 .world-genesis-field input:focus,
 .world-genesis-field select:focus {
   outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);

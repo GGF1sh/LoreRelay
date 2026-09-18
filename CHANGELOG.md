@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.89.0] - 2026-09-18
+
+### Changed
+- World Genesis routes are Stellaris-style hyperlanes: regions cluster by biome in 2D, then a spanning tree plus nearby extras. Sparse is no longer a donut ring.
+- Route density is a 0.50–2.50 slider (0.25 steps) instead of three named stages. `sparse` / `normal` / `dense` still parse as 0.5 / 1 / 2.
+
+Minor human-test candidate following 1.88.3; no tag or Release published.
+
 ## [1.88.3] - 2026-09-18
 
 ### Fixed

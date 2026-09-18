@@ -1,6 +1,6 @@
 {
   "command.aiConnectionStatus": "LoreRelay: AI Connection Status",
-  "command.openGame": "LoreRelay: Open Game UI",
+  "command.openGame": "LoreRelay: Open Game UI / ゲームUIを開く",
   "command.openBattleView": "LoreRelay: Open Battle View",
   "command.startCampaignCombatDebug": "LoreRelay: Start Campaign Combat (Debug)",
   "command.abortCampaignCombat": "LoreRelay: Abort Campaign Combat",

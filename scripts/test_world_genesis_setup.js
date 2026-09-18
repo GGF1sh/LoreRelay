@@ -73,8 +73,17 @@ async function main() {
     assert.strictEqual(previewA.summary.factionCount, 3);
     assert.strictEqual(previewA.summary.npcCount, 6);
     assert.strictEqual(previewA.summary.connectionDensity, 'normal');
+    assert.ok(Number.isInteger(previewA.summary.routeCount) && previewA.summary.routeCount > 0, 'preview must report undirected route count');
     assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'nope' }).connectionDensity, 'normal');
     assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'dense' }).connectionDensity, 'dense');
+    const sparsePreview = genesis.previewWorldGenesis(normalize({ ...cyberDraft, connectionDensity: 'sparse' }));
+    const densePreview = genesis.previewWorldGenesis(normalize({ ...cyberDraft, connectionDensity: 'dense' }));
+    assert.strictEqual(sparsePreview.summary.connectionDensity, 'sparse');
+    assert.strictEqual(densePreview.summary.connectionDensity, 'dense');
+    assert.ok(
+        sparsePreview.summary.routeCount < densePreview.summary.routeCount,
+        'dense preview must expose more routes than sparse'
+    );
     assert.notStrictEqual(
         genesis.worldGenesisInputKey(normalize()),
         genesis.worldGenesisInputKey(normalize({ ...cyberDraft, connectionDensity: 'dense' })),
@@ -247,9 +256,21 @@ async function main() {
     const generatorSource = fs.readFileSync(path.join(root, 'src', 'worldForgeGenerator.ts'), 'utf8');
     const handlerSource = fs.readFileSync(path.join(root, 'src', 'webviewHandlers.ts'), 'utf8');
     const bootstrapSource = fs.readFileSync(path.join(root, 'webview', 'modules', '90-bootstrap.js'), 'utf8');
+    const guideSource = fs.readFileSync(path.join(root, 'webview', 'modules', '06-genesis-guide.js'), 'utf8');
     const htmlSource = fs.readFileSync(path.join(root, 'webview', 'index.html'), 'utf8');
+    const nlsEn = JSON.parse(fs.readFileSync(path.join(root, 'package.nls.json'), 'utf8'));
+    const nlsJa = JSON.parse(fs.readFileSync(path.join(root, 'package.nls.ja.json'), 'utf8'));
     assert(htmlSource.includes('id="world-genesis-setup"') && htmlSource.includes('id="world-genesis-apply-btn"'));
+    assert(htmlSource.includes('id="genesis-hero-cta"') && htmlSource.includes('id="genesis-hero-guide-btn"'));
     assert(bootstrapSource.includes("type: 'requestWorldGenesisSetup'") && bootstrapSource.includes("type: 'previewWorldGenesis'"));
+    assert(bootstrapSource.includes("getElementById('genesis-hero-cta')") && bootstrapSource.includes('openWorldGenesisSetup'));
+    assert(guideSource.includes("getElementById('genesis-hero-guide-btn')") && guideSource.includes('openGenesisGuide'));
+    assert(!guideSource.includes("getElementById('genesis-hero-cta')"), 'hero CTA must not open the rules guide');
+    assert(bootstrapSource.includes('current.open = false'), 'preview must collapse the current-world overview');
+    assert(bootstrapSource.includes("addWorldGenesisFact(facts, summary.routeCount, 'webview.worldGenesis.routeCount')"));
+    assert(extensionSource.includes('connectionDensity: normalized.input.connectionDensity'), 'preview echo must keep chosen density');
+    assert(nlsEn['command.openGame'].includes('Open Game UI') && nlsEn['command.openGame'].includes('ゲームUIを開く'));
+    assert(nlsJa['command.openGame'].includes('ゲームUIを開く') && nlsJa['command.openGame'].includes('Open Game UI'));
     assert(!bootstrapSource.includes('cyberpunk-sprawl'), 'Webview must not hardcode a second preset list or preset/theme map');
     assert(extensionSource.includes('getPublishedWorldGenesisPresets().map'), 'host registry must supply selectable presets');
     assert(extensionSource.includes('resetWorldStateFromForge(forge, isOverwrite)'));

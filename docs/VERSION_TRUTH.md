@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.88.2** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.88.2]** |
+| `package.json` | **1.88.3** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.88.3]** |
 
-Version decision: patch; 1.88.1 → 1.88.2。復元・新規開始の公開処理と通常移動を区別し、共有水系接続点での距離ゼロ移動を拒否する修正版です。版方針の文書化は#139で据え置きとして統合済みです。タグ・Releaseは公開しません。
+Version decision: patch; 1.88.2 → 1.88.3。World Genesis のプレビュー密度保持・スタート画面の入口整理・コマンドパレットの日英検索向け修正版です。タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

@@ -1,6 +1,6 @@
 {
   "command.aiConnectionStatus": "LoreRelay: AI 連線狀態",
-  "command.openGame": "LoreRelay: 開啟遊戲 UI",
+  "command.openGame": "LoreRelay: 開啟遊戲 UI / Open Game UI",
   "command.listImageModels": "LoreRelay: 列出圖像模型",
   "command.scanLocalModels": "LoreRelay: 掃描本機模型檔案",
   "command.loadScenario": "LoreRelay: 載入場景包",

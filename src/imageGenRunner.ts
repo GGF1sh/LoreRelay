@@ -32,6 +32,11 @@ import {
 } from './imageGenCircuitCore';
 import { formatModelSize, scanLocalModelRoots, type LocalModelFile } from './modelScanner';
 import { commitGameState } from './stateManager';
+import { loadExistingAcceptedTurnScope } from './acceptedTurnReplayGuard';
+import { cartographyWorldKey } from './cartographyOverlayCore';
+import { parseWorldForge } from './worldForgeCore';
+import { saveLocationImageCandidate } from './locationImageCandidates';
+import { isValidEventId } from './worldEventLogCore';
 import {
     executeAfterMediaPreflight,
     preflightSceneGeneration,
@@ -63,6 +68,75 @@ interface ImageGenJob {
     prompt: string;
     mode: string;
     entryId?: string;
+    context: ImageJobContext;
+}
+
+interface ImageJobContext {
+    workspace: string;
+    scopeKey: string;
+    worldKey: string;
+    epoch: number;
+    entrySnapshot?: string;
+    meta: ReturnType<typeof buildVlmMetaFromGameState>;
+}
+
+let imageJobEpoch = 0;
+let activeEntryId: string | undefined;
+
+function imageWorldKey(workspace: string): string {
+    const file = path.join(workspace, 'world_forge.json');
+    if (!fs.existsSync(file)) return '';
+    const forge = parseWorldForge(JSON.parse(fs.readFileSync(file, 'utf8')));
+    if (!forge) throw new Error('Invalid image world');
+    // Match the normalized document used by World View, including legacy coordinates/defaults.
+    return cartographyWorldKey(forge);
+}
+
+function imageScopeKey(workspace: string): string {
+    const scope = loadExistingAcceptedTurnScope(workspace);
+    return JSON.stringify([scope?.campaignInstanceId, scope?.timelineEpochId]);
+}
+
+function entrySnapshot(entry?: GameEntry): string | undefined {
+    return entry ? JSON.stringify([entry.role, entry.content, entry.image, entry.locationId, entry.worldTurn]) : undefined;
+}
+
+function imageTargetState(workspace: string, entryId?: string) {
+    const file = path.join(workspace, 'game_state.json');
+    const state = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : undefined;
+    const diskEntry: GameEntry | undefined = Array.isArray(state?.entries)
+        ? state.entries.find((e: GameEntry | null) => e && e.id === entryId) : undefined;
+    return { state, diskEntry, historyEntry: getGameEntryHistory().find(e => e.id === entryId) };
+}
+
+function captureImageJobContext(workspace: string, entryId?: string): ImageJobContext {
+    const { state, diskEntry, historyEntry } = imageTargetState(workspace, entryId);
+    const entry = historyEntry ?? diskEntry;
+    // Accepted turns reach game_state before the history watcher. Stream hints may precede both.
+    if (entryId && isValidEntryId(entryId) && entryId !== 'genesis' && !entry) {
+        throw new Error('Image target has not been saved yet');
+    }
+    if (historyEntry && diskEntry && entrySnapshot(historyEntry) !== entrySnapshot(diskEntry)) {
+        throw new Error('Image target is still synchronizing');
+    }
+    const meta = buildVlmMetaFromGameState();
+    const sourceLocation = entry?.locationId ?? state?.world?.currentLocationId ?? meta.locationId;
+    meta.locationId = typeof sourceLocation === 'string' && isValidEventId(sourceLocation) ? sourceLocation : undefined;
+    if (typeof entry?.worldTurn === 'number' && Number.isFinite(entry.worldTurn)) meta.worldTurn = entry.worldTurn;
+    return { workspace, scopeKey: imageScopeKey(workspace), worldKey: imageWorldKey(workspace),
+        epoch: imageJobEpoch, entrySnapshot: entrySnapshot(entry), meta };
+}
+
+function imageJobIsCurrent(context: ImageJobContext, entryId?: string): boolean {
+    try {
+        const { diskEntry, historyEntry } = imageTargetState(context.workspace, entryId);
+        return context.epoch === imageJobEpoch && getWorkspacePath() === context.workspace
+            && context.scopeKey === imageScopeKey(context.workspace) && context.worldKey === imageWorldKey(context.workspace)
+            && (!entryId || !isValidEntryId(entryId) || entryId === 'genesis'
+                || (context.entrySnapshot !== undefined && Boolean(historyEntry || diskEntry)
+                    && (!historyEntry || context.entrySnapshot === entrySnapshot(historyEntry))
+                    && (!diskEntry || context.entrySnapshot === entrySnapshot(diskEntry))));
+    } catch { return false; }
 }
 
 interface ImageExecutionOutcome {
@@ -110,12 +184,16 @@ export function getImageQueueLength(): number {
     return imageGenQueue.length;
 }
 
-/** 新ターン開始時に entry 重複抑止をリセット（同一 entry の再生成を許可）。 */
+/** Keep pending work deduplicated across turns; completed entries can be regenerated. */
 export function resetImageQueueDedup(): void {
     queuedEntryIds.clear();
+    for (const job of imageGenQueue) if (job.entryId) queuedEntryIds.add(job.entryId);
+    if (activeEntryId) queuedEntryIds.add(activeEntryId);
 }
 
 export function killImageGenerationProcess(): void {
+    imageJobEpoch++;
+    activeEntryId = undefined;
     if (imageGenerationProcess) {
         imageGenerationProcess.kill();
         imageGenerationProcess = undefined;
@@ -165,7 +243,14 @@ export function enqueueImageGeneration(prompt: string, mode: string, entryId?: s
             return false;
         }
     }
-    imageGenQueue.push({ prompt, mode, entryId });
+    if (!wsPath || !scriptPath) {
+        getImageOutputChannel().appendLine('Image script unavailable. Open image settings and check the script path.');
+        return false;
+    }
+    let context: ImageJobContext;
+    try { context = captureImageJobContext(wsPath, entryId); }
+    catch (error) { getImageOutputChannel().appendLine(`Image target unavailable: ${String(error)}`); return false; }
+    imageGenQueue.push({ prompt, mode, entryId, context });
     if (entryId) {
         queuedEntryIds.add(entryId);
     }
@@ -178,9 +263,10 @@ async function drainImageQueue(): Promise<void> {
         return;
     }
     drainingImageQueue = true;
+    const drainEpoch = imageJobEpoch;
     const channel = getImageOutputChannel();
     try {
-        while (imageGenQueue.length > 0 && !imageGenerationProcess) {
+        while (drainEpoch === imageJobEpoch && imageGenQueue.length > 0 && !imageGenerationProcess) {
             if (isImageGenCircuitOpen(imageGenCircuit, Date.now())) {
                 imageGenQueue.length = 0;
                 channel.appendLine('[Circuit] Cleared pending image queue after circuit opened.');
@@ -192,12 +278,13 @@ async function drainImageQueue(): Promise<void> {
             }
             let outcome: ImageExecutionOutcome = { success: false, preflightRejected: false };
             try {
-                outcome = await executeImageGenerationOutcome(job.prompt, job.mode, job.entryId, { fromQueue: true });
+                outcome = await executeImageGenerationOutcome(job.prompt, job.mode, job.entryId, { fromQueue: true }, job.context);
             } catch (err) {
                 const detail = err instanceof Error ? err.message : String(err);
                 channel.appendLine(`[Queue] Image job error: ${detail}`);
                 outcome = { success: false, preflightRejected: false };
             }
+            if (drainEpoch !== imageJobEpoch) break;
             if (outcome.preflightRejected) {
                 channel.appendLine('[Compatibility] Queue job rejected without consuming circuit-breaker failure count.');
             } else if (outcome.success) {
@@ -216,7 +303,7 @@ async function drainImageQueue(): Promise<void> {
             }
         }
     } finally {
-        drainingImageQueue = false;
+        if (drainEpoch === imageJobEpoch) drainingImageQueue = false;
     }
 }
 
@@ -227,9 +314,10 @@ export function resolveComfyScript(wsPath: string): string | undefined {
 
     if (!scriptPath || !fs.existsSync(scriptPath)) {
         const possiblePaths = [
-            path.join('C:', 'AI', 'TextAdventureGMSkill', 'scripts', 'comfyui_generate.py'),
             path.join(wsPath, '.agents', 'skills', 'text-adventure-gm', 'scripts', 'comfyui_generate.py'),
-            path.join(wsPath, '.grok', 'skills', 'text-adventure-gm', 'scripts', 'comfyui_generate.py')
+            path.join(wsPath, '.grok', 'skills', 'text-adventure-gm', 'scripts', 'comfyui_generate.py'),
+            path.join(getImageGenExtensionPath(), 'antigravity-skill', 'text-adventure-gm', 'scripts', 'comfyui_generate.py'),
+            path.join('C:', 'AI', 'TextAdventureGMSkill', 'scripts', 'comfyui_generate.py')
         ];
         scriptPath = '';
         for (const p of possiblePaths) {
@@ -547,7 +635,8 @@ export async function handleApplyImageGenModelSuggestion(raw: unknown): Promise<
 }
 
 /** 履歴・game_state を entry.id で画像更新し、Webview に patch を送る。 */
-export function applyImageToEntryById(wsPath: string, entryId: string, imagePath: string, prompt: string): boolean {
+export function applyImageToEntryById(wsPath: string, entryId: string, imagePath: string, prompt: string,
+    sourceMeta = buildVlmMetaFromGameState(prompt)): boolean {
     const { getPanel } = requireDeps();
     const history = getGameEntryHistory();
     const histIdx = history.findIndex((e) => e.id === entryId);
@@ -558,7 +647,9 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
     history[histIdx] = {
         ...history[histIdx],
         image: imagePath,
-        imagePrompt: prompt
+        imagePrompt: prompt,
+        locationId: sourceMeta.locationId,
+        worldTurn: sourceMeta.worldTurn,
     };
     saveHistoryToDisk();
 
@@ -576,11 +667,14 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
                     const row = entries[ei] as Record<string, unknown>;
                     row.image = imagePath;
                     row.imagePrompt = prompt;
+                    row.locationId = sourceMeta.locationId;
+                    row.worldTurn = sourceMeta.worldTurn;
                     stateUpdated = true;
                 }
             }
             const lastGm = findLastGmEntry(history);
-            if (lastGm?.id === entryId) {
+            const currentLocation = (stateData.world as Record<string, unknown> | undefined)?.currentLocationId;
+            if (lastGm?.id === entryId && (!sourceMeta.locationId || sourceMeta.locationId === currentLocation)) {
                 stateData.latestImage = imagePath;
                 stateUpdated = true;
             }
@@ -595,7 +689,6 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
     const uri = safeImageUri(imagePath);
     const panel = getPanel();
     if (panel && uri) {
-        const meta = buildVlmMetaFromGameState(prompt);
         panel.webview.postMessage({
             type: 'updateEntry',
             entry: {
@@ -603,8 +696,8 @@ export function applyImageToEntryById(wsPath: string, entryId: string, imagePath
                 image: uri,
                 imagePrompt: prompt,
                 rawImagePath: toWebviewSafeMediaRef(imagePath),
-                locationId: meta.locationId,
-                worldTurn: meta.worldTurn,
+                locationId: sourceMeta.locationId,
+                worldTurn: sourceMeta.worldTurn,
             }
         });
     }
@@ -637,12 +730,24 @@ async function executeImageGenerationOutcome(
     prompt: string,
     mode: string,
     entryId?: string,
-    options?: { fromQueue?: boolean }
+    options?: { fromQueue?: boolean },
+    queuedContext?: ImageJobContext
 ): Promise<ImageExecutionOutcome> {
     const { getPanel } = requireDeps();
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         return { success: false, preflightRejected: false };
+    }
+    let context: ImageJobContext;
+    try { context = queuedContext ?? captureImageJobContext(wsPath, entryId); }
+    catch (error) {
+        getImageOutputChannel().appendLine(`[Target] ${String(error)}`);
+        return { success: false, preflightRejected: true };
+    }
+    if (!imageJobIsCurrent(context, entryId)) {
+        getImageOutputChannel().appendLine('[Target] Skipped image job after world, timeline or source entry changed.');
+        if (entryId?.startsWith('loc:')) getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
+        return { success: false, preflightRejected: true };
     }
 
     const safeMode = resolveImageMode(mode, wsPath);
@@ -679,6 +784,7 @@ async function executeImageGenerationOutcome(
     const python = resolvePythonCommand();
     const IMAGE_GEN_TIMEOUT_MS = 600_000;
     let generatedImagePath = '';
+    let stdout = '';
     let imageGenFinished = false;
 
     const execution = executeAfterMediaPreflight(preflight, (validatedEnv) => spawnWithTimeout(
@@ -688,12 +794,7 @@ async function executeImageGenerationOutcome(
         {
             stdout: (out) => {
                 channel.append(out);
-                for (const line of out.split('\n')) {
-                    const trimmed = line.trim();
-                    if (trimmed.endsWith('.png') && trimmed.length > 4) {
-                        generatedImagePath = trimmed;
-                    }
-                }
+                stdout += out;
             },
             stderr: (err) => channel.append(err),
         }
@@ -703,13 +804,23 @@ async function executeImageGenerationOutcome(
     }
     const { child, result } = execution.value;
     imageGenerationProcess = child;
+    activeEntryId = entryId;
+    if (entryId) queuedEntryIds.add(entryId);
 
     return result.then(({ code, timedOut }) => {
         if (imageGenFinished) {
             return { success: code === 0 && !timedOut, preflightRejected: false };
         }
         imageGenFinished = true;
+        // A killed child's late completion must never clear a replacement job or patch a reopened panel.
+        if (context.epoch !== imageJobEpoch) return { success: false, preflightRejected: true };
         imageGenerationProcess = undefined;
+        activeEntryId = undefined;
+        if (entryId) queuedEntryIds.delete(entryId);
+        for (const line of stdout.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (trimmed.endsWith('.png')) generatedImagePath = trimmed;
+        }
         if (timedOut) {
             channel.appendLine(`\nImage generation timed out after ${IMAGE_GEN_TIMEOUT_MS / 1000}s — process killed.`);
             if (!options?.fromQueue) {
@@ -718,11 +829,24 @@ async function executeImageGenerationOutcome(
         } else {
             channel.appendLine(`\nProcess exited with code ${code}`);
         }
-        const success = code === 0 && !timedOut;
-        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success });
+        const allowedPath = generatedImagePath ? resolveAllowedImagePath(generatedImagePath) : undefined;
+        let success = code === 0 && !timedOut && Boolean(allowedPath);
+        if (!imageJobIsCurrent(context, entryId)) {
+            channel.appendLine('[Target] Source changed. Generated file retained in output for manual import; no image adopted.');
+            getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: false });
+            if (entryId?.startsWith('loc:')) getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
+            if (entryId === 'genesis') getPanel()?.webview.postMessage({ type: 'genesisImageGenerated', success: false });
+            void drainImageQueue();
+            return { success: false, preflightRejected: true };
+        }
 
         if (success && generatedImagePath && entryId) {
-            if (entryId === 'genesis') {
+            if (entryId.startsWith('loc:') && isValidEventId(entryId.slice(4))) {
+                const locationId = entryId.slice(4);
+                saveLocationImageCandidate(wsPath, { worldKey: context.worldKey, locationId, imagePath: allowedPath!,
+                    prompt, createdAt: new Date().toISOString(), worldTurn: context.meta.worldTurn });
+                getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: true, locationId });
+            } else if (entryId === 'genesis') {
                 const panel = getPanel();
                 if (panel) {
                     const imageUri = panel.webview.asWebviewUri(vscode.Uri.file(generatedImagePath)).toString();
@@ -733,13 +857,16 @@ async function executeImageGenerationOutcome(
                     });
                 }
             } else if (isValidEntryId(entryId)) {
-                const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt);
+                const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt, context.meta);
+                success = ok;
                 if (ok) {
                     channel.appendLine(`Updated entry ${entryId} with new image`);
                 } else {
                     channel.appendLine(`Entry ${entryId} not found in game history`);
                 }
             }
+        } else if (entryId?.startsWith('loc:')) {
+            getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
         } else if (entryId === 'genesis') {
             const panel = getPanel();
             if (panel) {
@@ -750,6 +877,7 @@ async function executeImageGenerationOutcome(
             }
         }
 
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success });
         if (!options?.fromQueue) {
             if (success) {
                 imageGenCircuit = recordImageGenSuccess(imageGenCircuit);
@@ -767,10 +895,14 @@ async function executeImageGenerationOutcome(
         void drainImageQueue();
         return { success, preflightRejected: false };
     }).catch((err) => {
+        if (context.epoch !== imageJobEpoch) return { success: false, preflightRejected: true };
         imageGenerationProcess = undefined;
+        activeEntryId = undefined;
+        if (entryId) queuedEntryIds.delete(entryId);
         const detail = err instanceof Error ? err.message : String(err);
         channel.appendLine(`[Image Gen] Unexpected error: ${detail}`);
         getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: false });
+        if (entryId?.startsWith('loc:')) getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
         if (entryId === 'genesis') {
             getPanel()?.webview.postMessage({ type: 'genesisImageGenerated', success: false });
         }

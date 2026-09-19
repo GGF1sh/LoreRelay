@@ -1,6 +1,6 @@
 # Cartography ComfyUI — Option A (Parchment Map + HTML Pins)
 
-Phase 7 Grok deliverable: generate a **parchment-style world map image** from `world_forge.json` cartography (`x`, `y`, `biome`), then overlay **player/location pins in HTML** (coordinates from `cartographyLayoutCore.ts`).
+Generate a **world map image** from `world_forge.json` cartography (`x`, `y`, `biome`), then overlay **player/location pins in HTML** (coordinates from `cartographyLayoutCore.ts`). [Current local setup and verification](COMFYUI_LOCAL_PLAYCHECK.md).
 
 Related: [`CARTOGRAPHY_DESIGN.md`](CARTOGRAPHY_DESIGN.md) (data schema + LLM prompt) · [`CARTOGRAPHY_MAP_GENERATION_GUIDE.md`](CARTOGRAPHY_MAP_GENERATION_GUIDE.md) (prompts, ControlNet tuning, anti–star-chart negatives)
 
@@ -21,7 +21,7 @@ world_forge.json
     │                             │
     │                             └─► world_map_*.png (background)
     │
-    └─► Webview: <img> + absolutely positioned 📍 pins (future UI hook)
+    └─► Webview: image + player/location pins and labels
 ```
 
 ### Why layout mask + ControlNet?
@@ -61,7 +61,7 @@ Locations without own `x/y` inherit their `regionId` center plus a **stable hash
 ## 3. Quick run
 
 ```powershell
-cd C:\AI\text-adventure-vsce
+# Run from the LoreRelay source directory; use your own new play folder below.
 
 # 1) Preview layout mask only
 python scripts/render_cartography_layout.py C:\AI\my-adventure\world_forge.json C:\AI\my-adventure\world_map.layout.png
@@ -80,7 +80,7 @@ The script prints the absolute path to `world_map_*.png` on success.
 {
   "mode": "illustrious",
   "checkpoint": "YOUR_ILLUSTRIOUS_XL.safetensors",
-  "workflowPath": "C:\\AI\\text-adventure-vsce\\comfyui\\workflow_cartography_sdxl_canny.json",
+  "cartographyTemplateId": "map-sdxl-canny",
   "width": 1024,
   "height": 1024,
   "steps": 28,

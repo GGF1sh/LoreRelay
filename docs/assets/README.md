@@ -2,6 +2,12 @@
 
 The four language READMEs share the same featured screens and full gallery. Current management and completed-trade captures accompany the retained light/dark conversations, generated map artwork, earlier feature screens and illustration. Captions distinguish their provenance. No generated mockup is presented as a functioning game screen.
 
+## Local ComfyUI connection check — 1.89.2
+
+`connection-playcheck-v1.89.2/{scene,character,map,location}.png` are direct captures of the real VS Code 1.136.1 Extension Development Host/Webview on 2026-09-19. The same isolated navigation fixture and Haruka are used throughout. Its opening narration is fixed test text, not a live GM reply or human-play recording. Only real UI navigation, presentation mode and scrolling were used for framing; no screenshot content was replaced.
+
+Scene, portrait, map and location artwork were generated on the local ComfyUI server. The map demonstrates generation/adoption/display; its river/coast depiction is insufficient as accurate geography. See [settings, timings, artifacts and limits](../COMFYUI_LOCAL_PLAYCHECK.md). Earlier launch media remains separately labeled.
+
 ## Public launch refresh — 1.85.3
 
 See [public launch media](../PUBLIC_LAUNCH_MEDIA.md) for the 75-second real-Host recording, capture conditions, editing disclosure and remaining UI discrepancy.

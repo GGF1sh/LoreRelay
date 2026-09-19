@@ -36,7 +36,7 @@
   "command.upgradeVehicleStateForGameplaySpine": "LoreRelay: Upgrade Vehicle State for Gameplay Spine",
   "command.gameplaySpineRepairVehicle": "LoreRelay: Repair Vehicle with Gameplay Spine",
   "config.textAdventure.locale.description": "UI language for Webview, extension messages, and GM narrative prompts. Also changeable from the Webview header dropdown.",
-  "config.textAdventure.skillPath.description": "Absolute path to the comfyui_generate.py script",
+  "config.textAdventure.skillPath.description": "Optional absolute path to comfyui_generate.py. Leave empty to use a workspace skill or the bundled script.",
   "config.textAdventure.imageGen.backend.description": "Image generation backend. All options speak the ComfyUI API; this is mostly a label — the actual endpoint is set by imageGen.comfyuiUrl.",
   "config.textAdventure.imageGen.comfyuiUrl.description": "ComfyUI / Stability Matrix server URL. Change the port here if your server is not on 8188.",
   "config.textAdventure.imageGen.checkpoint.description": "Checkpoint (.safetensors) name to use, exactly as shown by 'LoreRelay: List Image Models' — it may include a subfolder prefix, e.g. 'IL\\prefectIllustriousXL_v8.safetensors'. Leave empty to use the workflow default.",

@@ -15,6 +15,13 @@
 
 ## 報告一覧 (Reported Findings)
 
+2026-09-19の限定照合: 中央ボード全体の状態を再認定せず、画像連携の実機不具合だけを [接続確認パケット](ai-tasks/CONNECTION-COMFY-README-20260919.md) に記録。`RUNTIME-001D` の過去記載は関連するが、VLMを含む全範囲の完了宣言ではない。
+
+| Candidate ID | Reporter | As-of Commit | Evidence | Suggested Severity | Duplicate Of | Decision |
+| --- | --- | --- | --- | --- | --- | --- |
+| `CODEX-20260919-001` | Codex | `4e3b2b99` | 新規プレイフォルダの固定script path、Windowsドライブ表記差により人物・地図の採用失敗。実Host/ComfyUIで再現 | P1 | - | 1.89.2修正・実機確認。詳細は上記パケット |
+| `CODEX-20260919-002` | Codex + independent review | `4e3b2b99` | 場所画像の保存先・world identity不一致、遅延画像の来歴誤採用。修正中に自動画像の投入順序と過去来歴上書きも再現 | P1 | `RUNTIME-001D`（関連） | 1.89.2のscene/location範囲を修正。VLM全体は再認定しない |
+
 | Candidate ID | Reporter | As-of Commit | Evidence (ファイル/行/理由) | Suggested Severity | Duplicate Of | Decision |
 |:---|:---|:---|:---|:---|:---|:---|
 | `CLAUDE-20260705-001` | Claude Opus 4.8 | `3eaae25` | `src/gmPromptBuilder.ts` L1236: `buildGmPromptBreakdown`（Inspector/Previewデータ源）が消費系 `buildGmPromptChunkSpecsWithMeta` を呼び、World Change Summary/Chronicleのdurable markerを前進させる。Preview/Inspectorは消費してはならない原則に違反。 | P1 | `PROMPT-001B`(強く関連) | **ABSORB → PROMPT-001A** |

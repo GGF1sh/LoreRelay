@@ -58,6 +58,9 @@ export interface GameEntry {
     image?: string;
     rawImagePath?: string;
     imagePrompt?: string;
+    /** Image provenance captured when generation was requested, retained across reopen. */
+    locationId?: string;
+    worldTurn?: number;
     imageBlocked?: boolean;
     excludedFromPrompt?: boolean;
     editedAt?: string;

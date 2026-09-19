@@ -3,7 +3,7 @@
 LoreRelay は、用途別に選べる **API 形式** の ComfyUI ワークフローを同梱します。  
 一覧の正本は [`comfyui/templates.json`](comfyui/templates.json) です。
 
-これらはユーザーの PC スペック診断ではなく、**情景・立ち絵・地図** を切り替えるためのテンプレートです。checkpoint（Illustrious / Pony / SDXL / SD1.5）は自分の ComfyUI にあるファイル名を指定します。
+これらは **情景・立ち絵・地図** を切り替えるためのテンプレートです。checkpoint（Illustrious / Pony / SDXL）は自分の ComfyUI にあるファイル名を指定します。[1.89.2の実機設定・保存先・確認範囲](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 
 ## どれを選ぶか
 
@@ -13,7 +13,7 @@ LoreRelay は、用途別に選べる **API 形式** の ComfyUI ワークフロ
 | 人物・立ち絵 | 立ち絵・SDXL・縦長 | `comfyui/workflow_sdxl_portrait.json` | 896×1152 | 同上 |
 | 場所の横構図 | 情景・SDXL・横長 | `comfyui/workflow_sdxl_landscape.json` | 1152×896 | 同上 |
 | 広い風景 | 情景・SDXL・パノラマ | `comfyui/workflow_sdxl_wide.json` | 1536×640 | 同上 |
-| 軽い確認 | 情景・SD1.5・正方形 | `comfyui/workflow_api.json` | 512×512 | `standard` |
+| 旧CLI互換グラフ | SD1.5・正方形（現行UIの選択対象外） | `comfyui/workflow_api.json` | 512×512 | 現行Media Profile未対応 |
 | 世界地図 | 世界地図・SDXL・Canny | `comfyui/workflow_cartography_sdxl_canny.json` | 1024×1024 | Cartography スクリプト |
 | 世界地図（Canny なし） | 世界地図・SDXL・直接 | `comfyui/workflow_cartography_sdxl_direct.json` | 1024×1024 | Cartography スクリプト |
 
@@ -26,6 +26,8 @@ Illustrious と Pony は **同じ SDXL グラフ** に checkpoint と `mode` を
 1. ComfyUI（または Stability Matrix）を `http://127.0.0.1:8188` で起動する。
 2. 画像生成設定の **用途テンプレート** から、情景・立ち絵・地図を選ぶ。正本は `comfyui/templates.json`。
 3. **LoreRelay: List Image Models**、または設定パネルのローカルモデル提案で checkpoint 名を確認する。提案の適用はボタン操作のみ。判定はファイル名とローカル sidecar（`.json` / `.civitai.info` / `.cm-info.json`）に限り、Civitai への照会はこの段階では行わない。
+4. スクリプトパス（`textAdventure.skillPath`）は通常空欄。同梱版を自動選択する。明示した既存のカスタムパスは優先されるため、古いスクリプトで人物採用に失敗する場合はパスを確認する。
+5. 地図には **SDXL用ControlNet** も必要。「直接」テンプレートはCanny前処理ノードを省く方式で、ControlNet不要という意味ではない。`textAdventure.imageGen.controlNet` にComfyUIが認識する正確な名前を設定する。
 
 ```json
 {
@@ -86,4 +88,5 @@ python scripts/comfyui_generate_cartography.py .\world_forge.json .\output
 
 - **Checkpoint not found** — List Image Models の名前と完全一致させる。
 - **Sampler / scheduler warnings** — 未対応キーは無視する。
-- 生成が重いとき — まず `workflow_api.json`（512）で経路を確認してから SDXL テンプレートへ戻す。
+- 生成が重いとき — 同じ対応SDXLモデルのままステップ数を下げて確認する。モデル系統の違う旧SD1.5グラフへ切り替えない。
+- 場所画像は場所ごとの表示候補として保存する。生成中に移動しても別の場所へ付け替えない。世界変更・Undo・元の場面や画像の変更で採用できなくなった成果は `output` に残し、必要なら手動で取り込む。

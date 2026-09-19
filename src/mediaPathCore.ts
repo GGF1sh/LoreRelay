@@ -20,7 +20,10 @@ function normalizeRoot(root: string): string {
 }
 
 function isUnderRoot(real: string, root: string): boolean {
-    return real === root || real.startsWith(root + path.sep);
+    // realpathSync can retain the caller's drive-letter casing on Windows.
+    // Compare path segments using the platform's rules, still rejecting siblings and other drives.
+    const relative = path.relative(root, real);
+    return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`));
 }
 
 /** 許可された画像の realpath を返す。拒否時は undefined。 */

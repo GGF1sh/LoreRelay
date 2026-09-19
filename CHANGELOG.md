@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.89.7] - 2026-09-20
+
+### Fixed
+- Preserve canonical game state during narrative Undo, rewind and regeneration; clear removed narrative summaries/media and explain that complete rollback uses checkpoints.
+- Prefer a relevant explicitly edited history pair within existing memory search limits, without reviving excluded or removed history.
+- Save pinned Lorebook instructions without requiring unrelated keywords.
+
+
 ## [1.89.6] - 2026-09-20
 
 ### Fixed

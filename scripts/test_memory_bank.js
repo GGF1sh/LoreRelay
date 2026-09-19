@@ -162,6 +162,69 @@ try {
     } else { ok('history pairing respects exclusions and failed/retried input boundaries'); }
 } finally { fs.rmSync(pairedWs, { recursive: true, force: true }); }
 
+// Inline correction observed in the real Host: similar later questions must not
+// crowd the edited barn description out of the two-slot compact memory budget.
+const editedWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-edited-'));
+try {
+    const question = '農場主の名前と、納屋の軒に下がっているものを確認してください。過去の購入記録と、ハルカが次の行き先を決めているかも短く確認します。ここから新しい出来事や行動は起こさず、返答を待ちます。';
+    const repeatedQuestion = '話を続けます。農場主の名前と、北農場での過去の小麦購入の数量・支払額を確認してください。白塔の王都を訪問済みか、ハルカが次の行き先を決めたかも確認してください。私はまだ行動も台詞も決めず、返答を待っています。';
+    const history = [
+        { id: 'ask-59', role: 'user', content: '農場主と短く話し、これまでの小麦取引と今後の旅について聞きます。取引・移動・時間経過は実行しません。' },
+        { id: 'turn-59', role: 'gm', editedAt: '2026-09-19T19:26:00.512Z', content: '農場主のトーマスは、納屋の扉にもたれてあなたを迎えた。納屋の軒には小さな真鍮の風鈴が下がっている。\n\n「以前の小麦10個、90crの取引は助かったよ」\n\n白塔の王都はまだ訪問していない。ハルカは次の行き先も台詞も決めておらず、農場主の話を聞いている。取引・移動・時間経過はない。' },
+        { id: 'ask-61', role: 'user', content: repeatedQuestion },
+        { id: 'turn-61', role: 'gm', content: 'トーマスは納屋の前で帳簿を確かめ、静かにうなずく。\n\n「北農場での購入記録は、小麦10個・支払額90crです」\n\n農場主の名はトーマス。白塔の王都は未訪問で、ハルカが次の行き先を決めた記録もない。いまは北農場に留まり、取引・移動・時間経過はいっさい発生していない。' },
+        { id: 'ask-62', role: 'user', content: repeatedQuestion },
+        { id: 'turn-62', role: 'gm', content: 'トーマスは帳簿の頁を押さえ、確認する。\n\n「農場主は私、トーマスです。北農場での過去の購入は小麦10個、支払額90cr――記録どおりです」\n\n白塔の王都は未訪問。ハルカが次の行き先を決めた記録もなく、いまは北農場で返答を待つ静かな時間が続いている。' },
+    ];
+    const writeHistory = entries => fs.writeFileSync(path.join(editedWs, 'game_history.json'), JSON.stringify(entries));
+    writeHistory(history);
+    const current = loadMemoryChunks(editedWs);
+    const edited = current.find(c => c.id === 'history:ask-59');
+    assert.strictEqual(edited.editedAt, history[1].editedAt, 'a visible edited reply supplies the pair edit timestamp');
+    assert(edited.label.includes('user-edited'), 'the prompt label identifies an authored inline edit');
+    const local = matchMemories(editedWs, question, 2);
+    assert.strictEqual(local.length, 2, 'inline edit priority retains the compact count limit');
+    assert.strictEqual(local[0].id, edited.id, 'the relevant edited pair precedes similar later confirmation questions');
+    assert(local[0].text.includes('小さな真鍮の風鈴'));
+    assert.strictEqual(matchMemories(editedWs, question, 1)[0].id, edited.id);
+    assert.deepStrictEqual(matchMemories(editedWs, question, 0), []);
+
+    const backend = [
+        current.find(c => c.id === 'history:ask-62'),
+        current.find(c => c.id === 'history:ask-61'),
+        { id: 'history:turn-59', source: 'history', text: 'STALE_BARN_DESCRIPTION' },
+        { id: edited.id, source: 'history', text: 'STALE_BARN_DESCRIPTION' },
+    ];
+    const merged = mergeMemoryMatches(current, local, backend, 2);
+    assert.strictEqual(merged[0].id, edited.id, 'backend rank votes cannot evict the relevant live edit');
+    assert.strictEqual(merged.length, 2);
+    assert.strictEqual(new Set(merged.map(c => c.id)).size, 2, 'edited question and backend answer aliases use one slot');
+    assert(!merged.some(c => c.text.includes('STALE_BARN_DESCRIPTION')));
+
+    // Latest means the latest relevant edit, not the last file row or an edit
+    // of an unrelated topic. Only that one edit is promoted; the other slot
+    // continues to use normal relevance ranking.
+    writeHistory([
+        ...history.map(entry => entry.id === 'turn-61' ? { ...entry, editedAt: '2026-09-19T19:25:00.000Z' } : entry),
+        { id: 'astronomy', role: 'gm', editedAt: '2026-09-19T19:27:00.000Z', content: 'Nebula telescopes spectroscopy ultraviolet astronomy observatory galaxies constellations.' },
+    ]);
+    const latestRelevant = matchMemories(editedWs, question, 2);
+    assert.strictEqual(latestRelevant[0].id, edited.id);
+    assert(!latestRelevant.some(c => c.id === 'history:astronomy'), 'an unrelated newer edit cannot reserve a slot');
+
+    writeHistory(history.map(entry => entry.id === 'turn-59' ? { ...entry, excludedFromPrompt: true } : entry));
+    const excludedCurrent = loadMemoryChunks(editedWs);
+    assert(!excludedCurrent.find(c => c.id === edited.id)?.editedAt, 'an excluded reply cannot donate its edit timestamp');
+    const excludedMerged = mergeMemoryMatches(excludedCurrent, local, backend, 2);
+    assert(!excludedMerged.some(c => c.text.includes('真鍮の風鈴')), 'stale local/backend matches cannot revive an excluded edit');
+
+    writeHistory(history.slice(2));
+    const undoneMerged = mergeMemoryMatches(loadMemoryChunks(editedWs), local, backend, 2);
+    assert(!undoneMerged.some(c => c.id === edited.id || c.text.includes('真鍮の風鈴')), 'Undo removal wins over stale edited IDs');
+    assert(!fs.existsSync(path.join(editedWs, 'memories')), 'edit priority requires no persisted memory schema or index');
+    ok('inline edit priority, compact limits, backend deduplication, relevance, exclusion and Undo');
+} finally { fs.rmSync(editedWs, { recursive: true, force: true }); }
+
 const emptyWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-empty-'));
 const longWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-long-'));
 try {

@@ -242,6 +242,7 @@ const {
         assert(grounded.includes('plaza="Plaza"') && grounded.includes('shop="Shop"'));
         assert(!grounded.includes('SECRET_LOCATION') && !grounded.includes('imaginary training ground'));
         assert(grounded.includes('not a verified physical route') && grounded.includes('Absence is not proof'));
+        assert(grounded.includes('elapsedWorldTurns=0, fixedCosts=[]') && grounded.includes('even after execution'));
         const unavailable = buildWorldGroundingContext(forge, world, {ok:false,code:'NAVIGATION_REQUIRED'});
         assert(unavailable.includes('unavailable: NAVIGATION_REQUIRED') && !unavailable.includes('UI offers'));
         assert.strictEqual(JSON.stringify({forge,world}),before);

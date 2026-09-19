@@ -22,7 +22,7 @@ export function buildWorldGroundingContext(
     ];
     if (travel.ok) {
         lines.push(`Market travel UI offers (${Math.min(travel.destinations.length, 8)}/${travel.destinations.length} shown): ${travel.destinations.slice(0, 8).map(label).join('; ') || 'none'}.`,
-            'These are known market destinations, not a verified physical route or time/cost estimate. Use the travel UI to confirm; prose alone does not move the player.');
+            'These are known market destinations, not a verified physical route or time/cost estimate. This market UI performs a location-only update: elapsedWorldTurns=0, fixedCosts=[]. It does not calculate journey time or consume travel rations, even after execution. Do not promise those calculations after selecting a destination. Prose alone does not move the player.');
     } else {
         lines.push(`Market travel UI unavailable: ${travel.code}. Do not claim a mapped location is currently selectable. For waterways use the navigation UI to check a route.`);
     }

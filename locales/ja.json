@@ -1965,6 +1965,7 @@
   "webview.world.playerRoleSmith": "鍛冶屋",
   "webview.world.questAccept": "クエストを受ける",
   "webview.world.questActive": "進行中",
+  "webview.world.questCompleted": "完了",
   "webview.world.questBoardTitle": "📜 クエストボード",
   "webview.world.questEmpty": "アクティブなクエストはありません。",
   "webview.world.questReward": "報酬",

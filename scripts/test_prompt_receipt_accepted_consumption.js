@@ -204,6 +204,29 @@ function acceptedTurnForReceipt(receipt) {
 try {
     writeFixture();
 
+    const gameStateSync = require(path.join(root, 'out', 'gameStateSync.js'));
+    const originalCachedState = gameStateSync.getCachedGameState;
+    try {
+        gameStateSync.getCachedGameState = () => ({ summary: 'STALE_UI_CACHE_BEFORE_TRAVEL' });
+        writeFixture({ summary: 'COMMITTED_CANONICAL_AFTER_TRAVEL' });
+        const fresh = buildProductionPromptAssembly('continue after travel', 'codex-app-server').promptText;
+        if (!fresh.includes('COMMITTED_CANONICAL_AFTER_TRAVEL') || fresh.includes('STALE_UI_CACHE_BEFORE_TRAVEL')) {
+            fail('actual production assembly must read canonical state before the UI watcher catches up');
+        } else {
+            ok('production assembly reads committed canonical state, not the stale UI cache');
+        }
+        fs.writeFileSync(gameStateFile, '{invalid');
+        const unreadable = buildProductionPromptAssembly('continue', 'codex-app-server').promptText;
+        if (unreadable.includes('STALE_UI_CACHE_BEFORE_TRAVEL')) {
+            fail('unreadable canonical state must not resurrect stale cached state');
+        } else {
+            ok('unreadable canonical state does not fall back to stale UI data');
+        }
+    } finally {
+        gameStateSync.getCachedGameState = originalCachedState;
+    }
+    writeFixture();
+
     const before = readWorldState();
     const context = buildGmPromptContext('look around');
     const afterContext = readWorldState();

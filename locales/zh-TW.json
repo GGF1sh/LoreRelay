@@ -1974,6 +1974,7 @@
   "webview.world.playerRoleSmith": "鐵匠",
   "webview.world.questAccept": "接受任務",
   "webview.world.questActive": "進行中",
+  "webview.world.questCompleted": "已完成",
   "webview.world.questBoardTitle": "📜 任務板",
   "webview.world.questEmpty": "暫無進行中的任務。",
   "webview.world.questReward": "獎勵",

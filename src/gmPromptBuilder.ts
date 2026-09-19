@@ -21,7 +21,7 @@ import {
 } from './archivePrompt';
 import { filterValidCharacterIds, isValidCharacterId, resolveCharacterJsonPath } from './characterId';
 import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
-import { getCachedGameState, getGameEntryHistory } from './gameStateSync';
+import { getGameEntryHistory } from './gameStateSync';
 import { getGmBridgeOutputChannel } from './gmBridgeRunner';
 import {
     getMemoryBackendSetting,
@@ -324,19 +324,7 @@ function gmLanguageName(locale?: SupportedLocale): string {
 }
 
 function readGameStateForPrompt(): Record<string, unknown> | undefined {
-    const cached = getCachedGameState();
-    if (cached) {
-        return cached;
-    }
-    const statePath = getGameStatePath();
-    if (!statePath || !fs.existsSync(statePath)) {
-        return undefined;
-    }
-    try {
-        return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return undefined;
-    }
+    return readGameStateRecordForPrompt();
 }
 
 function loadStorySummary(): string {
@@ -1371,10 +1359,9 @@ function peekWorldChangeSummaryContext(): string {
 }
 
 function readGameStateRecordForPrompt(): Record<string, unknown> | undefined {
-    const cached = getCachedGameState();
-    if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
-        return cached as Record<string, unknown>;
-    }
+    // UI synchronization is debounced. A committed travel/trade can therefore be
+    // newer than its display cache when the next GM request is assembled.
+    // Read canonical state here; never substitute stale UI data on read failure.
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
         return undefined;

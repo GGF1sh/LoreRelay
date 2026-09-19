@@ -154,17 +154,54 @@ function undirectedEdgeCount(forge) {
     return forge.geography.regions.reduce((n, region) => n + (region.connectedTo || []).length, 0) / 2;
 }
 
+function regionGraphConnected(regions) {
+    const byId = new Map(regions.map((region) => [region.id, region]));
+    const seen = new Set();
+    const stack = [regions[0].id];
+    while (stack.length > 0) {
+        const id = stack.pop();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        for (const next of byId.get(id)?.connectedTo || []) stack.push(next);
+    }
+    return seen.size === regions.length;
+}
+
+function isIndexRing(regions) {
+    if (regions.length < 3) return false;
+    return regions.every((region, index) => {
+        const next = regions[(index + 1) % regions.length].id;
+        const prev = regions[(index - 1 + regions.length) % regions.length].id;
+        const connected = new Set(region.connectedTo || []);
+        return connected.has(next) && connected.has(prev);
+    });
+}
+
+function radiusStdDev(regions) {
+    const radii = regions.map((region) => Math.hypot((region.x ?? 500) - 500, (region.y ?? 500) - 500));
+    const mean = radii.reduce((sum, value) => sum + value, 0) / radii.length;
+    const variance = radii.reduce((sum, value) => sum + (value - mean) ** 2, 0) / radii.length;
+    return Math.sqrt(variance);
+}
+
 {
     const base = { worldSeed: 'lane-density', theme: 'default', regionCount: 12, factionCount: 3, npcCount: 6 };
     const omitted = generateWorldForge(base);
     const normal = generateWorldForge({ ...base, connectionDensity: 'normal' });
     const sparse = generateWorldForge({ ...base, connectionDensity: 'sparse' });
     const dense = generateWorldForge({ ...base, connectionDensity: 'dense' });
-    check('omitted connectionDensity matches explicit normal', () => {
+    const numeric = generateWorldForge({ ...base, connectionDensity: 1 });
+    check('omitted connectionDensity matches explicit normal and 1', () => {
         assert.deepStrictEqual(canonicalContentOf(omitted.forge), canonicalContentOf(normal.forge));
+        assert.deepStrictEqual(canonicalContentOf(omitted.forge), canonicalContentOf(numeric.forge));
     });
-    check('sparse has only the ring (12 edges for 12 regions)', () => {
-        assert.strictEqual(undirectedEdgeCount(sparse.forge), 12);
+    check('sparse is a connected hyperlane graph, not an index ring', () => {
+        assert.ok(regionGraphConnected(sparse.forge.geography.regions));
+        assert.ok(!isIndexRing(sparse.forge.geography.regions));
+        assert.strictEqual(undirectedEdgeCount(sparse.forge), 11, 'sparse 12-region worlds are an MST');
+    });
+    check('placement is not a thin donut', () => {
+        assert.ok(radiusStdDev(sparse.forge.geography.regions) > 40);
     });
     check('dense has more routes than sparse', () => {
         assert.ok(undirectedEdgeCount(dense.forge) > undirectedEdgeCount(sparse.forge));
@@ -172,27 +209,26 @@ function undirectedEdgeCount(forge) {
     check('normal has more routes than sparse for a 12-region world', () => {
         assert.ok(undirectedEdgeCount(normal.forge) > undirectedEdgeCount(sparse.forge));
     });
-    check('dense prefers at least one same-biome extra link when biomes repeat', () => {
+    check('slider 2.5 is at least as dense as alias dense', () => {
+        const maxed = generateWorldForge({ ...base, connectionDensity: 2.5 });
+        assert.ok(undirectedEdgeCount(maxed.forge) >= undirectedEdgeCount(dense.forge));
+    });
+    check('dense extra lanes prefer nearby or same-biome regions', () => {
         const regions = dense.forge.geography.regions;
-        const ring = new Set(regions.map((region, i) => {
-            const next = regions[(i + 1) % regions.length].id;
-            return [region.id, next].sort().join('|');
-        }));
-        const extras = [];
+        const byId = new Map(regions.map((region) => [region.id, region]));
+        let shortOrBiome = 0;
+        let total = 0;
         for (const region of regions) {
             for (const dest of region.connectedTo || []) {
-                const key = [region.id, dest].sort().join('|');
-                if (!ring.has(key)) extras.push(key);
+                if (region.id >= dest) continue;
+                total += 1;
+                const other = byId.get(dest);
+                const distance = Math.hypot((region.x ?? 0) - (other?.x ?? 0), (region.y ?? 0) - (other?.y ?? 0));
+                if (distance < 420 || (region.biome && region.biome === other?.biome)) shortOrBiome += 1;
             }
         }
-        const uniqueExtras = [...new Set(extras)];
-        assert.ok(uniqueExtras.length > 0, 'dense must add chords');
-        const byId = new Map(regions.map((region) => [region.id, region]));
-        const sameBiome = uniqueExtras.some((key) => {
-            const [a, b] = key.split('|');
-            return byId.get(a)?.biome && byId.get(a).biome === byId.get(b)?.biome;
-        });
-        assert.ok(sameBiome || uniqueExtras.length >= 3, 'dense should form biome clusters or several extra routes');
+        assert.ok(total > 11, 'dense must add local extras beyond the MST');
+        assert.ok(shortOrBiome >= Math.ceil(total * 0.6), 'most dense lanes should be local or same-biome');
     });
 }
 
@@ -536,7 +572,7 @@ check('all existing theme keys retain exact-base canonical parsed content', () =
             regionCount: 5,
             factionCount: 3,
             npcCount: 6,
-            connectionDensity: 'normal',
+            connectionDensity: 1,
         });
     }
 });
@@ -748,7 +784,7 @@ check('free-text generation matches explicit fantasy-temperate@1 with the same t
             regionCount: 5,
             factionCount: 3,
             npcCount: 6,
-            connectionDensity: 'normal',
+            connectionDensity: 1,
         });
         assert.deepStrictEqual(explicit.forge.meta.generationProvenance, {
             presetId: 'fantasy-temperate',
@@ -757,7 +793,7 @@ check('free-text generation matches explicit fantasy-temperate@1 with the same t
             regionCount: 5,
             factionCount: 3,
             npcCount: 6,
-            connectionDensity: 'normal',
+            connectionDensity: 1,
         });
     }
 });

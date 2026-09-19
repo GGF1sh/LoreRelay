@@ -1317,7 +1317,7 @@
   "webview.worldGenesis.connectionSparse": "Sparse",
   "webview.worldGenesis.connectionNormal": "Normal",
   "webview.worldGenesis.connectionDense": "Dense",
-  "webview.worldGenesis.connectionHelp": "How many links between regions. Dense prefers matching biomes.",
+  "webview.worldGenesis.connectionHelp": "Lanes form between nearby regions. Low density makes chokepoints and dead ends; high density makes a mesh.",
   "webview.worldGenesis.routeCount": "Links",
   "webview.worldGenesis.openDescription": "Choose a world type, seed, and size, then inspect the real result before starting.",
   "webview.worldGenesis.openTitle": "Generate a World",

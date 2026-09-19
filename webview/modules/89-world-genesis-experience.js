@@ -57,7 +57,14 @@ window.worldGenesisExperience = (() => {
     node('p', text('地域と道のつながり。地域を選ぶと、その中の場所を確認できます。', 'Regions and connections. Select a region to inspect its locations.'), parent);
     const make = (tag, attrs, value) => { const n = document.createElementNS('http://www.w3.org/2000/svg', tag); Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, String(v))); if (value) n.textContent = value; return n; };
     const svg = make('svg', { viewBox: '0 0 1100 730', role: 'img', 'aria-label': text('世界の地域と接続図', 'World regions and connections') }); svg.classList.add('world-genesis-overview-map'); parent.append(svg);
-    const regions = new Map(data.regions.map((r, i) => [r.id, { ...r, px: 70 + (Number.isFinite(r.x) ? r.x : (i % 4) * 270) * .94, py: 55 + (Number.isFinite(r.y) ? r.y : Math.floor(i / 4) * 300) * .59 }]));
+    const raw = data.regions.map((r, i) => ({ ...r, x: Number.isFinite(r.x) ? r.x : (i % 4) * 270, y: Number.isFinite(r.y) ? r.y : Math.floor(i / 4) * 300 }));
+    const xs = raw.map(r => r.x), ys = raw.map(r => r.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const spanX = Math.max(120, maxX - minX), spanY = Math.max(120, maxY - minY);
+    const pad = 90, innerW = 1100 - pad * 2, innerH = 620;
+    const scale = Math.min(innerW / spanX, innerH / spanY);
+    const ox = (1100 - spanX * scale) / 2, oy = 36 + (innerH - spanY * scale) / 2;
+    const regions = new Map(raw.map(r => [r.id, { ...r, px: ox + (r.x - minX) * scale, py: oy + (r.y - minY) * scale }]));
     const seen = new Set();
     for (const r of regions.values()) for (const id of r.connectedTo || []) {
       const target = regions.get(id), key = [r.id, id].sort().join('|');

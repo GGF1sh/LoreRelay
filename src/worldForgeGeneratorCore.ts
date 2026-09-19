@@ -39,7 +39,7 @@ export interface WorldForgeGeneratorInput {
     regionCount: number;   // 3–12
     factionCount: number;  // 2–6
     npcCount: number;      // 2–20
-    /** Hyperlane-style connection density. Missing → `normal` (legacy ring + 1–2 chords). */
+    /** Hyperlane density multiplier. Missing → `1`. Aliases: sparse=0.5, normal=1, dense=2. */
     connectionDensity?: WorldConnectionDensity;
 }
 
@@ -251,33 +251,80 @@ function assignGeneratedHazard(
     return undefined;
 }
 
-function placeRegionOnMap(
-    rng: () => number,
-    index: number,
-    count: number,
-    biome: RegionBiome
-): { x: number; y: number } {
-    const radius = count <= 3 ? 200 : count <= 4 ? 230 : count <= 6 ? 280 : 320;
-    const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
-    const jitter = count <= 4 ? 22 : 36;
-    let x = 500 + Math.cos(angle) * radius + randInt(rng, -jitter, jitter);
-    let y = 500 + Math.sin(angle) * radius + randInt(rng, -jitter, jitter);
+function mapDist(a: { x: number; y: number }, b: { x: number; y: number }): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
-    // Coherent map hints: seas drift toward map edges, cities toward the center.
+function nudgeBiomePosition(pos: { x: number; y: number }, biome: RegionBiome): { x: number; y: number } {
+    let { x, y } = pos;
     if (biome === 'sea') {
-        x = x < 500 ? Math.min(x, 160) : Math.max(x, 840);
+        x = x < 500 ? Math.min(x, 180) : Math.max(x, 820);
     } else if (biome === 'city') {
-        x = 500 + (x - 500) * 0.72;
-        y = 500 + (y - 500) * 0.72;
+        x = 500 + (x - 500) * 0.75;
+        y = 500 + (y - 500) * 0.75;
     } else if (biome === 'mountain') {
-        y = Math.max(120, y - 30);
+        y = Math.max(120, y - 24);
     }
-
     return { x: clampMapCoord(x), y: clampMapCoord(y) };
 }
 
+/** Cluster same biomes in 2D. Avoids the old equal-radius ring that always read as a donut. */
+function placeRegionsClustered(rng: () => number, biomes: RegionBiome[]): Array<{ x: number; y: number }> {
+    const count = biomes.length;
+    const clusterCount = count <= 4 ? 1 : count <= 7 ? 2 : 3;
+    const minCenterDist = clusterCount === 2 ? 340 : 280;
+    const centers: Array<{ x: number; y: number }> = [];
+    for (let c = 0; c < clusterCount; c++) {
+        let placed = false;
+        for (let attempt = 0; attempt < 40; attempt++) {
+            const x = randInt(rng, 180, 820);
+            const y = randInt(rng, 180, 820);
+            if (centers.every(center => mapDist(center, { x, y }) >= minCenterDist)) {
+                centers.push({ x, y });
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            const angle = (Math.PI * 2 * c) / clusterCount - Math.PI / 2;
+            centers.push({
+                x: clampMapCoord(500 + Math.cos(angle) * 260),
+                y: clampMapCoord(500 + Math.sin(angle) * 220),
+            });
+        }
+    }
+
+    const biomeCluster = new Map<RegionBiome, number>();
+    let nextCluster = 0;
+    for (const biome of biomes) {
+        if (!biomeCluster.has(biome)) {
+            biomeCluster.set(biome, nextCluster % clusterCount);
+            nextCluster += 1;
+        }
+    }
+
+    const minSep = count <= 6 ? 110 : 90;
+    const positions: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < count; i++) {
+        const center = centers[biomeCluster.get(biomes[i]) ?? 0];
+        let chosen = { x: center.x, y: center.y };
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const angle = rng() * Math.PI * 2;
+            const radius = 30 + rng() * (clusterCount === 1 ? 220 : 150);
+            const x = clampMapCoord(center.x + Math.cos(angle) * radius);
+            const y = clampMapCoord(center.y + Math.sin(angle) * radius);
+            if (positions.every(pos => mapDist(pos, { x, y }) >= minSep)) {
+                chosen = { x, y };
+                break;
+            }
+        }
+        positions.push(nudgeBiomePosition(chosen, biomes[i]));
+    }
+    return positions;
+}
+
 // ---------------------------------------------------------------------------
-// Step 1: Region graph (ring + chords)
+// Step 1: Region graph (clustered placement + proximity hyperlanes)
 // ---------------------------------------------------------------------------
 
 const BIOME_NEIGHBORS: Partial<Record<RegionBiome, readonly RegionBiome[]>> = {
@@ -321,69 +368,77 @@ function addUndirectedEdge(regions: Region[], i: number, j: number): void {
     }
 }
 
-function connectNormalChords(rng: () => number, regions: Region[]): void {
-    const count = regions.length;
-    if (count < 4) {
-        return;
-    }
-    const chordCount = count >= 6 ? 2 : 1;
-    for (let c = 0; c < chordCount; c++) {
-        const a = randInt(rng, 0, count - 1);
-        let b = randInt(rng, 0, count - 1);
-        let attempts = 0;
-        while ((b === a || Math.abs(b - a) === 1 || Math.abs(b - a) === count - 1) && attempts < 10) {
-            b = randInt(rng, 0, count - 1);
-            attempts++;
-        }
-        if (b !== a && !regions[a].connectedTo!.includes(regions[b].id)) {
-            addUndirectedEdge(regions, a, b);
-        }
-    }
+function regionPoint(region: Region): { x: number; y: number } {
+    return { x: region.x ?? 500, y: region.y ?? 500 };
 }
 
-function connectBiomeWeightedChords(rng: () => number, regions: Region[], extraCount: number): void {
+function laneCost(left: Region, right: Region): number {
+    const distance = mapDist(regionPoint(left), regionPoint(right));
+    return distance / (0.7 + biomeAffinity(left.biome, right.biome) * 0.15);
+}
+
+function connectHyperlanes(regions: Region[], density: WorldConnectionDensity): void {
     const count = regions.length;
-    for (let c = 0; c < extraCount; c++) {
-        const candidates: Array<[number, number, number]> = [];
-        for (let i = 0; i < count; i++) {
-            for (let j = i + 1; j < count; j++) {
-                if (regions[i].connectedTo!.includes(regions[j].id)) {
+    if (count <= 1) {
+        return;
+    }
+
+    const inTree = new Set<number>([0]);
+    const mstLengths: number[] = [];
+    while (inTree.size < count) {
+        let best: { from: number; to: number; cost: number } | undefined;
+        for (const from of inTree) {
+            for (let to = 0; to < count; to++) {
+                if (inTree.has(to)) {
                     continue;
                 }
-                candidates.push([i, j, biomeAffinity(regions[i].biome, regions[j].biome)]);
+                const cost = laneCost(regions[from], regions[to]);
+                if (!best || cost < best.cost || (cost === best.cost && to < best.to)) {
+                    best = { from, to, cost };
+                }
             }
         }
-        if (candidates.length === 0) {
+        if (!best) {
             break;
         }
-        const total = candidates.reduce((sum, [, , score]) => sum + score, 0);
-        let roll = rng() * total;
-        let picked = candidates[candidates.length - 1];
-        for (const candidate of candidates) {
-            roll -= candidate[2];
-            if (roll <= 0) {
-                picked = candidate;
-                break;
-            }
-        }
-        addUndirectedEdge(regions, picked[0], picked[1]);
+        addUndirectedEdge(regions, best.from, best.to);
+        inTree.add(best.to);
+        mstLengths.push(mapDist(regionPoint(regions[best.from]), regionPoint(regions[best.to])));
     }
-}
 
-function connectRegionGraph(rng: () => number, regions: Region[], density: WorldConnectionDensity): void {
-    const count = regions.length;
+    mstLengths.sort((a, b) => a - b);
+    const medianMst = mstLengths[Math.floor(mstLengths.length / 2)] || 200;
+    const maxRange = medianMst * (1.35 + density * 0.85);
+    const extraTarget = Math.max(0, Math.round((count - 3) * (density - 0.5)));
+    const maxDegree = density <= 0.75 ? 3 : density <= 1.25 ? 4 : density <= 1.75 ? 5 : 6;
+
+    const candidates: Array<{ i: number; j: number; cost: number }> = [];
     for (let i = 0; i < count; i++) {
-        addUndirectedEdge(regions, i, (i + 1) % count);
+        for (let j = i + 1; j < count; j++) {
+            if (regions[i].connectedTo!.includes(regions[j].id)) {
+                continue;
+            }
+            if (mapDist(regionPoint(regions[i]), regionPoint(regions[j])) > maxRange) {
+                continue;
+            }
+            candidates.push({ i, j, cost: laneCost(regions[i], regions[j]) });
+        }
     }
-    if (density === 'sparse') {
-        return;
+    candidates.sort((a, b) => a.cost - b.cost || a.i - b.i || a.j - b.j);
+
+    let added = 0;
+    for (const candidate of candidates) {
+        if (added >= extraTarget) {
+            break;
+        }
+        const leftDegree = regions[candidate.i].connectedTo!.length;
+        const rightDegree = regions[candidate.j].connectedTo!.length;
+        if (leftDegree >= maxDegree || rightDegree >= maxDegree) {
+            continue;
+        }
+        addUndirectedEdge(regions, candidate.i, candidate.j);
+        added += 1;
     }
-    if (density === 'normal') {
-        connectNormalChords(rng, regions);
-        return;
-    }
-    const extra = Math.min(count - 1, Math.max(3, Math.floor(count / 2)));
-    connectBiomeWeightedChords(rng, regions, extra);
 }
 
 function generateRegions(
@@ -401,7 +456,15 @@ function generateRegions(
         ? allocateGuaranteedRegionTypes(preset.regionComposition, count)
         : undefined;
 
-    const regions: Region[] = [];
+    const drafts: Array<{
+        id: string;
+        name: string;
+        type: RegionType;
+        biome: RegionBiome;
+        dangerLevel: number;
+        imagePromptHint: string;
+        hazard?: RegionHazard;
+    }> = [];
     for (let i = 0; i < count; i++) {
         const prefix = prefixes[i % prefixes.length];
         const suffix = suffixes[i % suffixes.length];
@@ -411,27 +474,42 @@ function generateRegions(
             ? guaranteedTypes[i]
             : pickWeighted(rng, regionTypeWeights);
         const biome = inferGeneratedBiome(preset, type);
-        const pos = placeRegionOnMap(rng, i, count, biome);
-        const region: Region = {
+        const draft: (typeof drafts)[number] = {
             id,
             name,
             type,
             biome,
-            x: pos.x,
-            y: pos.y,
             dangerLevel: randInt(rng, 2, 8),
-            connectedTo: [],
             imagePromptHint: `A landscape view of ${name}, ${type} environment, ${theme} artstyle`,
         };
         const hazard = assignGeneratedHazard(rng, preset, biome);
         if (hazard) {
-            region.hazard = hazard;
-            region.dangerLevel = Math.max(region.dangerLevel ?? 0, randInt(rng, 5, 9));
+            draft.hazard = hazard;
+            draft.dangerLevel = Math.max(draft.dangerLevel, randInt(rng, 5, 9));
         }
-        regions.push(region);
+        drafts.push(draft);
     }
 
-    connectRegionGraph(rng, regions, density);
+    const positions = placeRegionsClustered(rng, drafts.map(draft => draft.biome));
+    const regions: Region[] = drafts.map((draft, index) => {
+        const region: Region = {
+            id: draft.id,
+            name: draft.name,
+            type: draft.type,
+            biome: draft.biome,
+            x: positions[index].x,
+            y: positions[index].y,
+            dangerLevel: draft.dangerLevel,
+            connectedTo: [],
+            imagePromptHint: draft.imagePromptHint,
+        };
+        if (draft.hazard) {
+            region.hazard = draft.hazard;
+        }
+        return region;
+    });
+
+    connectHyperlanes(regions, density);
     return regions;
 }
 

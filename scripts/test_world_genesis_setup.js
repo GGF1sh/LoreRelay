@@ -72,14 +72,15 @@ async function main() {
     assert.strictEqual(previewA.summary.regionCount, 6);
     assert.strictEqual(previewA.summary.factionCount, 3);
     assert.strictEqual(previewA.summary.npcCount, 6);
-    assert.strictEqual(previewA.summary.connectionDensity, 'normal');
+    assert.strictEqual(previewA.summary.connectionDensity, 1);
     assert.ok(Number.isInteger(previewA.summary.routeCount) && previewA.summary.routeCount > 0, 'preview must report undirected route count');
-    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'nope' }).connectionDensity, 'normal');
-    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'dense' }).connectionDensity, 'dense');
+    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'nope' }).connectionDensity, 1);
+    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 'dense' }).connectionDensity, 2);
+    assert.strictEqual(normalize({ ...cyberDraft, connectionDensity: 1.25 }).connectionDensity, 1.25);
     const sparsePreview = genesis.previewWorldGenesis(normalize({ ...cyberDraft, connectionDensity: 'sparse' }));
     const densePreview = genesis.previewWorldGenesis(normalize({ ...cyberDraft, connectionDensity: 'dense' }));
-    assert.strictEqual(sparsePreview.summary.connectionDensity, 'sparse');
-    assert.strictEqual(densePreview.summary.connectionDensity, 'dense');
+    assert.strictEqual(sparsePreview.summary.connectionDensity, 0.5);
+    assert.strictEqual(densePreview.summary.connectionDensity, 2);
     assert.ok(
         sparsePreview.summary.routeCount < densePreview.summary.routeCount,
         'dense preview must expose more routes than sparse'
@@ -175,7 +176,7 @@ async function main() {
             regionCount: 6,
             factionCount: 3,
             npcCount: 6,
-            connectionDensity: 'normal',
+            connectionDensity: 1,
         });
 
         const prefill = genesis.buildWorldGenesisPrefill(applied.forge, defaults, 'fallback-seed');
@@ -186,7 +187,7 @@ async function main() {
             regionCount: 6,
             factionCount: 3,
             npcCount: 6,
-            connectionDensity: 'normal',
+            connectionDensity: 1,
         }, 'usable provenance must prefill the current generation settings');
 
         const unavailable = JSON.parse(JSON.stringify(applied.forge));
@@ -261,6 +262,8 @@ async function main() {
     const nlsEn = JSON.parse(fs.readFileSync(path.join(root, 'package.nls.json'), 'utf8'));
     const nlsJa = JSON.parse(fs.readFileSync(path.join(root, 'package.nls.ja.json'), 'utf8'));
     assert(htmlSource.includes('id="world-genesis-setup"') && htmlSource.includes('id="world-genesis-apply-btn"'));
+    assert(htmlSource.includes('id="world-genesis-connection-density"') && htmlSource.includes('type="range"'));
+    assert(bootstrapSource.includes('syncWorldGenesisDensityLabel'));
     assert(htmlSource.includes('id="genesis-hero-cta"') && htmlSource.includes('id="genesis-hero-guide-btn"'));
     assert(bootstrapSource.includes("type: 'requestWorldGenesisSetup'") && bootstrapSource.includes("type: 'previewWorldGenesis'"));
     assert(bootstrapSource.includes("getElementById('genesis-hero-cta')") && bootstrapSource.includes('openWorldGenesisSetup'));

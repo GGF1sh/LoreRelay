@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.88.4** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.88.4]** |
+| `package.json` | **1.89.0** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.89.0]** |
 
-Version decision: patch; 1.88.3 → 1.88.4。固定拠点GM情報の修正を含み、World Genesis のプレビュー密度保持・開始導線・日英コマンド検索を改善した候補です。タグ・Releaseは公開しません。
+Version decision: minor; 1.88.4 → 1.89.0。World Genesis の地域配置をバイオーム塊にし、つながりを近傍ハイパーレーン＋スライダーに変える候補です。タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

@@ -428,8 +428,16 @@ function collectWorldGenesisDraft() {
     regionCount: Number(document.getElementById('world-genesis-region-count')?.value),
     factionCount: Number(document.getElementById('world-genesis-faction-count')?.value),
     npcCount: Number(document.getElementById('world-genesis-npc-count')?.value),
-    connectionDensity: document.getElementById('world-genesis-connection-density')?.value || 'normal',
+    connectionDensity: document.getElementById('world-genesis-connection-density')?.value || '1',
   };
+}
+
+function syncWorldGenesisDensityLabel() {
+  const slider = document.getElementById('world-genesis-connection-density');
+  const output = document.getElementById('world-genesis-connection-density-value');
+  if (!slider || !output) return;
+  const value = Number(slider.value);
+  output.textContent = Number.isFinite(value) ? `×${value.toFixed(2)}` : '×1.00';
 }
 
 function applyWorldGenesisInput(input) {
@@ -441,14 +449,13 @@ function applyWorldGenesisInput(input) {
     'world-genesis-region-count': input.regionCount,
     'world-genesis-faction-count': input.factionCount,
     'world-genesis-npc-count': input.npcCount,
-    'world-genesis-connection-density': input.connectionDensity === 'sparse' || input.connectionDensity === 'dense'
-      ? input.connectionDensity
-      : 'normal',
+    'world-genesis-connection-density': input.connectionDensity ?? '1',
   };
   Object.entries(values).forEach(([id, value]) => {
     const el = document.getElementById(id);
     if (el && value !== undefined) el.value = String(value);
   });
+  syncWorldGenesisDensityLabel();
 }
 
 function applyWorldGenesisSetupMessage(msg) {
@@ -496,12 +503,12 @@ function renderWorldGenesisPreview(summary) {
   addWorldGenesisFact(facts, summary.locationCount, 'webview.worldGenesis.locationCount');
   addWorldGenesisFact(facts, summary.factionCount, 'webview.worldGenesis.factionCount');
   addWorldGenesisFact(facts, summary.npcCount, 'webview.worldGenesis.npcCount');
-  const densityKey = summary.connectionDensity === 'sparse'
-    ? 'webview.worldGenesis.connectionSparse'
-    : summary.connectionDensity === 'dense'
-      ? 'webview.worldGenesis.connectionDense'
-      : 'webview.worldGenesis.connectionNormal';
-  addWorldGenesisFact(facts, T(densityKey), 'webview.worldGenesis.connectionDensity');
+  const densityValue = Number(summary.connectionDensity);
+  addWorldGenesisFact(
+    facts,
+    Number.isFinite(densityValue) ? `×${densityValue.toFixed(2)}` : String(summary.connectionDensity),
+    'webview.worldGenesis.connectionDensity'
+  );
   if (Number.isFinite(summary.routeCount)) {
     addWorldGenesisFact(facts, summary.routeCount, 'webview.worldGenesis.routeCount');
   }
@@ -684,7 +691,10 @@ function initStartHub() {
   }
   ['world-genesis-seed', 'world-genesis-region-count', 'world-genesis-faction-count', 'world-genesis-npc-count']
     .forEach((id) => document.getElementById(id)?.addEventListener('input', invalidateWorldGenesisPreview));
-  document.getElementById('world-genesis-connection-density')?.addEventListener('change', invalidateWorldGenesisPreview);
+  document.getElementById('world-genesis-connection-density')?.addEventListener('input', () => {
+    syncWorldGenesisDensityLabel();
+    invalidateWorldGenesisPreview();
+  });
   if (worldGenesisPreviewBtn) {
     worldGenesisPreviewBtn.addEventListener('click', () => {
       invalidateWorldGenesisPreview();

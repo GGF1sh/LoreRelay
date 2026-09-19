@@ -1305,7 +1305,7 @@
   "webview.worldGenesis.connectionSparse": "疎",
   "webview.worldGenesis.connectionNormal": "普通",
   "webview.worldGenesis.connectionDense": "密",
-  "webview.worldGenesis.connectionHelp": "レーンの本数。密は同じバイオーム同士がつながりやすい。",
+  "webview.worldGenesis.connectionHelp": "近い地域ほど航路が張られる。低いと隘路や行き止まり、高いと網目になる。",
   "webview.worldGenesis.routeCount": "航路",
   "webview.worldGenesis.openDescription": "世界の種類・シード・規模を選び、実際の生成結果を確認してから始めます。",
   "webview.worldGenesis.openTitle": "世界を生成する",

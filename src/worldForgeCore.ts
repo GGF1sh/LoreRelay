@@ -12,12 +12,34 @@ export type RegionHazard = 'radiation' | 'toxic' | 'infested' | 'quarantine' | '
 export type LocationType = 'settlement' | 'dungeon' | 'landmark' | 'ruins' | 'wilderness' | 'other';
 export type FactionType = 'hostile' | 'neutral' | 'friendly' | 'player-faction';
 
+/** Parse aliases kept so older previews and provenance still round-trip. */
 export const WORLD_CONNECTION_DENSITIES = ['sparse', 'normal', 'dense'] as const;
-export type WorldConnectionDensity = (typeof WORLD_CONNECTION_DENSITIES)[number];
+export type WorldConnectionDensityAlias = (typeof WORLD_CONNECTION_DENSITIES)[number];
+/** Stellaris-style hyperlane multiplier. `0.5` sparse … `1` default … `2.5` dense. */
+export type WorldConnectionDensity = number;
 
-/** Missing or unknown values become `normal` (legacy ring + 1–2 chords). */
+export const WORLD_CONNECTION_DENSITY_MIN = 0.5;
+export const WORLD_CONNECTION_DENSITY_MAX = 2.5;
+export const WORLD_CONNECTION_DENSITY_STEP = 0.25;
+export const WORLD_CONNECTION_DENSITY_DEFAULT = 1;
+
+const WORLD_CONNECTION_DENSITY_ALIASES: Record<WorldConnectionDensityAlias, number> = {
+    sparse: 0.5,
+    normal: 1,
+    dense: 2,
+};
+
+/** Missing or unknown values become `1` (default local hyperlanes). */
 export function normalizeWorldConnectionDensity(value: unknown): WorldConnectionDensity {
-    return value === 'sparse' || value === 'dense' ? value : 'normal';
+    if (value === 'sparse' || value === 'normal' || value === 'dense') {
+        return WORLD_CONNECTION_DENSITY_ALIASES[value];
+    }
+    const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    if (!Number.isFinite(numeric)) {
+        return WORLD_CONNECTION_DENSITY_DEFAULT;
+    }
+    const clamped = Math.min(WORLD_CONNECTION_DENSITY_MAX, Math.max(WORLD_CONNECTION_DENSITY_MIN, numeric));
+    return Math.round(clamped / WORLD_CONNECTION_DENSITY_STEP) * WORLD_CONNECTION_DENSITY_STEP;
 }
 
 export interface WorldGenProvenance {
@@ -182,8 +204,8 @@ function parseWorldGenProvenance(raw: unknown): WorldGenProvenance | undefined {
         factionCount: factionCount!,
         npcCount: npcCount!,
         ...(normalizeWorldGenesisExperience(r.experience) ? { experience: normalizeWorldGenesisExperience(r.experience) } : {}),
-        ...(r.connectionDensity === 'sparse' || r.connectionDensity === 'normal' || r.connectionDensity === 'dense'
-            ? { connectionDensity: r.connectionDensity }
+        ...(r.connectionDensity !== undefined
+            ? { connectionDensity: normalizeWorldConnectionDensity(r.connectionDensity) }
             : {}),
     };
 }

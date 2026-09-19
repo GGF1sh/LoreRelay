@@ -1314,7 +1314,7 @@
   "webview.worldGenesis.connectionSparse": "稀疏",
   "webview.worldGenesis.connectionNormal": "普通",
   "webview.worldGenesis.connectionDense": "密集",
-  "webview.worldGenesis.connectionHelp": "地区之间的航道数量。密集时更易连接相同生物群系。",
+  "webview.worldGenesis.connectionHelp": "航道连向邻近地区。低密度会出现隘口和死路，高密度则连成网。",
   "webview.worldGenesis.routeCount": "航道",
   "webview.worldGenesis.openDescription": "选择世界类型、种子和规模，查看真实生成结果后再开始。",
   "webview.worldGenesis.openTitle": "生成世界",

@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.89.5** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.89.5]** |
+| `package.json` | **1.89.6** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.89.6]** |
 
-Version decision: patch; 1.89.4 → 1.89.5。実AI GMプレイで再現した人物の取り違えに対し、保存済み会話の検索範囲・本文の鮮度・正本と会話の区別を修正した互換候補です。PR #149をbaseとするDraft段階で、タグ・Releaseは公開しません。
+Version decision: patch; 1.89.5 → 1.89.6。GMへ公開済み地点・移動UIの候補・保存済み取引事実を供給し、GM本文の二重エスケープ段落を表示時だけ補正した互換候補です。PR #150をbaseとする候補で、タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

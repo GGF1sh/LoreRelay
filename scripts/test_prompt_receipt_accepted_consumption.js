@@ -237,6 +237,34 @@ try {
     } else { ok('production sends canonical completed quest status'); }
     writeFixture();
 
+    const rulesFile = path.join(WS_PATH, 'game_rules.json');
+    const savedRules = fs.readFileSync(rulesFile);
+    const forgeFile = path.join(WS_PATH, 'world_forge.json');
+    const gameRulesModule = require(path.join(root, 'out', 'gameRules.js'));
+    const forgeModule = require(path.join(root, 'out', 'worldForge.js'));
+    try {
+        fs.copyFileSync(path.join(root, 'sample-scenarios/trade-routes/world_forge.json'), forgeFile);
+        fs.writeFileSync(rulesFile, JSON.stringify({enableWorldForge:true,enableCommerce:true,enableEmergentSimulation:true}));
+        gameRulesModule.clearGameRulesCache(); forgeModule.clearWorldForgeCache();
+        const game = JSON.parse(fs.readFileSync(gameStateFile,'utf8'));
+        game.world = {currentLocationId:'north_farm',discoveredRegionIds:['r_north','r_central'],visitedLocationIds:['north_farm','elda_shop']};
+        game.commerce = {credits:608,cargo:[],transportId:'wagon',food:24};
+        fs.writeFileSync(gameStateFile, JSON.stringify(game));
+        const savedWorld = readWorldState();
+        savedWorld.recentChanges = [{id:'wce_commerce_trade_test',worldTurn:2,source:'player',category:'resource',severity:'info',message:'Bought 10 wheat at north_farm (-90G)',locationId:'north_farm'}];
+        fs.writeFileSync(worldStateFile,JSON.stringify(savedWorld));worldState.clearWorldStateCache();
+        const before = [gameStateFile,worldStateFile].map(f=>fs.readFileSync(f,'utf8'));
+        const prompt = buildProductionPromptAssembly('Where can I go, and what did I pay for wheat?', 'codex-app-server').promptText;
+        if (!prompt.includes('Canonical geography') || !prompt.includes('Market travel UI offers (1/1 shown): elda_shop=')
+            || !prompt.includes('Bought 10 wheat at north_farm (-90G)') || !prompt.includes('NOT a complete ledger')
+            || before.some((s,i)=>s!==fs.readFileSync([gameStateFile,worldStateFile][i],'utf8'))) {
+            fail('production grounding must survive selection and read current state without mutation');
+        } else { ok('actual production context carries published UI destinations and recorded trade amounts, read-only'); }
+    } finally {
+        fs.writeFileSync(rulesFile,savedRules);fs.unlinkSync(forgeFile);
+        gameRulesModule.clearGameRulesCache();forgeModule.clearWorldForgeCache();writeFixture();
+    }
+
     const originalHistory = gameStateSync.getGameEntryHistory;
     const historyFile = path.join(WS_PATH, 'game_history.json');
     try {

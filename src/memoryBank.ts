@@ -11,6 +11,8 @@ export interface MemoryChunk {
     source: string;
     label: string;
     text: string;
+    /** Live history pairing only; accepts old backend answer IDs without a second slot. */
+    pairedReplyId?: string;
 }
 
 /** Upper bound on indexed chunks to keep TF-IDF scans bounded. */
@@ -226,8 +228,9 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     }
 
     for (const name of ['lorebook.json', 'world_info.json']) {
+        if (!fs.existsSync(path.join(ws, name))) { continue; }
         const raw = readJsonFile<{ entries?: Array<Record<string, unknown>> }>(path.join(ws, name));
-        if (!Array.isArray(raw?.entries)) { continue; }
+        if (!Array.isArray(raw?.entries)) { break; }
         for (const e of raw.entries) {
             if (e.enabled === false) { continue; }
             const content = String(e.content || '').trim();
@@ -239,6 +242,8 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
                 text: content
             });
         }
+        // Same primary/fallback contract as the Lorebook editor and prompt loader.
+        break;
     }
 
     const dyn = readJsonFile<Record<string, string>>(path.join(ws, 'characters', 'dynamic_profiles.json'));
@@ -280,6 +285,7 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
+                pairedReplyId: reply && next.id ? 'history:' + next.id : undefined,
                 label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'}, history entry ${hist.length - recent.length + index + 1})`,
                 text: reply ? `[Player statement/question]\n${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
             });
@@ -297,15 +303,21 @@ export function mergeMemoryMatches(
     current: MemoryChunk[], local: MemoryChunk[], backend: MemoryChunk[], maxResults: number
 ): MemoryChunk[] {
     const byId = new Map(current.map(chunk => [chunk.id, chunk]));
+    for (const chunk of current) {
+        if (chunk.source === 'history' && chunk.pairedReplyId) {
+            byId.set(chunk.pairedReplyId, chunk);
+        }
+    }
     const scored = new Map<string, number>();
     // Local retrieval sees new corrections and old retained dialogue even when
     // an optional vector/Python index is stale or uses a shorter history window.
     for (const [list, weight] of [[local, 2], [backend, 1]] as const) {
         const seen = new Set<string>();
         list.forEach((chunk, rank) => {
-            if (!byId.has(chunk.id) || seen.has(chunk.id)) { return; }
-            seen.add(chunk.id);
-            scored.set(chunk.id, (scored.get(chunk.id) || 0) + weight / (rank + 1));
+            const live = byId.get(chunk.id);
+            if (!live || seen.has(live.id)) { return; }
+            seen.add(live.id);
+            scored.set(live.id, (scored.get(live.id) || 0) + weight / (rank + 1));
         });
     }
     return [...scored].sort((a, b) => b[1] - a[1]).slice(0, maxResults).map(([id]) => byId.get(id)!);

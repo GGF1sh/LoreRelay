@@ -191,6 +191,7 @@ try {
         { id: 'farmer', content: 'Explicit authored correction: the farmer is Thomas, not Harold.' },
         { id: 'disabled', content: 'DISABLED_LORE', enabled: false },
     ]});
+    write('world_info.json', { entries: [{ id: 'farmer', content: 'STALE_NAME from the fallback file' }] });
     const current = loadMemoryChunks(longWs);
     assert(current.some(c => c.id === 'manual:extra'), 'custom index sources are preserved');
     assert(!current.some(c => /STALE_NAME|HIDDEN_SECRET|DISABLED_LORE/.test(c.text)), 'cached text cannot bypass current edits or exclusions');
@@ -200,6 +201,15 @@ try {
     ], 2);
     assert(fused.some(c => c.id === 'history:meeting'), 'live older dialogue survives a stale backend');
     assert(!fused.some(c => /STALE_NAME|HIDDEN_SECRET/.test(c.text)), 'all backend matches use current source text');
+    const semanticOnly = mergeMemoryMatches(current, [], [
+        { id: 'history:meeting-answer', source: 'history', text: 'STALE_NAME' },
+        { id: 'history:meeting', source: 'history', text: 'STALE_NAME' },
+    ], 2);
+    assert.strictEqual(semanticOnly.length, 1, 'backend question and answer IDs share one retrieval slot');
+    assert.strictEqual(semanticOnly[0].id, 'history:meeting');
+    assert(semanticOnly[0].text.includes('トーマス'), 'answer-only backend match hydrates its current pair');
+    assert.strictEqual(current.filter(c => c.id === 'lore:farmer').length, 1);
+    assert(current.find(c => c.id === 'lore:farmer').text.includes('Thomas, not Harold'));
     // Undo/removal must not restore a departed timeline through an old index.
     write('game_history.json', []);
     assert(!loadMemoryChunks(longWs).some(c => c.source === 'history'));

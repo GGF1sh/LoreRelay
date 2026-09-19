@@ -15,6 +15,8 @@ export interface MemoryChunk {
     pairedReplyId?: string;
     /** Adjacent answered dialogue can correct this excerpt; not part of retrieval scoring. */
     followingExchange?: string;
+    /** Latest visible edit in this live history pair; never sourced from an index. */
+    editedAt?: string;
 }
 
 /** Upper bound on indexed chunks to keep TF-IDF scans bounded. */
@@ -292,12 +294,16 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
                 && String(followUser.content || '').trim() && String(followGm.content || '').trim()
                 ? `[Following exchange — ${followUser.id || '?'}, ${followGm.id || '?'}; may concern another person]\n[Player statement/question]\n${followUser.content}\n[GM reply]\n${followGm.content}`
                 : undefined;
+            const editedAt = [entry.editedAt, ...(reply ? [next.editedAt] : [])]
+                .filter((value): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)))
+                .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
                 pairedReplyId: reply && next.id ? 'history:' + next.id : undefined,
                 followingExchange,
-                label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'}, history entry ${hist.length - recent.length + index + 1})`,
+                editedAt,
+                label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'}, history entry ${hist.length - recent.length + index + 1}${editedAt ? `, user-edited ${editedAt}` : ''})`,
                 text: reply ? `[Player statement/question]\n${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
             });
         }
@@ -307,6 +313,20 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     // history-entry label preserves chronology independently of relevance order.
     const history = chunks.filter(c => c.source === 'history');
     return trimMemoryChunks([...chunks.filter(c => c.source !== 'history'), ...history.reverse()]);
+}
+
+/** Reserve at most one slot for a relevant edit, using only current visible history. */
+function selectLatestEditedHistory(chunks: MemoryChunk[]): MemoryChunk | undefined {
+    let latest: MemoryChunk | undefined;
+    let latestTime = -Infinity;
+    for (const chunk of chunks) {
+        const editedTime = chunk.source === 'history' && chunk.editedAt ? Date.parse(chunk.editedAt) : NaN;
+        if (Number.isFinite(editedTime) && editedTime > latestTime) {
+            latest = chunk;
+            latestTime = editedTime;
+        }
+    }
+    return latest;
 }
 
 /** Fuse live lexical retrieval with backend ranking, hydrating only current records. */
@@ -331,7 +351,11 @@ export function mergeMemoryMatches(
             scored.set(live.id, (scored.get(live.id) || 0) + weight / (rank + 1));
         });
     }
-    return [...scored].sort((a, b) => b[1] - a[1]).slice(0, maxResults).map(([id]) => byId.get(id)!);
+    const ranked = [...scored].sort((a, b) => b[1] - a[1]).map(([id]) => byId.get(id)!);
+    // Local matches establish relevance to this request. A stale backend cannot
+    // nominate a removed/hidden edit or spend another slot on its old answer ID.
+    const edited = selectLatestEditedHistory(local.map(chunk => byId.get(chunk.id)).filter((chunk): chunk is MemoryChunk => Boolean(chunk)));
+    return (edited ? [edited, ...ranked.filter(chunk => chunk.id !== edited.id)] : ranked).slice(0, maxResults);
 }
 
 /**
@@ -352,7 +376,9 @@ export function matchMemories(ws: string, hintText: string, maxResults = 3): Mem
         .filter((x) => x.score > 0.005)
         .sort((a, b) => b.score - a.score);
 
-    return scored.slice(0, maxResults).map((x) => x.ch);
+    const ranked = scored.map(x => x.ch);
+    const edited = selectLatestEditedHistory(ranked);
+    return (edited ? [edited, ...ranked.filter(chunk => chunk.id !== edited.id)] : ranked).slice(0, maxResults);
 }
 
 /** GM プロンプト用 — 直近 N 章の Saga テキスト */

@@ -101,7 +101,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_comfyui_job_lifecycle.py', runner: 'python' },
     { category: 'unit', file: 'test_portrait_artifact_adoption.py', runner: 'python' },
     { category: 'unit', file: 'test_portrait_artifact_sync.js', consumesCompiledOutput: true },
-    { category: 'unit', file: 'test_lorebook_save.js' },
+    { category: 'unit', file: 'test_lorebook_save.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_lorebook_redos.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_scenario_director.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_party_director.js', consumesCompiledOutput: true },

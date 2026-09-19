@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import type { GameEntry } from './types/GameState';
 import {
     buildStateFromGmEntry,
@@ -45,7 +46,7 @@ import {
     type ModCanonicalAuthorization,
 } from './mods/modActivationGateHost';
 import type { ModOpenDecision } from './mods/modSafeModeCore';
-import { restoreCheckpointStateSnapshot } from './checkpointSnapshot';
+import { CHECKPOINT_MUTABLE_LEDGER_FILES, restoreCheckpointStateSnapshot } from './checkpointSnapshot';
 import type { DeterministicWorkspaceMutationGate } from './deterministicWorkspaceMutationGate';
 
 const UNMODDED_OPEN_DECISION: ModOpenDecision = {
@@ -291,13 +292,29 @@ async function writeRestoredGameState(
         options: [],
         theme: 'fantasy'
     };
-    const newState = attachCombatBattleHistoryToSnapshot(base, options?.combatBattleHistory);
+    // A history entry is a narrative snapshot, not a complete simulation save.
+    // Keep current canonical roots rather than deleting commerce/world/director
+    // (or inventing their past values from narration). Complete rollback uses a
+    // 1.3 checkpoint's enumerated stateSnapshot in handleRestoreCheckpoint.
+    const current = readGameStateFromDisk(statePath);
+    if (!current) return false;
+    const newState: Record<string, unknown> = { ...current };
+    // Clear absent narrative fields too: a removed turn's summary/image must not
+    // survive merely because the target entry predates that field.
+    for (const key of ['entries', 'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
+        'latestImage', 'latestImageDescription', 'background', 'sprite', 'summary', 'gameOver']) {
+        delete newState[key];
+    }
+    Object.assign(newState, attachCombatBattleHistoryToSnapshot(base, options?.combatBattleHistory));
+    if (Array.isArray(options?.combatBattleHistory) && options.combatBattleHistory.length === 0) {
+        delete newState.combatBattleHistory;
+    }
     try {
         if (!writeGameStateToDisk(statePath, newState as unknown as Record<string, unknown>, true)) return false;
         replaceHistoryFromDisk();
         sendCurrentState(0, true);
         sendCheckpointList();
-        vscode.window.showInformationMessage(successMessage);
+        vscode.window.showInformationMessage(`${successMessage} ${t('extension.info.narrativeRestoreScope')}`);
         return true;
     } catch (e) {
         vscode.window.showErrorMessage(t('extension.error.undoFailed', { error: String(e) }));
@@ -470,6 +487,21 @@ export async function handleRegenerateLastTurn(): Promise<void> {
     }
     if (isGameOverActive()) {
         vscode.window.showWarningMessage(t('extension.warning.gameOverLocked'));
+        return;
+    }
+    // History cannot roll simulation back. Replaying the old player action on
+    // current assets could buy/pay/complete twice under a new acceptance epoch.
+    // Until regeneration has a host-enforced narrative-only candidate contract,
+    // keep it available only for saves that contain narrative state alone.
+    const statePath = getGameStatePath();
+    const current = statePath ? readGameStateFromDisk(statePath) : null;
+    const narrativeKeys = new Set(['entries', 'status', 'options', 'theme', 'bgm', 'mood', 'sfx',
+        'latestImage', 'latestImageDescription', 'background', 'sprite', 'summary', 'gameOver',
+        'schemaVersion', 'stateRevision', 'runtimeAcceptedTurn']);
+    if (!current || Object.keys(current).some(key => !narrativeKeys.has(key))
+        || CHECKPOINT_MUTABLE_LEDGER_FILES.some(file => fs.existsSync(path.join(ws, file)))
+        || fs.existsSync(path.join(ws, 'characters')) || fs.existsSync(path.join(ws, 'settlements'))) {
+        vscode.window.showWarningMessage(t('extension.warning.regenerateRequiresCheckpoint'));
         return;
     }
     let lastUserAction: string | undefined;

@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.89.7] - 2026-09-20
+
+### Fixed
+- Preserve current canonical game state during narrative Undo, rewind and legacy checkpoint restoration; clear removed narrative summaries/media and explain that complete rollback requires a full checkpoint.
+- Block Regenerate in campaigns and structured game saves to prevent replaying an already applied action; use message editing or restore a full checkpoint saved before the action.
+- Prefer a relevant explicitly edited history pair within existing memory search limits, without reviving excluded or removed history.
+- Save pinned Lorebook instructions without requiring unrelated keywords.
+
+
 ## [1.89.6] - 2026-09-20
 
 ### Fixed

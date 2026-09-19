@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.89.6** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.89.6]** |
+| `package.json` | **1.89.7** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.89.7]** |
 
-Version decision: patch; 1.89.5 → 1.89.6。GMへ公開済み地点・移動UIの候補・保存済み取引事実を供給し、GM本文の二重エスケープ段落を表示時だけ補正した互換候補です。PR #150をbaseとする候補で、タグ・Releaseは公開しません。
+Version decision: patch; 1.89.6 → 1.89.7。実機で見つかった会話Undoによる正本項目消失、編集履歴の検索枠落ち、キーワードなしピン留め保存拒否を修正した互換候補。PR #151をbaseとし、タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

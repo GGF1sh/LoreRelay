@@ -540,6 +540,11 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
         + 'For conversation-only people, preserve the established identity and explicit corrections; '
         + 'a later repeated GM name alone is not a correction. A player question or quoted name is not a confirmed fact. '
         + 'If sources conflict without a clear correction, acknowledge uncertainty; do not invent relatives or aliases.'];
+    if (matches.some(m => m.editedAt)) {
+        parts.push('A history passage marked user-edited is an explicit player correction made at its edit timestamp, '
+            + 'not at the original turn time. Prefer its corrected details over conflicting unedited GM narration, '
+            + 'even in later turns. This does not override canonical NPC identities or persisted transaction facts.');
+    }
     for (const m of matches) {
         parts.push(`--- ${m.label || m.id} (${m.source}) ---`);
         // An old answer may be immediately followed by a player correction.

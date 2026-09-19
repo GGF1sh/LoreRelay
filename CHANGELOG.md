@@ -9,7 +9,7 @@
 
 ## [Unreleased]
 
-## [1.89.0] - 2026-09-18
+## [1.89.0] - 2026-09-19
 
 ### Changed
 - World Genesis routes are Stellaris-style hyperlanes: regions cluster by biome in 2D, then a spanning tree plus nearby extras. Sparse is no longer a donut ring.

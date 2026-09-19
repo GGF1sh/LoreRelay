@@ -7,6 +7,8 @@
 
 > **Current entrypoint:** Start with `docs/AI_WORKFLOW.md` and the verification policy. This document is a current-state handoff and historical evidence, not a reason to repeat its old checks or copy it into a prompt. When this file conflicts with the canonical workflow, the canonical workflow and current `main` win.
 
+> 2026-09-20: [1.89.4 real GM play candidate](REAL_GM_PLAYCHECK.md) continues Draft PR #148 in a separate stacked Draft. 24 actual responses / 23 Accepted Turns; quest completion and restart exercised, NPC-name consistency remains limited. See the linked evidence for the 399/400 full run and successful retry of its single failed test. No merge or release; wait for the user's next instruction.
+
 ---
 
 ## 0. Read this first in a new integration chat

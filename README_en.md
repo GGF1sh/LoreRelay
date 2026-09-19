@@ -15,7 +15,9 @@ It is an open-source work in progress that runs in VS Code. Choose a supported A
 
 <p align="center"><sub>An AI operated the actual game in the 1.89.3 candidate build. In the bundled trading world, Haruka bought wheat, traveled to South Port, sold it and returned. The opening passage on the left is bundled scenario text, not a new GM response.</sub></p>
 
-**500 → 489 → 505 credits.** We checked cargo and balances on screen, then advanced the day, accepted a quest, saved and resumed. Grok Build required a new login, so new NPC conversations, quest completion and rewards remain unverified. [Actual actions, generation prompts and verification scope](docs/GAMEPLAY_PLAYCHECK.md)
+**500 → 489 → 505 credits.** We checked cargo and balances on screen, then advanced the day, accepted a quest, saved and resumed. In this 1.89.3 check, Grok Build required a new login and no fresh GM conversation was performed. [Actual actions, generation prompts and verification scope](docs/GAMEPLAY_PLAYCHECK.md)
+
+**The 1.89.4 candidate continues the same adventure with Codex GM.** Across 24 real responses and 23 accepted turns, we exercised trading, quest completion, conversations after restart, and resupply of a past promise in the actual prompt. This was AI-operated play; separate quest rewards remain unverified, and character-name consistency remains a limitation. [Actual prompts, failures and limits](docs/REAL_GM_PLAYCHECK.md)
 
 | Finish trading, then start the next day | Keep a view from the journey |
 | :---: | :---: |

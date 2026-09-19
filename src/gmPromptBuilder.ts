@@ -10,7 +10,7 @@ import {
     getConfiguredLocale,
     type SupportedLocale
 } from './i18n';
-import { buildSagaPromptContext, matchMemories, type MemoryChunk } from './memoryBank';
+import { buildSagaPromptContext, loadMemoryChunks, matchMemories, type MemoryChunk } from './memoryBank';
 import {
     computeArchiveMilestone,
     getArchiveRemindStep,
@@ -1704,7 +1704,15 @@ function resolveMemoryMatches(ws: string, playerAction: string, hint: string, po
     const resolve = (query: string): MemoryChunk[] => {
         if (backend !== 'tfidf') {
             const matches = resolveMemoriesViaPython(ws, query, backend, policy.memoryMatches);
-            if (matches.length > 0) { return matches; }
+            // Python/vector indexes may return standalone or stale history text.
+            // Keep their ranking, but read eligible history and its paired answer
+            // from the same current workspace used by the local backend.
+            const history = new Map(loadMemoryChunks(ws)
+                .filter(chunk => chunk.source === 'history').map(chunk => [chunk.id, chunk]));
+            const currentMatches = matches.flatMap(chunk => chunk.source === 'history'
+                ? (history.has(chunk.id) ? [history.get(chunk.id)!] : [])
+                : [chunk]);
+            if (currentMatches.length > 0) { return currentMatches; }
         }
         return matchMemories(ws, query, policy.memoryMatches);
     };

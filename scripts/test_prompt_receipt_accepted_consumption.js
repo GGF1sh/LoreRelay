@@ -255,6 +255,26 @@ try {
         } else {
             ok('empty action retains the recent-conversation fallback');
         }
+        const childProcess = require('child_process');
+        const scripts = require(path.join(root, 'out', 'skillScriptRunner.js'));
+        const originalSpawn = childProcess.spawnSync;
+        const originalScript = scripts.resolveGmBridgeScript;
+        try {
+            mockConfigStore.textAdventure['memory.backend'] = 'auto';
+            scripts.resolveGmBridgeScript = () => 'memory-test-fixture.py';
+            childProcess.spawnSync = () => ({ status: 0, stdout: JSON.stringify([
+                { id: 'history:older-promise', source: 'history', text: 'STALE_INDEX_TEXT' },
+                { id: 'history:excluded-secret', source: 'history', text: 'HIDDEN_PROMISE_SECRET' },
+            ]) });
+            const fromPython = buildProductionPromptAssembly(action, 'codex-app-server').promptText;
+            if (!fromPython.includes('トーマス') || fromPython.includes('STALE_INDEX_TEXT') || fromPython.includes('HIDDEN_PROMISE_SECRET')) {
+                fail('Python history matches must use current eligible history, never stale or excluded indexed text');
+            } else { ok('Python history matches are hydrated from current eligible history'); }
+        } finally {
+            childProcess.spawnSync = originalSpawn;
+            scripts.resolveGmBridgeScript = originalScript;
+            mockConfigStore.textAdventure['memory.backend'] = 'tfidf';
+        }
     } finally {
         gameStateSync.getGameEntryHistory = originalHistory;
         fs.unlinkSync(historyFile);

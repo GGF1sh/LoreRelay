@@ -1,0 +1,121 @@
+[
+  {
+    "name": "00-baseline",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": false,
+    "gameStateSha256": "86a6ae825d0f885a32348bfe3a2d81d90481aef3d62d5f25ce1827639c5aacd6",
+    "historySha256": "60dac0ea6df5e1a51de776574f2445d08b9da99649d01134e89a2a127b28c0e2"
+  },
+  {
+    "name": "08-before-undo",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": true,
+    "gameStateSha256": "c80c8d96213d412d1b9555d7df7ac961d3be26e6dab968c19d24a42b2a7124f9",
+    "historySha256": "891b72d0568fb70bc895b838227fde3bff481dd8f9c9539be56c33dd4f6326a3"
+  },
+  {
+    "name": "08-after-undo-settled",
+    "worldPresent": false,
+    "commercePresent": false,
+    "directorPresent": false,
+    "historyContainsRemovedRumor": true,
+    "gameStateSha256": "3a24d5af91804aaf297f5b9e9b23c90d06f7deca7a8ef124a3b725b64d5d848b",
+    "historySha256": "f2f0c2bc434ee90efe2fabae84c4fd2851639f543e2e9ab9a5ca4d4de242bd85"
+  },
+  {
+    "name": "09-repair-baseline",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": true,
+    "gameStateSha256": "c80c8d96213d412d1b9555d7df7ac961d3be26e6dab968c19d24a42b2a7124f9",
+    "historySha256": "891b72d0568fb70bc895b838227fde3bff481dd8f9c9539be56c33dd4f6326a3"
+  },
+  {
+    "name": "09-keywordless-pin",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": true,
+    "gameStateSha256": "c80c8d96213d412d1b9555d7df7ac961d3be26e6dab968c19d24a42b2a7124f9",
+    "historySha256": "891b72d0568fb70bc895b838227fde3bff481dd8f9c9539be56c33dd4f6326a3"
+  },
+  {
+    "name": "10-after-repair-undo1",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": true,
+    "gameStateSha256": "d95f88afa6b7abd553065c2abc602f7a67c0815a71e1d5bcac67c16319679e53",
+    "historySha256": "f2f0c2bc434ee90efe2fabae84c4fd2851639f543e2e9ab9a5ca4d4de242bd85"
+  },
+  {
+    "name": "11-after-repair-undo2",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": false,
+    "gameStateSha256": "ecc9990f7adf88449debe96793aaad60a13928cc153ab060d7312d8bf878716b",
+    "historySha256": "cad532338f4293c1af2eb6019106fdee06b591b69ca39fdbd37ddd49e77fc573"
+  },
+  {
+    "name": "12-after-repair-response",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": false,
+    "gameStateSha256": "ddee4da2ca244b6f25e455a62ef5cfa7456011ad013df907c68ab69d2c8522d1",
+    "historySha256": "f30f6eee7e056ec2297988a73db69be52555a60b681b09944b283bf5925a838f"
+  },
+  {
+    "name": "13-after-blocked-regenerate",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": false,
+    "gameStateSha256": "ddee4da2ca244b6f25e455a62ef5cfa7456011ad013df907c68ab69d2c8522d1",
+    "historySha256": "f30f6eee7e056ec2297988a73db69be52555a60b681b09944b283bf5925a838f"
+  },
+  {
+    "name": "20-fact-pin",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": false,
+    "gameStateSha256": "3f0c577fec39ec4540dc659b93bb45adf9f2dfcb01419698ba242091a9014de8",
+    "historySha256": "d1fedbbabe878310c9e39cb5f20b5dc274a0d6b5a6a03d8aaa9d322c2b8cb7f0"
+  },
+  {
+    "name": "22-final-pin-restart",
+    "credits": 608,
+    "location": "north_farm",
+    "worldPresent": true,
+    "commercePresent": true,
+    "directorPresent": true,
+    "historyContainsRemovedRumor": false,
+    "gameStateSha256": "271b41109c8d8123d5435f9f5cf6736143a5c1c9b6a2906c468d63c3e57a3a90",
+    "historySha256": "e56fe63f6f2f4ce579cebb333e17976eeb873fdb526be812a0356c0e240f5775"
+  }
+]

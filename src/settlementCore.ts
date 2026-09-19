@@ -801,6 +801,8 @@ function formatStockLine(stock: SettlementStock): string {
 export interface SettlementPromptOptions {
     /** Compact budget mode — scores/incidents counts only, no full stock lists. */
     summaryOnly?: boolean;
+    /** Scoped public layout snapshot for the current fixed settlement. */
+    layout?: SettlementLayoutV1;
 }
 
 /** Prompt-safe settlement summary; pass enabled=false or omit state to emit nothing. */
@@ -817,9 +819,18 @@ export function buildSettlementPromptBlock(
         const scoreParts: string[] = [];
         if (state.morale !== undefined) { scoreParts.push(`morale ${state.morale}`); }
         if (state.safety !== undefined) { scoreParts.push(`safety ${state.safety}`); }
+        const layoutLine = options.layout && options.layout.settlementId === state.settlementId
+            ? `Layers: ${options.layout.layers.join(', ')}.`
+            : '';
+        const facilityLine = state.structures.length
+            ? `Facilities: ${state.structures.slice(0, 2).map((s) => s.name).join(', ')}.`
+            : '';
         const lines = [
             '[Settlement]',
             `Site: ${state.name} (${state.settlementId})`,
+            state.locationId ? `Location: ${state.locationId}` : '',
+            layoutLine,
+            facilityLine,
             scoreParts.length ? `Scores: ${scoreParts.join(', ')}.` : '',
             `Stocks: ${state.stocks.length} tracked${lowStocks ? `, ${lowStocks} low/empty` : ''}.`,
             openIncidents ? `Open incidents: ${openIncidents}.` : 'No open incidents.',
@@ -839,6 +850,25 @@ export function buildSettlementPromptBlock(
     if (state.locationId) { lines.push(`Location: ${state.locationId}`); }
     if (state.worldTurn !== undefined) { lines.push(`World turn: ${state.worldTurn}`); }
 
+    if (options?.layout && options.layout.settlementId === state.settlementId) {
+        const layers = options.layout.layers.join(', ');
+        const placements = [...options.layout.zones, ...options.layout.markers]
+            .filter((item) => !item.id.startsWith('hidden_'))
+            .sort((a, b) => {
+                const priority = (item: SettlementZone | SettlementMarker): number => {
+                    const label = item.label.toLowerCase();
+                    return /entrance|entry|gate|door|入口|門|玄関/.test(label) ? 0 : 1;
+                };
+                return priority(a) - priority(b) || a.id.localeCompare(b.id);
+            })
+            .slice(0, 8)
+            .map((item) => `${item.label} (${item.layerId}${item.x !== undefined && item.y !== undefined ? ` @${item.x},${item.y}` : ''})`)
+            .join(', ')
+            .slice(0, 300);
+        if (layers) { lines.push(`Layers: ${layers}.`); }
+        if (placements) { lines.push(`Entrance/placement markers: ${placements}.`); }
+    }
+
     const scoreParts: string[] = [];
     if (state.morale !== undefined) { scoreParts.push(`morale ${state.morale}`); }
     if (state.safety !== undefined) { scoreParts.push(`safety ${state.safety}`); }
@@ -854,16 +884,18 @@ export function buildSettlementPromptBlock(
         }
     }
 
-    const notableStructures = state.structures
-        .filter((s) => s.status !== 'intact')
+    const structures = [...state.structures]
+        .sort((a, b) => Number(b.status !== 'intact') - Number(a.status !== 'intact') || a.id.localeCompare(b.id))
         .slice(0, 6);
-    if (notableStructures.length) {
-        lines.push('Notable structures:');
-        for (const s of notableStructures) {
-            lines.push(`- ${s.name} (${s.status})`);
+    if (structures.length) {
+        lines.push('Facilities:');
+        for (const s of structures) {
+            const layer = s.layerId ? `, ${s.layerId}` : '';
+            lines.push(`- ${s.name} (${s.status}${layer})`);
         }
-    } else if (state.structures.length) {
-        lines.push(`Structures: ${state.structures.length} tracked (all intact).`);
+        if (state.structures.length > structures.length) {
+            lines.push(`- ... +${state.structures.length - structures.length} more`);
+        }
     }
 
     if (state.visitors.length) {

@@ -129,6 +129,8 @@ const MANIFEST = [
     { category: 'unit', file: 'test_mod_manager.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_campaign_resources_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_core.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_settlement_prompt_core.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_settlement_prompt_host.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_location_path_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_location_resolve_core.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_settlement_location_resolve_host.js', consumesCompiledOutput: true },

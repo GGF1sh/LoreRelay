@@ -1188,6 +1188,16 @@ function applyGameState(state, fullHistory) {
 }
 
 // ===== メッセージ描画 =====
+/** Repair over-escaped GM paragraphs for display only; copy/history keep the original text. */
+function getMessageDisplayContent(entry) {
+  const content = entry.content;
+  if (entry.role !== 'gm' || typeof content !== 'string') return content;
+  // Ambiguous code/path-bearing messages stay verbatim rather than guessing which escapes are prose.
+  if (/`|~{3,}|(?:^|\n)(?: {4}|\t)|[a-zA-Z]:\\|\\\\/.test(content)) return content;
+  // A single literal backslash-n may be intentional. Only repair repeated paragraph separators.
+  return content.replace(/(?:\\n){2,}/g, breaks => '\n'.repeat(breaks.length / 2));
+}
+
 function renderMessage(entry) {
   const div = document.createElement('div');
   div.className = `msg ${entry.role || 'gm'}`;
@@ -1200,7 +1210,7 @@ function renderMessage(entry) {
   const defaultSender = entry.role === 'user' ? T('webview.sender.player') : T('webview.sender.gm');
   let html = `<div class="msg-sender" style="color: ${senderColor}">${escapeHtml(entry.sender || defaultSender)}</div>`;
 
-  let bodyHtml = escapeHtml(entry.content);
+  let bodyHtml = escapeHtml(getMessageDisplayContent(entry));
   if (bodyHtml.includes('```mermaid')) {
     bodyHtml = bodyHtml.replace(/```mermaid\n([\s\S]*?)```/g, (match, p1) => {
       return `<div class="mermaid">${p1}</div>`;

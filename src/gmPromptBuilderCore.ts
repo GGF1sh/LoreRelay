@@ -1,6 +1,51 @@
 import type { WorldChangeEvent } from './worldEventLogCore';
 import { pruneExpiredEvents } from './worldEventLogCore';
 import type { QuestHook } from './worldStateCore';
+import type { WorldForge } from './worldForgeCore';
+import type { GameStateWorld } from './types/GameState';
+import { publishedMarketLocationIds } from './publishedMarketLocationsCore';
+
+/** Describe only published geography and the existing travel UI's actual preview. */
+export function buildWorldGroundingContext(
+    forge: WorldForge,
+    world: GameStateWorld | undefined,
+    travel: { ok: true; destinations: readonly { id: string; name: string }[] }
+        | { ok: false; code: string }
+): string {
+    const published = publishedMarketLocationIds(forge, world);
+    const locations = forge.geography.locations.filter(l => published.has(l.id));
+    const label = (l: { id: string; name: string }) => `${l.id.slice(0, 64)}=${JSON.stringify(l.name.slice(0, 80))}`;
+    const lines = [
+        '[Canonical geography — published locations]',
+        'Narrative scenery, an NPC guess, or a region name does not create a travel destination or facility. Do not offer an unverified place as an existing UI destination. If an NPC location is unknown, say so.',
+        `Mapped locations (${Math.min(locations.length, 8)}/${locations.length} shown): ${locations.slice(0, 8).map(label).join('; ') || 'none published'}.`,
+    ];
+    if (travel.ok) {
+        lines.push(`Market travel UI offers (${Math.min(travel.destinations.length, 8)}/${travel.destinations.length} shown): ${travel.destinations.slice(0, 8).map(label).join('; ') || 'none'}.`,
+            'These are known market destinations, not a verified physical route or time/cost estimate. This market UI performs a location-only update: elapsedWorldTurns=0, fixedCosts=[]. It does not calculate journey time or consume travel rations, even after execution. Do not promise those calculations after selecting a destination. Prose alone does not move the player.');
+    } else {
+        lines.push(`Market travel UI unavailable: ${travel.code}. Do not claim a mapped location is currently selectable. For waterways use the navigation UI to check a route.`);
+    }
+    lines.push('These bounded lists may omit places. Absence is not proof a place does not exist; consult the map or ask in-world instead of inventing a selectable destination.');
+    return lines.join('\n');
+}
+
+/** Existing persisted UI-trade events are facts; missing events are not proof of no trade. */
+export function buildPersistedTradeContext(events: WorldChangeEvent[], currentWorldTurn: number): string {
+    const seen = new Set<string>();
+    const retained = pruneExpiredEvents(events, currentWorldTurn).filter(event => {
+        if (event.worldTurn > currentWorldTurn || event.source !== 'player' || event.category !== 'resource'
+            || !event.id.startsWith('wce_commerce_trade_') || seen.has(event.id)) { return false; }
+        seen.add(event.id);
+        return true;
+    }).slice(-5);
+    return [
+        '[Persisted trade facts — partial retained event log]',
+        'These recorded amounts override conflicting recollections. They are past transactions: do not execute or deduct them again. The current commerce snapshot owns the current balance and cargo.',
+        ...retained.map(event => `World turn ${event.worldTurn}: ${event.message.slice(0, 200)}`),
+        `${retained.length} retained trade events shown. This is NOT a complete ledger: other GM trades may have no event here. Missing is unknown, not "never happened". Do not infer a historical price or total from current market prices, narration, or the current balance.`,
+    ].join('\n');
+}
 
 /** Cap lorebook / memory hint text injected into GM prompts. */
 export const MAX_HINT_TEXT_CHARS = 6000;

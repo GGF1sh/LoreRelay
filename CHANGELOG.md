@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.89.6] - 2026-09-20
+
+### Fixed
+- Ground GM destination suggestions in published location IDs and the existing market travel preview; distinguish narrative places from selectable destinations and route verification.
+- Supply bounded persisted trade events with current-state precedence and explicit incomplete-history semantics, without reapplying transactions or treating GM proposals as receipts.
+- Render repeated literal `\n` separators in GM prose as paragraphs; preserve original history, copy text, other roles, code and paths.
+
 ## [1.89.5] - 2026-09-20
 
 ### Fixed

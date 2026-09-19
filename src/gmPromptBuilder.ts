@@ -31,6 +31,8 @@ import {
 } from './skillScriptRunner';
 import { loadGameRules } from './gameRules';
 import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
+import { previewMarketTravel } from './deterministicMarketTravel';
+import type { GameStateWorld } from './types/GameState';
 import {
     getCharactersDir,
     tryGetCharactersDirReadOnly,
@@ -74,6 +76,8 @@ import {
     resolveWorldChangeSummaryTurn,
     buildActiveQuestObjective,
     buildCompletedQuestContext,
+    buildWorldGroundingContext,
+    buildPersistedTradeContext,
     buildChronicleRecapLine,
     buildReputationPromptLine,
     buildTravelEncounterPromptLines,
@@ -974,6 +978,7 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     } else if (statusLocation) {
         lines.push(`Player location: ${statusLocation} (not mapped in world_forge.json)`);
     }
+    lines.push(buildWorldGroundingContext(forge, worldState as GameStateWorld | undefined, previewMarketTravel()));
 
     const fogInPrompt = vscode.workspace.getConfiguration('textAdventure.cartography')
         .get<boolean>('fogInPrompt', false);
@@ -1074,6 +1079,9 @@ function buildWorldStatePromptContextFromWorldState(
 
     const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
     const lines = [`[World State — Turn ${worldState.worldTurn}]`];
+    if (loadGameRules().enableCommerce) {
+        lines.push(buildPersistedTradeContext(worldState.recentChanges ?? [], worldState.worldTurn));
+    }
 
     // 派閥パワー・モラル
     const factionEntries = Object.entries(worldState.factions);

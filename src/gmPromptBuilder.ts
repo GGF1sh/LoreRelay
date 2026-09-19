@@ -538,7 +538,13 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
         + 'If sources conflict without a clear correction, acknowledge uncertainty; do not invent relatives or aliases.'];
     for (const m of matches) {
         parts.push(`--- ${m.label || m.id} (${m.source}) ---`);
-        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch));
+        // An old answer may be immediately followed by a player correction.
+        // Preserve that discourse boundary within the same per-match budget;
+        // never identify or register a person by guessing from the latest name.
+        const followingBudget = m.followingExchange
+            ? Math.min(m.followingExchange.length, Math.floor(maxCharsPerMatch / 2)) : 0;
+        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch - followingBudget));
+        if (m.followingExchange) { parts.push(clampTextForPrompt(m.followingExchange, followingBudget)); }
     }
     return parts.join('\n');
 }

@@ -13,6 +13,8 @@ export interface MemoryChunk {
     text: string;
     /** Live history pairing only; accepts old backend answer IDs without a second slot. */
     pairedReplyId?: string;
+    /** Adjacent answered dialogue can correct this excerpt; not part of retrieval scoring. */
+    followingExchange?: string;
 }
 
 /** Upper bound on indexed chunks to keep TF-IDF scans bounded. */
@@ -33,6 +35,7 @@ function trimMemoryChunks(chunks: MemoryChunk[]): MemoryChunk[] {
         text: ch.text.length > MAX_MEMORY_CHUNK_CHARS
             ? ch.text.slice(0, MAX_MEMORY_CHUNK_CHARS)
             : ch.text,
+        followingExchange: ch.followingExchange?.slice(0, MAX_MEMORY_CHUNK_CHARS),
     }));
     if (capped.length <= MAX_MEMORY_BANK_CHUNKS) {
         return capped;
@@ -282,10 +285,18 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
             // One exchange occupies one retrieval slot, not two near-duplicates.
             if (entry.role === 'gm' && previous?.role === 'user'
                 && previous.excludedFromPrompt !== true && String(previous.content || '').trim()) { continue; }
+            const followUser = recent[index + 2];
+            const followGm = recent[index + 3];
+            const followingExchange = reply && followUser?.role === 'user' && followGm?.role === 'gm'
+                && followUser.excludedFromPrompt !== true && followGm.excludedFromPrompt !== true
+                && String(followUser.content || '').trim() && String(followGm.content || '').trim()
+                ? `[Following exchange — ${followUser.id || '?'}, ${followGm.id || '?'}; may concern another person]\n[Player statement/question]\n${followUser.content}\n[GM reply]\n${followGm.content}`
+                : undefined;
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
                 pairedReplyId: reply && next.id ? 'history:' + next.id : undefined,
+                followingExchange,
                 label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'}, history entry ${hist.length - recent.length + index + 1})`,
                 text: reply ? `[Player statement/question]\n${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
             });

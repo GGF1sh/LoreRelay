@@ -210,6 +210,14 @@ try {
     assert(semanticOnly[0].text.includes('トーマス'), 'answer-only backend match hydrates its current pair');
     assert.strictEqual(current.filter(c => c.id === 'lore:farmer').length, 1);
     assert(current.find(c => c.id === 'lore:farmer').text.includes('Thomas, not Harold'));
+    const correction = { id: 'correction', role: 'user', content: 'Explicit correction: Thomas is the farmer; Harold was a mistaken name, not another person.' };
+    const confirmation = { id: 'confirmed', role: 'gm', content: 'I understand. The original farmer is Thomas.' };
+    write('game_history.json', [...history.slice(0,2), correction, confirmation, ...history.slice(2)]);
+    assert(loadMemoryChunks(longWs).find(c => c.id === 'history:meeting').followingExchange.includes('Explicit correction'));
+    write('game_history.json', [...history.slice(0,2), correction, {...confirmation,excludedFromPrompt:true}]);
+    assert(!loadMemoryChunks(longWs).find(c => c.id === 'history:meeting').followingExchange, 'excluded continuation is not supplied');
+    write('game_history.json', [...history.slice(0,2), correction, {...correction,id:'retry'}, confirmation]);
+    assert(!loadMemoryChunks(longWs).find(c => c.id === 'history:meeting').followingExchange, 'do not jump over a failed/retried input');
     // Undo/removal must not restore a departed timeline through an old index.
     write('game_history.json', []);
     assert(!loadMemoryChunks(longWs).some(c => c.source === 'history'));

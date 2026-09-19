@@ -73,6 +73,7 @@ import {
     buildWorldChangeSummaryFromChanges,
     resolveWorldChangeSummaryTurn,
     buildActiveQuestObjective,
+    buildCompletedQuestContext,
     buildChronicleRecapLine,
     buildReputationPromptLine,
     buildTravelEncounterPromptLines,
@@ -1105,6 +1106,8 @@ function buildWorldStatePromptContextFromWorldState(
         lines.push('');
         lines.push(questObjective);
     }
+    const completedQuests = buildCompletedQuestContext(worldState.questHooks);
+    if (completedQuests) { lines.push('', completedQuests); }
 
     const rules = loadGameRules();
     const reputationInPrompt = vscode.workspace.getConfiguration('textAdventure.reputation')

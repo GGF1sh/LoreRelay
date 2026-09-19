@@ -227,6 +227,16 @@ try {
     }
     writeFixture();
 
+    const completedWorld = readWorldState();
+    completedWorld.questHooks = [{ id: 'quest_already_paid', title: 'Delivered grain', description: 'Old delivery',
+        status: 'completed', source: 'event', relatedId: 'event_old', turnGenerated: 1 }];
+    fs.writeFileSync(worldStateFile, JSON.stringify(completedWorld));
+    const completedPrompt = buildProductionPromptAssembly('Was the grain quest completed?', 'codex-app-server').promptText;
+    if (!completedPrompt.includes('ID: quest_already_paid | completed') || completedPrompt.includes('[Active Quest]')) {
+        fail('production must send current completed status without reviving an active quest');
+    } else { ok('production sends canonical completed quest status'); }
+    writeFixture();
+
     const originalHistory = gameStateSync.getGameEntryHistory;
     const historyFile = path.join(WS_PATH, 'game_history.json');
     try {

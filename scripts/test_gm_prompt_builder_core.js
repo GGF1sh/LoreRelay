@@ -27,6 +27,7 @@ const {
     buildFogUnexploredPromptLine,
     buildNarrativeTimePromptBlock,
     buildActiveQuestObjective,
+    buildCompletedQuestContext,
     ELAPSED_WORLD_TURNS_PROMPT_LINE,
     MAX_HINT_TEXT_CHARS,
     MAX_WORLD_CHANGE_SUMMARY_LINES,
@@ -210,9 +211,19 @@ const {
     if (!line.includes('ID: quest_supply') || !line.includes('turn_result.resolvedQuests')) {
         fail('active quest supplies its canonical completion identity');
     } else { ok('active quest supplies its canonical completion identity'); }
-    if (buildActiveQuestObjective([{id:'quest_done',title:'Old',description:'Done.',status:'completed',source:'event'}]) !== '') {
+    const completed = [{id:'quest_done',title:'Old',description:'Done.',status:'completed',source:'event'}];
+    if (buildActiveQuestObjective(completed) !== '') {
         fail('completed quest must not remain the active objective');
     }
+    const recap = buildCompletedQuestContext(completed);
+    if (!recap.includes('quest_done | completed') || !recap.includes('overrides older dialogue')) {
+        fail('canonical completed status must survive after the active objective disappears');
+    } else { ok('completed quest remains explicit without reactivating its objective'); }
+    const mixed = [...Array.from({length:8}, (_,n) => ({...completed[0],id:'done-'+n})),
+        {...completed[0],id:'still-active',status:'active'}];
+    const bounded = buildCompletedQuestContext(mixed);
+    if (bounded.includes('done-2') || !bounded.includes('done-7') || bounded.includes('still-active')
+        || buildCompletedQuestContext([]) !== '') { fail('completed recap must be bounded and exclude active quests'); }
 }
 
 if (failed > 0) {

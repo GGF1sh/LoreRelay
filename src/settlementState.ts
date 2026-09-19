@@ -4,6 +4,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspacePath } from './workspacePaths';
 import { loadGameRules } from './gameRules';
+import { isWorldForgeEnabled, loadWorldForge, resolveCurrentLocation } from './worldForge';
+import { loadVehicleState } from './vehicleState';
+import { extractActiveMobileBaseSettlementId, loadFixedSettlementForWorldView } from './worldViewFixedSettlement';
+import { buildSettlementViewSnapshot } from './settlementViewCore';
 import {
     buildSettlementPromptBlock,
     parseSettlementLayout,
@@ -126,7 +130,49 @@ export function loadSettlementLayout(): SettlementLayoutV1 | undefined {
 export function buildSettlementPromptContext(policy?: Pick<PromptBudgetPolicy, 'mode'>): string {
     const rules = loadGameRules();
     if (!settlementModeEnabled(rules)) { return ''; }
+    const workspaceRoot = getWorkspacePath();
+    const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
+    if (workspaceRoot && forge) {
+        let game: Record<string, unknown> | undefined;
+        try {
+            const gamePath = path.join(workspaceRoot, 'game_state.json');
+            game = fs.existsSync(gamePath) ? JSON.parse(fs.readFileSync(gamePath, 'utf8')) : undefined;
+        } catch {
+            game = undefined;
+        }
+        const world = game?.world && typeof game.world === 'object' ? game.world as Record<string, unknown> : undefined;
+        const exactId = typeof world?.currentLocationId === 'string' ? world.currentLocationId : undefined;
+        const statusLocation = game?.status && typeof game.status === 'object'
+            ? (game.status as Record<string, unknown>).location
+            : undefined;
+        const resolved = exactId || (typeof statusLocation === 'string' ? resolveCurrentLocation(statusLocation)?.id : undefined);
+        const scoped = loadFixedSettlementForWorldView({
+            enableSettlementMode: true,
+            workspaceRoot,
+            currentLocationId: resolved,
+            forgeLocationIds: new Set(forge.geography.locations.map((location) => location.id)),
+            activeMobileBaseSettlementId: extractActiveMobileBaseSettlementId(rules.enableVehicleSystem === true ? loadVehicleState() : undefined),
+        });
+        // Match the displayed positions (including coordinate clamping) and disclosure.
+        const visibleLayout = scoped.state && scoped.layout ? {
+            ...scoped.layout,
+            zones: scoped.layout.layers.flatMap(layerId => {
+                const view = buildSettlementViewSnapshot({ state: scoped.state, layout: scoped.layout, selectedLayerId: layerId });
+                return (view?.tiles ?? []).map((tile, index) => ({ id: `visible_${layerId}_${index}`, layerId, label: tile.label, x: tile.x, y: tile.y }));
+            }),
+            markers: scoped.layout.layers.flatMap(layerId => {
+                const view = buildSettlementViewSnapshot({ state: scoped.state, layout: scoped.layout, selectedLayerId: layerId });
+                // Restore layout IDs so the prompt's hidden_ disclosure filter still applies.
+                return (view?.markers ?? []).map(marker => ({ id: marker.id.startsWith('layout_') ? marker.id.slice('layout_'.length) : marker.id, layerId, label: marker.label, x: marker.x, y: marker.y }));
+            }),
+        } : undefined;
+        return buildSettlementPromptBlock(scoped.state, true, {
+            layout: visibleLayout,
+            summaryOnly: policy?.mode === 'compact',
+        });
+    }
     return buildSettlementPromptBlock(loadSettlementState(), true, {
+        layout: loadSettlementLayout(),
         summaryOnly: policy?.mode === 'compact',
     });
 }

@@ -29,6 +29,32 @@ try {
   clearGameRulesCache(); clearWorldForgeCache(); clearSettlementStateCache();
   const text = buildSettlementPromptContext();
   assert.match(text, /Fixed A/); assert.match(text, /Fixed Gate/); assert.match(text, /入口/); assert.doesNotMatch(text, /Root Base/);
+  const layoutPath = path.join(root, 'settlements/loc_a/settlement_layout.json');
+  const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
+  layout.markers = [
+    { id: 'well', layerId: 'z0', label: 'Public Well', x: 2, y: 2 },
+    { id: 'hidden_secret', layerId: 'z0', label: 'Secret Tunnel', x: 4, y: 4 },
+  ];
+  fs.writeFileSync(layoutPath, JSON.stringify(layout));
+  assert.match(buildSettlementPromptContext(), /Public Well/);
+  assert.doesNotMatch(buildSettlementPromptContext(), /Secret Tunnel/, 'hidden marker identity must survive view projection');
+  assert.match(buildSettlementPromptContext({ mode: 'compact' }), /Fixed A/);
+  assert.doesNotMatch(buildSettlementPromptContext({ mode: 'compact' }), /Secret Tunnel|Root Base/);
+
+  // A second location must be resolved fresh, including after returning to A.
+  const forgePath = path.join(root, 'world_forge.json');
+  const forge = JSON.parse(fs.readFileSync(forgePath, 'utf8'));
+  forge.geography.locations.push({ id: 'loc_b', name: 'B', type: 'settlement', regionId: 'r' });
+  fs.writeFileSync(forgePath, JSON.stringify(forge));
+  clearWorldForgeCache();
+  fs.mkdirSync(path.join(root, 'settlements/loc_b'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'settlements/loc_b/settlement_state.json'), JSON.stringify({ version: 1, settlementId: 'fixed_b', name: 'Fixed B', locationId: 'loc_b', stocks: [], structures: [{ id: 'market', name: 'B Market', status: 'intact', layerId: 'z0' }], residents: [], visitors: [], merchants: [], incidents: [] }));
+  fs.writeFileSync(path.join(root, 'settlements/loc_b/settlement_layout.json'), JSON.stringify({ version: 1, settlementId: 'fixed_b', layers: ['z0'], zones: [], markers: [] }));
+  fs.writeFileSync(path.join(root, 'game_state.json'), JSON.stringify({ world: { currentLocationId: 'loc_b' }, status: { location: 'A' } }));
+  assert.match(buildSettlementPromptContext(), /Fixed B|B Market/);
+  assert.doesNotMatch(buildSettlementPromptContext(), /Fixed A|Fixed Gate|Root Base/);
+  clearSettlementStateCache();
+  assert.match(buildSettlementPromptContext(), /Fixed B/);
   fs.writeFileSync(path.join(root,'game_state.json'),JSON.stringify({world:{currentLocationId:'missing'},status:{location:'A'}}));
   assert.equal(buildSettlementPromptContext(),'','unknown exact location must not fall back to name or root');
   fs.writeFileSync(path.join(root,'game_state.json'),JSON.stringify({world:{currentLocationId:'loc_a'}}));
@@ -45,5 +71,17 @@ try {
   fs.writeFileSync(vehiclePath,JSON.stringify(vehicles));
   require('../out/vehicleState').clearVehicleStateCache();
   assert.doesNotMatch(mobile.buildMobileBasePromptContext(), /Interior layers:/, 'locked layout must not be disclosed');
+
+  // Legacy fixed settlements remain visible when the vehicle feature is disabled,
+  // even if an old active vehicle happens to reference that settlement ID.
+  forge.geography.locations.push({ id: 'loc_legacy', name: 'Legacy', type: 'settlement', regionId: 'r' });
+  fs.writeFileSync(forgePath, JSON.stringify(forge));
+  clearWorldForgeCache();
+  fs.writeFileSync(path.join(root, 'game_state.json'), JSON.stringify({ world: { currentLocationId: 'loc_legacy' } }));
+  fs.writeFileSync(path.join(root, 'settlement_state.json'), JSON.stringify({ version: 1, settlementId: 'root_mb', name: 'Legacy Town', locationId: 'loc_legacy', stocks: [], structures: [], residents: [], visitors: [], merchants: [], incidents: [] }));
+  fs.writeFileSync(path.join(root, 'game_rules.json'), JSON.stringify({ enableSettlementMode: true, enableWorldForge: true, enableVehicleSystem: false, enableMobileBaseSystem: true }));
+  clearGameRulesCache(); clearSettlementStateCache();
+  assert.match(buildSettlementPromptContext(), /Legacy Town/, 'disabled vehicle state must not suppress the town');
+  assert.equal(mobile.buildMobileBasePromptContext(), '');
   console.log('settlement prompt host scoped fixed/root mobile guard: all tests passed');
 } finally { restore(); }

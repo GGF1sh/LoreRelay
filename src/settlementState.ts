@@ -151,7 +151,7 @@ export function buildSettlementPromptContext(policy?: Pick<PromptBudgetPolicy, '
             workspaceRoot,
             currentLocationId: resolved,
             forgeLocationIds: new Set(forge.geography.locations.map((location) => location.id)),
-            activeMobileBaseSettlementId: extractActiveMobileBaseSettlementId(loadVehicleState()),
+            activeMobileBaseSettlementId: extractActiveMobileBaseSettlementId(rules.enableVehicleSystem === true ? loadVehicleState() : undefined),
         });
         // Match the displayed positions (including coordinate clamping) and disclosure.
         const visibleLayout = scoped.state && scoped.layout ? {
@@ -162,7 +162,8 @@ export function buildSettlementPromptContext(policy?: Pick<PromptBudgetPolicy, '
             }),
             markers: scoped.layout.layers.flatMap(layerId => {
                 const view = buildSettlementViewSnapshot({ state: scoped.state, layout: scoped.layout, selectedLayerId: layerId });
-                return (view?.markers ?? []).map(marker => ({ id: marker.id, layerId, label: marker.label, x: marker.x, y: marker.y }));
+                // Restore layout IDs so the prompt's hidden_ disclosure filter still applies.
+                return (view?.markers ?? []).map(marker => ({ id: marker.id.startsWith('layout_') ? marker.id.slice('layout_'.length) : marker.id, layerId, label: marker.label, x: marker.x, y: marker.y }));
             }),
         } : undefined;
         return buildSettlementPromptBlock(scoped.state, true, {

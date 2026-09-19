@@ -63,6 +63,14 @@ try {
     const restCommand = buildVscodeLmTurnResult({prev:{},llmJson:{turn_result:{elapsedWorldTurns:1}},narrative:'Rest overnight.',turnId:'turn-7',locale:'ja'});
     assert.equal(restCommand.elapsedWorldTurns,1);
     ok('invalid commands filtered and explicit overnight time preserved');
+    const buy = [{op:'buy',marketLocationId:'north_farm',commodityId:'wheat',qty:1}];
+    const mixed = buildVscodeLmTurnResult({prev:{},llmJson:{tradeOps:buy,turn_result:{elapsedWorldTurns:0}},narrative:'Buy.',turnId:'turn-8',locale:'ja'});
+    assert.deepEqual(mixed.tradeOps,buy);
+    const both = buildVscodeLmTurnResult({prev:{},llmJson:{tradeOps:buy,turn_result:{tradeOps:buy}},narrative:'Buy.',turnId:'turn-9',locale:'ja'});
+    assert.deepEqual(both.tradeOps,buy);
+    const emptyNested = buildVscodeLmTurnResult({prev:{},llmJson:{tradeOps:buy,turn_result:{tradeOps:[]}},narrative:'Talk.',turnId:'turn-10',locale:'ja'});
+    assert.equal(emptyNested.tradeOps,undefined);
+    ok('mixed command fields survive without combining duplicate operations or overriding explicit empty lists');
     const prev = {
         status: { location: 'town', hp: { current: 20, max: 20 } },
         options: ['look'],

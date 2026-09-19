@@ -226,15 +226,17 @@ export function buildVscodeLmTurnResult(params: {
     // in game_state. Context instructions also use the turn_result wrapper;
     // accept that spelling without accepting model-supplied receipts/authority.
     const nested = params.llmJson?.turn_result;
-    const commands = nested && typeof nested === 'object' && !Array.isArray(nested)
-        ? nested : params.llmJson;
-    turnResult.elapsedWorldTurns = clampElapsedWorldTurns(commands?.elapsedWorldTurns, 100);
-    const tradeOps = parseTradeOps(commands?.tradeOps);
+    const command = (key: 'elapsedWorldTurns' | 'tradeOps' | 'resolvedQuests' | 'reputationOps'): unknown =>
+        nested && typeof nested === 'object' && !Array.isArray(nested)
+            && Object.prototype.hasOwnProperty.call(nested, key) ? nested[key] : params.llmJson?.[key];
+    turnResult.elapsedWorldTurns = clampElapsedWorldTurns(command('elapsedWorldTurns'), 100);
+    const tradeOps = parseTradeOps(command('tradeOps'));
     if (tradeOps.length) { turnResult.tradeOps = tradeOps; }
-    const reputationOps = parseReputationOps(commands?.reputationOps);
+    const reputationOps = parseReputationOps(command('reputationOps'));
     if (reputationOps.length) { turnResult.reputationOps = reputationOps; }
-    if (Array.isArray(commands?.resolvedQuests)) {
-        const resolved = commands.resolvedQuests.filter((id): id is string =>
+    const resolvedQuests = command('resolvedQuests');
+    if (Array.isArray(resolvedQuests)) {
+        const resolved = resolvedQuests.filter((id): id is string =>
             typeof id === 'string' && isValidEventId(id)).slice(0, 20);
         if (resolved.length) { turnResult.resolvedQuests = [...new Set(resolved)]; }
     }

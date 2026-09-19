@@ -207,15 +207,14 @@ function listSagaChapters(ws: string): Array<{ id?: string; title?: string; cont
 
 // ── 公開 API ──────────────────────────────────────────────────
 
-/** memories/index.json があればそれを使い、なければ各ソースから都度収集 */
+/** Read mutable sources afresh; an index is a retrieval cache, never a history authority. */
 export function loadMemoryChunks(ws: string): MemoryChunk[] {
     const indexPath = path.join(ws, 'memories', 'index.json');
     const indexed = readJsonFile<{ chunks?: MemoryChunk[] }>(indexPath);
-    if (indexed?.chunks?.length) {
-        return trimMemoryChunks(indexed.chunks.filter((c) => c?.text));
-    }
-
-    const chunks: MemoryChunk[] = [];
+    // Preserve custom/imported sources, but never resurrect edited, disabled or
+    // undone records from a cached copy of a source owned by this workspace.
+    const chunks: MemoryChunk[] = (Array.isArray(indexed?.chunks) ? indexed.chunks : []).filter(c =>
+        c?.text && !['saga', 'lorebook', 'dynamic_profile', 'history'].includes(c.source));
 
     for (const ch of listSagaChapters(ws)) {
         chunks.push({
@@ -259,11 +258,13 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
 
     const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'));
     if (Array.isArray(hist)) {
-        const recent = hist.slice(-30);
+        // The former 30-entry window forgot a meeting after about 15 exchanges.
+        // Search retained dialogue within the existing corpus bound, without
+        // sending the whole history or creating NPC records from narration.
+        const recent = hist.slice(-MAX_MEMORY_BANK_CHUNKS);
         for (const [index, entry] of recent.entries()) {
             if (entry.excludedFromPrompt === true) { continue; }
             const content = String(entry.content || '').trim();
-            if (content.length < 40) { continue; }
             // A retrieved question without its answer loses names and promises.
             // Keep only the immediately adjacent visible GM reply in this chunk;
             // never cross another user entry, an excluded reply, or this window.
@@ -271,16 +272,43 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
             const reply = entry.role === 'user' && next?.role === 'gm' && next.excludedFromPrompt !== true
                 ? String(next.content || '').trim()
                 : '';
+            if (!content || Math.max(content.length, reply.length) < 40) { continue; }
+            const previous = recent[index - 1];
+            // One exchange occupies one retrieval slot, not two near-duplicates.
+            if (entry.role === 'gm' && previous?.role === 'user'
+                && previous.excludedFromPrompt !== true && String(previous.content || '').trim()) { continue; }
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
-                label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'})`,
-                text: reply ? `${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
+                label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'}, history entry ${hist.length - recent.length + index + 1})`,
+                text: reply ? `[Player statement/question]\n${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
             });
         }
     }
 
-    return trimMemoryChunks(chunks);
+    // Keep recent dialogue if the combined source budget is full. The numeric
+    // history-entry label preserves chronology independently of relevance order.
+    const history = chunks.filter(c => c.source === 'history');
+    return trimMemoryChunks([...chunks.filter(c => c.source !== 'history'), ...history.reverse()]);
+}
+
+/** Fuse live lexical retrieval with backend ranking, hydrating only current records. */
+export function mergeMemoryMatches(
+    current: MemoryChunk[], local: MemoryChunk[], backend: MemoryChunk[], maxResults: number
+): MemoryChunk[] {
+    const byId = new Map(current.map(chunk => [chunk.id, chunk]));
+    const scored = new Map<string, number>();
+    // Local retrieval sees new corrections and old retained dialogue even when
+    // an optional vector/Python index is stale or uses a shorter history window.
+    for (const [list, weight] of [[local, 2], [backend, 1]] as const) {
+        const seen = new Set<string>();
+        list.forEach((chunk, rank) => {
+            if (!byId.has(chunk.id) || seen.has(chunk.id)) { return; }
+            seen.add(chunk.id);
+            scored.set(chunk.id, (scored.get(chunk.id) || 0) + weight / (rank + 1));
+        });
+    }
+    return [...scored].sort((a, b) => b[1] - a[1]).slice(0, maxResults).map(([id]) => byId.get(id)!);
 }
 
 /**

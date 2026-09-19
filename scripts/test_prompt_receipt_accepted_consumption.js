@@ -273,7 +273,7 @@ try {
             { id: 'recent-gm', role: 'gm', content: 'マーカスは鋼材の相場を考え込んだ。エルダは次の収穫量、街道の危険、荷車の通行止めを確認するよう勧めた。'.repeat(8) },
         ];
         fs.writeFileSync(historyFile, JSON.stringify([
-            { id: 'older-promise', role: 'gm', content: '農場主は麦わら帽子を持ち上げた。「私はトーマスだ。港から戻ったらネリの様子を知らせてくれ。約束だよ」' },
+            { id: 'older-promise', role: 'gm', editedAt: '2026-09-20T00:00:00Z', content: '農場主は麦わら帽子を持ち上げた。「私はトーマスだ。港から戻ったらネリの様子を知らせてくれ。約束だよ」' },
             { id: 'excluded-secret', role: 'gm', excludedFromPrompt: true, content: 'HIDDEN_PROMISE_SECRET 港から戻ったらネリとの約束を知らせる農場主の名前' },
             ...recent,
         ]));
@@ -281,6 +281,9 @@ try {
         const action = '港から農場主に会いに戻り、ネリの様子を知らせる約束を果たします。名前を確認します。';
         const memoryPrompt = buildProductionPromptAssembly(action, 'codex-app-server').promptText;
         const inspector = buildGmPromptBreakdown(action);
+        if (!memoryPrompt.includes('user-edited') || !memoryPrompt.includes('not at the original turn time')) {
+            fail('actual prompt must identify inline edits as player corrections made at edit time');
+        } else { ok('actual prompt explains authored edit precedence alongside the corrected history'); }
         if (!memoryPrompt.includes('トーマス') || !inspector.memoryMatches.some(m => m.id === 'history:older-promise')) {
             fail('current request must retrieve an older promise despite a long unrelated recent conversation');
         } else if (memoryPrompt.includes('HIDDEN_PROMISE_SECRET')) {

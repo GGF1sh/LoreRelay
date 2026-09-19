@@ -21,6 +21,8 @@
 
 **1.89.5 候选版继续由 AI 操作、使用 Codex GM：** 久别重逢时曾出现错误姓名，修复并重启 Host 后，以不包含答案的同一问题重新询问，通过再次提供 29 回合前的记录，正确回答了托马斯的姓名与约定。另一个基于既有数据的独立测试场景确认了信任值 50→60、1 条记忆，以及重启或重放同一候选结果后不会重复发放奖励。奖励是信任而非金钱；物品交付条件不会自动判定，人物也不会自动注册为 NPC。[实际提供的历史、失败与修复后的验证及限制](docs/NPC_IDENTITY_PLAYCHECK.md)
 
+**1.89.6 候选版向 GM 提供公开地点与实际移动界面的目的地预览，** AI 在本机操作确认，GM 不会把训练场、岗哨等尚未确认的地点当作已有的移动目的地。对过去购买的回答依据既有界面交易记录（10 份小麦、支出 90 credits），余额仍为 608、货舱仍为空；但这些记录并不涵盖 GM 的所有交易，不能仅因没有记录就断定交易未发生。GM 段落中连续的字面字符 `\n\n` 仅在显示时修正，原文保持不变。[地点与购买历史的依据及验证范围](docs/GM_GROUNDING_PLAYCHECK.md)
+
 | 结束交易，迎接下一天 | 留下旅途中的风景 |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易后返回 Elda 商店的操作画面：余额 505、空货舱与结束一天的确认。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒险的南港，用 ComfyUI 生成的水边参考插图。" /></a> |

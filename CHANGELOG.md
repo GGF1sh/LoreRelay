@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.89.1] - 2026-09-19
+
+### Fixed
+- Arriving by water updates the linked mobile base dock together with the vessel and player. The world view and GM context now agree on the arrival port after save/reload.
+- Verify replay safety and rollback at every journal stage without changing save formats or adding settings.
+
+Patch play candidate following 1.89.0; no tag or Release published.
+
 ## [1.89.0] - 2026-09-19
 
 ### Changed

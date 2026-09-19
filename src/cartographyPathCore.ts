@@ -17,7 +17,8 @@ function normalizeRoot(root: string): string {
 }
 
 function isUnderRoot(real: string, root: string): boolean {
-    return real === root || real.startsWith(root + path.sep);
+    const relative = path.relative(root, real);
+    return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`));
 }
 
 function resolveRealFile(filePath: string): string | undefined {
@@ -75,12 +76,12 @@ export function validateCartographyOutputPath(
     }
     const normalized = path.normalize(outputPath);
     const expected = path.normalize(path.join(wsPath, expectedBasename));
-    if (normalized !== expected) {
+    if (path.relative(expected, normalized) !== '') {
         return undefined;
     }
     const root = normalizeRoot(wsPath);
     const parent = normalizeRoot(path.dirname(normalized));
-    if (parent !== root) {
+    if (path.relative(root, parent) !== '') {
         return undefined;
     }
     return normalized;
@@ -110,7 +111,7 @@ export function validateCartographyGeneratedImagePath(imagePath: string, wsPath:
         return undefined;
     }
     const root = normalizeRoot(wsPath);
-    if (normalizeRoot(path.dirname(real)) !== root) {
+    if (path.relative(root, normalizeRoot(path.dirname(real))) !== '') {
         return undefined;
     }
     return real;
@@ -128,7 +129,7 @@ export function validateCartographyOutputDir(outputDir: string, wsPath: string):
         return undefined;
     }
     const root = normalizeRoot(wsPath);
-    if (real !== root) {
+    if (path.relative(root, real) !== '') {
         return undefined;
     }
     return real;

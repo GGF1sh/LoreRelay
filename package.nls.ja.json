@@ -33,7 +33,7 @@
   "command.upgradeVehicleStateForGameplaySpine": "LoreRelay: vehicle_state を Gameplay Spine 用にアップグレード",
   "command.gameplaySpineRepairVehicle": "LoreRelay: Gameplay Spine で車両を修理",
   "config.textAdventure.locale.description": "Webview、拡張機能のメッセージ、GMストーリーテリング用プロンプトのUI言語。Webviewヘッダーのドロップダウンからも変更可能です。",
-  "config.textAdventure.skillPath.description": "comfyui_generate.py スクリプトへの絶対パス。",
+  "config.textAdventure.skillPath.description": "comfyui_generate.py の絶対パス（任意）。空欄ならワークスペースのスキルまたは同梱スクリプトを使います。",
   "config.textAdventure.imageGen.backend.description": "画像生成のバックエンド。すべてのオプションは ComfyUI API を使用します（接続先は imageGen.comfyuiUrl で設定します）。",
   "config.textAdventure.imageGen.comfyuiUrl.description": "ComfyUI または Stability Matrix サーバーのURL。ポートが8188以外の場合はここで変更してください。",
   "config.textAdventure.imageGen.checkpoint.description": "使用するモデル名（.safetensors）。'LoreRelay: List Image Models' コマンドで表示される名前を正確に指定してください。空にするとワークフローのデフォルトが使用されます。",

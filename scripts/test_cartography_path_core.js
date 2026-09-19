@@ -31,6 +31,16 @@ function ok(msg) { console.log(`OK: ${msg}`); }
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-cart-path-'));
 const forgePath = path.join(tmp, WORLD_FORGE_BASENAME);
 fs.writeFileSync(forgePath, '{"format":"lorerelay-world-forge/1.0"}', 'utf-8');
+if (process.platform === 'win32') {
+    const upper = value => value[0].toUpperCase() + value.slice(1);
+    const lower = value => value[0].toLowerCase() + value.slice(1);
+    const generated = path.join(tmp, 'world_map_aabbccdd.png'); fs.writeFileSync(generated, 'png');
+    if (!validateForgePathInWorkspace(upper(forgePath), lower(tmp))
+        || !validateCartographyOutputDir(upper(tmp), lower(tmp))
+        || !validateCartographyOutputPath(upper(path.join(tmp, WORLD_MAP_IMAGE_BASENAME)), lower(tmp), WORLD_MAP_IMAGE_BASENAME)
+        || !validateCartographyGeneratedImagePath(upper(generated), lower(tmp))) fail('Windows drive casing rejects owned cartography files');
+    else ok('Windows mixed drive casing retains cartography path ownership');
+}
 
 if (validateForgePathInWorkspace(forgePath, tmp)) {
     ok('accepts workspace world_forge.json');

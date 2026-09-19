@@ -3,6 +3,27 @@
 > **正本:** `package.json` + [`VERSION_TRUTH.md`](VERSION_TRUTH.md) + `src/gameRules.ts` の `DEFAULT_GAME_RULES`  
 > 初見向け。詳細履歴は [`CHANGELOG.md`](../CHANGELOG.md)。
 
+## 現在の入口（1.89.2 ソース）
+
+配布VSIXの機能は [VERSION_TRUTH.md](VERSION_TRUTH.md) で別に確認してください。以下は機能の入口であり、すべての組合せの実プレイ保証ではありません。
+
+| 遊びたいこと | 入口・対応範囲 | 注意・手順 |
+| --- | --- | --- |
+| 世界を作って始める | Start Hub → **世界を作りはじめる** → 世界生成セットアップ → プレビュー → **この世界を使う** | 種類・シード・規模・つながり・言語・有効な仕組みを確認して採用。主人公とGM接続は別に選ぶ |
+| 保存した冒険を再開 | Start Hub → 続ける | プレイ用フォルダを開く。復元・Undoは既存のTimeline/checkpoint経路 |
+| GMと話す | **LoreRelay: AI接続**、Parlor / In-World / Campaign | [接続・利用枠と確認範囲](AI_CONNECTIONS.md)。接続準備と応答成功を区別 |
+| 買う・売る・市場へ移動・日送り | 共通の「行動」／Action Hub | Commerceを有効化。確定結果が所持金・在庫へ反映される。自由な描写だけでは取引確定にならない |
+| 船と航路を選ぶ | ワールド → 航路・渡河 | [船・橋・渡し・移動拠点の停泊先](WATER_NAVIGATION.md)。市場移動は日送りと別操作 |
+| 依頼と人物との関係 | クエスト／NPC Registry／Campaign Kit | 完了は受理された `resolvedQuests` などの状態更新による。依頼文の報酬ヒントだけで金品が自動支給される保証はない |
+| イラスト地図を使う | 地図の画像取込・位置合わせ・主人公マーカー | [イラスト地図](ILLUSTRATED_MAPS.md)。画像とピン・地名は別レイヤー |
+| 場面画像を作る・戻す | **この場面を絵にする** → プロンプト → 外部生成 → 画像取込・採用 | [場面画像](VISUAL_COMPOSER_V1.md)。表示専用。GM記憶・世界の正本へ自動反映しない |
+| ローカルで画像生成 | 画像生成設定 → 用途テンプレート／キャラクターの立ち絵生成／ワールドの場所・地図生成 | [同梱workflow](../COMFYUI_WORKFLOWS.md)、[実機で確認した設定と保存先](COMFYUI_LOCAL_PLAYCHECK.md)。SDXL対応checkpoint、地図には対応ControlNetが必要 |
+| 拠点・車両の外観や内装 | **この拠点を絵にする**／**この車両を絵にする** | [設計図・参考PNGと取込](STRUCTURE_ART.md)。絵に描かれた施設はゲーム上で増えない |
+| 長い冒険を振り返る | Chronicle／Turn Inspector／リプレイ出力 | GMへ送った情報と予算内で省略された情報を確認。全記憶の無制限保持ではない |
+| 戦闘を試す | コマンドでBattle Viewを開始 | 実験中。物語からの自動開始や単体アバター直接操作UIは未提供 |
+
+以下は個別のルールと既定値です。新規世界では、選んだ生成オプションやシナリオが一部を有効化します。
+
 | Feature | Default (`game_rules`) | Status | Notes |
 |---------|------------------------|--------|-------|
 | AI GM / GM Bridge | ON (settings) | **stable** | Grok, vscode-lm, Ollama, etc. |
@@ -44,7 +65,7 @@
 
 | Goal | Path |
 |------|------|
-| First play | Start Hub → Try demo |
+| First play | Start Hub → 世界を作りはじめる → プレビュー → この世界を使う、または同梱シナリオ |
 | Living World | [`LIVING_WORLD_QUICKSTART.md`](LIVING_WORLD_QUICKSTART.md) + `sample-scenarios/trade-routes` |
 | Scavenger / Campaign Kit | [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md) + `sample-scenarios/scrapbound-settlement` |
 | Map / FoW | Cartography + `lost-catacombs` or generated world |
@@ -58,4 +79,4 @@ Living World + Chronicle + NPC blocks grow GM context. Mitigations today:
 - Turn Inspector shows budget breakdown
 - `scripts/test_prompt_context_budget.js`
 
-Future: priority-based sliding window / vector memory offload (partial eviction in v1.33; full sliding TBD).
+現在は優先度に基づくプロンプト予算内の省略・切詰めがあります。重要な制約は保持されますが、すべての詳細が毎ターン送られるわけではありません。Turn Inspectorで実際の送信情報を確認してください。

@@ -45,7 +45,7 @@
 | **赛博朋克故事。** 在霓虹照亮的世界里进行角色扮演。 | `neon-rain` |
 | **以经商为主轴的旅程。** 走访市场，在价格、库存和载重之间做交易选择。 | `trade-routes` |
 
-想自己搭舞台，也可以回答 Start Hub 的问题开始，或者直接带入已有的角色和世界设定。也支持 SillyTavern 角色卡与 Lorebook。
+想自己搭舞台，可以在 Start Hub 选择“开始建立世界”，设置世界类型、规模和连接密度，预览后选择“使用此世界”。也可以带入已有的角色和世界设定。也支持 SillyTavern 角色卡与 Lorebook。
 
 ### 想和一个角色慢慢聊，还是走进整个世界？
 
@@ -71,10 +71,22 @@
 
 1. **准备游玩环境。** 完成[安装](#setup)，然后打开一个专门用于游玩的文件夹。要体验最新功能，请从当前源码启动。
 2. **选择 GM。** 从命令面板打开 `LoreRelay: AI Connections`（日文 UI 为 `LoreRelay: AI接続`），完成所需连接的登录和设置。[不同连接与费用](#ai-connections)
-3. **选择舞台和角色。** 运行 `LoreRelay: Open Game UI` → 在 Start Hub 回答问题开始，或使用已有角色／世界。也可以从演示列表或 `LoreRelay: Load Scenario Pack` 选择内置场景。已有存档则选择 Continue。
+3. **选择舞台和角色。** 运行 `LoreRelay: Open Game UI` → Start Hub →“开始建立世界”，进入世界生成设置，预览后选择“使用此世界”。从主角创建入口建立主角，或选择已有角色。也可以从演示列表或 `LoreRelay: Load Scenario Pack` 选择内置场景。已有存档则选择 Continue。
 4. **发出第一句话。** 选择行动或直接输入自己的做法，然后确认 GM 的描写和已经确定的结果。启用 Commerce 的世界里，可以从统一的 Actions 入口进行交易、市场移动和结束一天。
 
 即使还没有连接 AI，也可以先显示场景的开场界面。要让 GM 继续推动故事，则需要先完成连接准备。不清楚设置方式时，请参阅 [AI Connections](docs/AI_CONNECTIONS.md)。
+
+### 在同一段冒险中确认图片和地图
+
+使用同一个航线演示世界和主角 Haruka，在隔离的 1.89.2 扩展 Host 与实际 Webview 中确认。场景、角色和地图由本地 ComfyUI 生成。开场文字是固定的验证素材，并非与 AI GM 的真实对话或人类游玩录像。 [设置、实测和验证范围](docs/COMFYUI_LOCAL_PLAYCHECK.md)
+
+| 场景插图 | 角色立绘 |
+| :---: | :---: |
+| ![真实Webview中的场景图](docs/assets/connection-playcheck-v1.89.2/scene.png) | ![真实Webview中的Haruka立绘](docs/assets/connection-playcheck-v1.89.2/character.png) |
+
+![同一世界的地图、地点与航线](docs/assets/connection-playcheck-v1.89.2/map.png)
+
+这张地图用于确认生成、导入和显示流程。河流与海岸的描绘仍不充分，不能作为准确还原地形的验证案例。地点和航线以叠加的游戏数据为准。
 
 <a id="screenshots"></a>
 

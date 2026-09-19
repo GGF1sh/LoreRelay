@@ -41,6 +41,14 @@ withTempDir((root) => {
   fs.writeFileSync(png, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 
   const allowed = resolveAllowedImagePath(png, [root]);
+  if (process.platform === 'win32') {
+    const upperDrive = value => value[0].toUpperCase() + value.slice(1);
+    const lowerDrive = value => value[0].toLowerCase() + value.slice(1);
+    if (!resolveAllowedImagePath(upperDrive(png), [lowerDrive(root)])
+        || !resolveAllowedImagePath(lowerDrive(png), [upperDrive(root)])
+        || !joinPathUnderRoot(lowerDrive(root), 'scene.png')) fail('Windows drive casing must not reject an owned image');
+    else ok('Windows mixed drive casing resolves the same owned image');
+  }
   if (allowed !== fs.realpathSync(png)) {
     fail('allows png under workspace root');
   } else {

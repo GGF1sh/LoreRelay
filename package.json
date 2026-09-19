@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
-  "version": "1.89.1",
+  "version": "1.89.2",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -315,7 +315,7 @@
         },
         "textAdventure.skillPath": {
           "type": "string",
-          "default": "C:\\AI\\TextAdventureGMSkill\\scripts\\comfyui_generate.py",
+          "default": "",
           "description": "%config.textAdventure.skillPath.description%"
         },
         "textAdventure.imageGen.backend": {

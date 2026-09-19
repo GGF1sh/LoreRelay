@@ -17,6 +17,7 @@ import { buildNpcTtsCatalog, countNpcVoices } from './ttsProviderCore';
 import { normalizeExternalProvider } from './ttsBridgeCore';
 import { isLocalTtsConfigured } from './ttsBridgeRunner';
 import { getEntriesByLocation } from './visualMemory';
+import { loadLocationImageCandidates } from './locationImageCandidates';
 import { safeImageUri } from './gameStateSync';
 import { toWebviewSafeMediaRef } from './mediaPaths';
 import { buildCartographyPinPositions, buildCartographyRegionLabels, buildCartographyRouteEdges } from './cartographyLayoutCore';
@@ -577,17 +578,23 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
     );
     const factions = forge.factions.map(serializeFaction);
 
-    // Location image history — up to 4 most-recent analyzed entries for current location
+    // Generated candidates stay presentation-only and are available even with VLM disabled.
+    const imageWorkspace = getWorkspacePath();
+    const generatedLocationImages = currentLocationId && imageWorkspace
+        ? loadLocationImageCandidates(imageWorkspace, cartographyWorldKey(forge), currentLocationId)
+            .map(e => ({ src: safeImageUri(e.imagePath) ?? '', rawImagePath: toWebviewSafeMediaRef(e.imagePath),
+                description: '', worldTurn: e.worldTurn })) : [];
     const locationImages = currentLocationId
-        ? getEntriesByLocation(currentLocationId)
-            .slice(0, 4)
+        ? [...generatedLocationImages, ...getEntriesByLocation(currentLocationId)
             .map((e) => ({
                 src: safeImageUri(e.imagePath) ?? '',
                 rawImagePath: toWebviewSafeMediaRef(e.imagePath),
                 description: e.description,
                 worldTurn: e.worldTurn,
-            }))
+            }))]
             .filter((e) => e.src)
+            .filter((e, i, all) => all.findIndex(other => other.src === e.src) === i)
+            .slice(0, 4)
         : [];
 
     // NPCs at current location with portrait URIs

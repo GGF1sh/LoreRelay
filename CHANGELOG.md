@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+## [1.89.2] - 2026-09-19
+
+### Fixed
+- Image generation defaults to a workspace or bundled script instead of a machine-specific legacy copy. Explicit custom scripts remain supported.
+- Location generation now retains display-only candidates, refreshes the location gallery, and preserves earlier images without adding visual memory or world facts.
+- Queued scene images retain their original location/turn and reject late adoption after world/timeline changes, source edits, replacement or cancellation. Pending work remains deduplicated across turns.
+- Accepted-turn images can queue before the history watcher catches up; unsaved stream hints cannot poison dedup. Regenerating an older entry preserves its recorded provenance.
+- Windows drive-letter casing no longer rejects owned portrait or cartography files; outside-workspace and symlink checks remain in force.
+
+### Documentation
+- Align all four README onboarding paths and the feature index with the current UI and the isolated ComfyUI verification.
+
+Patch play candidate following 1.89.1; no tag or Release published.
+
 ## [1.89.1] - 2026-09-19
 
 ### Fixed

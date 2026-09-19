@@ -29,7 +29,7 @@
   "command.upgradeVehicleStateForGameplaySpine": "LoreRelay: 將 vehicle_state 升級至 Gameplay Spine",
   "command.gameplaySpineRepairVehicle": "LoreRelay: 使用 Gameplay Spine 修理載具",
   "config.textAdventure.locale.description": "Webview、擴充功能訊息和 GM 敘事提示詞的 UI 語言。也可在 Webview 頭部下拉選單中修改。",
-  "config.textAdventure.skillPath.description": "comfyui_generate.py 腳本的絕對路徑。",
+  "config.textAdventure.skillPath.description": "comfyui_generate.py 的絕對路徑（選填）。留空時使用工作區技能或內建腳本。",
   "config.textAdventure.imageGen.backend.description": "圖像生成後端。所有選項均使用 ComfyUI API（端點透過 imageGen.comfyuiUrl 設定）。",
   "config.textAdventure.imageGen.comfyuiUrl.description": "ComfyUI 或 Stability Matrix 伺服器的 URL。若您的伺服器不在 8188 埠，請在此變更。",
   "config.textAdventure.imageGen.checkpoint.description": "要使用的 checkpoint (.safetensors) 名稱。請準確填寫 'LoreRelay: List Image Models' 提示的名稱。留空使用工作流預設值。",

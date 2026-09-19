@@ -93,6 +93,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_media_profile_compatibility.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_comfyui_workflow_catalog.js' },
     { category: 'unit', file: 'test_image_gen_settings_resolve.js', consumesCompiledOutput: true },
+    { category: 'unit', file: 'test_image_gen_runner_context.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_image_gen_model_suggest.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_comfyui_media_contract.py', runner: 'python' },
     { category: 'unit', file: 'test_comfyui_job_lifecycle.py', runner: 'python' },

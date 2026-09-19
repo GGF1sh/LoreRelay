@@ -90,6 +90,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         if (msg.type === 'locationImageGenEnd') {
             setWorldSceneImageBusy(false, !msg.success);
+            if (msg.success) vscode.postMessage({ type: 'requestState' });
         }
         if (msg.type === 'imageGenEnd' && worldSceneImagePending) {
             setWorldSceneImageBusy(false, !msg.success);

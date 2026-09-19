@@ -45,7 +45,7 @@ You do not have to write an entire world before you can play. The included scena
 | **A cyberpunk story.** Role-play beneath the neon glow. | `neon-rain` |
 | **A journey built around trade.** Visit markets and weigh price, stock and carrying capacity before you deal. | `trade-routes` |
 
-If you want your own setting, answer the Start Hub questions or bring an existing character and world. SillyTavern character cards and lorebooks are supported too.
+To create a setting, choose “Start building your world” in Start Hub, select the world type, scale and connection density, then preview it and choose “Use This World”. You can also bring existing characters and worlds. SillyTavern character cards and lorebooks are supported too.
 
 ### Stay with one character—or step out into the world?
 
@@ -71,10 +71,22 @@ Continue from the world you saved. Revisit conversation history, lorebooks and c
 
 1. **Get ready to play.** Follow [Installation](#setup), then open a dedicated play folder. To try the newest features, run the current source tree.
 2. **Choose your GM.** Open `LoreRelay: AI Connections` from the command palette and complete the login and setup for the connection you want. [AI options and pricing](#ai-connections)
-3. **Choose a world and character.** Run `LoreRelay: Open Game UI` → in Start Hub, answer the setup questions or use an existing character/world. You can also pick an included scenario from the demo group or `LoreRelay: Load Scenario Pack`. Use Continue for a saved world.
+3. **Choose a world and character.** Run `LoreRelay: Open Game UI` → Start Hub → “Start building your world” to open World Genesis Setup, preview the result and choose “Use This World”. Create a protagonist from the character creation entry or select an existing character. You can also pick an included scenario from the demo group or `LoreRelay: Load Scenario Pack`. Use Continue for a saved world.
 4. **Send the first line.** Choose an option or write your own action, then see the GM's narration and committed result. In worlds with Commerce enabled, the shared Actions entry opens trade, market travel and end day.
 
 A scenario's opening screen can appear before an AI is connected. Continuing the story with a GM requires a ready connection. If setup is unclear, see [AI Connections](docs/AI_CONNECTIONS.md).
+
+### Images and maps in the same adventure
+
+Captured in the isolated 1.89.2 extension Host and real Webview, using one navigation demo world and the protagonist Haruka. Scene, portrait and map images come from local ComfyUI. The opening passage is a fixed verification fixture, not an AI GM conversation or a recording of human play. [Settings, measurements and verification scope](docs/COMFYUI_LOCAL_PLAYCHECK.md)
+
+| Scene | Character |
+| :---: | :---: |
+| ![Scene in the real Webview](docs/assets/connection-playcheck-v1.89.2/scene.png) | ![Haruka in the real Webview](docs/assets/connection-playcheck-v1.89.2/character.png) |
+
+![Navigation and generated map in the same world](docs/assets/connection-playcheck-v1.89.2/map.png)
+
+The map verifies generation, import and display. Its rivers and coastlines are insufficiently depicted; it does not demonstrate accurate terrain reproduction. Locations and routes come from the overlaid game data.
 
 <a id="screenshots"></a>
 

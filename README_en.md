@@ -11,17 +11,19 @@ It is an open-source work in progress that runs in VS Code. Choose a supported A
 
 [What can I do?](#onboarding) · [Start your first adventure](#how-to-play) · [See more of the game](#screenshots) · [AI options & pricing](#ai-connections) · [Install](#setup)
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="Actual Management display showing AI conversation, the world map and trading state together." /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="South Port in the 1.89.3 candidate build, showing the current map location and a balance of 505." /></a></p>
 
-<p align="center"><sub>An actual 1.85.3 screen: follow an adventure through conversation, map and trade.</sub></p>
+<p align="center"><sub>An AI operated the actual game in the 1.89.3 candidate build. In the bundled trading world, Haruka bought wheat, traveled to South Port, sold it and returned. The opening passage on the left is bundled scenario text, not a new GM response.</sub></p>
 
-**[▶ Watch a 75-second slice of an adventure](docs/PUBLIC_LAUNCH_MEDIA.md)** — Talk to the GM → buy at the market → reopen the panel and check that the state is still there. Recorded in a sample world used for verification, with waits shortened.
+**500 → 489 → 505 credits.** We checked cargo and balances on screen, then advanced the day, accepted a quest, saved and resumed. Grok Build required a new login, so new NPC conversations, quest completion and rewards remain unverified. [Actual actions, generation prompts and verification scope](docs/GAMEPLAY_PLAYCHECK.md)
 
-| Where should I go next? | What should I buy—and bring home? |
+| Finish trading, then start the next day | Keep a view from the journey |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map showing region names, locations, faction areas and unexplored territory over a generated map." /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="Action Hub after a completed purchase: one wheat, 11 credits, market stock 49." /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="Trading controls after returning to Elda's Shop: balance 505, empty cargo and the end-day confirmation." /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="A waterfront reference illustration generated with ComfyUI at South Port in the same trading adventure." /></a> |
 
-<p align="center"><sub>The map is an earlier feature showcase; the trade screen shows a completed purchase in 1.85.3. Click an image to open it full-size.</sub></p>
+<p align="center"><sub>Left: the actual game screen operated by AI. Right: a ComfyUI-generated location image, not evidence of accurate terrain or building reconstruction. It was saved as a South Port candidate and displayed again after travel and a Host restart. This is distinct from human play.</sub></p>
+
+**[▶ Watch the earlier 1.85.3 demonstration in 75 seconds](docs/PUBLIC_LAUNCH_MEDIA.md)** — Talk to the GM → buy at the market → reopen the panel. Recorded in a sample world used for verification, with waits shortened.
 
 <a id="onboarding"></a>
 
@@ -71,12 +73,12 @@ Continue from the world you saved. Revisit conversation history, lorebooks and c
 
 1. **Get ready to play.** Follow [Installation](#setup), then open a dedicated play folder. To try the newest features, run the current source tree.
 2. **Choose your GM.** Open `LoreRelay: AI Connections` from the command palette and complete the login and setup for the connection you want. [AI options and pricing](#ai-connections)
-3. **Choose a world and character.** Run `LoreRelay: Open Game UI` → Start Hub → “Start building your world” to open World Genesis Setup, preview the result and choose “Use This World”. Create a protagonist from the character creation entry or select an existing character. You can also pick an included scenario from the demo group or `LoreRelay: Load Scenario Pack`. Use Continue for a saved world.
+3. **Choose a world and character.** Run `LoreRelay: Open Game UI` → Start Hub → “Start building your world” to open World Genesis Setup, preview the result and choose “Use This World”. After applying the world, choose “Create player character” or select an existing character. “Other ways to begin” → “Create New Protagonist” is another route. You can also pick an included scenario from the demo group or `LoreRelay: Load Scenario Pack`. Use Continue for a saved world.
 4. **Send the first line.** Choose an option or write your own action, then see the GM's narration and committed result. In worlds with Commerce enabled, the shared Actions entry opens trade, market travel and end day.
 
 A scenario's opening screen can appear before an AI is connected. Continuing the story with a GM requires a ready connection. If setup is unclear, see [AI Connections](docs/AI_CONNECTIONS.md).
 
-### Images and maps in the same adventure
+### Images and navigation verified earlier in 1.89.2
 
 Captured in the isolated 1.89.2 extension Host and real Webview, using one navigation demo world and the protagonist Haruka. Scene, portrait and map images come from local ComfyUI. The opening passage is a fixed verification fixture, not an AI GM conversation or a recording of human play. [Settings, measurements and verification scope](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 

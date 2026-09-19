@@ -9,7 +9,7 @@
 
 | 遊びたいこと | 入口・対応範囲 | 注意・手順 |
 | --- | --- | --- |
-| 世界を作って始める | Start Hub → **世界を作りはじめる** → 世界生成セットアップ → プレビュー → **この世界を使う** | 種類・シード・規模・つながり・言語・有効な仕組みを確認して採用。主人公とGM接続は別に選ぶ |
+| 世界を作って始める | Start Hub → **世界を作りはじめる** → 世界生成セットアップ → プレビュー → **この世界を使う** | 種類・シード・規模・つながり・言語・有効な仕組みを確認して採用。採用後に「主人公を作る」へ。GM接続は別に選ぶ |
 | 保存した冒険を再開 | Start Hub → 続ける | プレイ用フォルダを開く。復元・Undoは既存のTimeline/checkpoint経路 |
 | GMと話す | **LoreRelay: AI接続**、Parlor / In-World / Campaign | [接続・利用枠と確認範囲](AI_CONNECTIONS.md)。接続準備と応答成功を区別 |
 | 買う・売る・市場へ移動・日送り | 共通の「行動」／Action Hub | Commerceを有効化。確定結果が所持金・在庫へ反映される。自由な描写だけでは取引確定にならない |
@@ -66,6 +66,7 @@
 | Goal | Path |
 |------|------|
 | First play | Start Hub → 世界を作りはじめる → プレビュー → この世界を使う、または同梱シナリオ |
+| 実機プレイ記録 | [1.89.3: 交易・移動・画像・保存再開](GAMEPLAY_PLAYCHECK.md)。AI操作。Grok新規会話は再ログイン待ちで未確認 |
 | Living World | [`LIVING_WORLD_QUICKSTART.md`](LIVING_WORLD_QUICKSTART.md) + `sample-scenarios/trade-routes` |
 | Scavenger / Campaign Kit | [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md) + `sample-scenarios/scrapbound-settlement` |
 | Map / FoW | Cartography + `lost-catacombs` or generated world |

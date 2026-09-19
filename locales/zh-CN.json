@@ -1,4 +1,7 @@
 {
+  "webview.worldGenesis.nextStep": "创建主角后，选择行动或自由输入，开始冒险。与GM对话需要连接AI。",
+  "webview.worldGenesis.createPlayer": "创建主角",
+  "webview.worldGenesis.continueAdventure": "进入冒险界面",
   "webview.worldGenesis.error.preset-limit": "最多保存20个预设。可使用同名更新。",
   "webview.abilityWorkshop.addToLoadout": "加入配置",
   "webview.abilityWorkshop.catalogSummary": "内置（{builtin}）／自定义（{custom}）",

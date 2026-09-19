@@ -1,4 +1,7 @@
 {
+  "webview.worldGenesis.nextStep": "Create your player character, then choose an action or type your own. Talking with the GM requires an AI connection.",
+  "webview.worldGenesis.createPlayer": "Create player character",
+  "webview.worldGenesis.continueAdventure": "Open adventure",
   "webview.worldGenesis.error.preset-limit": "Up to 20 presets. Reuse a name to update it.",
   "extension.action.applyVehicleMigration": "Apply Migration",
   "extension.action.cancel": "Cancel",

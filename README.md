@@ -11,17 +11,19 @@ VS Codeで動く、開発中のオープンソース作品です。対応するA
 
 [どんな遊びができる？](#onboarding) · [最初の冒険を始める](#how-to-play) · [もっと画面を見る](#screenshots) · [使えるAI・料金](#ai-connections) · [インストール](#setup)
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="管理表示の実画面。AIとの会話、世界の地図、交易の状態を一緒に確認。" /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="1.89.3候補の南港。地図の現在地と残高505を表示。" /></a></p>
 
-<p align="center"><sub>言葉で進めた冒険を、会話・地図・交易の画面で確かめる。1.85.3の実画面。</sub></p>
+<p align="center"><sub>1.89.3候補のAIによる実機プレイ。同梱の交易世界と主人公ハルカで、小麦の購入・南港への移動・売却・帰還を確認。左側の導入文は同梱データで、新しいGM応答ではありません。</sub></p>
 
-**[▶ 75秒で、冒険のひとこまを見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — GMと話す → 市場で買う → 画面を開き直して続きを確認。動作確認用のサンプル世界で収録し、待ち時間を短縮した映像です。
+**500 → 489 → 505 credits。** 売買した荷物と残高を画面で確かめ、日送り・依頼受注・保存再開へ進みました。Grok Buildは再ログインが必要だったため、NPCとの新規会話と依頼完了・報酬は未確認です。[実際の操作・生成prompt・確認範囲](docs/GAMEPLAY_PLAYCHECK.md)
 
-| 次は、どこへ行こう？ | 何を買い、何を持ち帰ろう？ |
+| 商いを終えて、次の日へ | 旅先の風景を残す |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="購入確定後のAction Hub。小麦1、所持金11、市場在庫49。" /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後、Eldaの店へ帰還した取引操作画面。残高505、空の積荷、日送りの確認。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同じ交易冒険の南港でComfyUI生成した水辺の参考イラスト。" /></a> |
 
-<p align="center"><sub>地図は以前の機能紹介画面、取引は1.85.3の購入後です。画像はクリックで拡大できます。</sub></p>
+<p align="center"><sub>左はAI操作の実画面。右はComfyUI生成の場所画像で、地形や建物の正確な再現を示すものではありません。南港の候補として保存し、移動・Host再起動後の再表示を確認しました。人間のHuman Playとは区別します。</sub></p>
+
+**[▶ 以前の1.85.3の実演を75秒で見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — GMと話す → 市場で買う → 画面を開き直す。動作確認用のサンプル世界で収録し、待ち時間を短縮した映像です。
 
 ### 川から海へ、船に合う航路を選ぶ
 
@@ -89,12 +91,12 @@ ChatGPTなどで作った地図を取り込み、地名・地点・現在地を�
 
 1. **遊ぶ準備をする。** [インストール](#setup)を済ませ、専用のプレイ用フォルダを開きます。新しい機能を試す場合は現行ソースから起動します。
 2. **GMを選ぶ。** コマンドパレットから `LoreRelay: AI接続`（英語UIでは `LoreRelay: AI Connections`）を開き、使いたい接続のログインと設定を済ませます。[接続先と料金の違い](#ai-connections)
-3. **舞台とキャラクターを選ぶ。** `LoreRelay: Open Game UI` → Start Hubの「世界を作りはじめる」で世界生成セットアップを開き、プレビュー後に「この世界を使う」。主人公は「主人公を新規作成」から作るか、既存キャラクターを選びます。デモ群や `LoreRelay: Load Scenario Pack` から同梱シナリオも選べます。保存済みの世界は「続ける」へ。
+3. **舞台とキャラクターを選ぶ。** `LoreRelay: Open Game UI` → Start Hubの「世界を作りはじめる」で世界生成セットアップを開き、プレビュー後に「この世界を使う」。採用後の「主人公を作る」から作成するか、既存キャラクターを選びます。「ほかの始め方」→「主人公を新規作成」も使えます。デモ群や `LoreRelay: Load Scenario Pack` から同梱シナリオも選べます。保存済みの世界は「続ける」へ。
 4. **最初の一言を送る。** 選択肢か自由入力で行動し、GMの描写と結果を確かめます。交易を有効にした世界では、共通の「行動」から取引・市場移動・日送りへ進めます。
 
 シナリオの初期画面は、AIを接続する前にも表示できます。そこからGMと物語を進めるには接続準備が必要です。接続で迷ったら [AI Connections](docs/AI_CONNECTIONS.md) を参照してください。
 
-### 同じ冒険で、画像と地図を確かめる
+### 以前の1.89.2で確認した画像と航路
 
 1.89.2の隔離した拡張Host／実Webviewで、同じ航路デモ世界と主人公ハルカを使って確認しています。情景・人物・地図はローカルComfyUIで生成。導入文は検証用の固定文で、AI GMとの実会話や人間プレイの収録ではありません。 [生成設定・実測・確認範囲](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 

@@ -11,17 +11,19 @@
 
 [能怎么玩？](#onboarding) · [开始第一场冒险](#how-to-play) · [看看更多画面](#screenshots) · [可用 AI 与费用](#ai-connections) · [安装](#setup)
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="实际的管理界面：同时显示 AI 对话、世界地图和交易状态。" /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="1.89.3 候选版本中的南港，显示地图当前位置与余额 505。" /></a></p>
 
-<p align="center"><sub>1.85.3 的实际画面：用对话推进冒险，再从地图与交易界面确认世界的变化。</sub></p>
+<p align="center"><sub>由 AI 操作实际游戏的 1.89.3 候选版本游玩记录。在内置交易世界中，以主角 Haruka 购买小麦、前往南港、卖出并返回。左侧开场文字来自内置场景，并非新的 GM 回复。</sub></p>
 
-**[▶ 用 75 秒看一段冒险](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 对话 → 在市场购买 → 重新打开面板确认状态仍然保留。视频使用用于验证的示例世界录制，并缩短了等待时间。
+**500 → 489 → 505 credits。** 在画面中核对货物与余额后，继续完成了日推进、接取任务、保存与恢复游戏。Grok Build 需要重新登录，因此与 NPC 的新对话、任务完成及奖励尚未验证。[实际操作、生成提示词与验证范围](docs/GAMEPLAY_PLAYCHECK.md)
 
-| 下一站，去哪里？ | 买什么，又要带什么回去？ |
+| 结束交易，迎接下一天 | 留下旅途中的风景 |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map：在生成地图上显示区域名、地点、势力范围和未探索区域。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="完成购买后的 Action Hub：小麦 1、资金 11、市场库存 49。" /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易后返回 Elda 商店的操作画面：余额 505、空货舱与结束一天的确认。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒险的南港，用 ComfyUI 生成的水边参考插图。" /></a> |
 
-<p align="center"><sub>地图来自较早的功能展示，交易画面则是 1.85.3 中实际完成购买后的结果。点击图片可查看原尺寸。</sub></p>
+<p align="center"><sub>左图是 AI 操作的实际游戏画面。右图是 ComfyUI 生成的地点图片，不代表准确还原了地形或建筑。图片保存为南港的候选图，并确认了移动及 Host 重启后的重新显示。这与人类亲自游玩的 Human Play 区分记录。</sub></p>
+
+**[▶ 用 75 秒观看之前的 1.85.3 演示](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 对话 → 在市场购买 → 重新打开面板。视频使用用于验证的示例世界录制，并缩短了等待时间。
 
 <a id="onboarding"></a>
 
@@ -71,12 +73,12 @@
 
 1. **准备游玩环境。** 完成[安装](#setup)，然后打开一个专门用于游玩的文件夹。要体验最新功能，请从当前源码启动。
 2. **选择 GM。** 从命令面板打开 `LoreRelay: AI Connections`（日文 UI 为 `LoreRelay: AI接続`），完成所需连接的登录和设置。[不同连接与费用](#ai-connections)
-3. **选择舞台和角色。** 运行 `LoreRelay: Open Game UI` → Start Hub →“开始建立世界”，进入世界生成设置，预览后选择“使用此世界”。从主角创建入口建立主角，或选择已有角色。也可以从演示列表或 `LoreRelay: Load Scenario Pack` 选择内置场景。已有存档则选择 Continue。
+3. **选择舞台和角色。** 运行 `LoreRelay: Open Game UI` → Start Hub →“开始建立世界”，进入世界生成设置，预览后选择“使用此世界”。采用世界后，通过“创建主角”建立主角，或选择已有角色。也可以使用“其他开始方式”→“新建主角”。演示列表或 `LoreRelay: Load Scenario Pack` 提供内置场景。已有存档则选择 Continue。
 4. **发出第一句话。** 选择行动或直接输入自己的做法，然后确认 GM 的描写和已经确定的结果。启用 Commerce 的世界里，可以从统一的 Actions 入口进行交易、市场移动和结束一天。
 
 即使还没有连接 AI，也可以先显示场景的开场界面。要让 GM 继续推动故事，则需要先完成连接准备。不清楚设置方式时，请参阅 [AI Connections](docs/AI_CONNECTIONS.md)。
 
-### 在同一段冒险中确认图片和地图
+### 之前在 1.89.2 中验证的图片与航线
 
 使用同一个航线演示世界和主角 Haruka，在隔离的 1.89.2 扩展 Host 与实际 Webview 中确认。场景、角色和地图由本地 ComfyUI 生成。开场文字是固定的验证素材，并非与 AI GM 的真实对话或人类游玩录像。 [设置、实测和验证范围](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 

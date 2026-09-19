@@ -1412,22 +1412,42 @@ function addSystemMessage(text) {
 }
 
 // ===== ステータス更新 =====
+let lastNarrativeFunds;
+let lastNarrativeLocation;
+
+function renderStatusLocation(worldView) {
+  const id = worldView?.enabled === true ? worldView.currentLocationId : undefined;
+  const pins = Array.isArray(worldView?.locationPinCatalog) ? worldView.locationPinCatalog : [];
+  const pin = id ? pins.find(item => item.locationId === id) : undefined;
+  const location = id ? (pin?.locationName || id) : lastNarrativeLocation;
+  const value = document.getElementById('status-location');
+  const row = document.getElementById('status-row-location');
+  if (value) value.textContent = location || '';
+  if (row) row.style.display = location ? '' : 'none';
+}
+
+
+function renderStatusFunds(commerce, commerceEnabled) {
+  const funds = commerceEnabled && Number.isFinite(commerce?.credits)
+    ? `${commerce.credits} credits` : lastNarrativeFunds;
+  const value = document.getElementById('status-funds');
+  const row = document.getElementById('status-row-funds');
+  if (value) value.textContent = funds || '';
+  if (row) row.style.display = funds ? '' : 'none';
+}
+
 function updateStatus(status) {
+  lastNarrativeFunds = status?.funds;
+  lastNarrativeLocation = status?.location;
+  const worldView = typeof _worldViewMsg !== 'undefined' ? _worldViewMsg : null;
+  renderStatusLocation(worldView);
+  renderStatusFunds(worldView?.playerCommerce, worldView?.enabled !== false && worldView?.enableCommerce === true);
   const statusContent = document.getElementById('status-content');
   if (!status) {
     if (statusContent) statusContent.style.display = 'none';
     return;
   }
   if (statusContent) statusContent.style.display = '';
-
-  // Location
-  const locRow = document.getElementById('status-row-location');
-  if (status.location) {
-    document.getElementById('status-location').textContent = status.location;
-    if (locRow) locRow.style.display = '';
-  } else {
-    if (locRow) locRow.style.display = 'none';
-  }
 
   // Time
   const timeRow = document.getElementById('status-row-time');
@@ -1436,15 +1456,6 @@ function updateStatus(status) {
     if (timeRow) timeRow.style.display = '';
   } else {
     if (timeRow) timeRow.style.display = 'none';
-  }
-
-  // Funds
-  const fundsRow = document.getElementById('status-row-funds');
-  if (status.funds) {
-    document.getElementById('status-funds').textContent = status.funds;
-    if (fundsRow) fundsRow.style.display = '';
-  } else {
-    if (fundsRow) fundsRow.style.display = 'none';
   }
 
   // Dynamic Resources (HP, MP, Sanity, Shields, etc.)
@@ -8065,6 +8076,9 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function renderWorldView(msg) {
+    _worldViewMsg = msg;
+    renderStatusLocation(msg);
+    renderStatusFunds(msg.playerCommerce, msg.enabled === true && msg.enableCommerce === true);
     if (typeof updateNpcTtsFromWorldView === 'function') {
         updateNpcTtsFromWorldView(msg);
     }
@@ -8098,7 +8112,6 @@ function renderWorldView(msg) {
     }
 
     currentWorldLocationId = msg.currentLocationId;
-    _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
     renderWorldLocationNavigator();
     rebuildRegionFeedbackMap(msg);
@@ -10096,6 +10109,7 @@ function playerRoleLabel(role) {
 }
 
 function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, playerRoles, currentLocationId) {
+    renderStatusFunds(commerce, commerceEnabled);
     const section = document.getElementById('world-commerce-details');
     const panel = document.getElementById('world-commerce-panel');
     const hint = document.getElementById('world-commerce-hint');
@@ -24483,6 +24497,7 @@ function setWorldGenesisStatus(key, vars) {
 function invalidateWorldGenesisPreview() {
   worldGenesisPreviewAccepted = false;
   worldGenesisPreviewSummary = null;
+  document.getElementById('world-genesis-next-actions')?.classList.add('hidden');
   const preview = document.getElementById('world-genesis-preview');
   const apply = document.getElementById('world-genesis-apply-btn');
   if (preview) preview.classList.add('hidden');
@@ -24755,6 +24770,15 @@ function initStartHub() {
   if (worldGenesisBackBtn) {
     worldGenesisBackBtn.addEventListener('click', closeWorldGenesisSetup);
   }
+  document.getElementById('world-genesis-create-player-btn')?.addEventListener('click', () => {
+    closeWorldGenesisSetup();
+    resumeCurrentSession();
+    window.openCharacterCreator?.({ controlledBy: 'player' });
+  });
+  document.getElementById('world-genesis-continue-btn')?.addEventListener('click', () => {
+    closeWorldGenesisSetup();
+    resumeCurrentSession();
+  });
   if (worldGenesisPreset) {
     worldGenesisPreset.addEventListener('change', () => {
       updateWorldGenesisPresetDescription();
@@ -24920,7 +24944,7 @@ function initStartHub() {
 
   if (charNewBtn) {
     charNewBtn.addEventListener('click', () => {
-      window.openCharacterCreator?.(null);
+      window.openCharacterCreator?.({ controlledBy: 'player' });
     });
   }
 
@@ -25259,6 +25283,7 @@ window.addEventListener('message', (event) => {
       const apply = document.getElementById('world-genesis-apply-btn');
       if (apply) apply.disabled = true;
       setWorldGenesisStatus('webview.worldGenesis.applied', { worldName: msg.worldName || '' });
+      document.getElementById('world-genesis-next-actions')?.classList.remove('hidden');
     } else if (msg.status === 'canceled') {
       setWorldGenesisStatus('webview.worldGenesis.canceled');
     } else {

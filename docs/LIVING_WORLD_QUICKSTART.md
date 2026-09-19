@@ -26,10 +26,12 @@
 - **行動する → 一日を終える** は世界を1ターン進めます。確認画面の変化と消費を読んで確定します。
 - 世界の出来事からクエストが表示されたら **クエストを受ける** で受注できます。受注だけで達成・報酬を得たことにはなりません。
 
-GMとの会話には別途 [AI接続](AI_CONNECTIONS.md) が必要です。Inspectorのcontextプレビューは、実際にGMへ送信した記録とは区別してください。今回のGrokは再ログインが必要で、新規の実送信・返答・Accepted Turnは確認できませんでした。
+GMとの会話には別途 [AI接続](AI_CONNECTIONS.md) が必要です。Inspectorのcontextプレビューは、実際にGMへ送信した記録とは区別してください。Grok再ログインで止まった1.89.3の確認後、[1.89.4ではCodex GMの実送信・返答・Accepted Turn・依頼完了](REAL_GM_PLAYCHECK.md)、[1.89.5では別fixtureの信頼報酬](NPC_IDENTITY_PLAYCHECK.md)を確認しました。後者は金銭報酬や自動納品判定の実証ではありません。
 
 ## 保存と再開
 
 **チェックポイント** から名前を付けて保存します。同じフォルダでHostを再起動し、現在地・資産・進行中の依頼を確認してください。場所画像はその場所の候補として保存され、他の場所では非表示になります。
 
-[今回の実画面・生成設定・未確認範囲](GAMEPLAY_PLAYCHECK.md) · [ComfyUIの用途別ガイド](COMFYUI_LOCAL_PLAYCHECK.md)
+会話Undoは現在の交易資産・場所・依頼を保持します。取引や移動ごと戻す場合は操作前の完全checkpointを復元してください。Campaign等の「再生成」は確定済み行動の再送を防ぐため停止し、本文編集またはcheckpointを使います。[訂正と回復の範囲](RECOVERY_PLAYCHECK_2026-09-20.md)
+
+[1.89.3の実画面・生成設定・未確認範囲](GAMEPLAY_PLAYCHECK.md) · [ComfyUIの用途別ガイド](COMFYUI_LOCAL_PLAYCHECK.md)

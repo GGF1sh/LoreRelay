@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.89.8] - 2026-09-20
+
+### Fixed
+- Clear summary, background and portrait when a full history restore no longer contains them; preserve omitted fields during partial updates. Editing the cleared summary no longer sends removed narration back to the Host.
+
+Patch candidate after the cumulative 1.89.7 integration audit; no tag, Release or VSIX published.
+
 ## [1.89.7] - 2026-09-20
 
 ### Fixed

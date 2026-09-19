@@ -1124,16 +1124,20 @@ function applyGameState(state, fullHistory) {
     if (btn) btn.classList.add('active');
   }
 
-  // Summary
-  if (state.summary !== undefined) {
-    document.getElementById('story-summary').value = state.summary;
+  // Full history is a replacement, including absent optional presentation fields.
+  // Partial updates must retain fields that were not supplied.
+  if (state.summary !== undefined || fullHistory) {
+    document.getElementById('story-summary').value = state.summary ?? '';
   }
 
   if (state.background) {
     setSceneBackground(state.background);
+  } else if (fullHistory && bgLayer) {
+    bgLayer.style.backgroundImage = '';
+    bgLayer.className = `theme-${currentTheme}`;
   }
 
-  if (state.sprite) {
+  if (state.sprite || fullHistory) {
     setSceneSprite(state.sprite);
   }
 

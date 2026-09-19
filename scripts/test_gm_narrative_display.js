@@ -73,3 +73,57 @@ assert.equal(render(String.raw`引用 \" とタブ \t。\n\n続き。`).body,
   String.raw`引用 \" とタブ \t。` + '\n\n続き。', 'other JSON-style escapes must not be decoded');
 
 console.log('PASS GM narrative display: observed paragraphs, normal newlines, verbatim copy/history, role/code/path boundaries, HTML escaping.');
+
+// Exercise restoration through the actual state applier and summary input listener.
+// An absent summary must not remain editable and then be submitted back to the Host.
+const nodes = new Map();
+function restoredElement() {
+  const classes = new Set();
+  return { value: '', style: {}, children: [], listeners: {}, className: '',
+    classList: { add(...names) { names.forEach(n => classes.add(n)); }, remove(...names) { names.forEach(n => classes.delete(n)); }, contains(n) { return classes.has(n); } },
+    appendChild(child) { this.children.push(child); },
+    set innerHTML(value) { this.children = []; },
+    addEventListener(type, listener) { this.listeners[type] = listener; } };
+}
+const restoredNode = id => {
+  if (!nodes.has(id)) nodes.set(id, restoredElement());
+  return nodes.get(id);
+};
+const summaryMessages = [];
+const restored = vm.createContext({
+  document: { getElementById: restoredNode, createElement: restoredElement, querySelectorAll: () => [] },
+  window: {}, messageHistory: [], seenHiddenDiceIds: new Set(), currentTheme: 'fantasy',
+  bgLayer: restoredNode('background'), spriteLayer: restoredNode('sprite'), chatLog: restoredNode('chat'),
+  vscode: { postMessage(message) { summaryMessages.push(message); } },
+  saveState() {}, scrollToBottom() {},
+});
+vm.runInContext(source, restored);
+restored.updateStatus = () => {};
+restored.setGameOverOverlay = () => {};
+const saga = fs.readFileSync(path.join(root, 'webview/modules/50-character-saga.js'), 'utf8');
+const summaryListenerStart = saga.indexOf("document.getElementById('story-summary').addEventListener('input'");
+assert(summaryListenerStart >= 0);
+vm.runInContext(saga.slice(summaryListenerStart, saga.indexOf("document.getElementById('char-import-st-btn')", summaryListenerStart)), restored);
+const prior = Object.freeze({ entries: [], summary: 'Removed future fact', background: 'removed-background.png', sprite: 'removed-portrait.png' });
+restored.applyGameState(prior, true);
+restored.applyGameState({ entries: [] }, false);
+assert.equal(restoredNode('story-summary').value, prior.summary, 'partial updates keep omitted summary');
+assert.equal(restored.bgLayer.style.backgroundImage, 'url("removed-background.png")', 'partial updates keep background');
+assert.equal(restored.spriteLayer.children.length, 1, 'partial updates keep sprite');
+restored.applyGameState({ entries: [] }, true);
+assert.equal(restoredNode('story-summary').value, '', 'full restoration clears omitted summary');
+assert.equal(restored.bgLayer.style.backgroundImage, '', 'full restoration clears omitted background');
+assert.equal(restored.bgLayer.className, 'theme-fantasy', 'theme background replaces the removed scene');
+assert.equal(restored.spriteLayer.children.length, 0, 'full restoration clears omitted sprite');
+assert.equal(restored.spriteLayer.classList.contains('visible'), false);
+const summaryNode = restoredNode('story-summary');
+summaryNode.value += 'Player continuation';
+summaryNode.listeners.input({ target: summaryNode });
+assert.equal(summaryMessages.at(-1).type, 'updateSummary');
+assert.equal(summaryMessages.at(-1).summary, 'Player continuation', 'removed text cannot leak through a later summary edit');
+assert.equal(prior.summary, 'Removed future fact', 'display restoration does not rewrite saved source data');
+restored.applyGameState({ entries: [], summary: 'Restored fact', background: 'restored.png', sprite: 'restored-portrait.png' }, true);
+assert.equal(summaryNode.value, 'Restored fact', 'supplied restored values still apply');
+assert.equal(restored.bgLayer.style.backgroundImage, 'url("restored.png")');
+assert.equal(restored.spriteLayer.children.length, 1);
+console.log('PASS full-history presentation restoration: clear absent summary/background/sprite, retain partial updates, prevent summary resubmission.');

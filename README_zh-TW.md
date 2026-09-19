@@ -27,6 +27,8 @@
 
 作者備註只適用於下一次回覆。需要長期保留的設定或 GM 方針，請儲存為釘選的 Lorebook 條目：無需關鍵字，在停用或刪除前作為持續指示使用。優先把編輯過的歷史提供給 GM，並不保證回覆會遵循它。在 AI 操作實際 Host 的檢查中，即使已傳送訂正後的「黃銅風鈴」，GM 仍有回答「繩子」的情況。這些檢查與人類試玩分開記錄。[操作步驟、重啟／Undo 證據及限制](docs/RECOVERY_PLAYCHECK_2026-09-20.md)
 
+**1.89.8 候選版修正了還原完整歷史後，已刪除的摘要、背景和立繪仍殘留在畫面上的問題。** 編輯清空後的摘要不會再次傳送舊內容。一般的局部更新仍保留顯示內容。對話 Undo 與整個遊戲還原之間的區別不變。
+
 | 結束交易，迎接下一天 | 留下旅途中的風景 |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後返回 Elda 商店的操作畫面：餘額 505、空貨艙與結束一天的確認。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒險的南港，用 ComfyUI 生成的水邊參考插圖。" /></a> |

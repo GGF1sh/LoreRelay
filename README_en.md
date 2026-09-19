@@ -27,6 +27,8 @@ It is an open-source work in progress that runs in VS Code. Choose a supported A
 
 An author's note applies only to the next response. Save lasting facts or GM policies as pinned Lorebook entries: no keywords are required, and they remain continuing instructions until disabled or deleted. Prioritizing edited history in the GM's input does not guarantee that the reply follows it. During AI-operated checks in the real Host, the GM sometimes still answered “rope” after receiving the corrected “brass bell.” These checks are recorded separately from human play. [Steps, restart/Undo evidence and limits](docs/RECOVERY_PLAYCHECK_2026-09-20.md)
 
+**The 1.89.8 candidate clears removed summaries, backgrounds and portraits when restoring the full history.** Editing the cleared summary no longer resends old content. Ordinary partial updates retain the display. The distinction between conversation Undo and full-game restoration is unchanged.
+
 | Finish trading, then start the next day | Keep a view from the journey |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="Trading controls after returning to Elda's Shop: balance 505, empty cargo and the end-day confirmation." /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="A waterfront reference illustration generated with ComfyUI at South Port in the same trading adventure." /></a> |

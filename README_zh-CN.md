@@ -27,6 +27,8 @@
 
 作者备注只适用于下一次回复。需要长期保留的设定或 GM 方针，请保存为置顶的 Lorebook 条目：无需关键词，在禁用或删除前作为持续指示使用。优先把编辑过的历史提供给 GM，并不保证回复会遵循它。在 AI 操作实际 Host 的检查中，即使已发送纠正后的“黄铜风铃”，GM 仍有回答“绳子”的情况。这些检查与人类试玩分开记录。[操作步骤、重启／Undo 证据及限制](docs/RECOVERY_PLAYCHECK_2026-09-20.md)
 
+**1.89.8 候选版修复了恢复完整历史后，已删除的摘要、背景和立绘仍残留在画面上的问题。** 编辑清空后的摘要不会再次发送旧内容。普通的局部更新仍保留显示内容。对话 Undo 与整个游戏恢复之间的区别不变。
+
 | 结束交易，迎接下一天 | 留下旅途中的风景 |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易后返回 Elda 商店的操作画面：余额 505、空货舱与结束一天的确认。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒险的南港，用 ComfyUI 生成的水边参考插图。" /></a> |

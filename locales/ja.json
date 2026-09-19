@@ -1,4 +1,7 @@
 {
+  "webview.worldGenesis.nextStep": "主人公を用意して、選択肢か自由入力から冒険を始めましょう。GMとの会話にはAI接続が必要です。",
+  "webview.worldGenesis.createPlayer": "主人公を作る",
+  "webview.worldGenesis.continueAdventure": "冒険画面へ進む",
   "webview.worldGenesis.error.preset-limit": "保存は20件までです。同名で更新できます。",
   "extension.action.applyVehicleMigration": "移行を適用",
   "extension.action.cancel": "キャンセル",

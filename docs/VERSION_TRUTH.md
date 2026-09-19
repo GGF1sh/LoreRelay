@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.89.2** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.89.2]** |
+| `package.json` | **1.89.3** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.89.3]** |
 
-Version decision: patch; 1.89.1 → 1.89.2。既存のComfyUI生成・画像採用・遅延結果の接続を修正したプレイ候補です。タグ・Releaseは公開しません。
+Version decision: patch; 1.89.2 → 1.89.3。交易デモの移動先、主人公作成、世界採用後の導線、資金表示を修正した候補です。Draft PR段階で、タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

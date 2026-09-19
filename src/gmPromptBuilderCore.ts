@@ -277,6 +277,16 @@ export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
     return prompt;
 }
 
+/** Recent retained completions remain authoritative when retrieval finds an old request. */
+export function buildCompletedQuestContext(questHooks?: QuestHook[]): string {
+    const completed = (questHooks || []).filter(q => q.status === 'completed').slice(-5);
+    if (completed.length === 0) { return ''; }
+    return ['[Completed Quests — current saved state]',
+        ...completed.map(q => `ID: ${q.id} | completed | ${q.title.slice(0, 120)}`),
+        'These quests are already complete. This saved status overrides older dialogue. Do not ask the player to complete them again or reissue their rewards.'
+    ].join('\n');
+}
+
 export const MAX_FOG_PROMPT_REGION_NAMES = 5;
 export const MAX_FOG_PROMPT_CHARS = 120;
 

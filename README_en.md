@@ -19,6 +19,8 @@ It is an open-source work in progress that runs in VS Code. Choose a supported A
 
 **The 1.89.4 candidate continues the same adventure with Codex GM.** Across 24 real responses and 23 accepted turns, we exercised trading, quest completion, conversations after restart, and resupply of a past promise in the actual prompt. This was AI-operated play; separate quest rewards remain unverified, and character-name consistency remains a limitation. [Actual prompts, failures and limits](docs/REAL_GM_PLAYCHECK.md)
 
+**AI-operated play continued with Codex GM in the 1.89.5 candidate:** after a wrong name during a later reunion, the fix and a Host restart allowed the same question, without the answer in the input, to recover Thomas's name and promise from history supplied again 29 turns later. A separate existing fixture confirmed trust rising from 50 to 60, one memory entry, and no duplicate reward after restart or replay of the identical candidate. This reward is trust rather than cash; item delivery is not automatically validated, and characters are not automatically registered as NPCs. [Actual history supplied, failure and repair evidence, and limits](docs/NPC_IDENTITY_PLAYCHECK.md)
+
 | Finish trading, then start the next day | Keep a view from the journey |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="Trading controls after returning to Elda's Shop: balance 505, empty cargo and the end-day confirmation." /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="A waterfront reference illustration generated with ComfyUI at South Port in the same trading adventure." /></a> |

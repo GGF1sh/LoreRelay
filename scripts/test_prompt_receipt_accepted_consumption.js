@@ -227,6 +227,16 @@ try {
     }
     writeFixture();
 
+    const completedWorld = readWorldState();
+    completedWorld.questHooks = [{ id: 'quest_already_paid', title: 'Delivered grain', description: 'Old delivery',
+        status: 'completed', source: 'event', relatedId: 'event_old', turnGenerated: 1 }];
+    fs.writeFileSync(worldStateFile, JSON.stringify(completedWorld));
+    const completedPrompt = buildProductionPromptAssembly('Was the grain quest completed?', 'codex-app-server').promptText;
+    if (!completedPrompt.includes('ID: quest_already_paid | completed') || completedPrompt.includes('[Active Quest]')) {
+        fail('production must send current completed status without reviving an active quest');
+    } else { ok('production sends canonical completed quest status'); }
+    writeFixture();
+
     const originalHistory = gameStateSync.getGameEntryHistory;
     const historyFile = path.join(WS_PATH, 'game_history.json');
     try {
@@ -275,6 +285,23 @@ try {
             scripts.resolveGmBridgeScript = originalScript;
             mockConfigStore.textAdventure['memory.backend'] = 'tfidf';
         }
+        const correctionHistory = [
+            {id:'ask-orchard',role:'user',content:'Ask about orchard caretaker identification and introduce the caretaker.'},
+            {id:'wrong-orchard',role:'gm',content:'Old orchard caretaker identification and name. '.repeat(35)},
+            {id:'correct-orchard',role:'user',content:'Correction: AUTHORED_TRUE_NAME is the person we meant. This replaces the previous answer.'},
+            {id:'ack-orchard',role:'gm',content:'Acknowledged that correction.'},
+            {id:'distractor',role:'gm',content:'The orchard caretaker identification has been requested again in the orchard.'},
+        ];
+        fs.writeFileSync(historyFile, JSON.stringify(correctionHistory));
+        const corrected = buildProductionPromptAssembly('orchard caretaker identification', 'codex-app-server').promptText;
+        if (!corrected.includes('AUTHORED_TRUE_NAME') || !corrected.includes('[Following exchange')) {
+            fail('retrieved old reply must retain its immediately following correction within the compact budget');
+        } else { ok('compact production prompt retains the correction after a long old answer'); }
+        correctionHistory[3].excludedFromPrompt = true;
+        fs.writeFileSync(historyFile, JSON.stringify(correctionHistory));
+        if (buildProductionPromptAssembly('orchard caretaker identification', 'codex-app-server').promptText.includes('AUTHORED_TRUE_NAME')) {
+            fail('an excluded continuation must not be revived by surrounding-context hydration');
+        } else { ok('surrounding dialogue respects an excluded continuation'); }
     } finally {
         gameStateSync.getGameEntryHistory = originalHistory;
         fs.unlinkSync(historyFile);

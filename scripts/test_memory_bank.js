@@ -6,7 +6,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { tokenizeForDebug, matchMemories, loadMemoryChunks } = require('../out/memoryBank');
+const assert = require('assert');
+const { tokenizeForDebug, matchMemories, loadMemoryChunks, mergeMemoryMatches, MAX_MEMORY_BANK_CHUNKS } = require('../out/memoryBank');
 
 let failed = 0;
 function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
@@ -162,6 +163,73 @@ try {
 } finally { fs.rmSync(pairedWs, { recursive: true, force: true }); }
 
 const emptyWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-empty-'));
+const longWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-long-'));
+try {
+    const history = [
+        { id: 'meeting', role: 'user', content: '農場主のお名前は？' },
+        { id: 'meeting-answer', role: 'gm', content: '北の農場で麦を育てるトーマスだ。青いリボンを目印に、雨上がりの翌朝にまた会おう。' },
+        ...Array.from({ length: 40 }, (_, n) => [
+            { id: 'filler-' + n, role: 'user', content: '中央辻で陶工と焼き物の釉薬について話す。' },
+            { id: 'filler-answer-' + n, role: 'gm', content: '陶工は窯の温度と透明な釉薬を説明し、器の丈夫さを実演した。昨日焼いた皿の色も確認する。' },
+        ]).flat(),
+        { id: 'excluded', role: 'gm', content: 'HIDDEN_SECRET farmer name must never be sent again.', excludedFromPrompt: true },
+    ];
+    const write = (name, data) => fs.writeFileSync(path.join(longWs, name), JSON.stringify(data));
+    write('game_history.json', history);
+    const matches = matchMemories(longWs, '北の農場主との再会、名前と青いリボンの約束', 2);
+    assert(matches.some(c => c.id === 'history:meeting' && c.text.includes('トーマス')));
+    assert(!loadMemoryChunks(longWs).some(c => c.id === 'history:meeting-answer'), 'paired answer cannot crowd out a second meeting');
+    fs.mkdirSync(path.join(longWs, 'memories'));
+    write('memories/index.json', { chunks: [
+        { id: 'history:meeting', source: 'history', label: 'old', text: 'STALE_NAME' },
+        { id: 'history:excluded', source: 'history', label: 'hidden', text: 'HIDDEN_SECRET' },
+        { id: 'lore:farmer', source: 'lorebook', label: 'old', text: 'STALE_NAME' },
+        { id: 'lore:disabled', source: 'lorebook', label: 'disabled', text: 'DISABLED_LORE' },
+        { id: 'manual:extra', source: 'import', label: 'custom', text: 'A custom imported source remains available.' },
+    ]});
+    write('lorebook.json', { entries: [
+        { id: 'farmer', content: 'Explicit authored correction: the farmer is Thomas, not Harold.' },
+        { id: 'disabled', content: 'DISABLED_LORE', enabled: false },
+    ]});
+    write('world_info.json', { entries: [{ id: 'farmer', content: 'STALE_NAME from the fallback file' }] });
+    const current = loadMemoryChunks(longWs);
+    assert(current.some(c => c.id === 'manual:extra'), 'custom index sources are preserved');
+    assert(!current.some(c => /STALE_NAME|HIDDEN_SECRET|DISABLED_LORE/.test(c.text)), 'cached text cannot bypass current edits or exclusions');
+    const fused = mergeMemoryMatches(current, matchMemories(longWs, '農場主の青いリボン', 2), [
+        { id: 'history:excluded', source: 'history', text: 'HIDDEN_SECRET' },
+        { id: 'lore:farmer', source: 'lorebook', text: 'STALE_NAME' },
+    ], 2);
+    assert(fused.some(c => c.id === 'history:meeting'), 'live older dialogue survives a stale backend');
+    assert(!fused.some(c => /STALE_NAME|HIDDEN_SECRET/.test(c.text)), 'all backend matches use current source text');
+    const semanticOnly = mergeMemoryMatches(current, [], [
+        { id: 'history:meeting-answer', source: 'history', text: 'STALE_NAME' },
+        { id: 'history:meeting', source: 'history', text: 'STALE_NAME' },
+    ], 2);
+    assert.strictEqual(semanticOnly.length, 1, 'backend question and answer IDs share one retrieval slot');
+    assert.strictEqual(semanticOnly[0].id, 'history:meeting');
+    assert(semanticOnly[0].text.includes('トーマス'), 'answer-only backend match hydrates its current pair');
+    assert.strictEqual(current.filter(c => c.id === 'lore:farmer').length, 1);
+    assert(current.find(c => c.id === 'lore:farmer').text.includes('Thomas, not Harold'));
+    const correction = { id: 'correction', role: 'user', content: 'Explicit correction: Thomas is the farmer; Harold was a mistaken name, not another person.' };
+    const confirmation = { id: 'confirmed', role: 'gm', content: 'I understand. The original farmer is Thomas.' };
+    write('game_history.json', [...history.slice(0,2), correction, confirmation, ...history.slice(2)]);
+    assert(loadMemoryChunks(longWs).find(c => c.id === 'history:meeting').followingExchange.includes('Explicit correction'));
+    write('game_history.json', [...history.slice(0,2), correction, {...confirmation,excludedFromPrompt:true}]);
+    assert(!loadMemoryChunks(longWs).find(c => c.id === 'history:meeting').followingExchange, 'excluded continuation is not supplied');
+    write('game_history.json', [...history.slice(0,2), correction, {...correction,id:'retry'}, confirmation]);
+    assert(!loadMemoryChunks(longWs).find(c => c.id === 'history:meeting').followingExchange, 'do not jump over a failed/retried input');
+    // Undo/removal must not restore a departed timeline through an old index.
+    write('game_history.json', []);
+    assert(!loadMemoryChunks(longWs).some(c => c.source === 'history'));
+    write('game_history.json', Array.from({ length: MAX_MEMORY_BANK_CHUNKS + 20 }, (_, n) =>
+        ({ id: 'standalone-' + n, role: 'gm', content: 'Retained standalone dialogue is bounded even in a very long campaign. ' + n })));
+    const bounded = loadMemoryChunks(longWs);
+    assert(bounded.length <= MAX_MEMORY_BANK_CHUNKS);
+    assert(bounded.some(c => c.id === 'history:standalone-2019'));
+    assert(!fs.existsSync(path.join(longWs, 'npc_registry.json')), 'retrieval must not invent canonical NPCs');
+    ok('40-exchange recall, short questions, fresh sources, stale backend, undo and corpus bound');
+} finally { fs.rmSync(longWs, { recursive: true, force: true }); }
+
 try {
     const chunks = loadMemoryChunks(emptyWs);
     if (chunks.length !== 0) {

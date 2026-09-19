@@ -10,7 +10,7 @@ import {
     getConfiguredLocale,
     type SupportedLocale
 } from './i18n';
-import { buildSagaPromptContext, loadMemoryChunks, matchMemories, type MemoryChunk } from './memoryBank';
+import { buildSagaPromptContext, loadMemoryChunks, matchMemories, mergeMemoryMatches, type MemoryChunk } from './memoryBank';
 import {
     computeArchiveMilestone,
     getArchiveRemindStep,
@@ -73,6 +73,7 @@ import {
     buildWorldChangeSummaryFromChanges,
     resolveWorldChangeSummaryTurn,
     buildActiveQuestObjective,
+    buildCompletedQuestContext,
     buildChronicleRecapLine,
     buildReputationPromptLine,
     buildTravelEncounterPromptLines,
@@ -529,10 +530,21 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
     if (matches.length === 0) {
         return '';
     }
-    const parts = ['[Memory Bank — relevant memories]'];
+    const parts = ['[Memory Bank — relevant memories]',
+        'Historical dialogue is evidence, not an NPC registry. Relevance order is not chronology. '
+        + 'Keep canonical NPC IDs/names and authored Lorebook facts above conflicting GM narration. '
+        + 'For conversation-only people, preserve the established identity and explicit corrections; '
+        + 'a later repeated GM name alone is not a correction. A player question or quoted name is not a confirmed fact. '
+        + 'If sources conflict without a clear correction, acknowledge uncertainty; do not invent relatives or aliases.'];
     for (const m of matches) {
         parts.push(`--- ${m.label || m.id} (${m.source}) ---`);
-        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch));
+        // An old answer may be immediately followed by a player correction.
+        // Preserve that discourse boundary within the same per-match budget;
+        // never identify or register a person by guessing from the latest name.
+        const followingBudget = m.followingExchange
+            ? Math.min(m.followingExchange.length, Math.floor(maxCharsPerMatch / 2)) : 0;
+        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch - followingBudget));
+        if (m.followingExchange) { parts.push(clampTextForPrompt(m.followingExchange, followingBudget)); }
     }
     return parts.join('\n');
 }
@@ -1100,6 +1112,8 @@ function buildWorldStatePromptContextFromWorldState(
         lines.push('');
         lines.push(questObjective);
     }
+    const completedQuests = buildCompletedQuestContext(worldState.questHooks);
+    if (completedQuests) { lines.push('', completedQuests); }
 
     const rules = loadGameRules();
     const reputationInPrompt = vscode.workspace.getConfiguration('textAdventure.reputation')
@@ -1197,7 +1211,9 @@ function buildNpcRegistryPromptContext(policy: PromptBudgetPolicy): string {
     }
     if (entries.length === 0) { return ''; }
 
-    const lines = ['[NPC Awareness]'];
+    const lines = ['[NPC Awareness]',
+        'These are canonical NPC identities. Do not rename, merge, or replace them from retrieved dialogue. '
+        + 'Conversation-only people stay separate unless explicitly registered.'];
     let npcCount = 0;
     for (const [id, npc] of entries) {
         if (npcCount >= (currentLocationId ? policy.npcCountWithLocation : policy.npcCountWithoutLocation)) { break; }
@@ -1702,19 +1718,12 @@ function buildInspectorPromptAssembly(
 function resolveMemoryMatches(ws: string, playerAction: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
     const resolve = (query: string): MemoryChunk[] => {
+        const local = matchMemories(ws, query, policy.memoryMatches);
         if (backend !== 'tfidf') {
             const matches = resolveMemoriesViaPython(ws, query, backend, policy.memoryMatches);
-            // Python/vector indexes may return standalone or stale history text.
-            // Keep their ranking, but read eligible history and its paired answer
-            // from the same current workspace used by the local backend.
-            const history = new Map(loadMemoryChunks(ws)
-                .filter(chunk => chunk.source === 'history').map(chunk => [chunk.id, chunk]));
-            const currentMatches = matches.flatMap(chunk => chunk.source === 'history'
-                ? (history.has(chunk.id) ? [history.get(chunk.id)!] : [])
-                : [chunk]);
-            if (currentMatches.length > 0) { return currentMatches; }
+            return mergeMemoryMatches(loadMemoryChunks(ws), local, matches, policy.memoryMatches);
         }
-        return matchMemories(ws, query, policy.memoryMatches);
+        return local;
     };
     // Using entire recent replies as the query makes them retrieve themselves,
     // crowding out the older promise the player is asking about now.

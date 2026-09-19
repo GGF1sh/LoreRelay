@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.89.4** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.89.4]** |
+| `package.json` | **1.89.5** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.89.5]** |
 
-Version decision: patch; 1.89.3 → 1.89.4。実AI GMプレイで再現した暗黙の日送りと、取引命令の採用漏れを修正した候補です。PR #148をbaseとするDraft段階で、タグ・Releaseは公開しません。
+Version decision: patch; 1.89.4 → 1.89.5。実AI GMプレイで再現した人物の取り違えに対し、保存済み会話の検索範囲・本文の鮮度・正本と会話の区別を修正した互換候補です。PR #149をbaseとするDraft段階で、タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

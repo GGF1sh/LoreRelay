@@ -19,6 +19,8 @@
 
 **1.89.4 候选版通过 Codex GM 继续同一次冒险。** 记录了 24 次真实回复、23 个已接受回合，验证了交易、任务完成、重启后的对话，以及通过实际提示词重新提供过去的约定。这是 AI 操作的试玩；独立任务奖励尚未验证，人物姓名的一致性仍有问题。[实际提示词、失败记录与确认限制](docs/REAL_GM_PLAYCHECK.md)
 
+**1.89.5 候选版继续由 AI 操作、使用 Codex GM：** 久别重逢时曾出现错误姓名，修复并重启 Host 后，以不包含答案的同一问题重新询问，通过再次提供 29 回合前的记录，正确回答了托马斯的姓名与约定。另一个基于既有数据的独立测试场景确认了信任值 50→60、1 条记忆，以及重启或重放同一候选结果后不会重复发放奖励。奖励是信任而非金钱；物品交付条件不会自动判定，人物也不会自动注册为 NPC。[实际提供的历史、失败与修复后的验证及限制](docs/NPC_IDENTITY_PLAYCHECK.md)
+
 | 结束交易，迎接下一天 | 留下旅途中的风景 |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易后返回 Elda 商店的操作画面：余额 505、空货舱与结束一天的确认。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒险的南港，用 ComfyUI 生成的水边参考插图。" /></a> |

@@ -10,7 +10,7 @@
   const backdrop = document.getElementById('genesis-guide-backdrop');
   const modal = document.getElementById('genesis-guide-modal');
   const closeBtn = document.getElementById('genesis-guide-close');
-  const heroCta = document.getElementById('genesis-hero-cta');
+  const heroGuideBtn = document.getElementById('genesis-hero-guide-btn');
 
   if (!modal) return;
 
@@ -484,7 +484,7 @@
   window.LoreRelay = window.LoreRelay || {};
   window.LoreRelay.openGenesisGuide = openGenesisGuide;
 
-  if (heroCta) heroCta.addEventListener('click', openGenesisGuide);
+  if (heroGuideBtn) heroGuideBtn.addEventListener('click', openGenesisGuide);
   if (closeBtn) closeBtn.addEventListener('click', closeGenesisGuide);
   if (backdrop) backdrop.addEventListener('click', closeGenesisGuide);
 

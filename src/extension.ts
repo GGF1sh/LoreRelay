@@ -1825,6 +1825,7 @@ async function handlePreviewWorldGenesis(raw: Record<string, unknown>, reroll: b
                 regionCount: normalized.input.regionCount,
                 factionCount: normalized.input.factionCount,
                 npcCount: normalized.input.npcCount,
+                connectionDensity: normalized.input.connectionDensity,
                 experience: normalized.input.experience,
             },
             summary: worldGenesisPreviewSession.summary,

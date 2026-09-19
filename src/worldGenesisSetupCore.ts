@@ -61,6 +61,7 @@ export interface WorldGenesisPreviewSummary {
     factionCount: number;
     npcCount: number;
     connectionDensity: WorldConnectionDensity;
+    routeCount: number;
     sampleRegionNames: string[];
     warnings: string[];
 }
@@ -226,6 +227,10 @@ export function previewWorldGenesis(input: NormalizedWorldGenesisInput): WorldGe
             factionCount: generated.forge.factions.length,
             npcCount: generated.forge.initialNpcs.length,
             connectionDensity: normalizeWorldConnectionDensity(input.connectionDensity),
+            routeCount: generated.forge.geography.regions.reduce(
+                (count, region) => count + (region.connectedTo?.length ?? 0),
+                0
+            ) / 2,
             sampleRegionNames: generated.forge.geography.regions.slice(0, 4).map(region => region.name),
             warnings: [...generated.warnings],
         },

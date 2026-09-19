@@ -357,7 +357,7 @@ function findGalleryIndexByImagePath(imagePath) {
   const backdrop = document.getElementById('genesis-guide-backdrop');
   const modal = document.getElementById('genesis-guide-modal');
   const closeBtn = document.getElementById('genesis-guide-close');
-  const heroCta = document.getElementById('genesis-hero-cta');
+  const heroGuideBtn = document.getElementById('genesis-hero-guide-btn');
 
   if (!modal) return;
 
@@ -831,7 +831,7 @@ function findGalleryIndexByImagePath(imagePath) {
   window.LoreRelay = window.LoreRelay || {};
   window.LoreRelay.openGenesisGuide = openGenesisGuide;
 
-  if (heroCta) heroCta.addEventListener('click', openGenesisGuide);
+  if (heroGuideBtn) heroGuideBtn.addEventListener('click', openGenesisGuide);
   if (closeBtn) closeBtn.addEventListener('click', closeGenesisGuide);
   if (backdrop) backdrop.addEventListener('click', closeGenesisGuide);
 
@@ -24505,7 +24505,9 @@ function applyWorldGenesisInput(input) {
     'world-genesis-region-count': input.regionCount,
     'world-genesis-faction-count': input.factionCount,
     'world-genesis-npc-count': input.npcCount,
-    'world-genesis-connection-density': input.connectionDensity || 'normal',
+    'world-genesis-connection-density': input.connectionDensity === 'sparse' || input.connectionDensity === 'dense'
+      ? input.connectionDensity
+      : 'normal',
   };
   Object.entries(values).forEach(([id, value]) => {
     const el = document.getElementById(id);
@@ -24564,6 +24566,9 @@ function renderWorldGenesisPreview(summary) {
       ? 'webview.worldGenesis.connectionDense'
       : 'webview.worldGenesis.connectionNormal';
   addWorldGenesisFact(facts, T(densityKey), 'webview.worldGenesis.connectionDensity');
+  if (Number.isFinite(summary.routeCount)) {
+    addWorldGenesisFact(facts, summary.routeCount, 'webview.worldGenesis.routeCount');
+  }
 
   composition.innerHTML = '';
   (summary.regionComposition || []).forEach((entry) => {
@@ -24582,6 +24587,9 @@ function renderWorldGenesisPreview(summary) {
   }
   preview.classList.remove('hidden');
   apply.disabled = !worldGenesisPreviewAccepted || worldGenesisApplying;
+  const current = document.getElementById('world-genesis-current-overview');
+  if (current) current.open = false;
+  preview.scrollIntoView({ block: 'nearest' });
 }
 
 function setWorldGenesisApplying(applying) {
@@ -24722,6 +24730,10 @@ function initStartHub() {
     });
   }
 
+  const heroCta = document.getElementById('genesis-hero-cta');
+  if (heroCta) {
+    heroCta.addEventListener('click', openWorldGenesisSetup);
+  }
   if (worldGenesisBtn) {
     worldGenesisBtn.addEventListener('click', openWorldGenesisSetup);
   }

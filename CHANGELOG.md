@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [1.88.4] - 2026-09-19
+
+### Fixed
+- Start Hub hero opens World Genesis Setup (seed, routes, preview) instead of the rules Guide. The Guide remains a secondary “ask the guide” action.
+- World Genesis preview keeps the chosen route density, shows the link count, and collapses the current-world map so sparse/dense graphs are comparable.
+- Command Palette titles include both Japanese and English so `ゲームUI` and `Open Game UI` match in either display language.
+
+Patch human-test candidate following 1.88.3; refresh Symbol Registry after integrating fixed-settlement GM context. No tag or Release published.
+
 ## [1.88.3] - 2026-09-15
 
 ### Fixed

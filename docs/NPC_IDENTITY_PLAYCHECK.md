@@ -2,6 +2,8 @@
 
 2026-09-20 JST。**AIによる実機プレイ**であり、ユーザー本人のHuman Playではない。PR #149 の `045229e9efd6f2706005fd6e49ec1ae4272733e1`（1.89.4）からの差分。最終実行コードは `209dc478f5cbda573db181752eb108261a1e2620`。この後のREADME・証拠追加では実行コードを変更していない。
 
+[Draft PR #150](https://github.com/GGF1sh/LoreRelay/pull/150)／[版・PR別のDrive証拠](https://drive.google.com/drive/folders/1yvXNL2TnW1JfhEXUjaIsY8VV7HkE8xoV)。最終HEADはDriveの`00_最初に読む.md`とPRで確認できる。CIはmain/master対象のため、このstacked branchでは発火しない。
+
 主冒険は前回のハルカ／`trade-routes`を専用コピーで継続し、**実GM 31応答・31 Accepted**。別の既存報酬fixtureでは **5応答・5 Accepted**。36件すべてで保存した実送信promptのSHA-256と採用レシートが一致した。GMは既存認証の `codex-app-server / gpt-5.6-terra / medium`、クライアント報告値 `0.153.4`。開発担当は `gpt-6-astra / ultra`。Grokへの再ログインや別APIへの切替は行っていない。
 
 ## 再会で分かったこと
@@ -14,7 +16,7 @@
 | 28ターン差で農場へ戻る（30） | **失敗**。回答を含まない事前固定の質問に対し、再びハロルド／目印・時期なし。実送信contextでは古い誤回答が上位に入り、訂正会話は検索枠の外だった。 |
 | 修正して再起動し、同じ質問を再送（31、訂正から29ターン差） | **成功**。トーマス、農場主、North Farm、ハルカとの関係、青いリボン、雨上がりの翌朝を回答。古い発言の直後にある「次のプレイヤー入力＋GM回答」を同じ検索結果の文字数枠内へ添え、明示的訂正を実送信contextへ戻した。 |
 
-主冒険は最初の送信から最終回答まで約38分（修正・再起動を含む）。1は基準版、2〜26は `eacc950`、27〜30は `ed2299f`、31と報酬fixtureは `209dc47`。全31応答を最終コード上で実施したという意味ではない。途中の通常検索にも人物情報が再供給されており、「29ターン一度も情報を渡さずに覚えていた」という試験ではない。
+主冒険は最初の送信から最終回答まで約38分（修正・再起動を含む）。UI送信から応答までの待ち時間合計は主冒険585.986秒、別fixture100.872秒。1は基準版、2〜26は `eacc950`、27〜30は `ed2299f`、31と報酬fixtureは `209dc47`。全31応答を最終コード上で実施したという意味ではない。途中の通常検索にも人物情報が再供給されており、「29ターン一度も情報を渡さずに覚えていた」という試験ではない。
 
 実際の [訂正入力・応答](assets/npc-identity-v1.89.5/main-02-correction/reply.txt)、[28ターン差の失敗prompt](assets/npc-identity-v1.89.5/main-30-failed/prompt.txt)、[失敗応答](assets/npc-identity-v1.89.5/main-30-failed/reply.txt)、[修正後の実送信prompt](assets/npc-identity-v1.89.5/main-31-fixed/prompt.txt)、[成功応答](assets/npc-identity-v1.89.5/main-31-fixed/reply.txt)を保存した。正解を補ったのは2の一度で、30と31の入力は同一。
 

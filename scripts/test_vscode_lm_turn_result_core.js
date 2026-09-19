@@ -29,6 +29,40 @@ const {
 const { applyStatePatch, mergeGmEntryFromTurn } = require(path.join(root, 'out', 'statePatch.js'));
 
 try {
+    const assert = require('assert/strict');
+    for (const wrapped of [false, true]) {
+        const commands = {
+            tradeOps: [{ op: 'buy', marketLocationId: 'north_farm', commodityId: 'wheat', qty: 10 }],
+            elapsedWorldTurns: 0,
+            resolvedQuests: ['quest_supply', 'quest_supply', '../invalid'],
+            reputationOps: [{ factionId: 'port_buyers', delta: 3 }],
+        };
+        const json = { entries: [{ content: 'Confirmed transaction.' }],
+            ...(wrapped ? { turn_result: { ...commands, promptReceipt: { receiptId: 'untrusted' }, turnId: 'forged' } } : commands) };
+        const candidate = buildVscodeLmTurnResult({ prev: {}, llmJson: json, narrative: '', turnId: 'turn-5', locale: 'ja',
+            promptReceipt: { receiptId: 'host-receipt', provider: 'codex-app-server', assemblyDigest: 'host-digest' } });
+        assert.deepEqual(candidate.tradeOps, commands.tradeOps);
+        assert.equal(candidate.elapsedWorldTurns, 0);
+        assert.deepEqual(candidate.resolvedQuests, ['quest_supply']);
+        assert.equal(candidate.reputationOps[0].delta, 3);
+        assert.equal(candidate.turnId, 'turn-5');
+        assert.equal(candidate.promptReceipt.receiptId, 'host-receipt');
+        const projection = mergeVscodeLmGameState({}, json, '', 'turn-5', 'ja');
+        for (const key of ['tradeOps', 'elapsedWorldTurns', 'resolvedQuests', 'reputationOps', 'turn_result']) {
+            assert.equal(key in projection, false, `${key} is a command, not game state`);
+        }
+        ok(`real GM command envelope preserved (${wrapped ? 'nested' : 'top-level'}) without authority injection`);
+    }
+    const invalidCommands = buildVscodeLmTurnResult({ prev: {}, llmJson: {
+        turn_result: { elapsedWorldTurns: -4, tradeOps: [{op:'buy',qty:-1}], resolvedQuests:[null,'../path'], reputationOps:[{factionId:'port',delta:'3'}] }
+    }, narrative: 'Talk.', turnId:'turn-6', locale:'ja' });
+    assert.equal(invalidCommands.elapsedWorldTurns, 0);
+    assert.equal(invalidCommands.tradeOps, undefined);
+    assert.equal(invalidCommands.resolvedQuests, undefined);
+    assert.equal(invalidCommands.reputationOps, undefined);
+    const restCommand = buildVscodeLmTurnResult({prev:{},llmJson:{turn_result:{elapsedWorldTurns:1}},narrative:'Rest overnight.',turnId:'turn-7',locale:'ja'});
+    assert.equal(restCommand.elapsedWorldTurns,1);
+    ok('invalid commands filtered and explicit overnight time preserved');
     const prev = {
         status: { location: 'town', hp: { current: 20, max: 20 } },
         options: ['look'],

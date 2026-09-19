@@ -270,7 +270,7 @@ export function buildActiveQuestObjective(questHooks?: QuestHook[]): string {
     if (!active) return '';
     const title = active.title.slice(0, 120);
     const objective = active.description.slice(0, 600);
-    let prompt = `[Active Quest]\nTitle: ${title}\nObjective: ${objective}\n(GM MUST advance or react to this quest if the player pursues it.)`;
+    let prompt = `[Active Quest]\nID: ${active.id}\nTitle: ${title}\nObjective: ${objective}\n(GM MUST advance or react to this quest if the player pursues it. When its objective is actually satisfied, include this exact ID in turn_result.resolvedQuests. Dialogue alone is not evidence that an uncommitted delivery or trade happened.)`;
     if (active.source === 'campaign' && active.factionId) {
         prompt += `\n(When player completes this quest, output reputationOps: [{ factionId: "${active.factionId}", delta: <value> }] to reward them based on performance.)`;
     }

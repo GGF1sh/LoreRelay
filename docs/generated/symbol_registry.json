@@ -26676,7 +26676,7 @@
       "name": "worldView",
       "kind": "messageType",
       "sourcePath": "src/worldView.ts",
-      "line": 540,
+      "line": 543,
       "signature": "type: \"worldView\" (host-to-webview)",
       "public": "protocol",
       "boundary": "host-webview",

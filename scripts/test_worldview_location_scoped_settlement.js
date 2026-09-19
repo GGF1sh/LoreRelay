@@ -302,6 +302,15 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-wv-slice1-'));
         const a = push('loc_sapphire_port');
         const b = push('loc_mistgrove');
         const c = push('loc_sapphire_port');
+        const savedPath = path.join(ws, 'game_state.json');
+        const saved = fs.existsSync(savedPath) ? JSON.parse(fs.readFileSync(savedPath, 'utf8')) : {};
+        saved.world = { ...saved.world, currentLocationId: 'loc_mistgrove' };
+        fs.writeFileSync(savedPath, JSON.stringify(saved));
+        const refresh = push();
+        check(refresh.currentLocationId === 'loc_mistgrove', '1g argument-free refresh reads saved player location');
+        check(refresh.settlementView?.settlementId === 'set_grove', '1h all location projections follow saved player');
+        check(push('loc_sapphire_port').currentLocationId === 'loc_sapphire_port', '1i explicit location remains supported');
+
 
         check(a && a.enabled === true && a.settlementView?.settlementId === 'set_port', '1a port settlementId');
         check(b && b.settlementView?.settlementId === 'set_grove', '1b grove settlementId');

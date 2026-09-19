@@ -26,6 +26,7 @@ const {
     resolvePromptBudgetPolicy,
     buildFogUnexploredPromptLine,
     buildNarrativeTimePromptBlock,
+    buildActiveQuestObjective,
     ELAPSED_WORLD_TURNS_PROMPT_LINE,
     MAX_HINT_TEXT_CHARS,
     MAX_WORLD_CHANGE_SUMMARY_LINES,
@@ -201,6 +202,16 @@ const {
         fail('narrative time block should include beat density rules');
     } else {
         ok('buildNarrativeTimePromptBlock emergent');
+    }
+}
+
+{
+    const line = buildActiveQuestObjective([{id:'quest_supply',title:'Supply',description:'Deliver grain.',status:'active',source:'event'}]);
+    if (!line.includes('ID: quest_supply') || !line.includes('turn_result.resolvedQuests')) {
+        fail('active quest supplies its canonical completion identity');
+    } else { ok('active quest supplies its canonical completion identity'); }
+    if (buildActiveQuestObjective([{id:'quest_done',title:'Old',description:'Done.',status:'completed',source:'event'}]) !== '') {
+        fail('completed quest must not remain the active objective');
     }
 }
 

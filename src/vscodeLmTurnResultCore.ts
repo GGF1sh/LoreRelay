@@ -3,6 +3,10 @@
 import { buildStatePatchFromDiff } from './statePatch';
 import { attachTurnResultPromptReceipt } from './promptReceiptCore';
 import { parseEncounterTurnOps } from './combatEncounterTurnOpsCore';
+import { parseTradeOps } from './commerceCore';
+import { parseReputationOps } from './factionReputationCore';
+import { clampElapsedWorldTurns } from './narrativeTimePassageCore';
+import { isValidEventId } from './worldEventLogCore';
 import type { DiceLedgerEntry, TurnResult, TurnResultPromptReceiptMeta } from './types/TurnResult';
 
 export interface VscodeLmGmJson {
@@ -19,6 +23,16 @@ export interface VscodeLmGmJson {
     profileUpdates?: Array<{ characterId: string; dynamicProfile: string }>;
     gameOver?: { active: boolean; message?: string; victory?: boolean };
     encounterOps?: unknown;
+    elapsedWorldTurns?: unknown;
+    tradeOps?: unknown;
+    resolvedQuests?: unknown;
+    reputationOps?: unknown;
+    turn_result?: {
+        elapsedWorldTurns?: unknown;
+        tradeOps?: unknown;
+        resolvedQuests?: unknown;
+        reputationOps?: unknown;
+    };
 }
 
 const DEFAULT_OPTIONS: Record<string, string[]> = {
@@ -103,7 +117,9 @@ export function mergeVscodeLmGameState(
     const merged: Record<string, unknown> = {};
 
     if (llmJson) {
-        const { entries: _e, profileUpdates: _p, encounterOps: _encounterOps, ...rest } = llmJson;
+        const { entries: _e, profileUpdates: _p, encounterOps: _encounterOps,
+            elapsedWorldTurns: _elapsed, tradeOps: _trade, resolvedQuests: _quests,
+            reputationOps: _reputation, turn_result: _turnResult, ...rest } = llmJson;
         Object.assign(merged, rest);
     }
 
@@ -204,6 +220,25 @@ export function buildVscodeLmTurnResult(params: {
     const encounterOps = parseEncounterTurnOps(params.llmJson?.encounterOps);
     if (encounterOps.ok && encounterOps.ops.length > 0) {
         turnResult.encounterOps = encounterOps.ops;
+    }
+
+    // These are commands for the existing Accepted Turn pipeline, not fields
+    // in game_state. Context instructions also use the turn_result wrapper;
+    // accept that spelling without accepting model-supplied receipts/authority.
+    const nested = params.llmJson?.turn_result;
+    const command = (key: 'elapsedWorldTurns' | 'tradeOps' | 'resolvedQuests' | 'reputationOps'): unknown =>
+        nested && typeof nested === 'object' && !Array.isArray(nested)
+            && Object.prototype.hasOwnProperty.call(nested, key) ? nested[key] : params.llmJson?.[key];
+    turnResult.elapsedWorldTurns = clampElapsedWorldTurns(command('elapsedWorldTurns'), 100);
+    const tradeOps = parseTradeOps(command('tradeOps'));
+    if (tradeOps.length) { turnResult.tradeOps = tradeOps; }
+    const reputationOps = parseReputationOps(command('reputationOps'));
+    if (reputationOps.length) { turnResult.reputationOps = reputationOps; }
+    const resolvedQuests = command('resolvedQuests');
+    if (Array.isArray(resolvedQuests)) {
+        const resolved = resolvedQuests.filter((id): id is string =>
+            typeof id === 'string' && isValidEventId(id)).slice(0, 20);
+        if (resolved.length) { turnResult.resolvedQuests = [...new Set(resolved)]; }
     }
 
     return attachTurnResultPromptReceipt(turnResult, params.promptReceipt);

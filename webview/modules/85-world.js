@@ -4969,6 +4969,8 @@ function renderQuestHooks(quests) {
             actionsHtml = '<button type="button" class="small-btn primary quest-accept-btn">' + escapeHtml(T('webview.world.questAccept')) + '</button>';
         } else if (q.status === 'active') {
             actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-orange); font-weight:600;">${escapeHtml(T('webview.world.questActive'))}</span>`;
+        } else if (q.status === 'completed') {
+            actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-green); font-weight:600;">${escapeHtml(T('webview.world.questCompleted'))}</span>`;
         }
 
         const rewardHtml = q.reward

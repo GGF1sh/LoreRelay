@@ -1977,6 +1977,7 @@
   "webview.world.playerRoleSmith": "Smith",
   "webview.world.questAccept": "Accept Quest",
   "webview.world.questActive": "ACTIVE",
+  "webview.world.questCompleted": "COMPLETED",
   "webview.world.questBoardTitle": "📜 Quest Board",
   "webview.world.questEmpty": "No active quests.",
   "webview.world.questReward": "Reward",

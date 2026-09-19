@@ -82,7 +82,7 @@ export function buildCommercePromptLines(
         for (const q of row.quotes) {
             const commodity = forge.commodities.find((c) => c.id === q.commodityId);
             const name = commodity?.name ?? q.commodityId;
-            lines.push(`${label}: ${name} ${q.unitPrice}cr (stock ${q.stock})`);
+            lines.push(`${label}: ${name} ${q.unitPrice}cr (stock ${q.stock}; marketLocationId=${row.locationId}; commodityId=${q.commodityId})`);
             if (lines.length >= MAX_COMMERCE_PROMPT_LINES) { return lines; }
         }
     }
@@ -146,7 +146,7 @@ export function buildCaravanPromptLines(
     } else {
         for (const entry of cargo.slice(0, MAX_CARAVAN_PROMPT_LINES - 1)) {
             const name = forge.commodities.find((c) => c.id === entry.commodityId)?.name ?? entry.commodityId;
-            lines.push(`Cargo: ${name} ×${entry.qty}`);
+            lines.push(`Cargo: ${name} ×${entry.qty} (commodityId=${entry.commodityId})`);
         }
     }
     return lines.slice(0, MAX_CARAVAN_PROMPT_LINES);
@@ -186,6 +186,9 @@ export function buildLivingWorldPromptBlocks(input: LivingWorldPromptInput): Liv
         : [];
 
     const combined: string[] = [];
+    if (input.playerLocationId && (input.commerceEnabled || input.agencyEnabled)) {
+        combined.push(`[Current location] ${locLabel(input.playerLocationId, input.locationNames)} (currentLocationId=${input.playerLocationId})`);
+    }
     if (sinceLastVisit.length) {
         combined.push('[Living World — Since last visit]');
         combined.push(...sinceLastVisit);

@@ -259,15 +259,23 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
 
     const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'));
     if (Array.isArray(hist)) {
-        for (const entry of hist.slice(-30)) {
+        const recent = hist.slice(-30);
+        for (const [index, entry] of recent.entries()) {
             if (entry.excludedFromPrompt === true) { continue; }
             const content = String(entry.content || '').trim();
             if (content.length < 40) { continue; }
+            // A retrieved question without its answer loses names and promises.
+            // Keep only the immediately adjacent visible GM reply in this chunk;
+            // never cross another user entry, an excluded reply, or this window.
+            const next = recent[index + 1];
+            const reply = entry.role === 'user' && next?.role === 'gm' && next.excludedFromPrompt !== true
+                ? String(next.content || '').trim()
+                : '';
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
                 label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'})`,
-                text: content
+                text: reply ? `${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
             });
         }
     }

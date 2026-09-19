@@ -1,5 +1,7 @@
 # 1.89.3：ハルカの交易を実画面で確認
 
+後続の[1.89.4実AI GMプレイ](REAL_GM_PLAYCHECK.md)では、同じ冒険をCodex GMで継続した。以下はGrok再ログインで停止した1.89.3時点の記録として保持する。
+
 2026-09-20（JST）の**AIによる実機プレイ**です。VS Codeの専用Extension HostをAIが操作しました。人間のHuman Play、配布VSIXの検証とは区別します。
 
 同梱 `trade-routes` を通常のStart Hubから読み込み、プレイヤー操作の主人公ハルカを作成しました。導入文とNPCの台詞は同梱の固定データです。Grok Buildはモデル一覧で`grok-4.6`を確認・選択しましたが、専用プロファイルが再ログインを要求したため、**新しいGM応答・実送信prompt・Accepted Turnは0件**です。

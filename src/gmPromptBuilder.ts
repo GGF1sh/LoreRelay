@@ -10,7 +10,7 @@ import {
     getConfiguredLocale,
     type SupportedLocale
 } from './i18n';
-import { buildSagaPromptContext, matchMemories, type MemoryChunk } from './memoryBank';
+import { buildSagaPromptContext, loadMemoryChunks, matchMemories, type MemoryChunk } from './memoryBank';
 import {
     computeArchiveMilestone,
     getArchiveRemindStep,
@@ -21,7 +21,7 @@ import {
 } from './archivePrompt';
 import { filterValidCharacterIds, isValidCharacterId, resolveCharacterJsonPath } from './characterId';
 import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
-import { getCachedGameState, getGameEntryHistory } from './gameStateSync';
+import { getGameEntryHistory } from './gameStateSync';
 import { getGmBridgeOutputChannel } from './gmBridgeRunner';
 import {
     getMemoryBackendSetting,
@@ -324,19 +324,7 @@ function gmLanguageName(locale?: SupportedLocale): string {
 }
 
 function readGameStateForPrompt(): Record<string, unknown> | undefined {
-    const cached = getCachedGameState();
-    if (cached) {
-        return cached;
-    }
-    const statePath = getGameStatePath();
-    if (!statePath || !fs.existsSync(statePath)) {
-        return undefined;
-    }
-    try {
-        return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return undefined;
-    }
+    return readGameStateRecordForPrompt();
 }
 
 function loadStorySummary(): string {
@@ -549,23 +537,9 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
     return parts.join('\n');
 }
 
-function buildMemoryContextForPrompt(ws: string, hintText: string, policy: PromptBudgetPolicy): string {
-    const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return formatMemoryPromptFromChunks(
-            matchMemories(ws, hintText, policy.memoryMatches),
-            policy.memoryChars
-        );
-    }
-    const viaPy = formatMemoryPromptFromChunks(
-        resolveMemoriesViaPython(ws, hintText, backend, policy.memoryMatches),
-        policy.memoryChars
-    );
-    if (viaPy) {
-        return viaPy;
-    }
+function buildMemoryContextForPrompt(ws: string, playerAction: string, hintText: string, policy: PromptBudgetPolicy): string {
     return formatMemoryPromptFromChunks(
-        matchMemories(ws, hintText, policy.memoryMatches),
+        resolveMemoryMatches(ws, playerAction, hintText, policy),
         policy.memoryChars
     );
 }
@@ -1371,10 +1345,9 @@ function peekWorldChangeSummaryContext(): string {
 }
 
 function readGameStateRecordForPrompt(): Record<string, unknown> | undefined {
-    const cached = getCachedGameState();
-    if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
-        return cached as Record<string, unknown>;
-    }
+    // UI synchronization is debounced. A committed travel/trade can therefore be
+    // newer than its display cache when the next GM request is assembled.
+    // Read canonical state here; never substitute stale UI data on read failure.
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
         return undefined;
@@ -1607,7 +1580,7 @@ function buildInspectorPromptAssembly(
         keys: Array.isArray(e.keys) ? e.keys.map(String) : []
     }));
 
-    const memoryChunks = ws ? resolveMemoryMatches(ws, hint, policy) : [];
+    const memoryChunks = ws ? resolveMemoryMatches(ws, playerAction, hint, policy) : [];
     const memoryMatches: PromptMemoryMatch[] = memoryChunks.map((m) => ({
         id: m.id,
         label: m.label,
@@ -1700,7 +1673,7 @@ function buildInspectorPromptAssembly(
     considerInspectorChunk('partyDirector', 'Party Director', buildPartyDirectorPromptContextReadOnly);
 
     if (ws) {
-        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, hint, policy));
+        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, playerAction, hint, policy));
     }
 
     considerInspectorChunk('travelEncounters', 'Travel Encounters', () =>
@@ -1726,12 +1699,27 @@ function buildInspectorPromptAssembly(
     return assembly;
 }
 
-function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
+function resolveMemoryMatches(ws: string, playerAction: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return matchMemories(ws, hint, policy.memoryMatches);
-    }
-    return resolveMemoriesViaPython(ws, hint, backend, policy.memoryMatches);
+    const resolve = (query: string): MemoryChunk[] => {
+        if (backend !== 'tfidf') {
+            const matches = resolveMemoriesViaPython(ws, query, backend, policy.memoryMatches);
+            // Python/vector indexes may return standalone or stale history text.
+            // Keep their ranking, but read eligible history and its paired answer
+            // from the same current workspace used by the local backend.
+            const history = new Map(loadMemoryChunks(ws)
+                .filter(chunk => chunk.source === 'history').map(chunk => [chunk.id, chunk]));
+            const currentMatches = matches.flatMap(chunk => chunk.source === 'history'
+                ? (history.has(chunk.id) ? [history.get(chunk.id)!] : [])
+                : [chunk]);
+            if (currentMatches.length > 0) { return currentMatches; }
+        }
+        return matchMemories(ws, query, policy.memoryMatches);
+    };
+    // Using entire recent replies as the query makes them retrieve themselves,
+    // crowding out the older promise the player is asking about now.
+    const actionMatches = playerAction.trim() ? resolve(playerAction) : [];
+    return actionMatches.length > 0 ? actionMatches : resolve(hint);
 }
 
 export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
@@ -1936,7 +1924,7 @@ function buildGmPromptChunkSpecsWithMeta(
     considerPromptChunk(meta, 'partyDirector', activation, buildPartyDirectorPromptContext);
 
     if (ws) {
-        considerPromptChunk(meta, 'memory', activation, () => buildMemoryContextForPrompt(ws, hint, policy));
+        considerPromptChunk(meta, 'memory', activation, () => buildMemoryContextForPrompt(ws, playerAction, hint, policy));
     }
 
     considerPromptChunk(meta, 'travelEncounters', activation, () =>

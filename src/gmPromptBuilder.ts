@@ -537,23 +537,9 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
     return parts.join('\n');
 }
 
-function buildMemoryContextForPrompt(ws: string, hintText: string, policy: PromptBudgetPolicy): string {
-    const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return formatMemoryPromptFromChunks(
-            matchMemories(ws, hintText, policy.memoryMatches),
-            policy.memoryChars
-        );
-    }
-    const viaPy = formatMemoryPromptFromChunks(
-        resolveMemoriesViaPython(ws, hintText, backend, policy.memoryMatches),
-        policy.memoryChars
-    );
-    if (viaPy) {
-        return viaPy;
-    }
+function buildMemoryContextForPrompt(ws: string, playerAction: string, hintText: string, policy: PromptBudgetPolicy): string {
     return formatMemoryPromptFromChunks(
-        matchMemories(ws, hintText, policy.memoryMatches),
+        resolveMemoryMatches(ws, playerAction, hintText, policy),
         policy.memoryChars
     );
 }
@@ -1594,7 +1580,7 @@ function buildInspectorPromptAssembly(
         keys: Array.isArray(e.keys) ? e.keys.map(String) : []
     }));
 
-    const memoryChunks = ws ? resolveMemoryMatches(ws, hint, policy) : [];
+    const memoryChunks = ws ? resolveMemoryMatches(ws, playerAction, hint, policy) : [];
     const memoryMatches: PromptMemoryMatch[] = memoryChunks.map((m) => ({
         id: m.id,
         label: m.label,
@@ -1687,7 +1673,7 @@ function buildInspectorPromptAssembly(
     considerInspectorChunk('partyDirector', 'Party Director', buildPartyDirectorPromptContextReadOnly);
 
     if (ws) {
-        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, hint, policy));
+        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, playerAction, hint, policy));
     }
 
     considerInspectorChunk('travelEncounters', 'Travel Encounters', () =>
@@ -1713,12 +1699,19 @@ function buildInspectorPromptAssembly(
     return assembly;
 }
 
-function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
+function resolveMemoryMatches(ws: string, playerAction: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return matchMemories(ws, hint, policy.memoryMatches);
-    }
-    return resolveMemoriesViaPython(ws, hint, backend, policy.memoryMatches);
+    const resolve = (query: string): MemoryChunk[] => {
+        if (backend !== 'tfidf') {
+            const matches = resolveMemoriesViaPython(ws, query, backend, policy.memoryMatches);
+            if (matches.length > 0) { return matches; }
+        }
+        return matchMemories(ws, query, policy.memoryMatches);
+    };
+    // Using entire recent replies as the query makes them retrieve themselves,
+    // crowding out the older promise the player is asking about now.
+    const actionMatches = playerAction.trim() ? resolve(playerAction) : [];
+    return actionMatches.length > 0 ? actionMatches : resolve(hint);
 }
 
 export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
@@ -1923,7 +1916,7 @@ function buildGmPromptChunkSpecsWithMeta(
     considerPromptChunk(meta, 'partyDirector', activation, buildPartyDirectorPromptContext);
 
     if (ws) {
-        considerPromptChunk(meta, 'memory', activation, () => buildMemoryContextForPrompt(ws, hint, policy));
+        considerPromptChunk(meta, 'memory', activation, () => buildMemoryContextForPrompt(ws, playerAction, hint, policy));
     }
 
     considerPromptChunk(meta, 'travelEncounters', activation, () =>

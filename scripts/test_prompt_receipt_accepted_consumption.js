@@ -227,6 +227,40 @@ try {
     }
     writeFixture();
 
+    const originalHistory = gameStateSync.getGameEntryHistory;
+    const historyFile = path.join(WS_PATH, 'game_history.json');
+    try {
+        const recent = [
+            { id: 'recent-user', role: 'user', content: '中央辻のマーカスに鋼材の価格を報告します。エルダに次の収穫量と街道の危険について聞きます。' },
+            { id: 'recent-gm', role: 'gm', content: 'マーカスは鋼材の相場を考え込んだ。エルダは次の収穫量、街道の危険、荷車の通行止めを確認するよう勧めた。'.repeat(8) },
+        ];
+        fs.writeFileSync(historyFile, JSON.stringify([
+            { id: 'older-promise', role: 'gm', content: '農場主は麦わら帽子を持ち上げた。「私はトーマスだ。港から戻ったらネリの様子を知らせてくれ。約束だよ」' },
+            { id: 'excluded-secret', role: 'gm', excludedFromPrompt: true, content: 'HIDDEN_PROMISE_SECRET 港から戻ったらネリとの約束を知らせる農場主の名前' },
+            ...recent,
+        ]));
+        gameStateSync.getGameEntryHistory = () => recent;
+        const action = '港から農場主に会いに戻り、ネリの様子を知らせる約束を果たします。名前を確認します。';
+        const memoryPrompt = buildProductionPromptAssembly(action, 'codex-app-server').promptText;
+        const inspector = buildGmPromptBreakdown(action);
+        if (!memoryPrompt.includes('トーマス') || !inspector.memoryMatches.some(m => m.id === 'history:older-promise')) {
+            fail('current request must retrieve an older promise despite a long unrelated recent conversation');
+        } else if (memoryPrompt.includes('HIDDEN_PROMISE_SECRET')) {
+            fail('memory query changes must keep excluded history out of the sent context');
+        } else {
+            ok('production and Inspector retrieve the requested old promise, preserving history exclusions');
+        }
+        if (!buildProductionPromptAssembly('', 'codex-app-server').promptText.includes('マーカス')) {
+            fail('empty action should still retrieve memory using the recent conversation hint');
+        } else {
+            ok('empty action retains the recent-conversation fallback');
+        }
+    } finally {
+        gameStateSync.getGameEntryHistory = originalHistory;
+        fs.unlinkSync(historyFile);
+    }
+    writeFixture();
+
     const before = readWorldState();
     const context = buildGmPromptContext('look around');
     const afterContext = readWorldState();

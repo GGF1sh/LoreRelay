@@ -44,6 +44,55 @@ const vehicleAfter = JSON.parse(fs.readFileSync(path.join(root, 'vehicle_state.j
 assert.strictEqual(gameAfter.world.currentLocationId, 'b');
 assert.strictEqual(vehicleAfter.vehicles[0].locationId, 'b');
 assert.strictEqual(vehicleAfter.vehicles[0].durability.hp, 95);
+assert.strictEqual(vehicleAfter.vehicles[0].mobileBase, undefined, 'ordinary boats must not gain a mobile-base link');
+
+function mobileWorkspace() {
+  const root = workspace();
+  const fleetPath = path.join(root, 'vehicle_state.json');
+  const fleet = JSON.parse(fs.readFileSync(fleetPath, 'utf8'));
+  fleet.vehicles[0].mobileBase = { settlementId: 'boat_interior', mode: 'ship', layoutProfile: 'deck', interiorAccess: 'open', dockedAtLocationId: 'a' };
+  fs.writeFileSync(fleetPath, JSON.stringify(fleet));
+  return root;
+}
+const mobileRoot = mobileWorkspace();
+const mobilePreview = call(mobileRoot, { action: 'preview', destination: 'b', vehicleId: 'boat' });
+assert.strictEqual(call(mobileRoot, { action: 'depart', quoteId: mobilePreview.value.quoteId, confirmDamage: true }).value.ok, true);
+const mobileAfterText = fs.readFileSync(path.join(mobileRoot, 'vehicle_state.json'), 'utf8');
+const mobileAfter = JSON.parse(mobileAfterText).vehicles[0];
+assert.strictEqual(mobileAfter.locationId, 'b');
+assert.strictEqual(mobileAfter.mobileBase.dockedAtLocationId, 'b', 'arriving mobile base must not retain departure dock');
+assert.strictEqual(mobileAfter.mobileBase.settlementId, 'boat_interior');
+assert.strictEqual(mobileAfter.mobileBase.interiorAccess, 'open');
+assert.strictEqual(mobileAfter.durability.hp, 95);
+assert.strictEqual(call(mobileRoot, { action: 'depart', quoteId: mobilePreview.value.quoteId, confirmDamage: true }).value.replayed, true);
+assert.strictEqual(fs.readFileSync(path.join(mobileRoot, 'vehicle_state.json'), 'utf8'), mobileAfterText, 'replay cannot damage or redock twice');
+
+const mobileFootRoot = mobileWorkspace();
+const mobileFoot = call(mobileFootRoot, { action: 'preview', destination: 'b' });
+assert.strictEqual(call(mobileFootRoot, { action: 'depart', quoteId: mobileFoot.value.quoteId }).value.ok, true);
+assert.strictEqual(JSON.parse(fs.readFileSync(path.join(mobileFootRoot, 'vehicle_state.json'), 'utf8')).vehicles[0].mobileBase.dockedAtLocationId, 'a', 'walking must leave the ship at its dock');
+
+// Adversarial verification: fail each journal stage through the real host path.
+const navigationStore = require('../out/waterNavigationStore');
+const realCommit = navigationStore.commitWaterNavigation;
+for (const stage of [0, 1, 2]) {
+  const failureRoot = mobileWorkspace();
+  const files = ['game_state.json', 'vehicle_state.json'];
+  const before = files.map(name => fs.readFileSync(path.join(failureRoot, name), 'utf8'));
+  files.forEach(name => fs.writeFileSync(path.join(failureRoot, name + '.bak'), 'existing-backup'));
+  const quote = call(failureRoot, { action: 'preview', destination: 'b', vehicleId: 'boat' });
+  navigationStore.commitWaterNavigation = (root, hash, id, writes) => realCommit(root, hash, id, writes, n => { if (n === stage) throw Error('injected mobile-base failure'); });
+  try {
+    const result = call(failureRoot, { action: 'depart', quoteId: quote.value.quoteId, confirmDamage: true });
+    assert.strictEqual(result.value.ok, false);
+    assert.match(result.value.error, /injected mobile-base failure/);
+  } finally { navigationStore.commitWaterNavigation = realCommit; }
+  files.forEach((name, i) => {
+    assert.strictEqual(fs.readFileSync(path.join(failureRoot, name), 'utf8'), before[i], `stage ${stage}: ${name} restored with original dock`);
+    assert.strictEqual(fs.readFileSync(path.join(failureRoot, name + '.bak'), 'utf8'), 'existing-backup');
+  });
+  assert.strictEqual(navigationStore.navigationReceiptExists(failureRoot, quote.value.quoteId), false);
+}
 
 // Fresh workspace: stale quote is rejected after a world change.
 const staleRoot = workspace();

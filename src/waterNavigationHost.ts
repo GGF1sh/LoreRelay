@@ -114,7 +114,11 @@ export function handleWaterNavigation(root: string, message: Record<string, unkn
         if (s.document && s.fleet) {
             const damaged = vehicle && route.damage ? applyVehicleOps(s.fleet, [{ type: 'damage_vehicle', vehicleId: vehicle.id, amount: route.damage, reason: 'Host-confirmed water navigation' }])! : s.fleet;
             const fleet = { ...damaged, activeVehicleId: q.vehicleId };
-            if (vehicle) fleet.vehicles = fleet.vehicles.map(v => v.id !== vehicle.id ? v : { ...v, locationId: q.destination, parkedAt: undefined });
+            if (vehicle) fleet.vehicles = fleet.vehicles.map(v => v.id !== vehicle.id ? v : {
+                ...v, locationId: q.destination, parkedAt: undefined,
+                // Arrival moves the linked base's dock in the same journalled vehicle write.
+                ...(v.mobileBase ? { mobileBase: { ...v.mobileBase, dockedAtLocationId: q.destination } } : {}),
+            });
             writes.push({ name: 'vehicle_state.json', before: s.fleetText, after: JSON.stringify(rebuildVehicleStateDocumentWithMechanical(s.document, fleet), null, 2) });
         }
         commitWaterNavigation(root, navigationDigest(s.forgeText), message.quoteId, writes);

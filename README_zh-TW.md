@@ -19,6 +19,8 @@
 
 **1.89.4 候選版透過 Codex GM 繼續同一次冒險。** 記錄了 24 次真實回覆、23 個已接受回合，驗證了交易、任務完成、重新啟動後的對話，以及透過實際提示詞重新提供過去的約定。這是 AI 操作的試玩；獨立任務獎勵尚未驗證，人物姓名的一致性仍有問題。[實際提示詞、失敗記錄與確認限制](docs/REAL_GM_PLAYCHECK.md)
 
+**1.89.5 候選版繼續由 AI 操作、使用 Codex GM：** 久別重逢時曾出現錯誤姓名，修正並重啟 Host 後，以不包含答案的同一問題重新詢問，透過再次提供 29 回合前的紀錄，正確回答了湯瑪斯的姓名與約定。另一個以既有資料準備的獨立測試場景確認了信任值 50→60、1 筆記憶，以及重啟或重送同一候選結果後不會重複發放獎勵。獎勵是信任而非金錢；物品交付條件不會自動判定，人物也不會自動登錄為 NPC。[實際提供的歷史、失敗與修正後的驗證及限制](docs/NPC_IDENTITY_PLAYCHECK.md)
+
 | 結束交易，迎接下一天 | 留下旅途中的風景 |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後返回 Elda 商店的操作畫面：餘額 505、空貨艙與結束一天的確認。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒險的南港，用 ComfyUI 生成的水邊參考插圖。" /></a> |

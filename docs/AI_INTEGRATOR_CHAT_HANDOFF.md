@@ -7,6 +7,10 @@
 
 > **Current entrypoint:** Start with `docs/AI_WORKFLOW.md` and the verification policy. This document is a current-state handoff and historical evidence, not a reason to repeat its old checks or copy it into a prompt. When this file conflicts with the canonical workflow, the canonical workflow and current `main` win.
 
+> 2026-09-20 最新: [1.89.5 人物の記憶・独立報酬候補](NPC_IDENTITY_PLAYCHECK.md)。PR #149をベースにstacked Draft PRを準備中（番号未確定）。AI操作の主冒険は実GM応答31件/Accepted31件、別の既存報酬fixtureは5件/5件。GMは `codex-app-server / gpt-5.6-terra`。Acceptedは内容の正しさを保証しない。主冒険turn2のトーマスへの訂正から28ターン後、答えを入力しないturn30の再会はハロルドと誤答したが、実行コード `209dc478f5cbda573db181752eb108261a1e2620`・Host再起動後のturn31では同じ質問に、29ターン前の実履歴を再供給してトーマス／北の農場主／青いリボン／雨上がりの翌朝を確認した。人物の自動登録は行っていない。
+>
+> 独立fixtureでは既存NPC依頼による信頼50→60・記憶1件を確認。再起動後の同一candidate API再送は `alreadyAccepted`、比較した16ファイルは不変。金銭報酬や物品の自動達成判定ではない。今回の変更はMedium、focused検証のみで全体スイートは実行していない。ソース1.89.5の候補であり、マージ・Release・VSIX公開は行わず、次のユーザー指示待ち。
+
 > 2026-09-20: [1.89.4 real GM play candidate](REAL_GM_PLAYCHECK.md) continues Draft PR #148 in a separate stacked Draft. 24 actual responses / 23 Accepted Turns; quest completion and restart exercised, NPC-name consistency remains limited. See the linked evidence for the 399/400 full run and successful retry of its single failed test. No merge or release; wait for the user's next instruction.
 
 ---

@@ -19,6 +19,8 @@ VS Codeで動く、開発中のオープンソース作品です。対応するA
 
 **1.89.4候補では同じ冒険をCodex GMで継続。** 実応答24件・採用23ターンで、売買、依頼完了、再起動後の会話と約束の再供給を確認しました。AI操作の記録で、別枠の依頼報酬は未確認、人物名の一貫性には課題が残ります。[実送信prompt・失敗例・確認限界](docs/REAL_GM_PLAYCHECK.md)
 
+**1.89.5候補ではCodex GMによるAI操作を継続し、** 長期再会で誤名が出た後、修正・Host再起動後の同じ質問に、答えを入力せず29ターン前の履歴を再供給してトーマスの名前と約束を正しく答えることを確認しました。別の既存fixtureでは信頼50→60・記憶1件と、再起動／同一候補の再送後の重複なしを確認しました。報酬は金銭ではなく信頼で、物品の自動達成判定や人物の自動登録は行いません。[実送信履歴・失敗から修正後の確認・制限](docs/NPC_IDENTITY_PLAYCHECK.md)
+
 | 商いを終えて、次の日へ | 旅先の風景を残す |
 | :---: | :---: |
 | <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後、Eldaの店へ帰還した取引操作画面。残高505、空の積荷、日送りの確認。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同じ交易冒険の南港でComfyUI生成した水辺の参考イラスト。" /></a> |

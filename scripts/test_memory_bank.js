@@ -139,6 +139,28 @@ try {
 }
 
 // ── 6. チャンクなしのワークスペース ─────────────────────────
+const pairedWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-pairs-'));
+try {
+    const question = '港へ小麦を届けて戻ったら様子を知らせる約束をします。農場主に名前と安全な道を聞いてから出発します。';
+    fs.writeFileSync(path.join(pairedWs, 'game_history.json'), JSON.stringify([
+        { id: 'ask', role: 'user', content: question },
+        { id: 'answer', role: 'gm', content: '私はトーマスだ。ネリの様子を知らせてくれるなら、こっちも安心できる。約束だよ。' },
+        { id: 'ask-hidden', role: 'user', content: question },
+        { id: 'hidden', role: 'gm', content: 'HIDDEN_SECRET ' + question, excludedFromPrompt: true },
+        { id: 'failed-question', role: 'user', content: question },
+        { id: 'retry', role: 'user', content: question },
+    ]));
+    const paired = loadMemoryChunks(pairedWs);
+    if (!paired.find(c => c.id === 'history:ask')?.text.includes('トーマス')) {
+        fail('retrieved player question must retain its adjacent GM answer');
+    } else { ok('retrieved player question retains the named GM answer'); }
+    if (paired.some(c => c.text.includes('HIDDEN_SECRET'))
+        || paired.find(c => c.id === 'history:ask-hidden')?.text.includes('[GM reply')
+        || paired.find(c => c.id === 'history:failed-question')?.text.includes('[GM reply')) {
+        fail('history pairing must not cross hidden replies or consecutive user entries');
+    } else { ok('history pairing respects exclusions and failed/retried input boundaries'); }
+} finally { fs.rmSync(pairedWs, { recursive: true, force: true }); }
+
 const emptyWs = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-memtest-empty-'));
 try {
     const chunks = loadMemoryChunks(emptyWs);

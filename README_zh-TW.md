@@ -11,31 +11,19 @@
 
 [可以怎麼玩？](#onboarding) · [開始第一場冒險](#how-to-play) · [看看更多畫面](#screenshots) · [可用 AI 與費用](#ai-connections) · [安裝](#setup)
 
-<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="1.89.3 候選版本中的南港，顯示地圖目前位置與餘額 505。" /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="交易世界中的南港，畫面顯示地圖、目前位置與交易狀態。" /></a></p>
 
-<p align="center"><sub>由 AI 操作實際遊戲的 1.89.3 候選版本遊玩紀錄。在內建交易世界中，以主角 Haruka 購買小麥、前往南港、賣出並返回。左側開場文字來自內建場景，並非新的 GM 回覆。</sub></p>
+<p align="center"><sub>在地圖上選擇目的地，前往港口交易，保存世界，下次再從同一段旅程繼續。</sub></p>
 
-**500 → 489 → 505 credits。** 在畫面中核對貨物與餘額後，接著完成了日推進、接取任務、儲存與恢復遊戲。這次 1.89.3 檢查中，Grok Build 需要重新登入，尚未進行新的 GM 對話。[實際操作、生成提示詞與驗證範圍](docs/GAMEPLAY_PLAYCHECK.md)
-
-**1.89.4 候選版透過 Codex GM 繼續同一次冒險。** 記錄了 24 次真實回覆、23 個已接受回合，驗證了交易、任務完成、重新啟動後的對話，以及透過實際提示詞重新提供過去的約定。這是 AI 操作的試玩；獨立任務獎勵尚未驗證，人物姓名的一致性仍有問題。[實際提示詞、失敗記錄與確認限制](docs/REAL_GM_PLAYCHECK.md)
-
-**1.89.5 候選版繼續由 AI 操作、使用 Codex GM：** 久別重逢時曾出現錯誤姓名，修正並重啟 Host 後，以不包含答案的同一問題重新詢問，透過再次提供 29 回合前的紀錄，正確回答了湯瑪斯的姓名與約定。另一個以既有資料準備的獨立測試場景確認了信任值 50→60、1 筆記憶，以及重啟或重送同一候選結果後不會重複發放獎勵。獎勵是信任而非金錢；物品交付條件不會自動判定，人物也不會自動登錄為 NPC。[實際提供的歷史、失敗與修正後的驗證及限制](docs/NPC_IDENTITY_PLAYCHECK.md)
-
-**1.89.6 候選版向 GM 提供公開地點與實際移動介面的目的地預覽，** AI 在本機操作確認，GM 不會把訓練場、崗哨等尚未確認的地點當作既有的移動目的地。對過去購買的回答依據既有介面交易紀錄（10 份小麥、支出 90 credits），餘額仍為 608、貨艙仍為空；但這些紀錄並不涵蓋 GM 的所有交易，不能僅因沒有紀錄就斷定交易未發生。GM 段落中連續的字面字元 `\n\n` 僅在顯示時修正，原文保持不變。[地點與購買歷史的依據及驗證範圍](docs/GM_GROUNDING_PLAYCHECK.md)
-
-**1.89.7 候選版的訂正與還原：** Undo／回溯只回溯對話，保留目前資產、位置和任務等遊戲狀態。若要回復整個遊戲，請還原行動前儲存的完整檢查點。Campaign 或包含世界、資產等遊戲狀態的存檔會阻止「重新生成」，以避免重複執行同一行動。可以透過編輯訊息訂正敘述。
-
-作者備註只適用於下一次回覆。需要長期保留的設定或 GM 方針，請儲存為釘選的 Lorebook 條目：無需關鍵字，在停用或刪除前作為持續指示使用。優先把編輯過的歷史提供給 GM，並不保證回覆會遵循它。在 AI 操作實際 Host 的檢查中，即使已傳送訂正後的「黃銅風鈴」，GM 仍有回答「繩子」的情況。這些檢查與人類試玩分開記錄。[操作步驟、重啟／Undo 證據及限制](docs/RECOVERY_PLAYCHECK_2026-09-20.md)
-
-**1.89.8 候選版修正了還原完整歷史後，已刪除的摘要、背景和立繪仍殘留在畫面上的問題。** 編輯清空後的摘要不會再次傳送舊內容。一般的局部更新仍保留顯示內容。對話 Undo 與整個遊戲還原之間的區別不變。
+**對話會繼續，世界狀態也會留下。** LoreRelay 把 AI GM 的故事與地圖、交易、任務、物品和存檔連接起來。AI 可以自由描寫和提出可能性，而目前位置、資金等遊戲事實由 LoreRelay 管理。遇到不合適的描寫，可以編輯訊息或向 GM 補充指示；需要長期保留的設定可以固定到 Lorebook。Undo 用於回退對話，需要還原整個遊戲時則使用 checkpoint。
 
 | 結束交易，迎接下一天 | 留下旅途中的風景 |
 | :---: | :---: |
-| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後返回 Elda 商店的操作畫面：餘額 505、空貨艙與結束一天的確認。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="在同一段交易冒險的南港，用 ComfyUI 生成的水邊參考插圖。" /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="完成交易並返回後的遊戲畫面，可繼續進行交易或結束一天。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同一段旅程中，用 ComfyUI 繪製的南港參考插圖。" /></a> |
 
-<p align="center"><sub>左圖是 AI 操作的實際遊戲畫面。右圖是 ComfyUI 生成的地點圖片，不代表準確還原了地形或建築。圖片儲存為南港的候選圖，並確認了移動及 Host 重啟後的重新顯示。這與人類親自遊玩的 Human Play 區分記錄。</sub></p>
+<p align="center"><sub>左圖是交易後的遊戲畫面，右圖是同一旅途中可選的 ComfyUI 地點圖片。圖像生成不是必要功能，不生成圖片也可以完整遊玩。</sub></p>
 
-**[▶ 用 75 秒觀看之前的 1.85.3 演示](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 對話 → 在市場購買 → 重新開啟面板。影片使用驗證用的範例世界錄製，並縮短了等待時間。
+**[▶ 用 75 秒看一段冒險](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 對話 → 在市場購買 → 重新開啟面板繼續遊玩。影片在範例世界中錄製，並縮短了等待時間。
 
 <a id="onboarding"></a>
 

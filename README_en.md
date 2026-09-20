@@ -11,31 +11,19 @@ It is an open-source work in progress that runs in VS Code. Choose a supported A
 
 [What can I do?](#onboarding) · [Start your first adventure](#how-to-play) · [See more of the game](#screenshots) · [AI options & pricing](#ai-connections) · [Install](#setup)
 
-<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="South Port in the 1.89.3 candidate build, showing the current map location and a balance of 505." /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="South Port in a trading world, with the map, current location and trade state visible." /></a></p>
 
-<p align="center"><sub>An AI operated the actual game in the 1.89.3 candidate build. In the bundled trading world, Haruka bought wheat, traveled to South Port, sold it and returned. The opening passage on the left is bundled scenario text, not a new GM response.</sub></p>
+<p align="center"><sub>Choose a destination on the map, travel to the port, trade, save your world, and come back to continue the same journey.</sub></p>
 
-**500 → 489 → 505 credits.** We checked cargo and balances on screen, then advanced the day, accepted a quest, saved and resumed. In this 1.89.3 check, Grok Build required a new login and no fresh GM conversation was performed. [Actual actions, generation prompts and verification scope](docs/GAMEPLAY_PLAYCHECK.md)
-
-**The 1.89.4 candidate continues the same adventure with Codex GM.** Across 24 real responses and 23 accepted turns, we exercised trading, quest completion, conversations after restart, and resupply of a past promise in the actual prompt. This was AI-operated play; separate quest rewards remain unverified, and character-name consistency remains a limitation. [Actual prompts, failures and limits](docs/REAL_GM_PLAYCHECK.md)
-
-**AI-operated play continued with Codex GM in the 1.89.5 candidate:** after a wrong name during a later reunion, the fix and a Host restart allowed the same question, without the answer in the input, to recover Thomas's name and promise from history supplied again 29 turns later. A separate existing fixture confirmed trust rising from 50 to 60, one memory entry, and no duplicate reward after restart or replay of the identical candidate. This reward is trust rather than cash; item delivery is not automatically validated, and characters are not automatically registered as NPCs. [Actual history supplied, failure and repair evidence, and limits](docs/NPC_IDENTITY_PLAYCHECK.md)
-
-**The 1.89.6 candidate supplies public locations and actual travel-UI destination previews to the GM;** AI-operated local checks confirmed that unverified places such as training grounds or guard posts were not treated as existing travel destinations. Answers about a past purchase used existing UI trade records (10 wheat, 90 credits spent), leaving the balance at 608 and cargo empty, but these records do not cover every GM transaction, so a missing record does not prove that a trade never happened. Repeated literal `\n\n` separators in GM paragraphs are corrected for display only, preserving the original text. [Location and purchase-history evidence and verification scope](docs/GM_GROUNDING_PLAYCHECK.md)
-
-**Corrections and recovery in the 1.89.7 candidate:** Undo/rewind rolls back the conversation while keeping current assets, location and quests. To roll back the whole game, restore a full checkpoint saved before the action. Regenerate is blocked in Campaign and saves containing game state such as world or assets, to prevent repeating an action. Use message editing to correct the narration.
-
-An author's note applies only to the next response. Save lasting facts or GM policies as pinned Lorebook entries: no keywords are required, and they remain continuing instructions until disabled or deleted. Prioritizing edited history in the GM's input does not guarantee that the reply follows it. During AI-operated checks in the real Host, the GM sometimes still answered “rope” after receiving the corrected “brass bell.” These checks are recorded separately from human play. [Steps, restart/Undo evidence and limits](docs/RECOVERY_PLAYCHECK_2026-09-20.md)
-
-**The 1.89.8 candidate clears removed summaries, backgrounds and portraits when restoring the full history.** Editing the cleared summary no longer resends old content. Ordinary partial updates retain the display. The distinction between conversation Undo and full-game restoration is unchanged.
+**The conversation moves on, and the world state stays with it.** LoreRelay connects the AI GM's story to maps, trade, quests, inventory and saved game state. The AI is free to narrate and suggest possibilities, while game facts such as your location and money are managed by LoreRelay. Correct a bad description by editing the message or giving the GM a direction; pin lasting facts in the Lorebook. Use Undo for conversation recovery and checkpoints when you want to restore the whole game.
 
 | Finish trading, then start the next day | Keep a view from the journey |
 | :---: | :---: |
-| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="Trading controls after returning to Elda's Shop: balance 505, empty cargo and the end-day confirmation." /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="A waterfront reference illustration generated with ComfyUI at South Port in the same trading adventure." /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="The game screen after returning from a trade, with trade and end-day controls available." /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="A ComfyUI reference illustration of South Port from the same journey." /></a> |
 
-<p align="center"><sub>Left: the actual game screen operated by AI. Right: a ComfyUI-generated location image, not evidence of accurate terrain or building reconstruction. It was saved as a South Port candidate and displayed again after travel and a Host restart. This is distinct from human play.</sub></p>
+<p align="center"><sub>Left: the game after a trading trip. Right: an optional ComfyUI location image from the same journey. Image generation is optional; LoreRelay also works without it.</sub></p>
 
-**[▶ Watch the earlier 1.85.3 demonstration in 75 seconds](docs/PUBLIC_LAUNCH_MEDIA.md)** — Talk to the GM → buy at the market → reopen the panel. Recorded in a sample world used for verification, with waits shortened.
+**[▶ Watch a 75-second slice of an adventure](docs/PUBLIC_LAUNCH_MEDIA.md)** — Talk to the GM → buy at the market → reopen the panel and continue. Recorded in a sample world with waits shortened.
 
 <a id="onboarding"></a>
 

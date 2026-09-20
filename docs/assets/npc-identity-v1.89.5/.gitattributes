@@ -1,2 +1,0 @@
-# Keep captured transport prompts and replies byte-for-byte across Windows checkouts.
-*.txt -text

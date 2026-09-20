@@ -11,31 +11,19 @@ VS Codeで動く、開発中のオープンソース作品です。対応するA
 
 [どんな遊びができる？](#onboarding) · [最初の冒険を始める](#how-to-play) · [もっと画面を見る](#screenshots) · [使えるAI・料金](#ai-connections) · [インストール](#setup)
 
-<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="1.89.3候補の南港。地図の現在地と残高505を表示。" /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="交易世界の南港。地図、現在地、交易の状態を表示。" /></a></p>
 
-<p align="center"><sub>1.89.3候補のAIによる実機プレイ。同梱の交易世界と主人公ハルカで、小麦の購入・南港への移動・売却・帰還を確認。左側の導入文は同梱データで、新しいGM応答ではありません。</sub></p>
+<p align="center"><sub>地図で行き先を選び、港へ移動して売買し、保存した世界から続きを遊べます。</sub></p>
 
-**500 → 489 → 505 credits。** 売買した荷物と残高を画面で確かめ、日送り・依頼受注・保存再開へ進みました。この1.89.3の確認ではGrok Buildの再ログインが必要で、新規GM会話は未実施でした。[実際の操作・生成prompt・確認範囲](docs/GAMEPLAY_PLAYCHECK.md)
-
-**1.89.4候補では同じ冒険をCodex GMで継続。** 実応答24件・採用23ターンで、売買、依頼完了、再起動後の会話と約束の再供給を確認しました。AI操作の記録で、別枠の依頼報酬は未確認、人物名の一貫性には課題が残ります。[実送信prompt・失敗例・確認限界](docs/REAL_GM_PLAYCHECK.md)
-
-**1.89.5候補ではCodex GMによるAI操作を継続し、** 長期再会で誤名が出た後、修正・Host再起動後の同じ質問に、答えを入力せず29ターン前の履歴を再供給してトーマスの名前と約束を正しく答えることを確認しました。別の既存fixtureでは信頼50→60・記憶1件と、再起動／同一候補の再送後の重複なしを確認しました。報酬は金銭ではなく信頼で、物品の自動達成判定や人物の自動登録は行いません。[実送信履歴・失敗から修正後の確認・制限](docs/NPC_IDENTITY_PLAYCHECK.md)
-
-**1.89.6候補では公開地点と実際の移動UIの候補をGMへ供給し、** AI実機確認で訓練場・詰所などの未確認地点を既存の移動先として扱わないことを確かめました。過去の購入は既存UI取引記録（小麦10個・90 credits支出）に基づいて回答し、残高608・空の積荷は変化させませんでしたが、この記録はGMの全取引を網羅せず、記録がないことだけで未実行とは判断しません。GM段落の文字列 `\n\n` は表示だけ補正し、原文は保持します。[地点・購入履歴の根拠と確認範囲](docs/GM_GROUNDING_PLAYCHECK.md)
-
-**1.89.7候補の訂正・復元：** Undo／巻き戻しは会話を戻し、現在の資産・現在地・クエストなどは維持します。ゲーム全体を戻す場合は、行動前に保存した完全チェックポイントを復元してください。Campaignや世界・資産などのゲーム状態を持つセーブでは、同じ行動の二重実行を防ぐため「再生成」を停止しています。描写はメッセージの編集で直せます。
-
-作者メモは次の応答だけの指示です。継続したい設定・GM方針はLorebookにピン留めして保存してください。キーワードなしでも保存でき、無効化・削除まで継続用の指示として扱います。編集履歴を優先してGMへ渡しても、返答への反映は保証しません。AIによる実Host操作では、訂正した「真鍮の風鈴」を送信しても「縄」と誤答する例が残りました。人間の試遊とは区別して記録しています。[操作手順・再起動／Undoの証拠と限界](docs/RECOVERY_PLAYCHECK_2026-09-20.md)
-
-**1.89.8候補では、全履歴を復元したときに削除済みの要約・背景・立ち絵が画面に残る問題を修正。** 空になった要約を編集しても古い内容を再送しません。通常の部分更新は表示を維持します。会話Undoとゲーム全体の復元の区別は変わりません。
+**会話だけでなく、世界の状態が残る。** LoreRelayでは、AI GMとの物語を地図・交易・依頼・所持品・保存データにつなげます。AIは描写や提案を自由に行えますが、所持金や現在地などのゲーム上の事実はLoreRelay側で管理します。間違った描写はメッセージ編集やGMへの指示で直し、長く残したい設定はLorebookへ。会話だけを戻すUndoと、ゲーム全体を戻すcheckpointを使い分けられます。
 
 | 商いを終えて、次の日へ | 旅先の風景を残す |
 | :---: | :---: |
-| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後、Eldaの店へ帰還した取引操作画面。残高505、空の積荷、日送りの確認。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同じ交易冒険の南港でComfyUI生成した水辺の参考イラスト。" /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後、店へ戻った操作画面。取引と日送りを確認できる。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同じ旅先の南港をComfyUIで描いた参考イラスト。" /></a> |
 
-<p align="center"><sub>左はAI操作の実画面。右はComfyUI生成の場所画像で、地形や建物の正確な再現を示すものではありません。南港の候補として保存し、移動・Host再起動後の再表示を確認しました。人間のHuman Playとは区別します。</sub></p>
+<p align="center"><sub>左は交易後のゲーム画面。右は同じ旅先をComfyUIで描いた場所画像。画像生成は任意で、画像なしでも遊べます。</sub></p>
 
-**[▶ 以前の1.85.3の実演を75秒で見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — GMと話す → 市場で買う → 画面を開き直す。動作確認用のサンプル世界で収録し、待ち時間を短縮した映像です。
+**[▶ 75秒で、冒険のひとこまを見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — GMと話す → 市場で買う → 画面を開き直して続きを確認。サンプル世界で収録し、待ち時間を短縮した映像です。
 
 ### 川から海へ、船に合う航路を選ぶ
 

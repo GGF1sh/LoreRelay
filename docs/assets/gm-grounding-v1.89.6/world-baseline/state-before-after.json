@@ -1,0 +1,72 @@
+{
+  "before": {
+    "location": "plaza_center",
+    "worldTurn": 0,
+    "quests": [
+      {
+        "id": "quest_npc_captain_elowen_missing_supplies",
+        "status": "completed"
+      }
+    ],
+    "npcs": {
+      "captain_elowen": {
+        "name": "Captain Elowen",
+        "disposition": {
+          "playerTrust": 60,
+          "playerRomance": 0,
+          "playerFear": 0,
+          "mood": "worried",
+          "lastInteractionTurn": 4
+        },
+        "needs": [],
+        "memories": [
+          {
+            "id": "mem_1789840711324_f5dz",
+            "turn": 4,
+            "content": "Player helped resolve: Captain Elowen needs supplies",
+            "emotionalWeight": "positive",
+            "tags": [
+              "quest-completed"
+            ]
+          }
+        ]
+      }
+    },
+    "gmEntries": 6
+  },
+  "after": {
+    "location": "plaza_center",
+    "worldTurn": 0,
+    "quests": [
+      {
+        "id": "quest_npc_captain_elowen_missing_supplies",
+        "status": "completed"
+      }
+    ],
+    "npcs": {
+      "captain_elowen": {
+        "name": "Captain Elowen",
+        "disposition": {
+          "playerTrust": 60,
+          "playerRomance": 0,
+          "playerFear": 0,
+          "mood": "worried",
+          "lastInteractionTurn": 4
+        },
+        "needs": [],
+        "memories": [
+          {
+            "id": "mem_1789840711324_f5dz",
+            "turn": 4,
+            "content": "Player helped resolve: Captain Elowen needs supplies",
+            "emotionalWeight": "positive",
+            "tags": [
+              "quest-completed"
+            ]
+          }
+        ]
+      }
+    },
+    "gmEntries": 7
+  }
+}

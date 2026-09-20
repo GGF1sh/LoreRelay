@@ -47,6 +47,8 @@ const COMBAT_MANIFEST_ENTRIES = COMBAT_TEST_GROUPS.map((group) => ({
 }));
 
 const MANIFEST = [
+    { category: 'unit', file: 'test_gameplay_funds_webview.js' },
+    { category: 'unit', file: 'test_gm_narrative_display.js' },
     { category: 'unit', file: 'test_player_lab_decision.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_player_lab_provider.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_qa_lab_evidence.js', consumesCompiledOutput: true },
@@ -99,7 +101,7 @@ const MANIFEST = [
     { category: 'unit', file: 'test_comfyui_job_lifecycle.py', runner: 'python' },
     { category: 'unit', file: 'test_portrait_artifact_adoption.py', runner: 'python' },
     { category: 'unit', file: 'test_portrait_artifact_sync.js', consumesCompiledOutput: true },
-    { category: 'unit', file: 'test_lorebook_save.js' },
+    { category: 'unit', file: 'test_lorebook_save.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_lorebook_redos.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_scenario_director.js', consumesCompiledOutput: true },
     { category: 'unit', file: 'test_party_director.js', consumesCompiledOutput: true },

@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.89.2** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.89.2]** |
+| `package.json` | **1.89.8** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.89.8]** |
 
-Version decision: patch; 1.89.1 → 1.89.2。既存のComfyUI生成・画像採用・遅延結果の接続を修正したプレイ候補です。タグ・Releaseは公開しません。
+Version decision: patch; 1.89.7 → 1.89.8。main向け累積Draft PR #153の監査で、全履歴復元時に削除された要約・背景・立ち絵が画面に残り、旧要約を再送できるP2を確認。ユーザー承認によりこの1件だけを修正した新しいプレイ候補です。通常の部分更新と正本の復元契約は維持し、タグ・Release・VSIXは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

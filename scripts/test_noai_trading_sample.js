@@ -31,3 +31,19 @@ assert(scenarioLoader.includes('normalizeOpeningCommerce(opening.commerce)'), 'n
 assert(scenarioLoader.includes('normalizeOpeningWorld(opening.world)'), 'normal scenario loading persists an opt-in starting location');
 
 console.log('NOAI trading sample: all tests passed.');
+
+// Exercise the loader's actual normalization, then the real FoW publication projection.
+const ts = require('typescript');
+const vm = require('vm');
+const normalizerSource = scenarioLoader.slice(scenarioLoader.indexOf('function normalizeOpeningWorld('), scenarioLoader.indexOf('function copyFolderSync('));
+const normalizeWorld = vm.runInNewContext(ts.transpileModule(normalizerSource + '\nnormalizeOpeningWorld;', { compilerOptions: { target: ts.ScriptTarget.ES2022 }}).outputText);
+const { publishedMarketLocationIds } = require('../out/publishedMarketLocationsCore');
+const initial = normalizeWorld(scenario.opening.world);
+assert.deepEqual([...publishedMarketLocationIds(forge, initial)].sort(), ['elda_shop', 'north_farm', 'south_port']);
+assert.equal(initial.visitedLocationIds, undefined, 'publishing the route must not invent visits');
+assert.deepEqual([...publishedMarketLocationIds(forge, normalizeWorld({currentLocationId:'elda_shop'}))], ['elda_shop'], 'ordinary scenarios retain fog');
+const sanitized = normalizeWorld({ currentLocationId:'elda_shop', discoveredRegionIds:[' r_south ', 9, '', 'r_south'], visitedLocationIds:['south_port'] });
+assert.deepEqual(Array.from(sanitized.discoveredRegionIds), ['r_south']);
+assert.equal(sanitized.visitedLocationIds, undefined);
+assert.equal(normalizeWorld({discoveredRegionIds:['r_south']}), undefined);
+console.log('Trading route publication: passed (reachable sample, retained fog, no invented visits).');

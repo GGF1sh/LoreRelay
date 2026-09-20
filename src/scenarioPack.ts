@@ -171,7 +171,13 @@ function normalizeOpeningWorld(raw: unknown): Record<string, unknown> | undefine
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const source = raw as Record<string, unknown>;
     if (typeof source.currentLocationId !== 'string' || !source.currentLocationId) { return undefined; }
-    return { currentLocationId: source.currentLocationId };
+    // A scenario may explicitly publish its starting route without claiming visits.
+    const discoveredRegionIds = Array.isArray(source.discoveredRegionIds)
+        ? [...new Set(source.discoveredRegionIds.filter((id): id is string =>
+            typeof id === 'string' && id.trim().length > 0).map(id => id.trim()))]
+        : undefined;
+    return { currentLocationId: source.currentLocationId,
+        ...(discoveredRegionIds ? { discoveredRegionIds } : {}) };
 }
 
 function copyFolderSync(from: string, to: string) {

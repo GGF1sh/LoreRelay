@@ -9,6 +9,56 @@
 
 ## [Unreleased]
 
+## [1.89.8] - 2026-09-20
+
+### Fixed
+- Clear summary, background and portrait when a full history restore no longer contains them; preserve omitted fields during partial updates. Editing the cleared summary no longer sends removed narration back to the Host.
+
+Patch candidate after the cumulative 1.89.7 integration audit; no tag, Release or VSIX published.
+
+## [1.89.7] - 2026-09-20
+
+### Fixed
+- Preserve current canonical game state during narrative Undo, rewind and legacy checkpoint restoration; clear removed narrative summaries/media and explain that complete rollback requires a full checkpoint.
+- Block Regenerate in campaigns and structured game saves to prevent replaying an already applied action; use message editing or restore a full checkpoint saved before the action.
+- Prefer a relevant explicitly edited history pair within existing memory search limits, without reviving excluded or removed history.
+- Save pinned Lorebook instructions without requiring unrelated keywords.
+
+
+## [1.89.6] - 2026-09-20
+
+### Fixed
+- Ground GM destination suggestions in published location IDs and the existing market travel preview; distinguish narrative places from selectable destinations and route verification.
+- Supply bounded persisted trade events with current-state precedence and explicit incomplete-history semantics, without reapplying transactions or treating GM proposals as receipts.
+- Render repeated literal `\n` separators in GM prose as paragraphs; preserve original history, copy text, other roles, code and paths.
+
+## [1.89.5] - 2026-09-20
+
+### Fixed
+- 完了済みの依頼もGMへ明示し、検索で見つかった古い受注会話から未完了と誤認するのを防ぐ。
+- 記憶検索を直近30履歴から既存の上限内の保存済み会話へ広げ、質問と回答が検索枠を二重に占めないようにした。
+- 検索キャッシュより現在の履歴・ロアブック等を優先し、訂正・除外・Undo後に古い本文が戻るのを防ぐ。Python検索と現在の会話検索を併用する。
+- GMへ正本NPC・明示した設定・過去の会話の優先関係を伝える。会話中の名前をNPC正本へ自動登録しない。
+- 検索された会話の直後にある応答済みのやり取りも同じ文字数枠で提示し、誤回答の直後の訂正が切り落とされるのを防ぐ。除外発言や未応答の入力はまたがない。
+
+## [1.89.4] - 2026-09-20
+
+### Fixed
+- 会話履歴の表示・保存から暗黙の日送りを除き、明示的な経過日数と日送り操作で世界を進める。
+- Connected GMの購入・売却、経過日数、依頼完了、評判命令を既存のAccepted Turnへ渡し、正本に反映する。
+- GM文脈に現在地・市場・商品の保存用IDと依頼IDを含め、表示名による誤指定を防ぐ。
+- クエストボードに完了ラベルを表示し、完了後の依頼を進行中と取り違えないようにした。
+- 移動・取引直後のGM送信は保存済み正本を読み、表示キャッシュに残った以前の場所・資産を送らない。
+- 記憶検索は現在のプレイヤー入力を優先し、直前の長い応答による自己一致で以前の約束が押し出される問題を抑える。候補なしの場合は従来の会話ヒントへ戻る。
+- 履歴検索では質問と直後の公開GM回答を一緒に渡し、自己紹介や約束の回答部分が検索から落ちるのを防ぐ。Python検索の履歴候補も現在の公開履歴から読み直す。
+
+## [1.89.3] - 2026-09-20
+
+### Fixed
+- 交易デモで既知の街道を保存し、別の市場へ移動できるようにした。通常のシナリオの未探索領域は維持する。
+- Start Hubの主人公作成をプレイヤー操作で初期化し、世界採用後に主人公作成と冒険画面への入口を表示する。
+- Commerce有効時の資金と、世界が有効なときの現在地を正本と同期し、取引・移動後と再読込時の古い自由文表示を修正した。
+
 ## [1.89.2] - 2026-09-19
 
 ### Fixed

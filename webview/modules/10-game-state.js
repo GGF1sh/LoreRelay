@@ -106,16 +106,20 @@ function applyGameState(state, fullHistory) {
     if (btn) btn.classList.add('active');
   }
 
-  // Summary
-  if (state.summary !== undefined) {
-    document.getElementById('story-summary').value = state.summary;
+  // Full history is a replacement, including absent optional presentation fields.
+  // Partial updates must retain fields that were not supplied.
+  if (state.summary !== undefined || fullHistory) {
+    document.getElementById('story-summary').value = state.summary ?? '';
   }
 
   if (state.background) {
     setSceneBackground(state.background);
+  } else if (fullHistory && bgLayer) {
+    bgLayer.style.backgroundImage = '';
+    bgLayer.className = `theme-${currentTheme}`;
   }
 
-  if (state.sprite) {
+  if (state.sprite || fullHistory) {
     setSceneSprite(state.sprite);
   }
 
@@ -170,6 +174,16 @@ function applyGameState(state, fullHistory) {
 }
 
 // ===== メッセージ描画 =====
+/** Repair over-escaped GM paragraphs for display only; copy/history keep the original text. */
+function getMessageDisplayContent(entry) {
+  const content = entry.content;
+  if (entry.role !== 'gm' || typeof content !== 'string') return content;
+  // Ambiguous code/path-bearing messages stay verbatim rather than guessing which escapes are prose.
+  if (/`|~{3,}|(?:^|\n)(?: {4}|\t)|[a-zA-Z]:\\|\\\\/.test(content)) return content;
+  // A single literal backslash-n may be intentional. Only repair repeated paragraph separators.
+  return content.replace(/(?:\\n){2,}/g, breaks => '\n'.repeat(breaks.length / 2));
+}
+
 function renderMessage(entry) {
   const div = document.createElement('div');
   div.className = `msg ${entry.role || 'gm'}`;
@@ -182,7 +196,7 @@ function renderMessage(entry) {
   const defaultSender = entry.role === 'user' ? T('webview.sender.player') : T('webview.sender.gm');
   let html = `<div class="msg-sender" style="color: ${senderColor}">${escapeHtml(entry.sender || defaultSender)}</div>`;
 
-  let bodyHtml = escapeHtml(entry.content);
+  let bodyHtml = escapeHtml(getMessageDisplayContent(entry));
   if (bodyHtml.includes('```mermaid')) {
     bodyHtml = bodyHtml.replace(/```mermaid\n([\s\S]*?)```/g, (match, p1) => {
       return `<div class="mermaid">${p1}</div>`;
@@ -394,22 +408,42 @@ function addSystemMessage(text) {
 }
 
 // ===== ステータス更新 =====
+let lastNarrativeFunds;
+let lastNarrativeLocation;
+
+function renderStatusLocation(worldView) {
+  const id = worldView?.enabled === true ? worldView.currentLocationId : undefined;
+  const pins = Array.isArray(worldView?.locationPinCatalog) ? worldView.locationPinCatalog : [];
+  const pin = id ? pins.find(item => item.locationId === id) : undefined;
+  const location = id ? (pin?.locationName || id) : lastNarrativeLocation;
+  const value = document.getElementById('status-location');
+  const row = document.getElementById('status-row-location');
+  if (value) value.textContent = location || '';
+  if (row) row.style.display = location ? '' : 'none';
+}
+
+
+function renderStatusFunds(commerce, commerceEnabled) {
+  const funds = commerceEnabled && Number.isFinite(commerce?.credits)
+    ? `${commerce.credits} credits` : lastNarrativeFunds;
+  const value = document.getElementById('status-funds');
+  const row = document.getElementById('status-row-funds');
+  if (value) value.textContent = funds || '';
+  if (row) row.style.display = funds ? '' : 'none';
+}
+
 function updateStatus(status) {
+  lastNarrativeFunds = status?.funds;
+  lastNarrativeLocation = status?.location;
+  const worldView = typeof _worldViewMsg !== 'undefined' ? _worldViewMsg : null;
+  renderStatusLocation(worldView);
+  renderStatusFunds(worldView?.playerCommerce, worldView?.enabled !== false && worldView?.enableCommerce === true);
   const statusContent = document.getElementById('status-content');
   if (!status) {
     if (statusContent) statusContent.style.display = 'none';
     return;
   }
   if (statusContent) statusContent.style.display = '';
-
-  // Location
-  const locRow = document.getElementById('status-row-location');
-  if (status.location) {
-    document.getElementById('status-location').textContent = status.location;
-    if (locRow) locRow.style.display = '';
-  } else {
-    if (locRow) locRow.style.display = 'none';
-  }
 
   // Time
   const timeRow = document.getElementById('status-row-time');
@@ -418,15 +452,6 @@ function updateStatus(status) {
     if (timeRow) timeRow.style.display = '';
   } else {
     if (timeRow) timeRow.style.display = 'none';
-  }
-
-  // Funds
-  const fundsRow = document.getElementById('status-row-funds');
-  if (status.funds) {
-    document.getElementById('status-funds').textContent = status.funds;
-    if (fundsRow) fundsRow.style.display = '';
-  } else {
-    if (fundsRow) fundsRow.style.display = 'none';
   }
 
   // Dynamic Resources (HP, MP, Sanity, Shields, etc.)

@@ -166,7 +166,7 @@ export function validateLorebookUiEntries(entries: LorebookUiEntry[]): string[] 
         if (entry.enabled && !entry.content.trim()) {
             errors.push(`"${entry.label || entry.id}": content required when enabled`);
         }
-        if (entry.enabled && entry.keys.length === 0) {
+        if (entry.enabled && !entry.pinned && entry.keys.length === 0) {
             errors.push(`"${entry.label || entry.id}": at least one keyword required when enabled`);
         }
     }

@@ -61,7 +61,6 @@ import { pushGameStateToRemoteClients } from './remotePlayServer';
 import { pushScenarioDirectorToWebview } from './scenarioDirector';
 import { pushPartyDirectorToWebview } from './partyDirector';
 import { pushWorldViewToWebview } from './worldView';
-import { maybeTickSimulation } from './emergentSimulator';
 import { isAllowedImagePath, toWebviewSafeMediaRef } from './mediaPaths';
 import type { TurnResult } from './types/TurnResult';
 import { loadWorldForge } from './worldForge';
@@ -495,9 +494,9 @@ export async function sendCurrentState(retryCount = 0, fullHistory = false): Pro
             if (historyUpdated) {
                 saveHistoryToDisk();
                 d.maybeSuggestArchive();
-                // GM ターン数が simIntervalTurns の倍数に達したらシミュレーションを進める
-                const gmTurnCount = gameEntryHistory.filter((e) => e.role === 'gm').length;
-                maybeTickSimulation(gmTurnCount);
+                // Rendering/persisting history is not elapsed world time. World
+                // days are committed by Accepted Turn elapsedWorldTurns or the
+                // explicit end-day action, never by a failed input or UI refresh.
             }
 
             const currentEntries: GameEntry[] = Array.isArray(activeState.entries)

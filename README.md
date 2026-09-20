@@ -11,17 +11,19 @@ VS Codeで動く、開発中のオープンソース作品です。対応するA
 
 [どんな遊びができる？](#onboarding) · [最初の冒険を始める](#how-to-play) · [もっと画面を見る](#screenshots) · [使えるAI・料金](#ai-connections) · [インストール](#setup)
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="管理表示の実画面。AIとの会話、世界の地図、交易の状態を一緒に確認。" /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="交易世界の南港。地図、現在地、交易の状態を表示。" /></a></p>
 
-<p align="center"><sub>言葉で進めた冒険を、会話・地図・交易の画面で確かめる。1.85.3の実画面。</sub></p>
+<p align="center"><sub>地図で行き先を選び、港へ移動して売買し、保存した世界から続きを遊べます。</sub></p>
 
-**[▶ 75秒で、冒険のひとこまを見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — GMと話す → 市場で買う → 画面を開き直して続きを確認。動作確認用のサンプル世界で収録し、待ち時間を短縮した映像です。
+**会話だけでなく、世界の状態が残る。** LoreRelayでは、AI GMとの物語を地図・交易・依頼・所持品・保存データにつなげます。AIは描写や提案を自由に行えますが、所持金や現在地などのゲーム上の事実はLoreRelay側で管理します。間違った描写はメッセージ編集やGMへの指示で直し、長く残したい設定はLorebookへ。会話だけを戻すUndoと、ゲーム全体を戻すcheckpointを使い分けられます。
 
-| 次は、どこへ行こう？ | 何を買い、何を持ち帰ろう？ |
+| 商いを終えて、次の日へ | 旅先の風景を残す |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map画面。生成地図に地域名、地点、勢力圏と未探索領域を表示。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="購入確定後のAction Hub。小麦1、所持金11、市場在庫49。" /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="交易後、店へ戻った操作画面。取引と日送りを確認できる。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同じ旅先の南港をComfyUIで描いた参考イラスト。" /></a> |
 
-<p align="center"><sub>地図は以前の機能紹介画面、取引は1.85.3の購入後です。画像はクリックで拡大できます。</sub></p>
+<p align="center"><sub>左は交易後のゲーム画面。右は同じ旅先をComfyUIで描いた場所画像。画像生成は任意で、画像なしでも遊べます。</sub></p>
+
+**[▶ 75秒で、冒険のひとこまを見る](docs/PUBLIC_LAUNCH_MEDIA.md)** — GMと話す → 市場で買う → 画面を開き直して続きを確認。サンプル世界で収録し、待ち時間を短縮した映像です。
 
 ### 川から海へ、船に合う航路を選ぶ
 
@@ -89,12 +91,12 @@ ChatGPTなどで作った地図を取り込み、地名・地点・現在地を�
 
 1. **遊ぶ準備をする。** [インストール](#setup)を済ませ、専用のプレイ用フォルダを開きます。新しい機能を試す場合は現行ソースから起動します。
 2. **GMを選ぶ。** コマンドパレットから `LoreRelay: AI接続`（英語UIでは `LoreRelay: AI Connections`）を開き、使いたい接続のログインと設定を済ませます。[接続先と料金の違い](#ai-connections)
-3. **舞台とキャラクターを選ぶ。** `LoreRelay: Open Game UI` → Start Hubの「世界を作りはじめる」で世界生成セットアップを開き、プレビュー後に「この世界を使う」。主人公は「主人公を新規作成」から作るか、既存キャラクターを選びます。デモ群や `LoreRelay: Load Scenario Pack` から同梱シナリオも選べます。保存済みの世界は「続ける」へ。
+3. **舞台とキャラクターを選ぶ。** `LoreRelay: Open Game UI` → Start Hubの「世界を作りはじめる」で世界生成セットアップを開き、プレビュー後に「この世界を使う」。採用後の「主人公を作る」から作成するか、既存キャラクターを選びます。「ほかの始め方」→「主人公を新規作成」も使えます。デモ群や `LoreRelay: Load Scenario Pack` から同梱シナリオも選べます。保存済みの世界は「続ける」へ。
 4. **最初の一言を送る。** 選択肢か自由入力で行動し、GMの描写と結果を確かめます。交易を有効にした世界では、共通の「行動」から取引・市場移動・日送りへ進めます。
 
 シナリオの初期画面は、AIを接続する前にも表示できます。そこからGMと物語を進めるには接続準備が必要です。接続で迷ったら [AI Connections](docs/AI_CONNECTIONS.md) を参照してください。
 
-### 同じ冒険で、画像と地図を確かめる
+### 以前の1.89.2で確認した画像と航路
 
 1.89.2の隔離した拡張Host／実Webviewで、同じ航路デモ世界と主人公ハルカを使って確認しています。情景・人物・地図はローカルComfyUIで生成。導入文は検証用の固定文で、AI GMとの実会話や人間プレイの収録ではありません。 [生成設定・実測・確認範囲](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 

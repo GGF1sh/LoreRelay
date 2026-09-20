@@ -2,6 +2,10 @@
 
 The four language READMEs share the same featured screens and full gallery. Current management and completed-trade captures accompany the retained light/dark conversations, generated map artwork, earlier feature screens and illustration. Captions distinguish their provenance. No generated mockup is presented as a functioning game screen.
 
+## Gameplay coherence candidate — 1.89.3
+
+The featured `gameplay-v1.89.3/` images show the same trade-routes adventure and Haruka, operated by AI in the real Extension Host. Buying, moving, selling, returning, day progression, quest acceptance and image reload were exercised. Grok needed re-login, so the visible opening text is bundled data, not a fresh GM response. [Asset provenance](gameplay-v1.89.3/README.md) · [Playcheck and limits](../GAMEPLAY_PLAYCHECK.md).
+
 ## Local ComfyUI connection check — 1.89.2
 
 `connection-playcheck-v1.89.2/{scene,character,map,location}.png` are direct captures of the real VS Code 1.136.1 Extension Development Host/Webview on 2026-09-19. The same isolated navigation fixture and Haruka are used throughout. Its opening narration is fixed test text, not a live GM reply or human-play recording. Only real UI navigation, presentation mode and scrolling were used for framing; no screenshot content was replaced.

@@ -11,6 +11,12 @@ export interface MemoryChunk {
     source: string;
     label: string;
     text: string;
+    /** Live history pairing only; accepts old backend answer IDs without a second slot. */
+    pairedReplyId?: string;
+    /** Adjacent answered dialogue can correct this excerpt; not part of retrieval scoring. */
+    followingExchange?: string;
+    /** Latest visible edit in this live history pair; never sourced from an index. */
+    editedAt?: string;
 }
 
 /** Upper bound on indexed chunks to keep TF-IDF scans bounded. */
@@ -31,6 +37,7 @@ function trimMemoryChunks(chunks: MemoryChunk[]): MemoryChunk[] {
         text: ch.text.length > MAX_MEMORY_CHUNK_CHARS
             ? ch.text.slice(0, MAX_MEMORY_CHUNK_CHARS)
             : ch.text,
+        followingExchange: ch.followingExchange?.slice(0, MAX_MEMORY_CHUNK_CHARS),
     }));
     if (capped.length <= MAX_MEMORY_BANK_CHUNKS) {
         return capped;
@@ -207,15 +214,14 @@ function listSagaChapters(ws: string): Array<{ id?: string; title?: string; cont
 
 // ── 公開 API ──────────────────────────────────────────────────
 
-/** memories/index.json があればそれを使い、なければ各ソースから都度収集 */
+/** Read mutable sources afresh; an index is a retrieval cache, never a history authority. */
 export function loadMemoryChunks(ws: string): MemoryChunk[] {
     const indexPath = path.join(ws, 'memories', 'index.json');
     const indexed = readJsonFile<{ chunks?: MemoryChunk[] }>(indexPath);
-    if (indexed?.chunks?.length) {
-        return trimMemoryChunks(indexed.chunks.filter((c) => c?.text));
-    }
-
-    const chunks: MemoryChunk[] = [];
+    // Preserve custom/imported sources, but never resurrect edited, disabled or
+    // undone records from a cached copy of a source owned by this workspace.
+    const chunks: MemoryChunk[] = (Array.isArray(indexed?.chunks) ? indexed.chunks : []).filter(c =>
+        c?.text && !['saga', 'lorebook', 'dynamic_profile', 'history'].includes(c.source));
 
     for (const ch of listSagaChapters(ws)) {
         chunks.push({
@@ -227,8 +233,9 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
     }
 
     for (const name of ['lorebook.json', 'world_info.json']) {
+        if (!fs.existsSync(path.join(ws, name))) { continue; }
         const raw = readJsonFile<{ entries?: Array<Record<string, unknown>> }>(path.join(ws, name));
-        if (!Array.isArray(raw?.entries)) { continue; }
+        if (!Array.isArray(raw?.entries)) { break; }
         for (const e of raw.entries) {
             if (e.enabled === false) { continue; }
             const content = String(e.content || '').trim();
@@ -240,6 +247,8 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
                 text: content
             });
         }
+        // Same primary/fallback contract as the Lorebook editor and prompt loader.
+        break;
     }
 
     const dyn = readJsonFile<Record<string, string>>(path.join(ws, 'characters', 'dynamic_profiles.json'));
@@ -259,20 +268,94 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
 
     const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'));
     if (Array.isArray(hist)) {
-        for (const entry of hist.slice(-30)) {
+        // The former 30-entry window forgot a meeting after about 15 exchanges.
+        // Search retained dialogue within the existing corpus bound, without
+        // sending the whole history or creating NPC records from narration.
+        const recent = hist.slice(-MAX_MEMORY_BANK_CHUNKS);
+        for (const [index, entry] of recent.entries()) {
             if (entry.excludedFromPrompt === true) { continue; }
             const content = String(entry.content || '').trim();
-            if (content.length < 40) { continue; }
+            // A retrieved question without its answer loses names and promises.
+            // Keep only the immediately adjacent visible GM reply in this chunk;
+            // never cross another user entry, an excluded reply, or this window.
+            const next = recent[index + 1];
+            const reply = entry.role === 'user' && next?.role === 'gm' && next.excludedFromPrompt !== true
+                ? String(next.content || '').trim()
+                : '';
+            if (!content || Math.max(content.length, reply.length) < 40) { continue; }
+            const previous = recent[index - 1];
+            // One exchange occupies one retrieval slot, not two near-duplicates.
+            if (entry.role === 'gm' && previous?.role === 'user'
+                && previous.excludedFromPrompt !== true && String(previous.content || '').trim()) { continue; }
+            const followUser = recent[index + 2];
+            const followGm = recent[index + 3];
+            const followingExchange = reply && followUser?.role === 'user' && followGm?.role === 'gm'
+                && followUser.excludedFromPrompt !== true && followGm.excludedFromPrompt !== true
+                && String(followUser.content || '').trim() && String(followGm.content || '').trim()
+                ? `[Following exchange — ${followUser.id || '?'}, ${followGm.id || '?'}; may concern another person]\n[Player statement/question]\n${followUser.content}\n[GM reply]\n${followGm.content}`
+                : undefined;
+            const editedAt = [entry.editedAt, ...(reply ? [next.editedAt] : [])]
+                .filter((value): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)))
+                .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
             chunks.push({
                 id: `history:${entry.id || 'turn'}`,
                 source: 'history',
-                label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'})`,
-                text: content
+                pairedReplyId: reply && next.id ? 'history:' + next.id : undefined,
+                followingExchange,
+                editedAt,
+                label: `${entry.sender || entry.role || 'GM'} (${entry.id || '?'}, history entry ${hist.length - recent.length + index + 1}${editedAt ? `, user-edited ${editedAt}` : ''})`,
+                text: reply ? `[Player statement/question]\n${content}\n[GM reply — ${next.id || '?'}]\n${reply}` : content
             });
         }
     }
 
-    return trimMemoryChunks(chunks);
+    // Keep recent dialogue if the combined source budget is full. The numeric
+    // history-entry label preserves chronology independently of relevance order.
+    const history = chunks.filter(c => c.source === 'history');
+    return trimMemoryChunks([...chunks.filter(c => c.source !== 'history'), ...history.reverse()]);
+}
+
+/** Reserve at most one slot for a relevant edit, using only current visible history. */
+function selectLatestEditedHistory(chunks: MemoryChunk[]): MemoryChunk | undefined {
+    let latest: MemoryChunk | undefined;
+    let latestTime = -Infinity;
+    for (const chunk of chunks) {
+        const editedTime = chunk.source === 'history' && chunk.editedAt ? Date.parse(chunk.editedAt) : NaN;
+        if (Number.isFinite(editedTime) && editedTime > latestTime) {
+            latest = chunk;
+            latestTime = editedTime;
+        }
+    }
+    return latest;
+}
+
+/** Fuse live lexical retrieval with backend ranking, hydrating only current records. */
+export function mergeMemoryMatches(
+    current: MemoryChunk[], local: MemoryChunk[], backend: MemoryChunk[], maxResults: number
+): MemoryChunk[] {
+    const byId = new Map(current.map(chunk => [chunk.id, chunk]));
+    for (const chunk of current) {
+        if (chunk.source === 'history' && chunk.pairedReplyId) {
+            byId.set(chunk.pairedReplyId, chunk);
+        }
+    }
+    const scored = new Map<string, number>();
+    // Local retrieval sees new corrections and old retained dialogue even when
+    // an optional vector/Python index is stale or uses a shorter history window.
+    for (const [list, weight] of [[local, 2], [backend, 1]] as const) {
+        const seen = new Set<string>();
+        list.forEach((chunk, rank) => {
+            const live = byId.get(chunk.id);
+            if (!live || seen.has(live.id)) { return; }
+            seen.add(live.id);
+            scored.set(live.id, (scored.get(live.id) || 0) + weight / (rank + 1));
+        });
+    }
+    const ranked = [...scored].sort((a, b) => b[1] - a[1]).map(([id]) => byId.get(id)!);
+    // Local matches establish relevance to this request. A stale backend cannot
+    // nominate a removed/hidden edit or spend another slot on its old answer ID.
+    const edited = selectLatestEditedHistory(local.map(chunk => byId.get(chunk.id)).filter((chunk): chunk is MemoryChunk => Boolean(chunk)));
+    return (edited ? [edited, ...ranked.filter(chunk => chunk.id !== edited.id)] : ranked).slice(0, maxResults);
 }
 
 /**
@@ -293,7 +376,9 @@ export function matchMemories(ws: string, hintText: string, maxResults = 3): Mem
         .filter((x) => x.score > 0.005)
         .sort((a, b) => b.score - a.score);
 
-    return scored.slice(0, maxResults).map((x) => x.ch);
+    const ranked = scored.map(x => x.ch);
+    const edited = selectLatestEditedHistory(ranked);
+    return (edited ? [edited, ...ranked.filter(chunk => chunk.id !== edited.id)] : ranked).slice(0, maxResults);
 }
 
 /** GM プロンプト用 — 直近 N 章の Saga テキスト */

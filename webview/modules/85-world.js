@@ -209,6 +209,9 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function renderWorldView(msg) {
+    _worldViewMsg = msg;
+    renderStatusLocation(msg);
+    renderStatusFunds(msg.playerCommerce, msg.enabled === true && msg.enableCommerce === true);
     if (typeof updateNpcTtsFromWorldView === 'function') {
         updateNpcTtsFromWorldView(msg);
     }
@@ -242,7 +245,6 @@ function renderWorldView(msg) {
     }
 
     currentWorldLocationId = msg.currentLocationId;
-    _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
     renderWorldLocationNavigator();
     rebuildRegionFeedbackMap(msg);
@@ -2240,6 +2242,7 @@ function playerRoleLabel(role) {
 }
 
 function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, playerRoles, currentLocationId) {
+    renderStatusFunds(commerce, commerceEnabled);
     const section = document.getElementById('world-commerce-details');
     const panel = document.getElementById('world-commerce-panel');
     const hint = document.getElementById('world-commerce-hint');
@@ -4966,6 +4969,8 @@ function renderQuestHooks(quests) {
             actionsHtml = '<button type="button" class="small-btn primary quest-accept-btn">' + escapeHtml(T('webview.world.questAccept')) + '</button>';
         } else if (q.status === 'active') {
             actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-orange); font-weight:600;">${escapeHtml(T('webview.world.questActive'))}</span>`;
+        } else if (q.status === 'completed') {
+            actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-green); font-weight:600;">${escapeHtml(T('webview.world.questCompleted'))}</span>`;
         }
 
         const rewardHtml = q.reward

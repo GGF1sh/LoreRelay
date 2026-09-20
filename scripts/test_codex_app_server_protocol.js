@@ -1,0 +1,28 @@
+const assert = require('node:assert/strict');
+const { CodexAppServerProtocol } = require('../out/codexAppServerProtocol');
+(async () => {
+    const sent = [];
+    const rpc = new CodexAppServerProtocol(line => sent.push(JSON.parse(line)), 1000);
+    const first = rpc.request('initialize', {});
+    const second = rpc.request('account/read', {});
+    rpc.receive(Buffer.from(JSON.stringify({ id: sent[1].id, result: 'second' }) + '\n'));
+    const bytes = Buffer.from(JSON.stringify({ id: sent[0].id, result: '日本語' }) + '\n');
+    for (const byte of bytes) rpc.receive(Buffer.from([byte]));
+    assert.equal(await first, '日本語');
+    assert.equal(await second, 'second');
+    rpc.receive(Buffer.from('{"id":"server-1","method":"item/commandExecution/requestApproval","params":{}}\n'));
+    assert.equal(sent.at(-1).error.code, -32601);
+    const pending = rpc.request('thread/start', {});
+    const rejected = assert.rejects(pending, /codex_invalid_jsonl/);
+    rpc.receive(Buffer.from('not json\n'));
+    await rejected;
+    await assert.rejects(rpc.request('account/read', {}), /closed/);
+    const timeout = new CodexAppServerProtocol(() => {}, 5);
+    await assert.rejects(timeout.request('initialize', {}), /timeout/);
+    timeout.close();
+    const oversized = new CodexAppServerProtocol(() => {});
+    const oversizeRejected = assert.rejects(oversized.request('initialize', {}), /too_large/);
+    oversized.receive(Buffer.alloc(4 * 1024 * 1024 + 1, 65));
+    await oversizeRejected;
+    console.log('Codex JSONL: UTF-8 fragmentation, out-of-order responses, denied server requests, timeout and framing failure passed.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

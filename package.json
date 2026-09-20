@@ -1,0 +1,949 @@
+{
+  "name": "lorerelay",
+  "displayName": "LoreRelay",
+  "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
+  "version": "1.89.8",
+  "publisher": "Miya",
+  "author": "Miya",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GGF1sh/LoreRelay.git"
+  },
+  "categories": [
+    "Other"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "game-master",
+    "roleplay",
+    "trpg",
+    "visual-novel",
+    "sillytavern",
+    "grok",
+    "llm"
+  ],
+  "activationEvents": [
+    "workspaceContains:.lorerelay-qa-fixture.json",
+    "workspaceContains:.vscode/.lorerelay-qa-fixture.json",
+    "onCommand:textadventure.openGame",
+    "onCommand:textadventure.listImageModels",
+    "onCommand:textadventure.scanLocalModels",
+    "onCommand:textadventure.loadScenario",
+    "onCommand:textadventure.importStCharacter",
+    "onCommand:textadventure.importStLorebook",
+    "onCommand:textadventure.exportScenario",
+    "onCommand:textadventure.exportReplay",
+    "onCommand:textadventure.validateScenario",
+    "onCommand:textadventure.setOpenRouterApiKey",
+    "onCommand:textadventure.clearOpenRouterApiKey",
+    "onCommand:textadventure.setTtsApiKey",
+    "onCommand:textadventure.clearTtsApiKey",
+    "onCommand:textadventure.testLocalTts",
+    "onCommand:textadventure.checkForUpdates",
+    "onCommand:textadventure.startRemotePlay",
+    "onCommand:textadventure.stopRemotePlay",
+    "onCommand:textadventure.rotateRemotePlayToken",
+    "onCommand:textadventure.generateWorldForge",
+    "onCommand:textadventure.generateWorldMapLayout",
+    "onCommand:textadventure.generateWorldMapImage",
+    "onCommand:textadventure.resetProtagonistBootstrap",
+    "onCommand:textadventure.promoteParlorToCampaign",
+    "onCommand:textadventure.runWorkspaceSanityCheck",
+    "onCommand:textadventure.previewGmTurnTransactionPlan",
+    "onCommand:textadventure.previewWorkspaceMigrations",
+    "onCommand:textadventure.applyVehicleStateMigration",
+    "onCommand:textadventure.restoreVehicleStateMigrationBackup",
+    "onCommand:textadventure.upgradeVehicleStateForGameplaySpine",
+    "onCommand:textadventure.gameplaySpineRepairVehicle",
+    "onCommand:textadventure.startActionRecording",
+    "onCommand:textadventure.stopActionRecording",
+    "onCommand:textadventure.exportActionRecording",
+    "onCommand:textadventure.openAiConnection",
+    "onCommand:textadventure.aiConnectionStatus",
+    "onCommand:textadventure.startPlayerAgent",
+    "onCommand:textadventure.stopPlayerAgent",
+    "onCommand:textadventure.startNarrator",
+    "onCommand:textadventure.stopNarrator"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "textadventure.openGame",
+        "title": "%command.openGame%"
+      },
+      {
+        "command": "textadventure.openBattleView",
+        "title": "%command.openBattleView%"
+      },
+      {
+        "command": "textadventure.startCampaignCombatDebug",
+        "title": "%command.startCampaignCombatDebug%"
+      },
+      {
+        "command": "textadventure.abortCampaignCombat",
+        "title": "%command.abortCampaignCombat%"
+      },
+      {
+        "command": "textadventure.applyPendingCombatOutcomes",
+        "title": "%command.applyPendingCombatOutcomes%"
+      },
+      {
+        "command": "textadventure.listImageModels",
+        "title": "%command.listImageModels%"
+      },
+      {
+        "command": "textadventure.scanLocalModels",
+        "title": "%command.scanLocalModels%"
+      },
+      {
+        "command": "textadventure.loadScenario",
+        "title": "%command.loadScenario%"
+      },
+      {
+        "command": "textadventure.importStCharacter",
+        "title": "%command.importStCharacter%"
+      },
+      {
+        "command": "textadventure.importStLorebook",
+        "title": "%command.importStLorebook%"
+      },
+      {
+        "command": "textadventure.exportScenario",
+        "title": "%command.exportScenario%"
+      },
+      {
+        "command": "textadventure.exportReplay",
+        "title": "%command.exportReplay%"
+      },
+      {
+        "command": "textadventure.validateScenario",
+        "title": "%command.validateScenario%"
+      },
+      {
+        "command": "textadventure.setOpenRouterApiKey",
+        "title": "%command.setOpenRouterApiKey%"
+      },
+      {
+        "command": "textadventure.clearOpenRouterApiKey",
+        "title": "%command.clearOpenRouterApiKey%"
+      },
+      {
+        "command": "textadventure.setTtsApiKey",
+        "title": "%command.setTtsApiKey%"
+      },
+      {
+        "command": "textadventure.clearTtsApiKey",
+        "title": "%command.clearTtsApiKey%"
+      },
+      {
+        "command": "textadventure.testLocalTts",
+        "title": "%command.testLocalTts%"
+      },
+      {
+        "command": "textadventure.checkForUpdates",
+        "title": "%command.checkForUpdates%"
+      },
+      {
+        "command": "textadventure.startRemotePlay",
+        "title": "%command.startRemotePlay%"
+      },
+      {
+        "command": "textadventure.stopRemotePlay",
+        "title": "%command.stopRemotePlay%"
+      },
+      {
+        "command": "textadventure.rotateRemotePlayToken",
+        "title": "%command.rotateRemotePlayToken%"
+      },
+      {
+        "command": "textadventure.generateWorldForge",
+        "title": "%command.generateWorldForge%"
+      },
+      {
+        "command": "textadventure.listLmModels",
+        "title": "%command.listLmModels%"
+      },
+      {
+        "command": "textadventure.generateWorldMapLayout",
+        "title": "%command.generateWorldMapLayout%"
+      },
+      {
+        "command": "textadventure.generateWorldMapImage",
+        "title": "%command.generateWorldMapImage%"
+      },
+      {
+        "command": "textadventure.resetProtagonistBootstrap",
+        "title": "%command.resetProtagonistBootstrap%"
+      },
+      {
+        "command": "textadventure.promoteParlorToCampaign",
+        "title": "%command.promoteParlorToCampaign%"
+      },
+      {
+        "command": "textadventure.runWorkspaceSanityCheck",
+        "title": "%command.runWorkspaceSanityCheck%"
+      },
+      {
+        "command": "textadventure.previewGmTurnTransactionPlan",
+        "title": "%command.previewGmTurnTransactionPlan%"
+      },
+      {
+        "command": "textadventure.previewWorkspaceMigrations",
+        "title": "%command.previewWorkspaceMigrations%"
+      },
+      {
+        "command": "textadventure.applyVehicleStateMigration",
+        "title": "%command.applyVehicleStateMigration%"
+      },
+      {
+        "command": "textadventure.restoreVehicleStateMigrationBackup",
+        "title": "%command.restoreVehicleStateMigrationBackup%"
+      },
+      {
+        "command": "textadventure.upgradeVehicleStateForGameplaySpine",
+        "title": "%command.upgradeVehicleStateForGameplaySpine%"
+      },
+      {
+        "command": "textadventure.gameplaySpineRepairVehicle",
+        "title": "%command.gameplaySpineRepairVehicle%"
+      },
+      {
+        "command": "textadventure.startActionRecording",
+        "title": "%command.startActionRecording%"
+      },
+      {
+        "command": "textadventure.stopActionRecording",
+        "title": "%command.stopActionRecording%"
+      },
+      {
+        "command": "textadventure.exportActionRecording",
+        "title": "%command.exportActionRecording%"
+      },
+      {
+        "command": "textadventure.openAiConnection",
+        "title": "%command.openAiConnection%"
+      },
+      {
+        "command": "textadventure.aiConnectionStatus",
+        "title": "%command.aiConnectionStatus%"
+      },
+      {
+        "command": "textadventure.startPlayerAgent",
+        "title": "%command.startPlayerAgent%"
+      },
+      {
+        "command": "textadventure.stopPlayerAgent",
+        "title": "%command.stopPlayerAgent%"
+      },
+      {
+        "command": "textadventure.startNarrator",
+        "title": "%command.startNarrator%"
+      },
+      {
+        "command": "textadventure.stopNarrator",
+        "title": "%command.stopNarrator%"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "textadventure.startCampaignCombatDebug",
+          "when": "config.textAdventure.debug.combatDevTools"
+        },
+        {
+          "command": "textadventure.abortCampaignCombat",
+          "when": "config.textAdventure.debug.combatDevTools"
+        },
+        {
+          "command": "textadventure.applyPendingCombatOutcomes",
+          "when": "config.textAdventure.debug.combatDevTools"
+        },
+        {
+          "command": "textadventure.listLmModels",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.previewGmTurnTransactionPlan",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.previewWorkspaceMigrations",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.applyVehicleStateMigration",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.restoreVehicleStateMigrationBackup",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.upgradeVehicleStateForGameplaySpine",
+          "when": "config.textAdventure.debug.developerCommands"
+        },
+        {
+          "command": "textadventure.gameplaySpineRepairVehicle",
+          "when": "config.textAdventure.debug.developerCommands"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "LoreRelay",
+      "properties": {
+        "textAdventure.locale": {
+          "type": "string",
+          "enum": [
+            "ja",
+            "en",
+            "zh-CN",
+            "zh-TW"
+          ],
+          "enumDescriptions": [
+            "Japanese",
+            "English",
+            "Simplified Chinese",
+            "Traditional Chinese / Taiwan"
+          ],
+          "default": "en",
+          "description": "%config.textAdventure.locale.description%"
+        },
+        "textAdventure.skillPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.skillPath.description%"
+        },
+        "textAdventure.imageGen.backend": {
+          "type": "string",
+          "enum": [
+            "comfyui",
+            "stabilitymatrix",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Standalone ComfyUI (default 127.0.0.1:8188)",
+            "ComfyUI bundled in Stability Matrix",
+            "Any ComfyUI-compatible server (set the URL manually)"
+          ],
+          "default": "comfyui",
+          "description": "%config.textAdventure.imageGen.backend.description%"
+        },
+        "textAdventure.imageGen.comfyuiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8188",
+          "description": "%config.textAdventure.imageGen.comfyuiUrl.description%"
+        },
+        "textAdventure.imageGen.checkpoint": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.imageGen.checkpoint.description%"
+        },
+        "textAdventure.imageGen.workflowPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.imageGen.workflowPath.description%"
+        },
+        "textAdventure.imageGen.controlNet": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.imageGen.controlNet.description%"
+        },
+        "textAdventure.imageGen.steps": {
+          "type": "number",
+          "default": 0,
+          "description": "%config.textAdventure.imageGen.steps.description%"
+        },
+        "textAdventure.imageGen.cfg": {
+          "type": "number",
+          "default": 0,
+          "description": "%config.textAdventure.imageGen.cfg.description%"
+        },
+        "textAdventure.imageGen.width": {
+          "type": "number",
+          "default": 0,
+          "description": "%config.textAdventure.imageGen.width.description%"
+        },
+        "textAdventure.imageGen.height": {
+          "type": "number",
+          "default": 0,
+          "description": "%config.textAdventure.imageGen.height.description%"
+        },
+        "textAdventure.imageGen.autoOnLocationChange": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.imageGen.autoOnLocationChange.description%"
+        },
+        "textAdventure.imageGen.includeFactionInPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.imageGen.includeFactionInPrompt.description%"
+        },
+        "textAdventure.imageGen.includeDangerInPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.imageGen.includeDangerInPrompt.description%"
+        },
+        "textAdventure.cartography.lora": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.cartography.lora.description%"
+        },
+        "textAdventure.cartography.loraWeight": {
+          "type": "number",
+          "default": 0,
+          "description": "%config.textAdventure.cartography.loraWeight.description%"
+        },
+        "textAdventure.cartography.autoLocationImage": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.cartography.autoLocationImage.description%"
+        },
+        "textAdventure.cartography.autoLocationImageCooldownTurns": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 20,
+          "description": "%config.textAdventure.cartography.autoLocationImageCooldownTurns.description%"
+        },
+        "textAdventure.cartography.fogInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.cartography.fogInPrompt.description%"
+        },
+        "textAdventure.cartography.revealInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.cartography.revealInPrompt.description%"
+        },
+        "textAdventure.chronicle.recapInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.chronicle.recapInPrompt.description%"
+        },
+        "textAdventure.chronicle.maxRecapLines": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "%config.textAdventure.chronicle.maxRecapLines.description%"
+        },
+        "textAdventure.pacing.hintInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.pacing.hintInPrompt.description%"
+        },
+        "textAdventure.pacing.windowSize": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 20,
+          "description": "%config.textAdventure.pacing.windowSize.description%"
+        },
+        "textAdventure.pacing.dominanceThreshold": {
+          "type": "number",
+          "default": 0.8,
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "%config.textAdventure.pacing.dominanceThreshold.description%"
+        },
+        "textAdventure.reputation.inPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.reputation.inPrompt.description%"
+        },
+        "textAdventure.debug.bulkWorldSim": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.debug.bulkWorldSim.description%"
+        },
+        "textAdventure.debug.bulkWorldSimMaxSteps": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "%config.textAdventure.debug.bulkWorldSimMaxSteps.description%"
+        },
+        "textAdventure.debug.combatDevTools": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.debug.combatDevTools.description%"
+        },
+        "textAdventure.debug.developerCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.debug.developerCommands.description%"
+        },
+        "textAdventure.modelScan.roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "%config.textAdventure.modelScan.roots.description%"
+        },
+        "textAdventure.vlm.provider": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "ollama",
+            "openrouter"
+          ],
+          "default": "disabled",
+          "description": "%config.textAdventure.vlm.provider.description%"
+        },
+        "textAdventure.vlm.model": {
+          "type": "string",
+          "default": "llava",
+          "description": "%config.textAdventure.vlm.model.description%"
+        },
+        "textAdventure.vlm.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "%config.textAdventure.vlm.endpoint.description%"
+        },
+        "textAdventure.bgm.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.bgm.enabled.description%"
+        },
+        "textAdventure.bgm.manifestPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.bgm.manifestPath.description%"
+        },
+        "textAdventure.bgm.volume": {
+          "type": "number",
+          "default": 50,
+          "description": "%config.textAdventure.bgm.volume.description%"
+        },
+        "textAdventure.sfx.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.sfx.enabled.description%"
+        },
+        "textAdventure.sfx.manifestPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.sfx.manifestPath.description%"
+        },
+        "textAdventure.sfx.volume": {
+          "type": "number",
+          "default": 70,
+          "description": "%config.textAdventure.sfx.volume.description%"
+        },
+        "textAdventure.mediaAgent.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.mediaAgent.enabled.description%"
+        },
+        "textAdventure.mediaAgent.autoImage": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.mediaAgent.autoImage.description%"
+        },
+        "textAdventure.mediaAgent.maxImageQueue": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "%config.textAdventure.mediaAgent.maxImageQueue.description%"
+        },
+        "textAdventure.remotePlay.port": {
+          "type": "number",
+          "default": 9473,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "%config.textAdventure.remotePlay.port.description%"
+        },
+        "textAdventure.remotePlay.bindAddress": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "%config.textAdventure.remotePlay.bindAddress.description%"
+        },
+        "textAdventure.remotePlay.maxClients": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 32,
+          "description": "%config.textAdventure.remotePlay.maxClients.description%"
+        },
+        "textAdventure.remotePlay.inputCooldownMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "maximum": 10000,
+          "description": "%config.textAdventure.remotePlay.inputCooldownMs.description%"
+        },
+        "textAdventure.remotePlay.defaultRole": {
+          "type": "string",
+          "enum": [
+            "player",
+            "spectator"
+          ],
+          "default": "player",
+          "description": "%config.textAdventure.remotePlay.defaultRole.description%"
+        },
+        "textAdventure.remotePlay.mediaUrlTtlSec": {
+          "type": "number",
+          "default": 300,
+          "minimum": 60,
+          "maximum": 3600,
+          "description": "%config.textAdventure.remotePlay.mediaUrlTtlSec.description%"
+        },
+        "textAdventure.workspaceFolder": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.workspaceFolder.description%"
+        },
+        "textAdventure.gitAutoCommitInterval": {
+          "type": "number",
+          "default": 1,
+          "description": "%config.textAdventure.gitAutoCommitInterval.description%"
+        },
+        "textAdventure.gmBridge.provider": {
+          "type": "string",
+          "enum": [
+            "grok",
+            "vscode-lm",
+            "codex-app-server",
+            "claude-code-subscription",
+            "antigravity-cli",
+            "grok-acp",
+            "deepseek-api",
+            "clipboard",
+            "command",
+            "ollama",
+            "koboldcpp",
+            "openrouter"
+          ],
+          "default": "grok",
+          "enumDescriptions": [
+            "Grok CLI (uses the grok command)",
+            "VS Code Language Model API (uses models exposed by installed VS Code AI extensions)",
+            "Codex App Server GM (configure through LoreRelay AI connections; ChatGPT subscription)",
+            "Claude Code GM (official Claude subscription login; no automatic API fallback)",
+            "Antigravity CLI GM (official Google account login; no API or extra-credit fallback)",
+            "Grok Build ACP GM (official subscription login; no automatic API fallback)",
+            "DeepSeek GM (metered API billing; configure key, model and output limit in AI connections)",
+            "Copy player input to clipboard only",
+            "Custom executable via gmBridge.command",
+            "Local Ollama via ollama_gm.py (ollama serve required)",
+            "Local KoboldCPP via koboldcpp_gm.py (koboldcpp.exe API required)",
+            "OpenRouter via openrouter_gm.py (Cloud-based API, requires API Key)"
+          ],
+          "description": "%config.textAdventure.gmBridge.provider.description%"
+        },
+        "textAdventure.gmBridge.vscodeLm.vendor": {
+          "type": "string",
+          "default": "",
+          "description": "vscode-lm: preferred model vendor, for example anthropic / openai / google / github / copilot. Leave empty for automatic selection."
+        },
+        "textAdventure.gmBridge.vscodeLm.family": {
+          "type": "string",
+          "default": "",
+          "description": "vscode-lm: preferred model family, for example claude-opus-4 / gpt-4o / gemini-2.0-flash. Leave empty for automatic selection."
+        },
+        "textAdventure.gmBridge.vscodeLm.model": {
+          "type": "string",
+          "default": "",
+          "description": "vscode-lm: exact model id to use when vendor/family filters are not enough. Leave empty for automatic selection."
+        },
+        "textAdventure.gmBridge.python": {
+          "type": "string",
+          "default": "python",
+          "description": "%config.textAdventure.gmBridge.python.description%"
+        },
+        "textAdventure.gmBridge.scriptPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.gmBridge.scriptPath.description%"
+        },
+        "textAdventure.gmBridge.ollama.url": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "%config.textAdventure.gmBridge.ollama.url.description%"
+        },
+        "textAdventure.gmBridge.ollama.model": {
+          "type": "string",
+          "default": "llama3.2",
+          "description": "%config.textAdventure.gmBridge.ollama.model.description%"
+        },
+        "textAdventure.gmBridge.koboldcpp.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:5001",
+          "description": "%config.textAdventure.gmBridge.koboldcpp.url.description%"
+        },
+        "textAdventure.gmBridge.openRouter.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.gmBridge.openRouter.apiKey.description%"
+        },
+        "textAdventure.gmBridge.openRouter.model": {
+          "type": "string",
+          "default": "anthropic/claude-3.5-sonnet",
+          "description": "%config.textAdventure.gmBridge.openRouter.model.description%"
+        },
+        "textAdventure.gmBridge.command": {
+          "type": "string",
+          "default": "",
+          "description": "%config.textAdventure.gmBridge.command.description%"
+        },
+        "textAdventure.gmBridge.commandArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "--prompt-file",
+            "{actionFile}",
+            "--cwd",
+            "{cwd}",
+            "--always-approve"
+          ],
+          "description": "%config.textAdventure.gmBridge.commandArgs.description%"
+        },
+        "textAdventure.grokBridge.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.grokBridge.enabled.description%"
+        },
+        "textAdventure.grokBridge.command": {
+          "type": "string",
+          "default": "grok",
+          "description": "%config.textAdventure.grokBridge.command.description%"
+        },
+        "textAdventure.grokBridge.autoApprove": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.grokBridge.autoApprove.description%"
+        },
+        "textAdventure.grokBridge.fallbackToClipboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.grokBridge.fallbackToClipboard.description%"
+        },
+        "textAdventure.antigravityRelay.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Antigravity Relay Mode to write a workspace request file for /text-adventure-gm, with clipboard payload fallback."
+        },
+        "textAdventure.gmBridge.agentic.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable experimental two-stage GM flow: State Referee then Narrator. Supported providers: grok, vscode-lm, ollama, koboldcpp, openrouter."
+        },
+        "textAdventure.gmBridge.agentic.fallbackToSingleStage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fall back to single-stage GM bridge if agentic flow fails before writing turn_result.json."
+        },
+        "textAdventure.gmBridge.agentic.stageTimeoutMs": {
+          "type": "number",
+          "default": 180000,
+          "description": "Timeout for each agentic GM stage in milliseconds."
+        },
+        "textAdventure.archive.autoPrompt": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.textAdventure.archive.autoPrompt.description%"
+        },
+        "textAdventure.archive.thresholdSmallContext": {
+          "type": "number",
+          "default": 30,
+          "description": "%config.textAdventure.archive.thresholdSmallContext.description%"
+        },
+        "textAdventure.archive.thresholdLargeContext": {
+          "type": "number",
+          "default": 80,
+          "description": "%config.textAdventure.archive.thresholdLargeContext.description%"
+        },
+        "textAdventure.archive.remindEvery": {
+          "type": "number",
+          "default": 15,
+          "description": "%config.textAdventure.archive.remindEvery.description%"
+        },
+        "textAdventure.promptBudget.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "compact",
+            "balanced",
+            "expanded"
+          ],
+          "enumDescriptions": [
+            "Pick compact for small-context providers and balanced for large-context providers",
+            "Aggressively cap lorebook, memory, party cards, saga, and vision context",
+            "Default long-play budget for Grok / large hosted models",
+            "Allow more context for very large-context models"
+          ],
+          "default": "auto",
+          "description": "%config.textAdventure.promptBudget.mode.description%"
+        },
+        "textAdventure.promptBudget.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "%config.textAdventure.promptBudget.maxTokens.description%"
+        },
+        "textAdventure.worldForge.defaultRegionCount": {
+          "type": "number",
+          "default": 5,
+          "minimum": 3,
+          "maximum": 12,
+          "description": "%config.textAdventure.worldForge.defaultRegionCount.description%"
+        },
+        "textAdventure.worldForge.defaultFactionCount": {
+          "type": "number",
+          "default": 3,
+          "minimum": 2,
+          "maximum": 6,
+          "description": "%config.textAdventure.worldForge.defaultFactionCount.description%"
+        },
+        "textAdventure.worldForge.defaultNpcCount": {
+          "type": "number",
+          "default": 6,
+          "minimum": 2,
+          "maximum": 20,
+          "description": "%config.textAdventure.worldForge.defaultNpcCount.description%"
+        },
+        "textAdventure.worldForge.llmEnrich": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.textAdventure.worldForge.llmEnrich.description%"
+        },
+        "textAdventure.tts.external.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow NPC voice profiles to use external (cloud) TTS providers. Off by default for privacy."
+        },
+        "textAdventure.tts.external.provider": {
+          "type": "string",
+          "enum": [
+            "",
+            "openai"
+          ],
+          "default": "",
+          "description": "External TTS provider when external.enabled is true. Requires LoreRelay: Set TTS API Key."
+        },
+        "textAdventure.tts.external.voice": {
+          "type": "string",
+          "default": "alloy",
+          "description": "Default OpenAI TTS voice (alloy, echo, fable, onyx, nova, shimmer). NPC voiceId overrides when it matches."
+        },
+        "textAdventure.tts.local.command": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to a local TTS CLI. When empty, uses TextAdventureGMSkill/scripts/tts_local.py (edge-tts)."
+        },
+        "textAdventure.tts.local.defaultVoice": {
+          "type": "string",
+          "default": "",
+          "description": "Default edge-tts / local voice name when NPC profile has no voiceId."
+        },
+        "textAdventure.tts.local.timeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "description": "Max wait for local TTS subprocess (edge-tts). On timeout, Webview falls back to system TTS."
+        },
+        "textAdventure.memory.backend": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "tfidf",
+            "chromadb"
+          ],
+          "enumDescriptions": [
+            "Use ChromaDB if pip install chromadb succeeded, else TF-IDF",
+            "Always use lightweight TF-IDF (no extra deps)",
+            "Require ChromaDB embedding search (falls back if not installed)"
+          ],
+          "default": "auto",
+          "description": "%config.textAdventure.memory.backend.description%"
+        },
+        "textAdventure.worldIntent.vehicleBridgeMode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "shadow",
+            "compare_only"
+          ],
+          "enumDescriptions": [
+            "Legacy vehicleOps only; no World Intent parity diagnostics",
+            "Run World Intent parity diagnostics best-effort; legacy write remains authoritative",
+            "Same as shadow, but emit structured parity reports for operator review"
+          ],
+          "default": "off",
+          "description": "%config.textAdventure.worldIntent.vehicleBridgeMode.description%"
+        },
+        "textAdventure.gameplaySpine.vehicleRepairMode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "shadow",
+            "authoritative"
+          ],
+          "default": "off",
+          "description": "Controls the bounded Gameplay Spine vehicle repair pilot. Authoritative mode requires a confirmed durable repair EffectPlan."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "build:webview": "node scripts/build-webview.js",
+    "compile": "node -e \"fs.rmSync('out',{recursive:true,force:true})\" && npm run build:webview && node scripts/sync_cartography_theme_styles.js && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node scripts/run_all_tests.js",
+    "qa:live": "node scripts/run_live_extension_qa.js --scenario lifecycle_v1",
+    "test:validate": "node scripts/run_all_tests.js --validate",
+    "test:unit": "node scripts/run_all_tests.js --unit",
+    "test:smoke": "node scripts/run_all_tests.js --smoke",
+    "test:simulation": "node scripts/run_simulation_tests.js",
+    "generate:symbol-registry": "node scripts/generate_symbol_registry.js --write",
+    "check:symbol-registry": "node scripts/generate_symbol_registry.js --check",
+    "knowledge": "node scripts/knowledge_lookup.js",
+    "qa:game": "node scripts/run_game_qa.js",
+    "qa:game:quick": "node scripts/run_game_qa.js --mode quick",
+    "qa:game:full": "node scripts/run_game_qa.js --mode full",
+    "qa:game:benchmark": "node scripts/run_game_qa.js --mode benchmark --keep-temp",
+    "qa:game:list": "node scripts/run_game_qa.js --list",
+    "qa:game:determinism": "node scripts/run_game_qa.js --scenario qa_determinism_world_sim",
+    "qa:noai:list": "node scripts/run_noai_soak.js --list",
+    "qa:noai:quick": "node scripts/run_noai_soak.js --mode quick",
+    "qa:noai:full": "node scripts/run_noai_soak.js --mode full",
+    "qa:noai:gate": "node scripts/run_noai_soak.js --scenario noai_determinism_100 --gate",
+    "qa:noai:benchmark": "node scripts/run_noai_soak.js --mode benchmark --keep-temp",
+    "qa:combat:list": "node scripts/run_campaign_combat_soak.js --list",
+    "qa:combat:quick": "node scripts/run_campaign_combat_soak.js --mode quick",
+    "qa:combat:full": "node scripts/run_campaign_combat_soak.js --mode full",
+    "check:terminology": "node scripts/check_terminology_contract.js",
+    "test:list": "node scripts/run_all_tests.js --list",
+    "test:coverage": "c8 node scripts/run_all_tests.js --unit",
+    "test:console": "node tools/test-console/cli.js serve --open",
+    "test:plan": "node tools/test-console/cli.js plan",
+    "test:run": "node tools/test-console/cli.js run",
+    "test:console:self": "node tools/test-console/test/test_console.test.js",
+    "domain:balance": "node scripts/domain_balance_harness.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.93.0",
+    "@types/ws": "^8.18.1",
+    "@vscode/test-electron": "2.5.2",
+    "c8": "^10.1.3",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "mermaid": "^11.16.0",
+    "ws": "^8.21.0",
+    "zod": "4.2.1"
+  }
+}

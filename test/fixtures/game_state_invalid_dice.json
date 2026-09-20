@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "id": "turn-1",
+      "role": "gm",
+      "sender": "GM",
+      "content": "ok"
+    }
+  ],
+  "hiddenDice": [{ "notation": "1d20", "result": 15 }]
+}

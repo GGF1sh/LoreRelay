@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} https: data: blob:; media-src {{cspSource}} https: data: blob:; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'nonce-{{nonce}}'; connect-src 'none';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{styleUri}}" />
+  <title>LoreRelay</title>
+</head>
+<body>
+  <div id="bg-layer"></div>
+  <div id="sprite-layer"></div>
+  <div id="bg-overlay"></div>
+  <div id="genre-fx-overlay" aria-hidden="true"></div>
+
+  <div id="app">
+    <div id="chat-area">
+      <div id="chat-header">
+        <span class="header-icon">⚔️</span>
+        <span class="header-title" data-i18n="webview.chat.header">Adventure Log</span>
+        <label class="presentation-switch"><span data-i18n="webview.presentation.display">Display</span>
+          <select id="presentation-select" disabled>
+            <option value="story" data-i18n="webview.presentation.story">Story</option>
+            <option value="management" data-i18n="webview.presentation.management">Management</option>
+            <option value="cinematic" data-i18n="webview.presentation.cinematic">Cinematic</option>
+          </select>
+        </label>
+        <button id="primary-action-btn" type="button" class="glass-btn presentation-action" hidden data-i18n="webview.presentation.actions">Actions</button>
+        <button id="presentation-details-btn" type="button" class="glass-btn" aria-controls="status-area" aria-expanded="false" data-i18n="webview.presentation.details">Details</button>
+        <button id="presentation-history-btn" type="button" class="glass-btn" aria-controls="chat-log" aria-expanded="false" data-i18n="webview.presentation.history">History</button>
+        <button type="button" id="status-drawer-toggle" class="glass-btn lr-drawer-toggle" hidden aria-expanded="false" aria-controls="status-area" data-i18n-title="webview.responsive.openStatus" title="Open status panel">
+          <span class="lr-drawer-toggle-label" aria-hidden="true">☰</span>
+        </button>
+        <details id="header-secondary">
+          <summary id="header-secondary-toggle" class="glass-btn" data-i18n="webview.responsive.moreControls" data-i18n-title="webview.responsive.moreControls" title="More controls">⋯</summary>
+          <div id="header-secondary-body">
+            <div id="locale-wrap">
+              <label for="locale-select" data-i18n="webview.locale.label">🌐 Language</label>
+              <select id="locale-select" title="Language">
+                <option value="ja">日本語</option>
+                <option value="en">English</option>
+                <option value="zh-CN">简体中文</option>
+                <option value="zh-TW">繁體中文</option>
+              </select>
+            </div>
+            <div id="quickstart-wrap">
+              <button id="quickstart-btn" class="glass-btn" title="AI Quickstart" onclick="window.LoreRelay.openQuickstart && window.LoreRelay.openQuickstart()">🚀</button>
+            </div>
+            <div id="start-hub-home-wrap">
+              <button id="start-hub-home-btn" class="glass-btn hidden" data-i18n="webview.startHub.home">Start Hub</button>
+            </div>
+            <div id="img-gen-wrap">
+              <button id="img-gen-settings-btn" class="glass-btn" data-i18n-title="webview.imageGen.open" title="Image Gen Settings">🎨</button>
+            </div>
+            <div id="game-rules-wrap">
+              <button id="game-rules-settings-btn" class="glass-btn" title="Game Rules">⚙️</button>
+            </div>
+            <div id="mod-manager-wrap">
+              <button id="mod-manager-btn" class="glass-btn" data-i18n-title="webview.modManager.open" title="MOD Manager">🧩</button>
+            </div>
+            <div id="remote-play-wrap">
+              <button id="remote-play-btn" class="glass-btn" data-i18n-title="webview.remotePlay.toggle" title="Remote Play">📱</button>
+            </div>
+            <div id="relay-toggle-wrap">
+              <button id="relay-toggle-btn" class="glass-btn" type="button" data-i18n-title="webview.relay.toggle.title" title="Antigravity Relay">Relay OFF</button>
+            </div>
+            <div id="experience-profile-wrap">
+              <button id="experience-profile-btn" class="glass-btn" title="Parlor / Campaign">🎭</button>
+            </div>
+            <div id="parlor-settings-wrap" class="profile-parlor-only">
+              <button id="parlor-settings-btn" class="glass-btn" data-i18n-title="webview.parlor.settingsTitle" title="Parlor Settings">🎛️</button>
+            </div>
+            <div id="tts-wrap">
+              <button id="tts-toggle-btn" class="glass-btn" title="Voice Narration">🔊</button>
+              <div id="tts-menu" class="tts-menu-popup hidden">
+                <h4 data-i18n="webview.tts.title">Voice Narration</h4>
+                <div class="tts-menu-row">
+                  <label for="tts-enabled-cb" data-i18n="webview.tts.enabled">Enabled</label>
+                  <input type="checkbox" id="tts-enabled-cb" />
+                </div>
+                <div class="tts-menu-row">
+                  <label for="tts-speed-slider" data-i18n="webview.tts.speed">Speed</label>
+                  <input type="range" id="tts-speed-slider" min="0.5" max="2.0" step="0.1" value="1.0" />
+                  <span id="tts-speed-val">1.0x</span>
+                </div>
+                <div class="tts-menu-row">
+                  <label for="tts-volume-slider" data-i18n="webview.tts.volume">Volume</label>
+                  <input type="range" id="tts-volume-slider" min="0" max="1" step="0.1" value="0.8" />
+                  <span id="tts-volume-val">80%</span>
+                </div>
+                <div id="tts-npc-voice-count" class="tts-menu-hint hidden"></div>
+                <p class="inline-help" data-i18n="webview.tts.helpHint">まずはこの🔊メニューで有効化するだけで十分（ブラウザの読み上げ）。edge-tts や OpenAI は任意の上級設定です。</p>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div id="presentation-context" role="status" hidden></div>
+      <div id="chat-log"></div>
+      <div id="start-hub" class="start-hub hidden">
+        <div id="genesis-hero" class="genesis-hero">
+          <div class="genesis-hero-icon" aria-hidden="true">🌟</div>
+          <div class="genesis-hero-text">
+            <div class="genesis-hero-title" data-i18n="webview.genesis.heroTitle">世界を一緒に作る</div>
+            <div class="genesis-hero-desc" data-i18n="webview.genesis.heroDesc">種類・シード・つながりを選んで、全体図を見てから始めます。案内人に質問しながら決めることもできます。</div>
+          </div>
+          <div class="genesis-hero-actions">
+            <button type="button" id="genesis-hero-cta" class="genesis-hero-cta" data-i18n="webview.genesis.heroCta">世界を作りはじめる</button>
+            <button type="button" id="genesis-hero-guide-btn" class="genesis-hero-secondary" data-i18n="webview.genesis.heroGuideCta">案内人と決める</button>
+          </div>
+        </div>
+        <div class="start-hub-title" data-i18n="webview.startHub.title">どんな冒険を始めますか？</div>
+        <div id="start-hub-resume-row" class="start-hub-options hidden">
+          <button type="button" id="start-hub-resume-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon" aria-hidden="true">↩</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.resumeTitle">現在のセッションに戻る</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.resumeDesc">進行状況を失わず、今のチャットに戻ります。</span>
+          </button>
+        </div>
+        <div class="start-hub-presets-label" data-i18n="webview.presentation.existing">Use a character or world</div>
+        <div class="start-hub-options">
+          <button type="button" id="start-hub-parlor-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon">🎭</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.parlorTitle">キャラと話す (Parlor)</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.parlorDesc">インポートしたキャラカードを使って、シンプルな1対1のチャットを始めます。</span>
+          </button>
+          <button type="button" id="start-hub-inworld-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🌐</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.inWorldTitle">世界内チャット</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.inWorldDesc">作成済みの世界・領地・情勢を背景に、住人として会話します。</span>
+          </button>
+          <button type="button" id="start-hub-demo-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🎮</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.demoTitle">お試しデモを始める</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.demoDesc">穏やかな港町ミステリー（約15分）。設定不要ですぐ遊べます。</span>
+          </button>
+          <button type="button" id="start-hub-trading-demo-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🛒</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.tradingDemoTitle">商人シミュレーション</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.tradingDemoDesc">AIなしで、買う・移動する・売る・一日を終える短い商人プレイを始めます。</span>
+          </button>
+          <button type="button" id="start-hub-map-demo-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🗺️</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.mapDemoTitle">地図デモ（上級）</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.mapDemoDesc">地下聖堂＋同梱レイアウト地図。World タブの Parchment を確認。</span>
+          </button>
+          <button type="button" id="start-hub-debug-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🔧</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.debugTitle">デバッグサンドボックス</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.debugDesc">好感度・地図の霧・世界ターンを言葉で即操作（開発者向け）。</span>
+          </button>
+          <button type="button" id="start-hub-scavenger-demo-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🧰</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.scavengerDemoTitle">スカベンジャーデモ</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.scavengerDemoDesc">廃墟探索・サルベージ・鑑定ループ（Campaign Kit + Commerce）。</span>
+          </button>
+        </div>
+        <details class="start-hub-secondary"><summary data-i18n="webview.presentation.otherStarts">Other ways to begin</summary>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.createLabel">世界を作る:</div>
+        <div class="start-hub-options">
+          <button type="button" id="start-hub-world-genesis-btn" class="start-hub-btn start-hub-btn-primary">
+            <span class="start-hub-btn-icon">🌍</span>
+            <span class="start-hub-btn-label" data-i18n="webview.worldGenesis.openTitle">世界を生成する</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.worldGenesis.openDescription">世界の種類・シード・規模を選び、実際の生成結果を確認してから始めます。</span>
+          </button>
+          <button type="button" id="start-hub-quick-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🚀</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.quickTitle">ざっと作る</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.quickDesc">短い一文から世界・キャラ・初期シナリオを自動生成する。</span>
+          </button>
+          <button type="button" id="start-hub-interview-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">💬</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.interviewTitle">質問しながら作る</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.interviewDesc">GMがジャンル、主人公、雰囲気、危険度などを質問して、世界を一緒に組み立てる。</span>
+          </button>
+        </div>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.presetsLabel">プリセット:</div>
+        <div class="start-hub-presets" id="start-hub-presets">
+          <button type="button" class="start-hub-preset-chip" data-preset="beginnerFantasy" data-i18n="webview.startHub.presetBeginnerFantasy">初心者向けファンタジー</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="postApocalypse" data-i18n="webview.startHub.presetPostApocalypse">ポストアポカリプス</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="cyberpunk" data-i18n="webview.startHub.presetCyberpunk">サイバーパンク</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="urbanFantasy" data-i18n="webview.startHub.presetUrbanFantasy">現代異能</button>
+          <button type="button" class="start-hub-preset-chip" data-preset="freeform" data-i18n="webview.startHub.presetFreeform">自由入力</button>
+        </div>
+        <div class="start-hub-presets-label" data-i18n="webview.startHub.characterLabel">主人公:</div>
+        <div class="start-hub-options">
+          <button type="button" id="start-hub-char-new-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">🧑</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.characterNewTitle">主人公を新規作成</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterNewDesc">名前・容姿・性格などを入力して主人公を作成する。</span>
+          </button>
+          <button type="button" id="start-hub-char-import-btn" class="start-hub-btn">
+            <span class="start-hub-btn-icon">📥</span>
+            <span class="start-hub-btn-label" data-i18n="webview.startHub.characterImportTitle">カードを読み込む</span>
+            <span class="start-hub-btn-desc" data-i18n="webview.startHub.characterImportDesc">SillyTavernカード（PNG/JSON）や既存のcharacter.jsonを読み込む。</span>
+          </button>
+        </div>
+        </details>
+        <details class="start-hub-secondary"><summary data-i18n="webview.presentation.demos">Demos and developer tools</summary><div id="start-hub-demo-options" class="start-hub-options"></div></details>
+        <section id="world-genesis-setup" class="world-genesis-setup hidden" aria-labelledby="world-genesis-title">
+          <div class="world-genesis-header">
+            <button type="button" id="world-genesis-back-btn" class="glass-btn" data-i18n="webview.worldGenesis.back">戻る</button>
+            <div>
+              <h2 id="world-genesis-title" data-i18n="webview.worldGenesis.title">世界生成セットアップ</h2>
+              <p data-i18n="webview.worldGenesis.description">作りたい世界を選び、生成される内容をプレビューしてから使用します。</p>
+            </div>
+          </div>
+          <div id="world-genesis-warning" class="world-genesis-notice hidden" role="status"></div>
+          <details id="world-genesis-current-overview" class="hidden" open>
+            <summary data-i18n="webview.worldGenesis.currentOverview">使用中の世界の全体図</summary>
+            <div id="world-genesis-current-map"></div>
+          </details>
+          <div class="world-genesis-form-grid">
+            <label class="world-genesis-field world-genesis-field-wide">
+              <span data-i18n="webview.worldGenesis.worldType">世界の種類</span>
+              <select id="world-genesis-preset"></select>
+              <small id="world-genesis-preset-description"></small>
+            </label>
+            <label class="world-genesis-field world-genesis-field-wide">
+              <span data-i18n="webview.worldGenesis.seed">シード</span>
+              <div class="world-genesis-seed-row">
+                <input id="world-genesis-seed" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="webview.worldGenesis.seedPlaceholder" placeholder="例: my-new-world" />
+                <button type="button" id="world-genesis-reroll-btn" class="glass-btn" data-i18n="webview.worldGenesis.reroll">新しいシード</button>
+              </div>
+              <small data-i18n="webview.worldGenesis.seedHelp">同じ設定とシードなら、同じ世界を再現できます。</small>
+            </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.regionCount">地域</span>
+              <input id="world-genesis-region-count" type="number" min="3" max="12" step="1" />
+            </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.factionCount">勢力</span>
+              <input id="world-genesis-faction-count" type="number" min="2" max="6" step="1" />
+            </label>
+            <label class="world-genesis-field">
+              <span data-i18n="webview.worldGenesis.npcCount">登場人物</span>
+              <input id="world-genesis-npc-count" type="number" min="2" max="20" step="1" />
+            </label>
+            <label class="world-genesis-field world-genesis-field-wide">
+              <span data-i18n="webview.worldGenesis.connectionDensity">つながり</span>
+              <div class="world-genesis-density-row">
+                <span data-i18n="webview.worldGenesis.connectionSparse">疎</span>
+                <input id="world-genesis-connection-density" type="range" min="0.5" max="2.5" step="0.25" value="1" />
+                <span data-i18n="webview.worldGenesis.connectionDense">密</span>
+                <output id="world-genesis-connection-density-value" for="world-genesis-connection-density">×1.00</output>
+              </div>
+              <small data-i18n="webview.worldGenesis.connectionHelp">近い地域ほど航路が張られる。低いと隘路や行き止まり、高いと網目になる。</small>
+            </label>
+          </div>
+          <div class="world-genesis-actions">
+            <button type="button" id="world-genesis-preview-btn" class="glass-btn" data-i18n="webview.worldGenesis.preview">プレビュー</button>
+          </div>
+          <div id="world-genesis-status" class="world-genesis-status" aria-live="polite"></div>
+          <section id="world-genesis-preview" class="world-genesis-preview hidden" aria-labelledby="world-genesis-preview-title">
+            <div class="world-genesis-preview-heading">
+              <div>
+                <span data-i18n="webview.worldGenesis.previewLabel">生成プレビュー</span>
+                <h3 id="world-genesis-preview-title"></h3>
+              </div>
+              <span id="world-genesis-preview-preset" class="world-genesis-pill"></span>
+              <button type="button" id="world-genesis-reroll-preview-btn" class="glass-btn" data-i18n="webview.worldGenesis.reroll">🎲 別の世界を生成</button>
+            </div>
+            <div id="world-genesis-preview-facts" class="world-genesis-preview-facts"></div>
+            <div id="world-genesis-overview"></div>
+            <div class="world-genesis-preview-block">
+              <strong data-i18n="webview.worldGenesis.composition">地域構成</strong>
+              <div id="world-genesis-preview-composition" class="world-genesis-composition"></div>
+            </div>
+            <div class="world-genesis-preview-block">
+              <strong data-i18n="webview.worldGenesis.sampleRegions">生成される地域名の例</strong>
+              <div id="world-genesis-preview-regions"></div>
+            </div>
+            <div id="world-genesis-preview-warnings" class="world-genesis-notice hidden"></div>
+            <button type="button" id="world-genesis-apply-btn" class="world-genesis-apply" disabled data-i18n="webview.worldGenesis.useWorld">この世界を使う</button>
+            <div id="world-genesis-next-actions" class="hidden">
+              <p data-i18n="webview.worldGenesis.nextStep">主人公を用意して、選択肢か自由入力から冒険を始めましょう。GMとの会話にはAI接続が必要です。</p>
+              <button type="button" id="world-genesis-create-player-btn" class="glass-btn" data-i18n="webview.worldGenesis.createPlayer">主人公を作る</button>
+              <button type="button" id="world-genesis-continue-btn" class="glass-btn" data-i18n="webview.worldGenesis.continueAdventure">冒険画面へ進む</button>
+            </div>
+          </section>
+        </section>
+      </div>
+      <div id="game-over-overlay" class="game-over-overlay hidden">
+        <div class="game-over-card">
+          <h3 id="game-over-title"></h3>
+          <p id="game-over-message"></p>
+          <p class="game-over-hint" data-i18n="webview.gameOver.restartHint">Load a scenario pack or edit game_state.json to start a new adventure.</p>
+        </div>
+      </div>
+      <div id="options-bar"></div>
+      <div id="authors-note-row">
+        <input type="text" id="authors-note-input" data-i18n-placeholder="webview.authorsNote.placeholder" placeholder="Author's Note (steers next GM turn only)" />
+      </div>
+      <div id="quick-reply-bar">
+        <details id="presentation-action-tools"><summary data-i18n="webview.presentation.tools">Tools</summary><div id="presentation-extra-actions"></div></details>
+        <button class="qr-btn" id="qr-undo"       data-i18n="webview.quickReply.undo">⏪ Undo</button>
+        <button class="qr-btn" id="qr-retry"      data-i18n="webview.quickReply.retry">🔄 Retry</button>
+        <button class="qr-btn" id="qr-checkpoint" data-i18n="webview.quickReply.checkpoint">💾 Checkpoint</button>
+        <button class="qr-btn" id="qr-summary"    data-i18n="webview.quickReply.summary">📝 Summary</button>
+        <button class="qr-btn" id="qr-genimage"   data-i18n="webview.quickReply.genImage">🎨 Gen Image</button>
+        <button class="qr-btn" id="qr-loadpack"   data-i18n="webview.quickReply.loadPack">📂 Load Pack</button>
+        <button class="qr-btn" id="qr-archive"    data-i18n="webview.quickReply.archive">📖 Archive</button>
+        <button class="qr-btn" id="qr-export"     data-i18n="webview.quickReply.export">🌐 Export HTML</button>
+        <button class="qr-btn" id="qr-forcespeak" data-i18n="webview.quickReply.forceSpeak">🪄 Speak as...</button>
+        <button class="qr-btn" id="qr-questflow"  data-i18n="webview.quickReply.questFlow">🗺️ Quest Flow</button>
+        <button class="qr-btn" id="qr-relations"  data-i18n="webview.quickReply.relations">🕸️ Relations</button>
+      </div>
+      <div id="input-area">
+        <textarea id="free-input" rows="1" data-i18n-placeholder="webview.input.placeholder" placeholder="Free input (Ctrl+Enter to send, Enter for a new line)"></textarea>
+        <button id="mic-btn" class="glass-btn" data-i18n-title="webview.stt.title" title="Voice input">🎤</button>
+        <button id="send-btn" data-i18n="webview.input.send">Send</button>
+        <button id="undo-btn" data-i18n="webview.input.undo" title="Undo last turn">⏪ Undo</button>
+        <button id="regen-btn" data-i18n="webview.input.regenerate" title="Regenerate last GM response">🔄</button>
+        <button id="img-btn" data-i18n-title="webview.input.imageTitle" title="Generate image for this scene">🎨</button>
+      </div>
+    </div>
+
+    <div id="resizer" title="Drag to resize"></div>
+
+    <button type="button" id="status-drawer-scrim" class="status-drawer-scrim" hidden aria-hidden="true" tabindex="-1" data-i18n-title="webview.responsive.closeStatus" title="Close status panel"></button>
+
+    <!-- 右側：ステータスパネル -->
+    <div id="status-area" role="complementary" data-i18n-aria-label="webview.responsive.statusDrawer" aria-label="Adventure Status">
+      <!-- タブヘッダー -->
+      <div id="status-tabs" class="tabs-header">
+        <details id="presentation-tool-tabs"><summary data-i18n="webview.presentation.tools">Tools</summary></details>
+        <button class="tab-btn active" data-target="pane-status"><span class="tab-icon">🏰</span><span class="tab-text" data-i18n="webview.tab.status">Adventure Status</span></button>
+        <button class="tab-btn" data-target="pane-character"><span class="tab-icon">👤</span><span class="tab-text" data-i18n="webview.tab.character">Character Profile</span></button>
+        <button class="tab-btn" data-target="pane-inspector"><span class="tab-icon">🔍</span><span class="tab-text" data-i18n="webview.tab.inspector">Inspector</span></button>
+        <button class="tab-btn" data-target="pane-world" id="tab-btn-world"><span class="tab-icon">🌍</span><span class="tab-text" data-i18n="webview.tab.world">World</span></button>
+        <button class="tab-btn" data-target="pane-lorebook"><span class="tab-icon">📖</span><span class="tab-text" data-i18n="webview.tab.lorebook">Lorebook</span></button>
+        <button class="tab-btn" data-target="pane-memory"><span class="tab-icon">🧠</span><span class="tab-text" data-i18n="webview.tab.memory">Memory</span></button>
+        <button class="tab-btn" data-target="pane-director"><span class="tab-icon">🎬</span><span class="tab-text" data-i18n="webview.tab.director">Director</span></button>
+        <button class="tab-btn" data-target="pane-party"><span class="tab-icon">👥</span><span class="tab-text" data-i18n="webview.tab.party">Party</span></button>
+        <button class="tab-btn hidden" data-target="pane-vehicles" id="tab-btn-vehicles"><span class="tab-icon">🚗</span><span class="tab-text" data-i18n="webview.tab.vehicles">Vehicles</span></button>
+        <button class="tab-btn" data-target="pane-ooc"><span class="tab-icon">💬</span><span class="tab-text" data-i18n="webview.tab.ooc">OOC</span></button>
+      </div>
+
+      <!-- ページ 1: Adventure Status (既存のステータス・ダイス・BGM等) -->
+      <div id="pane-status" class="tab-pane active">
+        <!-- ステータス表示 -->
+        <div id="status-content">
+        <div class="status-row" id="status-row-location">
+          <span class="status-label" data-i18n="webview.status.location">📍 Location</span>
+          <span id="status-location" class="status-value">---</span>
+        </div>
+        <div class="status-row" id="status-row-time">
+          <span class="status-label" data-i18n="webview.status.time">🕐 Time</span>
+          <span id="status-time" class="status-value">---</span>
+        </div>
+        <div class="status-row" id="status-row-funds">
+          <span class="status-label" data-i18n="webview.status.funds">💰 Funds</span>
+          <span id="status-funds" class="status-value">---</span>
+        </div>
+
+        <div id="dynamic-resources-container"></div>
+
+        <div class="status-block" id="status-block-condition">
+          <span class="status-label" data-i18n="webview.status.condition">✨ Condition</span>
+          <div id="status-condition-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+
+        <div class="status-block" id="status-block-inventory">
+          <span class="status-label" data-i18n="webview.status.inventory">🎒 Inventory</span>
+          <div id="status-inventory-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+
+        <div class="status-block" id="status-block-skills">
+          <span class="status-label" data-i18n="webview.status.skills">⚔️ Skills</span>
+          <div id="status-skills-list" class="tag-list">
+            <span class="tag-item empty-tag" style="color:var(--text-dim);">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="checkpoint-header">
+        <span data-i18n="webview.checkpoint.header">📍 Checkpoints &amp; Rewind</span>
+      </div>
+      <div id="checkpoint-area">
+        <div class="checkpoint-actions">
+          <button id="checkpoint-save-btn" data-i18n="webview.checkpoint.save">💾 Save</button>
+          <select id="rewind-select">
+            <option value="" data-i18n="webview.checkpoint.rewind">⏪ Rewind to turn…</option>
+          </select>
+          <button id="rewind-btn" data-i18n="webview.checkpoint.restore">Restore</button>
+        </div>
+        <ul id="checkpoint-list"></ul>
+        <div id="checkpoint-empty" class="checkpoint-empty" data-i18n="webview.checkpoint.empty">No saved checkpoints yet.</div>
+      </div>
+
+      <div id="summary-container" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+            <label data-i18n="webview.summary.label" style="color: var(--accent); font-weight: bold; font-size: 13px;">📜 Story Summary</label>
+            <div style="display: flex; gap: 6px;">
+              <button id="summarize-btn" data-i18n="webview.summary.generate" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">♻️ Generate Summary</button>
+              <button id="archive-saga-btn" data-i18n="webview.saga.archive" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 Archive Chapter</button>
+            </div>
+          </div>
+          <textarea id="story-summary" rows="4" data-i18n-placeholder="webview.summary.placeholder" placeholder="Story synopsis appears here. You can edit it manually." style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: var(--text); padding: 8px; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+
+      <details class="status-tool-section">
+      <summary id="dice-header">
+        <span data-i18n="webview.dice.header">🎲 Dice Roller</span>
+      </summary>
+      <div id="dice-area">
+        <div id="dice-presets">
+          <button class="dice-btn" data-sides="4">d4</button>
+          <button class="dice-btn" data-sides="6">d6</button>
+          <button class="dice-btn" data-sides="8">d8</button>
+          <button class="dice-btn" data-sides="10">d10</button>
+          <button class="dice-btn" data-sides="12">d12</button>
+          <button class="dice-btn" data-sides="20">d20</button>
+          <button class="dice-btn" data-sides="100">d100</button>
+        </div>
+        <div id="dice-custom-row">
+          <input type="number" id="dice-count" value="1" min="1" max="99" />
+          <span>d</span>
+          <input type="number" id="dice-sides" value="6" min="2" max="9999" />
+          <button id="dice-custom-btn" data-i18n="webview.dice.roll">Roll</button>
+        </div>
+        <div id="dice-result">---</div>
+        <button id="dice-send-gm" type="button" data-i18n="webview.dice.sendGm" data-i18n-title="webview.dice.sendGmTitle">📤 Send to GM</button>
+        <div id="dice-log"></div>
+      </div>
+
+      </details>
+      <details class="status-tool-section">
+      <summary id="calc-header">
+        <span data-i18n="webview.calc.header">🔢 Calculator</span>
+      </summary>
+      <div id="calc-area">
+        <input type="text" id="calc-input" data-i18n-placeholder="webview.calc.placeholder" placeholder="e.g. 15 * 3 + 8" />
+        <button id="calc-btn" data-i18n="webview.calc.button">Calc</button>
+        <div id="calc-result">---</div>
+        <div id="calc-history"></div>
+      </div>
+
+      </details>
+      <details class="status-tool-section">
+      <summary id="bgm-header">
+        <span data-i18n="webview.bgm.header">🎵 BGM &amp; SE</span>
+        <span id="bgm-mode" data-i18n-title="webview.bgm.autoTitle" title="GM switches BGM automatically">AUTO</span>
+      </summary>
+      <div id="bgm-area">
+        <div id="bgm-now">♪ ---</div>
+        <div id="bgm-controls">
+          <button id="bgm-toggle" data-i18n-title="webview.bgm.playPause" title="Play / Pause">▶</button>
+          <input type="range" id="bgm-volume" min="0" max="100" value="50" data-i18n-title="webview.bgm.volume" title="BGM volume" />
+          <button id="bgm-mute" data-i18n-title="webview.bgm.mute" title="Toggle BGM mute">🔊</button>
+        </div>
+        <div id="bgm-list"></div>
+        <div id="bgm-empty" data-i18n="webview.bgm.empty">No bgm.json or no tracks registered</div>
+        <div id="sfx-row">
+          <span id="sfx-label" data-i18n="webview.sfx.label">🔔 SE</span>
+          <input type="range" id="sfx-volume" min="0" max="100" value="70" data-i18n-title="webview.sfx.volume" title="SFX volume" />
+          <button id="sfx-mute" data-i18n-title="webview.sfx.mute" title="Toggle SFX mute">🔔</button>
+        </div>
+      </div>
+
+      </details>
+      <details class="status-tool-section">
+      <summary id="gallery-header">
+        <span data-i18n="webview.gallery.header">🖼️ Scene Gallery</span>
+      </summary>
+      <div id="gallery"></div>
+
+      </details>
+      <details class="status-tool-section">
+      <summary id="theme-header">
+        <span data-i18n="webview.theme.header">🌍 World Theme</span>
+      </summary>
+      <div class="theme-selector">
+          <label data-i18n="webview.status.theme">Theme:</label>
+          <button class="theme-btn active" data-theme="fantasy" data-i18n="webview.theme.fantasy">Fantasy</button>
+          <button class="theme-btn" data-theme="cyberpunk" data-i18n="webview.theme.cyberpunk">Cyberpunk</button>
+          <button class="theme-btn" data-theme="scifi" data-i18n="webview.theme.scifi">Sci-Fi</button>
+          <button class="theme-btn" data-theme="postapoc" data-i18n="webview.theme.postapoc">Post-Apocalypse</button>
+          <button class="theme-btn" data-theme="modern" data-i18n="webview.theme.modern">Modern</button>
+          <button class="theme-btn" data-theme="eastern" data-i18n="webview.theme.eastern">Eastern</button>
+          <button class="theme-btn" data-theme="horror" data-i18n="webview.theme.horror">Horror</button>
+          <button class="theme-btn" data-theme="steampunk" data-i18n="webview.theme.steampunk">Steampunk</button>
+        </div>
+
+        <!-- アーカイブ促しバナー（履歴が閾値を超えた時） -->
+        <div id="archive-suggest-banner" class="archive-suggest-banner" style="display: none;">
+          <span id="archive-suggest-text"></span>
+          <button id="archive-suggest-btn" type="button" data-i18n="webview.saga.archiveNow">Archive now</button>
+          <button id="archive-suggest-dismiss" type="button" title="Dismiss">×</button>
+        </div>
+
+        <!-- あらすじ (Summary) -->
+        </details>
+      </div> <!-- /pane-status -->
+
+      <!-- ページ 2: Character Profile -->
+      <div id="pane-character" class="tab-pane">
+        <div class="char-toolbar">
+          <select id="char-select">
+            <option value="new" data-i18n="webview.character.newOption">-- New Character --</option>
+          </select>
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: var(--text);">
+            <input type="checkbox" id="char-party-cb" />
+            <span data-i18n="webview.character.partyJoin">Join party</span>
+          </label>
+          <button id="char-new-creator-btn" class="cc-open-full-btn" data-i18n-title="webview.character.newTitle" title="Create a new character">✦ New</button>
+          <button id="char-open-creator-btn" class="cc-open-full-btn" data-i18n-title="webview.character.fullEditorTitle" title="Open full character editor">✏️ Full Editor</button>
+          <button id="char-save-btn" data-i18n="webview.character.save">💾 Save</button>
+          <button id="char-delete-btn" class="char-delete-btn" data-i18n="webview.character.delete" data-i18n-title="webview.character.deleteTitle" title="Delete this character">🗑 Delete</button>
+        </div>
+        <p class="inline-help" data-i18n="webview.character.helpHint">「Join party」にチェックしたキャラだけが GM のパーティ文脈に入ります。アクティブキャラとパーティは別です。</p>
+        <p class="inline-help subtle" data-i18n="webview.character.deleteHint">削除すると characters/ 内の JSON と画像を消します。外部パス参照の画像は削除されません。</p>
+
+        <div class="char-portrait-container">
+          <img id="char-portrait-img" class="char-portrait" src="" alt="Portrait" style="display: none;" />
+          <div id="char-portrait-placeholder" class="char-portrait placeholder" data-i18n="webview.character.noPortrait">No Portrait</div>
+          <div class="char-portrait-actions">
+            <button id="char-import-st-btn" data-i18n="webview.character.importSt">📦 Import ST Card</button>
+            <button id="char-upload-btn" data-i18n="webview.character.upload">📁 Upload</button>
+            <button id="char-generate-btn" data-i18n="webview.character.generate">🎨 Generate Portrait</button>
+          </div>
+        </div>
+
+        <div class="char-form">
+          <label data-i18n="webview.character.nameLabel">Name</label>
+          <input type="text" id="char-name" data-i18n-placeholder="webview.character.namePlaceholder" placeholder="Character name" />
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; margin-bottom: 4px;">
+            <label data-i18n="webview.character.equipmentLabel" style="margin: 0;">Equipped Items</label>
+            <button id="char-equip-notify-btn" class="small-btn primary" data-i18n="webview.character.notifyGm">📤 Equip &amp; Notify GM</button>
+          </div>
+          <div class="img-gen-row" style="margin-bottom: 8px;">
+            <input type="text" id="char-equip-weapon" class="img-gen-input" data-i18n-placeholder="webview.character.equipWeapon" placeholder="Weapon" />
+            <input type="text" id="char-equip-armor" class="img-gen-input" data-i18n-placeholder="webview.character.equipArmor" placeholder="Armor" />
+            <input type="text" id="char-equip-accessory" class="img-gen-input" data-i18n-placeholder="webview.character.equipAcc" placeholder="Accessory" />
+          </div>
+
+          <label data-i18n="webview.character.controlledByLabel">Controlled By</label>
+          <select id="char-controlled-by">
+            <option value="gm" data-i18n="webview.character.controlledByGm">GM</option>
+            <option value="ai" data-i18n="webview.character.controlledByAi">AI Companion</option>
+            <option value="player" data-i18n="webview.character.controlledByPlayer">Player</option>
+          </select>
+
+          <label data-i18n="webview.character.llmProvider">LLM Provider (Optional)</label>
+          <select id="char-llm-provider">
+            <option value="">(Default)</option>
+            <option value="vscode-lm">VS Code LM (Claude/GPT/Gemini…)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="ollama">Ollama</option>
+            <option value="koboldcpp">KoboldCPP</option>
+          </select>
+
+          <label data-i18n="webview.character.llmModel">LLM Model (Optional)</label>
+          <input type="text" id="char-llm-model" placeholder="e.g. anthropic/claude-3-haiku" />
+
+          <label data-i18n="webview.character.descLabel">Appearance &amp; Background</label>
+          <textarea id="char-desc" rows="4" data-i18n-placeholder="webview.character.descPlaceholder" placeholder="Description used in GM prompts..."></textarea>
+
+          <label data-i18n="webview.character.personalityLabel">Personality</label>
+          <textarea id="char-personality" rows="2" data-i18n-placeholder="webview.character.personalityPlaceholder" placeholder="Personality and speech style..."></textarea>
+        </div>
+      </div> <!-- /pane-character -->
+
+      <!-- ページ 3: Turn Inspector -->
+      <div id="pane-inspector" class="tab-pane">
+        <div class="inspector-lane-tabs" id="inspector-lane-tabs" role="tablist" aria-label="Inspector lane">
+          <button type="button" class="inspector-lane-btn is-active" data-lane="timeline" role="tab" aria-selected="true"><span aria-hidden="true">🕐</span> <span data-i18n="webview.inspector.lane.timeline">Timeline</span></button>
+          <button type="button" class="inspector-lane-btn" data-lane="debug" role="tab" aria-selected="false"><span aria-hidden="true">🔍</span> <span data-i18n="webview.inspector.lane.debug">Debug</span></button>
+          <button type="button" class="inspector-lane-btn" data-lane="qa" role="tab" aria-selected="false"><span aria-hidden="true">🧪</span> <span data-i18n="webview.inspector.lane.qa">QA</span></button>
+        </div>
+
+        <div class="inspector-lane" id="inspector-lane-timeline" data-lane-panel="timeline">
+        <div class="inspector-section" id="inspector-chronicle-section">
+          <h4 data-i18n="webview.inspector.chronicleTitle">Chronicle</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.chronicleHint">Deterministic timeline from the state journal (read-only).</p>
+          <div id="inspector-chronicle-list" class="inspector-list"></div>
+          <button type="button" id="inspector-chronicle-refresh-btn" class="small-btn" data-i18n="webview.inspector.chronicleRefresh">Refresh</button>
+        </div>
+        <div class="inspector-section" id="inspector-replay-section">
+          <h4 data-i18n="webview.inspector.replayTitle">Replay Export</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.replayHint">Export chat log + chronicle chapters + gallery images to Markdown or HTML under exports/.</p>
+          <div class="inspector-replay-options" style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center; margin:0.5rem 0;">
+            <label for="inspector-replay-format" style="display:flex; align-items:center; gap:0.35rem;">
+              <span data-i18n="webview.inspector.replayFormat">Format</span>
+              <select id="inspector-replay-format">
+                <option value="markdown" data-i18n="webview.inspector.replayFormatMarkdown">Markdown</option>
+                <option value="html" data-i18n="webview.inspector.replayFormatHtml">HTML</option>
+              </select>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-images" checked />
+              <span data-i18n="webview.inspector.replayIncludeImages">Include images</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-gm" checked />
+              <span data-i18n="webview.inspector.replayIncludeGm">Include GM</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.35rem;">
+              <input type="checkbox" id="inspector-replay-dice" />
+              <span data-i18n="webview.inspector.replayIncludeDice">Include dice</span>
+            </label>
+          </div>
+          <button type="button" id="inspector-replay-export-btn" class="small-btn" data-i18n="webview.inspector.replayExport">Export replay</button>
+          <p id="inspector-replay-status" class="img-gen-hint" style="margin-top:0.5rem;"></p>
+        </div>
+        <div class="inspector-section" id="inspector-git-timeline">
+          <h4 data-i18n="webview.inspector.gitTimeline">Git Timeline</h4>
+          <div id="inspector-git-current-branch" class="inspector-item empty-text" data-i18n="webview.inspector.gitTimelineLoading">Checking Git status…</div>
+          <div id="inspector-git-branch-list" class="inspector-list"></div>
+          <button type="button" id="inspector-git-refresh-btn" class="small-btn" data-i18n="webview.inspector.gitRefresh">Refresh</button>
+        </div>
+        </div> <!-- /inspector-lane-timeline -->
+
+        <div class="inspector-lane hidden" id="inspector-lane-debug" data-lane-panel="debug">
+        <div class="inspector-section hidden" id="inspector-debug-console-section">
+          <h4 data-i18n="webview.inspector.debugConsoleTitle">Debug Console</h4>
+          <p id="inspector-debug-sandbox-badge" class="img-gen-hint hidden" data-i18n="webview.inspector.debugSandboxBadge">Debug sandbox active — chat commands apply instantly.</p>
+          <p class="img-gen-hint" data-i18n="webview.inspector.bulkSimHint">Runs emergent simulation steps without advancing GM turns.</p>
+          <div id="inspector-debug-quick-wrap" class="hidden" style="margin-top:0.5rem;">
+            <div class="img-gen-hint" data-i18n="webview.inspector.debugQuickLabel">Quick insert (edit &amp; send):</div>
+            <div id="inspector-debug-quick-chips" class="start-hub-presets" style="margin-top:0.35rem;"></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+            <label for="inspector-bulk-sim-steps" data-i18n="webview.inspector.bulkSimSteps">Steps</label>
+            <input type="number" id="inspector-bulk-sim-steps" min="1" max="100" value="10" style="width:5rem;" />
+            <button type="button" id="inspector-bulk-sim-run" class="small-btn" data-i18n="webview.inspector.bulkSimRun">Advance</button>
+          </div>
+          <pre id="inspector-bulk-sim-result" class="inspector-item" style="white-space:pre-wrap; font-size:12px; margin-top:0.5rem;"></pre>
+          <div id="inspector-lw-market-debug" class="hidden" style="margin-top:0.75rem;">
+            <div class="img-gen-hint" data-i18n="webview.inspector.lwMarketDebugHint">Multiply priceIndex at a market (debug only).</div>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:0.35rem;">
+              <label for="inspector-lw-market-location" data-i18n="webview.inspector.lwMarketLocation">Location</label>
+              <select id="inspector-lw-market-location"></select>
+              <label for="inspector-lw-market-commodity" data-i18n="webview.inspector.lwMarketCommodity">Commodity</label>
+              <select id="inspector-lw-market-commodity"></select>
+              <label for="inspector-lw-market-mult" data-i18n="webview.inspector.lwMarketMultiplier">×</label>
+              <input type="number" id="inspector-lw-market-mult" min="0.25" max="4" step="0.25" value="2" style="width:4rem;" />
+              <button type="button" id="inspector-lw-market-apply" class="small-btn" data-i18n="webview.inspector.lwMarketApply">Apply</button>
+            </div>
+            <p id="inspector-lw-market-result" class="img-gen-hint" style="margin-top:0.35rem;"></p>
+          </div>
+        </div>
+        <div class="inspector-section hidden" id="inspector-state-orchestrator-section">
+          <h4 data-i18n="webview.inspector.stateOrchestrator.title">State Orchestrator</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.stateOrchestrator.hint">Visual representation of the active multi-ledger commit/rollback state.</p>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <button type="button" id="inspector-so-preview-btn" class="small-btn" data-i18n="webview.inspector.stateOrchestrator.preview">Preview Plan</button>
+            <button type="button" id="inspector-so-retry-btn" class="small-btn" data-i18n="webview.inspector.stateOrchestrator.retry" disabled>Retry Failed</button>
+          </div>
+          <div id="inspector-so-error" class="so-error-msg hidden"></div>
+          <div id="inspector-so-mermaid" class="mermaid" style="background: var(--vscode-editor-background, #1e1e1e); padding: 0.5rem; border-radius: 4px;"></div>
+        </div>
+        <div class="inspector-section hidden" id="inspector-debug-trace-section">
+          <h4 data-i18n="webview.inspector.debugTrace.title">Debug Trace</h4>
+          <p class="img-gen-hint" data-i18n="webview.inspector.debugTrace.hint">Read-only causal trace of world/simulation decisions (event → rule condition → decision → effect).</p>
+          <div class="debug-trace-audience-toggle" id="debug-trace-audience-toggle">
+            <button type="button" class="small-btn debug-trace-audience-btn active" data-audience="internal" data-i18n="webview.inspector.debugTrace.audience.internal">Internal</button>
+            <button type="button" class="small-btn debug-trace-audience-btn" data-audience="gm_safe" data-i18n="webview.inspector.debugTrace.audience.gmSafe">GM-safe</button>
+            <button type="button" class="small-btn debug-trace-audience-btn" data-audience="player_safe" data-i18n="webview.inspector.debugTrace.audience.playerSafe">Player-safe</button>
+          </div>
+          <div id="inspector-debug-trace-warnings" class="debug-trace-warnings hidden"></div>
+          <div id="inspector-debug-trace-runs" class="debug-trace-runs"></div>
+        </div>
+        <p id="inspector-empty-text" class="empty-text" data-i18n="webview.inspector.empty">Complete a GM turn to inspect dice, patches, and lore triggers.</p>
+        <div id="inspector-content" class="hidden">
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.turnId">Turn</h4>
+            <div id="inspector-turn-id" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.integrity">State integrity</h4>
+            <div id="inspector-integrity" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.diceLedger">Dice ledger</h4>
+            <div id="inspector-dice-ledger" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.statePatch">State patches</h4>
+            <div id="inspector-state-patch" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.lorebook">Triggered lore</h4>
+            <div id="inspector-lorebook" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section hidden" id="inspector-living-world-ops-section">
+            <h4 data-i18n="webview.inspector.livingWorldOps">Living World ops</h4>
+            <div id="inspector-living-world-ops" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.promptContext">Prompt context (last GM call)</h4>
+            <div id="inspector-prompt-summary" class="inspector-item empty-text"></div>
+            <div id="inspector-context-inspector" class="inspector-list hidden"></div>
+            <div id="inspector-world-state-warnings" class="inspector-list hidden"></div>
+            <div id="inspector-prompt-sections" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.memoryMatches">Memory matches</h4>
+            <div id="inspector-memory-matches" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.loreMatches">Lorebook matches (this turn)</h4>
+            <div id="inspector-lore-matches" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.schemaErrors">Schema errors</h4>
+            <div id="inspector-schema-errors" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.inspector.hiddenState">Hidden State (GM Only)</h4>
+            <pre id="inspector-hidden-state" class="inspector-item" style="white-space: pre-wrap; font-size: 12px;"></pre>
+          </div>
+        </div>
+        </div> <!-- /inspector-lane-debug -->
+
+        <div class="inspector-lane hidden" id="inspector-lane-qa" data-lane-panel="qa">
+        <div class="inspector-section inspector-lane-qa-placeholder">
+          <h4 data-i18n="webview.inspector.qa.title">QA Runner</h4>
+          <p class="empty-text" data-i18n="webview.inspector.qa.comingSoon">QA Runner UI is not implemented yet. This lane is a placeholder.</p>
+        </div>
+        <!-- Combat authoring sandboxes mount here, and only when
+             textAdventure.debug.combatDevTools is on. They are developer tools,
+             so they must never appear in the player's Adventure Status pane. -->
+        <div class="inspector-section hidden" id="combat-dev-tools-section">
+          <h4 data-i18n="webview.combatDevTools.title">Combat authoring tools</h4>
+          <p class="img-gen-hint" data-i18n="webview.combatDevTools.hint">Developer sandboxes for building and balancing combat. They do not affect your campaign.</p>
+          <div id="combat-dev-tools"></div>
+        </div>
+        </div> <!-- /inspector-lane-qa -->
+      </div> <!-- /pane-inspector -->
+
+      <!-- ページ: Lorebook Editor -->
+      <div id="pane-lorebook" class="tab-pane">
+        <div class="lorebook-toolbar">
+          <button id="lorebook-add-btn" type="button" class="small-btn" data-i18n="webview.lorebook.addEntry">+ Add entry</button>
+          <button id="lorebook-save-btn" type="button" class="small-btn primary" data-i18n="webview.lorebook.saveAll">Save lorebook</button>
+          <span id="lorebook-dirty" class="lorebook-dirty hidden" data-i18n="webview.lorebook.unsaved">Unsaved changes</span>
+        </div>
+        <p id="lorebook-meta" class="empty-text" data-i18n="webview.lorebook.emptyFile">No lorebook.json in workspace</p>
+        <div id="lorebook-list" class="lorebook-list"></div>
+      </div> <!-- /pane-lorebook -->
+
+      <!-- ページ: Memory Bank -->
+      <div id="pane-memory" class="tab-pane">
+        <div class="memory-toolbar">
+          <label for="memory-backend-select" data-i18n="webview.memory.backendLabel">Backend</label>
+          <select id="memory-backend-select">
+            <option value="auto">auto</option>
+            <option value="tfidf">tfidf</option>
+            <option value="chromadb">chromadb</option>
+          </select>
+          <button id="memory-rebuild-btn" type="button" class="small-btn" data-i18n="webview.memory.rebuild">Rebuild index</button>
+        </div>
+        <p id="memory-status-meta" class="empty-text"></p>
+        <div class="memory-search-row">
+          <input id="memory-hint-input" type="text" data-i18n-placeholder="webview.memory.hintPlaceholder" placeholder="Search hint (recent narrative + action)..." />
+          <button id="memory-search-btn" type="button" class="small-btn primary" data-i18n="webview.memory.search">Search</button>
+        </div>
+        <p id="memory-token-budget" class="empty-text"></p>
+        <div id="memory-search-results" class="memory-search-results"></div>
+      </div> <!-- /pane-memory -->
+
+      <!-- ページ: Scenario Director -->
+      <div id="pane-director" class="tab-pane">
+        <p id="director-empty" class="empty-text" data-i18n="webview.director.empty">Load a scenario pack with a director block in scenario.json.</p>
+        <div id="director-content" class="hidden">
+          <p id="director-live-badge" class="lorebook-dirty hidden" data-i18n="webview.director.liveOverrides">Live progression (game_state.director)</p>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.title">Scenario</h4>
+            <div id="director-title" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.act">Act / Chapter</h4>
+            <div id="director-act" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.scene">Scene</h4>
+            <div id="director-scene" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.objective">Current objective</h4>
+            <div id="director-objective" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.guidance">Guidance</h4>
+            <div id="director-guidance" class="inspector-item"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.success">Success conditions</h4>
+            <div id="director-success" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.fail">Fail conditions</h4>
+            <div id="director-fail" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.endings">Ending flags</h4>
+            <div id="director-endings" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.achieved">Achieved endings</h4>
+            <div id="director-achieved" class="inspector-list"></div>
+          </div>
+          <div class="inspector-section">
+            <h4 data-i18n="webview.director.encounters">Optional encounters</h4>
+            <div id="director-encounters" class="inspector-list"></div>
+          </div>
+        </div>
+      </div> <!-- /pane-director -->
+
+      <!-- ページ: Party Director -->
+      <div id="pane-party" class="tab-pane">
+        <p id="party-empty" class="empty-text" data-i18n="webview.party.empty">Add characters to the party to configure speech and relationships.</p>
+        <div id="party-content" class="hidden">
+          <p id="party-live-badge" class="lorebook-dirty hidden" data-i18n="webview.party.liveOverrides">Live overrides (game_state.partyDirector)</p>
+          <p id="party-dirty-badge" class="lorebook-dirty hidden" data-i18n="webview.party.unsaved">Unsaved changes</p>
+          <div class="party-global-row">
+            <label class="party-flag-label">
+              <input type="checkbox" id="party-banter-cb" checked />
+              <span data-i18n="webview.party.banter">NPC banter enabled</span>
+            </label>
+            <label class="party-flag-label">
+              <input type="checkbox" id="party-quiet-cb" />
+              <span data-i18n="webview.party.quietCombat">Combat quiet mode</span>
+            </label>
+          </div>
+          <div id="party-members-list" class="party-members-list"></div>
+          <button id="party-save-btn" type="button" class="small-btn primary" data-i18n="webview.party.save">Save party_director.json</button>
+        </div>
+      </div> <!-- /pane-party -->
+
+      <!-- Vehicles (read-only garage; gated by enableVehicleSystem) -->
+      <div id="pane-vehicles" class="tab-pane">
+        <p id="vehicles-empty" class="empty-text" data-i18n="webview.vehicles.empty">Fleet is empty. Add vehicles to vehicle_state.json in your workspace.</p>
+        <div id="vehicles-content" class="hidden">
+          <p class="vehicle-garage-hint" data-i18n="webview.vehicles.hint">Fleet garage (read-only). Changes persist via turn_result.vehicleOps.</p>
+          <p id="vehicles-fleet-meta"></p>
+          <p id="vehicles-warnings" class="hidden"></p>
+          <div class="vehicle-garage-layout">
+            <div id="vehicles-list" role="list" data-i18n-aria-label="webview.vehicles.ariaFleetList" aria-label="Vehicle fleet"></div>
+            <div id="vehicles-detail" role="region" data-i18n-aria-label="webview.vehicles.ariaDetail" aria-label="Vehicle detail"></div>
+          </div>
+          <details id="vehicles-mobile-base-section" class="vehicles-mobile-base-section hidden">
+            <summary data-i18n="webview.mobileBase.sectionTitle">Mobile Base</summary>
+            <div id="vehicles-mobile-base-panel" role="region" data-i18n-aria-label="webview.mobileBase.ariaPanel" aria-label="Mobile base panel"></div>
+          </details>
+        </div>
+      </div> <!-- /pane-vehicles -->
+
+      <!-- ページ: World Map -->
+      <div id="pane-world" class="tab-pane">
+        <p id="world-empty" class="empty-text" data-i18n="webview.world.empty">Enable World Forge in Game Rules and add world_forge.json to your workspace.</p>
+        <div id="world-content" class="hidden">
+          <div class="inspector-section" style="margin-bottom:0.75rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <span id="world-title" style="font-weight:600;font-size:1.05em;"></span>
+              <span id="world-theme" style="margin-left:0.6rem;opacity:0.6;font-size:0.85em;"></span>
+            </div>
+            <button id="world-gen-map-layout-btn" class="small-btn" data-i18n="webview.world.mapLayout" data-i18n-title="webview.world.mapLayoutTitle">地図レイアウト</button>
+            <button id="world-gen-map-btn" class="small-btn" data-i18n="webview.world.mapImage" data-i18n-title="webview.world.mapImageTitle">イラスト地図</button>
+            <button id="world-import-map-btn" class="small-btn" data-i18n="webview.mapAssets.import">画像を取り込む</button>
+            <button id="world-map-models-btn" class="small-btn" data-i18n="webview.mapAssets.models">手持ちモデル</button>
+            <button id="world-gen-image-btn" class="small-btn primary" style="display: none;" title="Generate Scene Image for Current Location">🎨 Scene Image</button>
+            <span id="world-stats" style="margin-left:auto;opacity:0.5;font-size:0.8em;"></span>
+          </div>
+
+          <!-- World map: Mermaid diagram or parchment image -->
+          <section id="world-map-models" class="hidden" aria-label="Map models"></section>
+          <details id="world-map-details" open>
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.mapTitle">World Map</summary>
+            <div id="world-map-mode-bar" class="world-map-mode-bar" role="tablist" aria-label="Map view mode">
+              <button type="button" id="world-map-mode-mermaid" class="world-map-mode-btn is-active" data-mode="mermaid" data-i18n="webview.world.mapModeDiagram">Diagram</button>
+              <button type="button" id="world-map-mode-parchment" class="world-map-mode-btn" data-mode="parchment" data-i18n="webview.world.mapModeParchment">Parchment</button>
+              <button type="button" id="world-map-mode-tile" class="world-map-mode-btn" data-mode="tile" data-i18n="webview.world.mapModeTile">Tile</button>
+              <button type="button" id="world-map-mode-settlement" class="world-map-mode-btn hidden" data-mode="settlement" data-i18n="webview.world.mapModeSettlement">Settlement</button>
+              <button type="button" id="world-map-mode-diorama" class="world-map-mode-btn hidden" data-mode="diorama" data-i18n="webview.world.mapModeDiorama">Diorama</button>
+              <button type="button" id="world-effects-tier-btn" class="small-btn world-effects-tier-btn" data-i18n-title="webview.world.effectsTierTitle" title="Motion effects">✨ Light</button>
+            </div>
+            <p id="world-vehicle-tile-hint" class="world-vehicle-tile-hint hidden" data-i18n="webview.world.vehicleTileHint">Vehicles and parking markers appear on the Tile map mode.</p>
+            <!-- WORLD-LOCATION-NAV-STABILITY-001: the navigator sits above the
+                 variable-height map viewport (not below it) so switching
+                 between a data-bearing and a no-data location never moves the
+                 button row — only the viewport below it changes size. -->
+            <div id="world-location-navigator" class="world-location-navigator hidden" role="group"></div>
+            <details id="water-navigation" class="hidden"><summary>航路・渡河</summary>
+              <label>移動手段 <select id="water-vehicle"></select></label>
+              <label>目的地 <select id="water-destination"></select></label>
+              <button type="button" id="water-preview">経路を確認</button>
+              <button type="button" id="water-shortcut" hidden>危険な近道を確認</button>
+              <label>地図倍率 <select id="water-zoom"><option value="0.75">0.75×（大河）</option><option value="1" selected>1×（河川以上）</option><option value="2">2×（小河川まで）</option><option value="3">3×</option></select></label>
+              <p id="water-result" role="status" aria-live="polite"></p>
+              <label id="water-confirm-label" hidden><input type="checkbox" id="water-confirm" />予告された船体損傷を了承する</label>
+              <button type="button" id="water-depart" disabled>この経路で出発</button>
+              <button type="button" id="water-cancel">キャンセル</button>
+              <p>幅・水深・橋・渡し場の条件を満たす経路を選びます。危険な連続海域ごとに最大船体HPの5％の損傷。</p>
+            </details>
+            <div id="world-map-container" style="overflow-x:auto;padding:0.5rem 0;">
+              <div id="world-mermaid" class="mermaid world-map-panel"></div>
+              <div id="world-cartography" class="world-map-panel hidden">
+                <div id="world-cartography-stage" class="world-cartography-stage">
+                  <img id="world-cartography-img" alt="World map" />
+                  <svg id="world-cartography-routes" class="world-cartography-routes"></svg>
+                  <div id="world-cartography-pins"></div>
+                  <div id="world-cartography-legend" class="world-map-overlay-legend hidden" role="note" data-i18n-aria-label="webview.world.overlayLegendAriaLabel" aria-label="Map marker legend"></div>
+                </div>
+                <p id="world-cartography-empty" class="empty-text hidden" data-i18n="webview.world.cartographyEmpty">No parchment map yet. Click “Map Image”to generate via ComfyUI.</p>
+              </div>
+              <div id="world-overmap" class="world-map-panel hidden">
+                <canvas id="world-overmap-canvas"></canvas>
+                <p id="world-overmap-empty" class="empty-text hidden" data-i18n="webview.world.overmapEmpty">No regions yet. Generate a world to see the tile overmap.</p>
+                <div id="world-overmap-legend" class="world-map-overlay-legend hidden" role="note" data-i18n-aria-label="webview.world.overlayLegendAriaLabel" aria-label="Map marker legend"></div>
+              </div>
+              <div id="world-settlement" class="world-map-panel hidden">
+                <div id="world-settlement-focus-banner" class="world-settlement-focus-banner hidden" role="status" aria-live="polite">
+                  <div class="world-settlement-focus-banner-text">
+                    <span id="world-settlement-focus-preview-line" class="world-settlement-focus-preview-line"></span>
+                    <span id="world-settlement-focus-current-line" class="world-settlement-focus-current-line"></span>
+                  </div>
+                  <button type="button" id="world-settlement-focus-return-btn" class="world-settlement-focus-return-btn" data-i18n="webview.world.settlementFocusReturn">Return to current location</button>
+                </div>
+                <p id="world-settlement-mobile-base-banner" class="world-settlement-mobile-base-banner hidden" aria-live="polite"></p>
+                <div id="world-settlement-source-bar" class="world-settlement-source-bar hidden" role="group" data-i18n-aria-label="webview.world.settlementSourceAria" aria-label="Settlement view source">
+                  <button type="button" id="world-settlement-source-fixed" class="world-settlement-source-btn" data-settlement-source="fixed" aria-pressed="true" data-i18n="webview.world.settlementSourceFixed">Settlement</button>
+                  <button type="button" id="world-settlement-source-mb" class="world-settlement-source-btn" data-settlement-source="mobile_base" aria-pressed="false" data-i18n="webview.world.settlementSourceMobileBase">Mobile Base interior</button>
+                </div>
+                <div id="world-settlement-toolbar" class="world-settlement-toolbar">
+                  <div class="world-settlement-layer-bar" role="group" aria-label="Settlement layer">
+                    <button type="button" id="world-settlement-layer-z1" class="world-settlement-layer-btn" data-settlement-layer="z1" aria-pressed="false">Z+1</button>
+                    <button type="button" id="world-settlement-layer-z0" class="world-settlement-layer-btn is-active" data-settlement-layer="z0" aria-pressed="true">Z0</button>
+                    <button type="button" id="world-settlement-layer-zm1" class="world-settlement-layer-btn" data-settlement-layer="z-1" aria-pressed="false">Z-1</button>
+                    <button type="button" id="world-settlement-layer-zm2" class="world-settlement-layer-btn" data-settlement-layer="z-2" aria-pressed="false">Z-2</button>
+                  </div>
+                  <div class="world-settlement-zoom-bar">
+                    <button type="button" id="world-settlement-zoom-out" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomOut" title="Zoom out">-</button>
+                    <button type="button" id="world-settlement-zoom-reset" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomReset">Reset</button>
+                    <button type="button" id="world-settlement-zoom-fit" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomFit">Fit</button>
+                    <button type="button" id="world-settlement-zoom-in" class="world-settlement-zoom-btn" data-i18n="webview.world.settlementZoomIn" title="Zoom in">+</button>
+                  </div>
+                  <button type="button" id="world-settlement-time-toggle" class="world-settlement-zoom-btn world-settlement-time-btn" data-i18n-title="webview.world.settlementTimeToggleTitle" title="Toggle time of day">☀️</button>
+                </div>
+                <p id="world-settlement-layer-note" class="world-settlement-layer-note hidden"></p>
+                <div id="world-settlement-stage" class="world-settlement-stage hidden">
+                  <canvas id="world-settlement-canvas"></canvas>
+                  <div id="world-settlement-tooltip" class="world-settlement-tooltip hidden" role="tooltip"></div>
+                </div>
+                <p id="world-settlement-empty" class="empty-text hidden" data-i18n="webview.world.settlementEmpty">No settlement view yet. Enable Settlement Mode and add settlement_state.json.</p>
+                <div id="world-settlement-detail" class="world-settlement-detail hidden" aria-live="polite"></div>
+                <div id="world-settlement-marker-fallback" class="world-settlement-marker-fallback hidden"></div>
+                <div id="world-settlement-expand-panel" class="world-settlement-expand-panel hidden">
+                  <p id="world-settlement-expand-layer-label" class="world-settlement-expand-layer-label"></p>
+                  <p class="world-settlement-expand-hint" data-i18n="webview.world.settlementExpandHint">This layer does not exist yet. Preview a possible layout, then ask the GM to build it.</p>
+                  <div id="world-settlement-expand-buttons" class="world-settlement-expand-buttons"></div>
+                </div>
+              </div>
+              <div id="world-diorama" class="world-map-panel hidden">
+                <div id="world-diorama-focus-banner" class="world-settlement-focus-banner hidden" role="status" aria-live="polite">
+                  <div class="world-settlement-focus-banner-text">
+                    <span id="world-diorama-focus-preview-line" class="world-settlement-focus-preview-line"></span>
+                    <span id="world-diorama-focus-current-line" class="world-settlement-focus-current-line"></span>
+                  </div>
+                  <button type="button" id="world-diorama-focus-return-btn" class="world-settlement-focus-return-btn" data-i18n="webview.world.settlementFocusReturn">Return to current location</button>
+                </div>
+                <div id="world-diorama-source-bar" class="world-settlement-source-bar hidden" role="group" data-i18n-aria-label="webview.world.settlementSourceAria" aria-label="Settlement view source">
+                  <button type="button" id="world-diorama-source-fixed" class="world-settlement-source-btn" data-settlement-source="fixed" aria-pressed="true" data-i18n="webview.world.settlementSourceFixed">Settlement</button>
+                  <button type="button" id="world-diorama-source-mb" class="world-settlement-source-btn" data-settlement-source="mobile_base" aria-pressed="false" data-i18n="webview.world.settlementSourceMobileBase">Mobile Base interior</button>
+                </div>
+                <div id="world-diorama-toolbar" class="world-diorama-toolbar">
+                  <button type="button" id="world-diorama-zoom-out" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaZoomOut" title="Zoom out">-</button>
+                  <button type="button" id="world-diorama-zoom-reset" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaReset">Reset</button>
+                  <button type="button" id="world-diorama-zoom-fit" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaFit">Fit</button>
+                  <button type="button" id="world-diorama-zoom-in" class="world-diorama-zoom-btn" data-i18n="webview.world.dioramaZoomIn" title="Zoom in">+</button>
+                </div>
+                <div id="world-diorama-stage" class="world-diorama-stage hidden">
+                  <canvas id="world-diorama-canvas"></canvas>
+                  <div id="world-diorama-tooltip" class="world-diorama-tooltip hidden" role="tooltip"></div>
+                </div>
+                <p id="world-diorama-empty" class="empty-text hidden" data-i18n="webview.world.dioramaEmpty">No diorama data yet.</p>
+                <p id="world-diorama-unavailable" class="world-diorama-unavailable hidden" data-i18n="webview.world.dioramaUnavailable">Three.js / WebGL is unavailable in this Webview.</p>
+                <div id="world-diorama-detail" class="world-diorama-detail hidden" aria-live="polite"></div>
+                <div id="world-diorama-marker-fallback" class="world-diorama-marker-fallback hidden"></div>
+              </div>
+            </div>
+            <div id="world-location-detail" class="world-location-detail hidden" aria-live="polite"></div>
+            <details id="world-map-items-section" class="world-map-items-section hidden">
+              <summary data-i18n="webview.world.mapItemsTitle">Maps &amp; Intel</summary>
+              <div id="world-map-items-list" class="world-map-items-list"></div>
+            </details>
+          </details>
+
+          <!-- Domain Mode (D3): lordship stats, audience, rivals, missions, battle -->
+          <details id="world-domain-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.domainTitle">🏰 Domain</summary>
+            <div id="world-domain-panel"></div>
+          </details>
+
+          <!-- Guild Master (G1): quest board stats and roster (read-only) -->
+          <details id="world-guild-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.guildTitle">⚔️ Guild</summary>
+            <div id="world-guild-panel"></div>
+          </details>
+
+          <!-- Campaign Kit: discoveries ledger + hub job/rumor board (read-only) -->
+          <details id="world-campaign-kit-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.campaignKitTitle">📋 Campaign</summary>
+            <p id="world-campaign-kit-hint" class="img-gen-hint" data-i18n="webview.world.campaignKitHint">Expedition findings and hub postings (read-only).</p>
+            <div id="world-campaign-kit-panel"></div>
+          </details>
+
+          <!-- 派閥ステータス -->
+          <details id="world-commerce-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.commerceTitle">Caravan</summary>
+            <p id="world-commerce-hint" class="img-gen-hint" data-i18n="webview.world.commerceHint">Your credits, rations, and cargo (read-only).</p>
+            <div id="world-commerce-panel"></div>
+          </details>
+
+          <details id="world-markets-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.marketsTitle">Markets</summary>
+            <p id="world-markets-hint" class="img-gen-hint" data-i18n="webview.world.marketsHint">Read-only commodity prices from the living world simulation.</p>
+            <div id="world-markets-list"></div>
+          </details>
+
+          <details id="world-logistics-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.logisticsTitle">Logistics</summary>
+            <p class="img-gen-hint" data-i18n="webview.world.logisticsHint">Read-only production, processing, routes, and shortages.</p>
+            <div id="world-logistics-panel" role="region" data-i18n-aria-label="webview.world.logisticsAria" aria-label="Economy logistics network"></div>
+          </details>
+
+          <details id="world-npc-whereabouts-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.npcWhereaboutsTitle">NPC Whereabouts</summary>
+            <p id="world-npc-whereabouts-clamped" class="img-gen-hint hidden" data-i18n="webview.world.npcWhereaboutsClamped">Showing the first 10 named NPCs.</p>
+            <div id="world-npc-whereabouts-list"></div>
+          </details>
+
+          <details id="world-npc-bonds-details" class="hidden" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.npcBondsTitle">NPC Bonds</summary>
+            <p class="img-gen-hint" data-i18n="webview.world.npcBondsHint">Bonds between named NPCs, shaped by the living world (hearsay).</p>
+            <div id="world-npc-bonds-list"></div>
+          </details>
+
+          <details id="world-factions-details" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.factionsTitle">Factions</summary>
+            <div id="world-factions-list"></div>
+          </details>
+
+          <!-- Quest Board -->
+          <details id="world-quests-details" open style="margin-top:0.75rem;">
+            <summary style="cursor:pointer;font-weight:600;margin-bottom:0.5rem;" data-i18n="webview.world.questBoardTitle">📜 Quest Board</summary>
+            <div id="world-quests-list"></div>
+          </details>
+        </div>
+      </div> <!-- /pane-world -->
+
+      <!-- ページ 4: OOC Sidekick -->
+      <div id="pane-ooc" class="tab-pane">
+        <div id="ooc-log" class="ooc-log" style="flex: 1; overflow-y: auto; margin-bottom: 1rem; border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 0.5rem; background: var(--vscode-editor-background);">
+          <div class="empty-text" data-i18n="webview.ooc.empty">OOC commentary will appear here after GM turns...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="remote-play-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="remote-play-panel" class="remote-play-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.remotePlay.panelTitle">Remote Play</h3>
+      <button type="button" id="remote-play-close" class="glass-btn" title="Close">✕</button>
+    </div>
+    <div class="remote-play-body">
+      <div class="remote-play-qr-row">
+        <div class="remote-play-qr-block">
+          <h4 data-i18n="webview.remotePlay.playerJoin">Player join</h4>
+          <p id="remote-play-player-url" class="remote-play-url"></p>
+          <button type="button" id="remote-play-copy-player" class="small-btn" data-i18n="webview.remotePlay.copyPlayer">Copy player URL</button>
+        </div>
+        <div class="remote-play-qr-block">
+          <h4 data-i18n="webview.remotePlay.spectatorJoin">Spectator join</h4>
+          <p id="remote-play-spectator-url" class="remote-play-url"></p>
+          <button type="button" id="remote-play-copy-spectator" class="small-btn" data-i18n="webview.remotePlay.copySpectator">Copy spectator URL</button>
+        </div>
+      </div>
+      <div class="remote-play-clients-wrap">
+        <h4 data-i18n="webview.remotePlay.connected">Connected clients</h4>
+        <div id="remote-play-clients" class="remote-play-clients"></div>
+      </div>
+      <button type="button" id="remote-play-stop-btn" class="small-btn" data-i18n="webview.remotePlay.stop">Stop server</button>
+    </div>
+  </aside>
+
+  <div id="img-gen-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="img-gen-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.imageGen.title">Image Gen Settings</h3>
+      <button type="button" id="img-gen-panel-close" class="glass-btn" data-i18n-title="webview.imageGen.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <p class="img-gen-hint" data-i18n="webview.imageGen.hint">Saved to image_gen_config.json in your workspace. 0 = workflow default.</p>
+      <label data-i18n="webview.imageGen.useTemplate">Use template</label>
+      <select id="ig-workflow-template" class="img-gen-select"></select>
+      <p id="ig-workflow-template-summary" class="img-gen-hint"></p>
+      <p id="ig-resolved-size" class="img-gen-hint"></p>
+      <p id="ig-ignored-stale-size" class="img-gen-hint hidden"></p>
+      <label data-i18n="webview.imageGen.cartographyTemplate">Map template</label>
+      <select id="ig-cartography-template" class="img-gen-select"></select>
+      <p id="ig-cartography-template-summary" class="img-gen-hint"></p>
+      <p class="img-gen-hint" data-i18n="webview.imageGen.mapHint">Map templates are used by world-map generation. They do not replace the scene workflow.</p>
+      <label data-i18n="webview.imageGen.profile">Media Profile</label>
+      <select id="ig-profile">
+        <option value="" data-i18n="webview.imageGen.profileUnresolved">Unresolved legacy/custom</option>
+        <option value="sdxl-illustrious-simple">SDXL Simple / Illustrious</option>
+        <option value="pony-sdxl-simple">Pony / SDXL Simple</option>
+        <option value="sdxl-generic-simple">SDXL Simple / Generic</option>
+      </select>
+      <label data-i18n="webview.imageGen.modelFamily">Checkpoint family</label>
+      <select id="ig-model-family">
+        <option value="unknown" data-i18n="webview.imageGen.familyUnknown">Unknown (generation blocked)</option>
+        <option value="sdxl">SDXL</option>
+        <option value="pony">Pony (SDXL-compatible)</option>
+        <option value="anima">Anima</option>
+      </select>
+      <label data-i18n="webview.imageGen.checkpoint">Checkpoint</label>
+      <input type="text" id="ig-checkpoint" class="img-gen-input" data-field="checkpoint" />
+      <button type="button" id="ig-suggest-models" class="glass-btn img-gen-suggest-btn" data-i18n="webview.imageGen.suggestFromLocal">Suggest from local models</button>
+      <p id="ig-suggest-status" class="img-gen-hint"></p>
+      <div id="ig-suggest-list" class="img-gen-suggest-list"></div>
+      <label data-i18n="webview.imageGen.mode">Mode</label>
+      <select id="ig-mode" class="img-gen-input" data-field="mode">
+        <option value="illustrious">illustrious</option>
+        <option value="pony">pony</option>
+        <option value="natural">natural</option>
+        <option value="standard">standard</option>
+      </select>
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.imageGen.steps">Steps</label>
+          <input type="number" id="ig-steps" class="img-gen-input" data-field="steps" min="0" max="150" />
+        </div>
+        <div>
+          <label data-i18n="webview.imageGen.cfg">CFG</label>
+          <input type="number" id="ig-cfg" class="img-gen-input" data-field="cfg" min="0" max="30" step="0.5" />
+        </div>
+      </div>
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.imageGen.width">Width</label>
+          <input type="number" id="ig-width" class="img-gen-input" data-field="width" min="0" max="2048" step="64" />
+        </div>
+        <div>
+          <label data-i18n="webview.imageGen.height">Height</label>
+          <input type="number" id="ig-height" class="img-gen-input" data-field="height" min="0" max="2048" step="64" />
+        </div>
+      </div>
+      <label data-i18n="webview.imageGen.sampler">Sampler</label>
+      <input type="text" id="ig-sampler" class="img-gen-input" data-field="samplerName" />
+      <label data-i18n="webview.imageGen.scheduler">Scheduler</label>
+      <input type="text" id="ig-scheduler" class="img-gen-input" data-field="scheduler" />
+      <label data-i18n="webview.imageGen.positivePrefix">Positive prefix</label>
+      <textarea id="ig-pos-prefix" class="img-gen-textarea" data-field="positivePrefix" rows="2"></textarea>
+      <label data-i18n="webview.imageGen.positiveSuffix">Positive suffix</label>
+      <textarea id="ig-pos-suffix" class="img-gen-textarea" data-field="positiveSuffix" rows="2"></textarea>
+      <label data-i18n="webview.imageGen.negative">Negative prompt</label>
+      <textarea id="ig-negative" class="img-gen-textarea" data-field="negativePrompt" rows="3"></textarea>
+      <details class="img-gen-templates">
+        <summary data-i18n="webview.imageGen.templates">Prompt templates</summary>
+        <label data-i18n="webview.imageGen.tplScene">Scene</label>
+        <textarea id="ig-tpl-scene" class="img-gen-textarea" data-tpl="scene" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplPortrait">Portrait</label>
+        <textarea id="ig-tpl-portrait" class="img-gen-textarea" data-tpl="portrait" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplBackground">Background</label>
+        <textarea id="ig-tpl-background" class="img-gen-textarea" data-tpl="background" rows="2"></textarea>
+        <label data-i18n="webview.imageGen.tplFreeform">Freeform</label>
+        <textarea id="ig-tpl-freeform" class="img-gen-textarea" data-tpl="freeform" rows="2"></textarea>
+      </details>
+      <div id="img-gen-saved" class="img-gen-saved hidden" data-i18n="webview.imageGen.saved">Saved</div>
+    </div>
+  </aside>
+
+  <div id="mod-manager-backdrop" class="img-gen-backdrop hidden" aria-hidden="true"></div>
+  <aside id="mod-manager-panel" class="img-gen-panel mod-manager-panel hidden" aria-hidden="true" aria-label="MOD Manager">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.modManager.title">MOD Manager</h3>
+      <button type="button" id="mod-manager-close" class="glass-btn" data-i18n-title="webview.modManager.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body mod-manager-body">
+      <div id="mod-manager-safe" class="mod-manager-banner hidden" role="status"></div>
+      <div id="mod-manager-notice" class="mod-manager-notice hidden" role="status"></div>
+      <label class="mod-manager-adult-toggle">
+        <input type="checkbox" id="mod-manager-show-adult">
+        <span data-i18n="webview.modManager.showAdult">Show adult-rated MOD metadata</span>
+      </label>
+      <p class="img-gen-hint" data-i18n="webview.modManager.adultSeparate">Visibility, session reading and campaign approval are separate confirmations.</p>
+      <div class="mod-manager-actions">
+        <button type="button" class="glass-btn" data-mod-install="folder" data-mod-destination="global" data-i18n="webview.modManager.installGlobalFolder">Global folder</button>
+        <button type="button" class="glass-btn" data-mod-install="zip" data-mod-destination="global" data-i18n="webview.modManager.installGlobalZip">Global ZIP</button>
+        <button type="button" class="glass-btn" data-mod-install="folder" data-mod-destination="workspace" data-i18n="webview.modManager.installWorkspaceFolder">Workspace folder</button>
+        <button type="button" class="glass-btn" data-mod-install="zip" data-mod-destination="workspace" data-i18n="webview.modManager.installWorkspaceZip">Workspace ZIP</button>
+        <button type="button" id="mod-manager-rescan" class="glass-btn" data-i18n="webview.modManager.rescan">Rescan</button>
+      </div>
+      <div id="mod-manager-campaign-state" class="mod-manager-campaign-state"></div>
+      <div id="mod-manager-packages" class="mod-manager-packages"></div>
+      <section id="mod-manager-preview" class="mod-manager-preview hidden">
+        <h4 data-i18n="webview.modManager.previewTitle">Resolve preview</h4>
+        <div id="mod-manager-preview-body"></div>
+      </section>
+      <div class="mod-manager-actions mod-manager-footer-actions">
+        <button type="button" id="mod-manager-resolve" class="glass-btn" data-i18n="webview.modManager.resolve">Resolve Preview</button>
+        <button type="button" id="mod-manager-commit" class="glass-btn" data-i18n="webview.modManager.commit" disabled>Confirm profile &amp; lock</button>
+        <button type="button" id="mod-manager-export" class="glass-btn" data-i18n="webview.modManager.exportDiagnostics">Copy diagnostics</button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="parlor-settings-backdrop" class="img-gen-backdrop hidden" aria-hidden="true"></div>
+  <aside id="parlor-settings-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.parlor.settingsTitle">Parlor Settings</h3>
+      <button type="button" id="parlor-settings-panel-close" class="glass-btn" data-i18n-title="webview.parlor.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <h4 data-i18n="webview.parlor.characterTitle">Character</h4>
+      <select id="parlor-character-select" class="img-gen-input"></select>
+      <div class="img-gen-row">
+        <button type="button" id="parlor-import-character-btn" class="glass-btn" data-i18n="webview.parlor.importCharacter">Import ST Card</button>
+        <button type="button" id="parlor-edit-character-btn" class="glass-btn" data-i18n="webview.parlor.editCharacter">Edit Current Character</button>
+      </div>
+
+      <h4 data-i18n="webview.parlor.connectionTitle">Connection</h4>
+      <p class="img-gen-hint" data-i18n="webview.parlor.connectionHint">Saved to connection_profiles.json in your workspace.</p>
+      <select id="parlor-connection-select" class="img-gen-input"></select>
+
+      <h4 data-i18n="webview.parlor.personaTitle">Player Persona</h4>
+      <p class="img-gen-hint" data-i18n="webview.parlor.personaIdentityHint">This is who you roleplay as, not the character you are talking to.</p>
+      <select id="parlor-persona-preset-select" class="img-gen-input"></select>
+      <div class="img-gen-row">
+        <button type="button" id="parlor-persona-from-character-btn" class="glass-btn" data-i18n="webview.parlor.personaFromCharacter">Create from Imported Character…</button>
+        <button type="button" id="parlor-persona-import-json-btn" class="glass-btn" data-i18n="webview.parlor.personaImportJson">Load Persona JSON…</button>
+      </div>
+      <label for="parlor-persona-name" data-i18n="webview.parlor.personaName">Name</label>
+      <input type="text" id="parlor-persona-name" class="img-gen-input" maxlength="80" data-i18n-placeholder="webview.parlor.personaNamePlaceholder" placeholder="Your character name" />
+      <label for="parlor-persona-description" data-i18n="webview.parlor.personaDescription">Description</label>
+      <textarea id="parlor-persona-description" class="img-gen-textarea" rows="3" data-i18n-placeholder="webview.parlor.personaDescriptionPlaceholder" placeholder="Appearance, background, traits…"></textarea>
+      <label for="parlor-persona-style" data-i18n="webview.parlor.personaStyle">Speaking style</label>
+      <textarea id="parlor-persona-style" class="img-gen-textarea" rows="2" data-i18n-placeholder="webview.parlor.personaStylePlaceholder" placeholder="Tone, quirks, speech patterns…"></textarea>
+      <div class="img-gen-row">
+        <button type="button" id="parlor-persona-apply-btn" class="glass-btn" data-i18n="webview.parlor.personaApply">Apply Current Persona</button>
+        <button type="button" id="parlor-persona-save-new-btn" class="glass-btn" data-i18n="webview.parlor.personaSaveNew">Save as New Preset</button>
+        <button type="button" id="parlor-persona-update-btn" class="glass-btn" data-i18n="webview.parlor.personaUpdate">Update Selected Preset</button>
+      </div>
+      <div id="parlor-persona-saved" class="parlor-persona-saved hidden" data-i18n="webview.parlor.personaSaved">Saved</div>
+
+      <h4 data-i18n="webview.parlor.backgroundTitle">Background</h4>
+      <p id="parlor-bg-hint" class="img-gen-hint hidden" data-i18n="webview.parlor.backgroundHint">Add images to the backgrounds/ folder in your workspace.</p>
+      <div id="parlor-bg-gallery" class="parlor-bg-gallery"></div>
+
+      <section id="parlor-campaign-card" class="parlor-campaign-card" aria-labelledby="parlor-campaign-title">
+        <h4 id="parlor-campaign-title" data-i18n="webview.parlor.promoteTitle">Start an adventure with this character</h4>
+        <p class="img-gen-hint" data-i18n="webview.parlor.promoteHint">Use this conversation to create an adventure scenario and game state. Your Parlor chat is preserved. RPG rules and world features are optional.</p>
+        <details class="parlor-campaign-details">
+          <summary data-i18n="webview.parlor.promoteDetailsSummary">See details</summary>
+          <p class="img-gen-hint" data-i18n="webview.parlor.promoteDetails">Recent chat can be carried forward. An adventure scenario and game state are created. Existing Campaign state is never overwritten without confirmation. You can later return to Parlor.</p>
+        </details>
+        <p id="parlor-campaign-empty-hint" class="img-gen-hint hidden" data-i18n="webview.parlor.promoteEmptyHint">Chat with the character before starting an adventure.</p>
+        <div id="parlor-campaign-fresh-wrap" class="img-gen-row">
+          <button type="button" id="parlor-promote-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.promoteButton" data-i18n-aria-label="webview.parlor.promoteButton">Start an adventure with this character…</button>
+        </div>
+        <div id="parlor-campaign-frozen-wrap" class="parlor-campaign-frozen-wrap hidden">
+          <p class="img-gen-hint" data-i18n="webview.parlor.frozenCampaignHint">A previous adventure is frozen. Resume it, or create a new one from this chat.</p>
+          <div class="img-gen-row">
+            <button type="button" id="parlor-resume-campaign-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.resumeFrozenButton" data-i18n-aria-label="webview.parlor.resumeFrozenButton">Resume previous adventure</button>
+            <button type="button" id="parlor-fresh-campaign-btn" class="glass-btn parlor-promote-btn" data-i18n="webview.parlor.freshCampaignButton" data-i18n-aria-label="webview.parlor.freshCampaignButton">Create a new adventure…</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div id="game-rules-backdrop" class="img-gen-backdrop hidden"></div>
+  <aside id="game-rules-panel" class="img-gen-panel hidden" aria-hidden="true">
+    <div class="img-gen-panel-header">
+      <h3 data-i18n="webview.gameRules.title">Game Rules</h3>
+      <button type="button" id="game-rules-panel-close" class="glass-btn" data-i18n-title="webview.gameRules.close" title="Close">✕</button>
+    </div>
+    <div class="img-gen-panel-body">
+      <p class="img-gen-hint" data-i18n="webview.gameRules.hint">Saved to game_rules.json in your workspace.</p>
+      
+      <div class="img-gen-row" style="align-items: center;">
+        <label for="gr-enable-rpg" data-i18n="webview.gameRules.enableRpg">Enable RPG Mechanics (HP/MP)</label>
+        <input type="checkbox" id="gr-enable-rpg" data-field="enableRpgMechanics" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-story-combat" data-i18n="webview.gameRules.storyCombat" data-i18n-title="webview.gameRules.tipStoryCombat">Enable Story Combat</label>
+        <input type="checkbox" id="gr-story-combat" data-field="enableStoryCombat" />
+      </div>
+
+      <div class="img-gen-row">
+        <div>
+          <label data-i18n="webview.gameRules.defaultHp">Default Max HP</label>
+          <input type="number" id="gr-default-hp" class="img-gen-input" data-field="defaultMaxHp" min="1" max="9999" />
+        </div>
+        <div>
+          <label data-i18n="webview.gameRules.defaultMp">Default Max MP</label>
+          <input type="number" id="gr-default-mp" class="img-gen-input" data-field="defaultMaxMp" min="0" max="9999" />
+        </div>
+      </div>
+
+      <label data-i18n="webview.gameRules.diceDifficulty">Dice Difficulty</label>
+      <select id="gr-dice-diff" class="img-gen-input" data-field="diceDifficulty">
+        <option value="Easy">Easy</option>
+        <option value="Normal" selected>Normal</option>
+        <option value="Hard">Hard</option>
+      </select>
+
+      <div class="img-gen-row" style="margin-top: 1rem; border-top: 1px solid var(--vscode-panel-border); padding-top: 0.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0;" data-i18n="webview.gameRules.advanced">Advanced AI Rules</h4>
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-skill-commentary" data-i18n="webview.gameRules.skillCommentary" data-i18n-title="webview.gameRules.tipSkillCommentary">Enable Skill Commentary</label>
+        <input type="checkbox" id="gr-skill-commentary" data-field="skillCommentary" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-bg-sim" data-i18n="webview.gameRules.bgSim" data-i18n-title="webview.gameRules.tipBgSim">Enable Background Simulation</label>
+        <input type="checkbox" id="gr-bg-sim" data-field="backgroundSimulation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-auto-lore" data-i18n="webview.gameRules.autoLore" data-i18n-title="webview.gameRules.tipAutoLore">Enable Auto Lorebook Growth</label>
+        <input type="checkbox" id="gr-auto-lore" data-field="autoLorebookGrowth" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-npc-registry" data-i18n="webview.gameRules.npcRegistry" data-i18n-title="webview.gameRules.tipNpcRegistry">Enable NPC Memory &amp; Disposition</label>
+        <input type="checkbox" id="gr-npc-registry" data-field="enableNpcRegistry" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-world-forge" data-i18n="webview.gameRules.worldForge" data-i18n-title="webview.gameRules.tipWorldForge">Enable World Forge</label>
+        <input type="checkbox" id="gr-world-forge" data-field="enableWorldForge" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-emergent-sim" data-i18n="webview.gameRules.emergentSim" data-i18n-title="webview.gameRules.tipEmergentSim">Enable Emergent Simulation</label>
+        <input type="checkbox" id="gr-emergent-sim" data-field="enableEmergentSimulation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-faction-reputation" data-i18n="webview.gameRules.factionReputation" data-i18n-title="webview.gameRules.tipFactionReputation">Enable Faction Reputation</label>
+        <input type="checkbox" id="gr-faction-reputation" data-field="enableFactionReputation" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-campaign-kit" data-i18n="webview.gameRules.campaignKit" data-i18n-title="webview.gameRules.tipCampaignKit">Enable Campaign Kit (genre loop)</label>
+        <input type="checkbox" id="gr-campaign-kit" data-field="enableCampaignKit" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-world-observatory" data-i18n="webview.gameRules.worldObservatory" data-i18n-title="webview.gameRules.tipWorldObservatory">Enable World Observatory (watch the world change)</label>
+        <input type="checkbox" id="gr-world-observatory" data-field="enableWorldObservatory" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-campaign-kit-id" data-i18n="webview.gameRules.campaignKitId">Campaign Kit preset</label>
+        <select id="gr-campaign-kit-id" data-field="campaignKitId">
+          <option value="" data-i18n="webview.gameRules.campaignKitAuto">Auto (theme / campaign_kit.json)</option>
+          <option value="postapoc_scavenger" data-i18n="webview.gameRules.campaignKitPostApoc">Post-apocalyptic scavenger</option>
+          <option value="classic_fantasy_guild" data-i18n="webview.gameRules.campaignKitFantasy">Classic fantasy guild</option>
+          <option value="space_frontier" data-i18n="webview.gameRules.campaignKitSpace">Space frontier</option>
+          <option value="eastern_fantasy" data-i18n="webview.gameRules.campaignKitEastern">Eastern fantasy</option>
+          <option value="cyberpunk_courier" data-i18n="webview.gameRules.campaignKitCyber">Cyberpunk courier</option>
+          <option value="modern_occult" data-i18n="webview.gameRules.campaignKitOccult">Modern occult investigators</option>
+          <option value="survival_horror" data-i18n="webview.gameRules.campaignKitHorror">Survival horror</option>
+        </select>
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-commerce" data-i18n="webview.gameRules.commerce" data-i18n-title="webview.gameRules.tipCommerce">Enable Commerce (trade/cargo)</label>
+        <input type="checkbox" id="gr-commerce" data-field="enableCommerce" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-commerce-ui" data-i18n="webview.gameRules.commerceUi" data-i18n-title="webview.gameRules.tipCommerceUi">Enable Commerce UI (buy/sell buttons)</label>
+        <input type="checkbox" id="gr-commerce-ui" data-field="enableCommerceUi" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-economy-profile" data-i18n="webview.gameRules.economyProfile" data-i18n-title="webview.gameRules.tipEconomyProfile">Economy Profile</label>
+        <select id="gr-economy-profile" data-field="economyProfile">
+          <option value="abundant" data-i18n="webview.gameRules.economyAbundant">Abundant</option>
+          <option value="plentiful" data-i18n="webview.gameRules.economyPlentiful">Plentiful</option>
+          <option value="normal" data-i18n="webview.gameRules.economyProfileNormal" selected>Normal</option>
+          <option value="scarce" data-i18n="webview.gameRules.economyScarce">Scarce</option>
+          <option value="barren" data-i18n="webview.gameRules.economyBarren">Barren</option>
+        </select>
+      </div>
+
+      <section class="world-pacing-controls" aria-labelledby="gr-pacing-label">
+      <div class="img-gen-row">
+        <label id="gr-pacing-label" for="gr-pacing-preset" data-i18n="webview.gameRules.worldPacing">World pacing</label>
+        <select id="gr-pacing-preset" disabled>
+          <option value="changing" data-i18n="webview.gameRules.pacingChanging">Changing world</option>
+          <option value="stable" data-i18n="webview.gameRules.pacingStable">Stable life</option>
+          <option value="demanding" data-i18n="webview.gameRules.pacingDemanding">Demanding management</option>
+          <option value="custom" disabled data-i18n="webview.gameRules.pacingCustom">Custom</option>
+        </select>
+      </div>
+      <p data-i18n="webview.gameRules.pacingHint">Applies on the next world day. Does not enable systems or reset your world.</p>
+      <div class="img-gen-row"><label for="gr-food-demand" data-i18n="webview.gameRules.foodDemand">Food demand multiplier (0 stops consumption)</label><input id="gr-food-demand" type="number" min="0" max="3" step="0.1" value="1" /></div>
+      <div class="img-gen-row"><label for="gr-conflict-enabled" data-i18n="webview.gameRules.conflictEnabled">Faction conflict activity</label><input id="gr-conflict-enabled" type="checkbox" checked /></div>
+      <div class="img-gen-row"><label for="gr-conflict-active" data-i18n="webview.gameRules.conflictActive">Active world days</label><input id="gr-conflict-active" type="number" min="1" max="100" value="10" /></div>
+      <div class="img-gen-row"><label for="gr-conflict-rest" data-i18n="webview.gameRules.conflictRest">Rest world days</label><input id="gr-conflict-rest" type="number" min="1" max="100" value="20" /></div>
+      <div class="img-gen-row"><label for="gr-relationship-pace" data-i18n="webview.gameRules.relationshipPace">Personal relationships</label>
+        <select id="gr-relationship-pace"><option value="stopped" data-i18n="webview.gameRules.paceStopped">Stopped</option><option value="slow" data-i18n="webview.gameRules.paceSlow">Slow</option><option value="standard" selected data-i18n="webview.gameRules.paceStandard">Standard</option><option value="fast" data-i18n="webview.gameRules.paceFast">Fast</option></select>
+      </div>
+      </section>
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-player-role" data-i18n="webview.gameRules.playerRole">Default Player Role</label>
+        <select id="gr-player-role" data-field="playerRole">
+          <option value="merchant" data-i18n="webview.gameRules.playerRoleMerchant">Merchant</option>
+          <option value="adventurer" data-i18n="webview.gameRules.playerRoleAdventurer">Adventurer</option>
+          <option value="retainer" data-i18n="webview.gameRules.playerRoleRetainer">Retainer</option>
+          <option value="smith" data-i18n="webview.gameRules.playerRoleSmith">Smith</option>
+          <option value="ruler" data-i18n="webview.gameRules.playerRoleRuler">Ruler</option>
+        </select>
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-npc-agency" data-i18n="webview.gameRules.npcAgency" data-i18n-title="webview.gameRules.tipNpcAgency">Enable NPC Agency</label>
+        <input type="checkbox" id="gr-npc-agency" data-field="enableNpcAgency" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-domain-mode" data-i18n="webview.gameRules.domainMode" data-i18n-title="webview.gameRules.tipDomainMode">Enable Domain Mode (lordship)</label>
+        <input type="checkbox" id="gr-domain-mode" data-field="enableDomainMode" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-domain-audience" data-i18n="webview.gameRules.domainAudience" data-i18n-title="webview.gameRules.tipDomainAudience">Enable Audience Hall (F7)</label>
+        <input type="checkbox" id="gr-domain-audience" data-field="enableDomainAudience" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-domain-rivals" data-i18n="webview.gameRules.domainRivals" data-i18n-title="webview.gameRules.tipDomainRivals">Enable Rival Lords (F8)</label>
+        <input type="checkbox" id="gr-domain-rivals" data-field="enableDomainRivals" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-domain-missions" data-i18n="webview.gameRules.domainMissions" data-i18n-title="webview.gameRules.tipDomainMissions">Enable Officer Missions (F9)</label>
+        <input type="checkbox" id="gr-domain-missions" data-field="enableDomainMissions" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-mass-battle" data-i18n="webview.gameRules.massBattle" data-i18n-title="webview.gameRules.tipMassBattle">Enable Mass Battle (F10)</label>
+        <input type="checkbox" id="gr-mass-battle" data-field="enableMassBattle" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-guild-mode" data-i18n="webview.gameRules.guildMode" data-i18n-title="webview.gameRules.tipGuildMode">Enable Guild Master Mode (F11)</label>
+        <input type="checkbox" id="gr-guild-mode" data-field="enableGuildMode" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-guild-requests" data-i18n="webview.gameRules.guildRequests" data-i18n-title="webview.gameRules.tipGuildRequests">Enable Request Board (G2)</label>
+        <input type="checkbox" id="gr-guild-requests" data-field="enableGuildRequests" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem; margin-left: 1.2rem;">
+        <label for="gr-guild-parties" data-i18n="webview.gameRules.guildParties" data-i18n-title="webview.gameRules.tipGuildParties">Enable Party Dispatch (G3)</label>
+        <input type="checkbox" id="gr-guild-parties" data-field="enableGuildParties" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-npc-relationships" data-i18n="webview.gameRules.npcRelationships" data-i18n-title="webview.gameRules.tipNpcRelationships">Enable NPC Bonds (LW3)</label>
+        <input type="checkbox" id="gr-npc-relationships" data-field="enableNpcRelationships" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-travel-encounters" data-i18n="webview.gameRules.travelEncounters" data-i18n-title="webview.gameRules.tipTravelEncounters">Enable Travel Encounters</label>
+        <input type="checkbox" id="gr-travel-encounters" data-field="enableTravelEncounters" />
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-travel-density" data-i18n="webview.gameRules.travelDensity">Travel Encounter Density</label>
+        <select id="gr-travel-density" data-field="travelEncounterDensity">
+          <option value="low" data-i18n="webview.gameRules.travelDensityLow">Low</option>
+          <option value="medium" data-i18n="webview.gameRules.travelDensityMedium">Medium</option>
+          <option value="high" data-i18n="webview.gameRules.travelDensityHigh">High</option>
+        </select>
+      </div>
+
+      <div class="img-gen-row" style="align-items: center; margin-bottom: 0.5rem;">
+        <label for="gr-sim-interval" data-i18n="webview.gameRules.simInterval">Sim Interval (turns)</label>
+        <input type="number" id="gr-sim-interval" min="1" max="50" value="5" style="width:5rem;" />
+      </div>
+
+      <div class="img-gen-row" style="margin-top: 1rem; border-top: 1px solid var(--vscode-panel-border); padding-top: 0.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0;" data-i18n="webview.gameRules.eventManagement">Event Management</h4>
+      </div>
+
+      <details class="gr-event-group">
+        <summary><span data-i18n="webview.gameRules.domainEvents">Domain Events</span> (<span id="gr-domain-count">0</span> enabled)</summary>
+        <div id="gr-domain-events-list" class="gr-event-list"></div>
+      </details>
+      
+      <details class="gr-event-group">
+        <summary><span data-i18n="webview.gameRules.guildEvents">Guild Events</span> (<span id="gr-guild-count">0</span> enabled)</summary>
+        <div id="gr-guild-events-list" class="gr-event-list"></div>
+      </details>
+
+      <details class="gr-event-group">
+        <summary><span data-i18n="webview.gameRules.audiencePetitions">Audience Petitions</span> (<span id="gr-audience-count">0</span> enabled)</summary>
+        <div id="gr-audience-events-list" class="gr-event-list"></div>
+      </details>
+
+      <div id="game-rules-saved" class="img-gen-saved hidden" data-i18n="webview.gameRules.saved">Saved</div>
+    </div>
+  </aside>
+
+  <!-- ===== Character Creator Backdrop ===== -->
+  <div id="char-creator-backdrop" class="cc-backdrop hidden"></div>
+
+  <!-- ========================================== -->
+  <!-- Zero-Config Quickstart Modal -->
+  <!-- ========================================== -->
+  <div id="quickstart-modal" class="char-creator-modal hidden">
+    <div class="char-creator-overlay" id="quickstart-overlay"></div>
+    <div class="char-creator-body" style="max-width: 600px; max-height: 400px; padding: 20px;">
+      <button class="cc-close-btn" id="quickstart-close" type="button" title="Close">×</button>
+      <div class="cc-header">
+        <h2 style="margin: 0; color: var(--text-base); text-shadow: 0 0 10px var(--accent-light);">✨ AI Zero-Config Quickstart</h2>
+      </div>
+      <p style="color: var(--text-dim); margin-top: 10px; font-size: 13px;">
+        Describe the world and character you want to play. AI will generate the world map, character sheet, and starting scenario automatically!
+      </p>
+      <div style="margin-top: 20px;">
+        <textarea id="quickstart-prompt" class="cc-input" style="height: 100px; resize: none;" placeholder="e.g. A ruined cyberpunk city where I play as a runaway synth hacker trying to survive..."></textarea>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 20px;">
+        <label style="color: var(--text-dim); font-size: 12px; display: flex; align-items: center; gap: 5px;">
+          <input type="checkbox" id="quickstart-overwrite-cb"> Overwrite existing data
+        </label>
+        <button id="quickstart-start-btn" class="cc-save-primary" type="button">🚀 Start Journey</button>
+      </div>
+      <div id="quickstart-loading" class="hidden" style="margin-top: 15px; color: var(--accent-light); font-size: 14px; text-align: center; animation: pulse 1.5s infinite;">
+        Generating World and Character... This may take a minute.
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- Character Creator / Editor Modal           -->
+  <!-- ========================================== -->
+  <div id="char-creator-modal" class="char-creator-modal hidden" role="dialog" aria-modal="true" aria-label="Character Creator">
+    <div class="char-creator-header">
+      <h2><span data-i18n="webview.characterCreator.title">✦ Character Creator</span> <span class="cc-subtitle"></span></h2>
+      <button id="char-creator-close" class="glass-btn" data-i18n-title="webview.characterCreator.close" title="Close">✕</button>
+    </div>
+
+    <div class="char-creator-body">
+
+      <!-- 笏笏 Section: Identity 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionIdentity">Identity</div>
+        <div class="cc-identity-grid">
+          <!-- Portrait -->
+          <div class="cc-portrait-col">
+            <div id="cc-portrait-drop" class="cc-portrait-drop" data-i18n-title="webview.characterCreator.portraitDropTitle" title="Drop image or click to upload">
+              <img id="cc-portrait-img-preview" src="" alt="Portrait" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:8px;">
+              <div id="cc-portrait-placeholder-inner" class="cc-portrait-placeholder-inner">
+                <span class="cc-portrait-icon">🎭</span>
+                <span class="cc-portrait-hint" data-i18n="webview.characterCreator.portraitDropHint">Drop image or click</span>
+              </div>
+            </div>
+            <button id="cc-portrait-upload-btn" class="cc-portrait-btn" type="button" data-i18n="webview.characterCreator.uploadBtn">📁 Upload</button>
+            <button id="cc-portrait-generate-btn" class="cc-portrait-btn cc-btn-generate" type="button" data-i18n="webview.characterCreator.generateBtn">✨ Generate</button>
+          </div>
+
+          <!-- Basic fields -->
+          <div class="cc-identity-fields">
+            <label class="cc-label" data-i18n="webview.characterCreator.name">Name</label>
+            <input id="cc-name" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.namePlaceholder" placeholder="Character name…" autocomplete="off">
+
+            <label class="cc-label" data-i18n="webview.characterCreator.creator">Creator</label>
+            <input id="cc-creator" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.creatorPlaceholder" placeholder="Your name / handle…" autocomplete="off">
+
+            <label class="cc-label" data-i18n="webview.characterCreator.version">Version</label>
+            <input id="cc-version" class="cc-input" type="text" placeholder="1.0" style="max-width:100px;" autocomplete="off">
+
+            <label class="cc-label" data-i18n="webview.characterCreator.tags">Tags</label>
+            <input id="cc-tags" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.tagsPlaceholder" placeholder="fantasy, elf, healer…" autocomplete="off">
+
+            <label class="cc-label" data-i18n="webview.characterCreator.controlledBy">Controlled by</label>
+            <select id="cc-controlled-by" class="cc-select">
+              <option value="gm" data-i18n="webview.characterCreator.controlledByGm">GM (NPC)</option>
+              <option value="player" data-i18n="webview.characterCreator.controlledByPlayer">Player</option>
+              <option value="ai" data-i18n="webview.characterCreator.controlledByAi">AI</option>
+            </select>
+
+            <label class="cc-label" data-i18n="webview.characterCreator.addToParty">Add to Party</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+              <input id="cc-party-cb" type="checkbox" style="width:16px; height:16px; accent-color:var(--accent); cursor:pointer;">
+              <span style="font-size:12px; color:var(--text-dim);" data-i18n="webview.characterCreator.includeInParty">Include in active party</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 笏笏 Section: Personality & Profile 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionPersonality">Personality &amp; Profile</div>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.description">Description</label>
+        <textarea id="cc-description" class="cc-textarea" rows="4" data-i18n-placeholder="webview.characterCreator.descriptionPlaceholder" placeholder="Physical appearance, background, role in the story…"></textarea>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.personality">Personality</label>
+        <textarea id="cc-personality" class="cc-textarea" rows="3" data-i18n-placeholder="webview.characterCreator.personalityPlaceholder" placeholder="Traits, quirks, speech patterns…"></textarea>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.scenario">Scenario</label>
+        <textarea id="cc-scenario" class="cc-textarea" rows="3" data-i18n-placeholder="webview.characterCreator.scenarioPlaceholder" placeholder="The situation or world context where this character exists…"></textarea>
+      </section>
+
+      <section class="cc-section">
+        <div class="cc-section-title" style="display:flex; align-items:center; justify-content:space-between;">
+          <span data-i18n="webview.characterCreator.sectionWorldAdaptation">World Adaptation</span>
+          <button id="cc-adapt-world-btn" class="glass-btn" type="button" style="font-size:11px;" disabled data-i18n-title="webview.characterCreator.adaptBtnTitle" title="Set up a world first to enable this" data-i18n="webview.characterCreator.adaptBtn">Adapt to World Theme</button>
+        </div>
+        <div id="cc-adapt-draft" class="cc-adapt-draft hidden">
+          <div class="cc-adapt-draft-label" data-i18n="webview.characterCreator.adaptDraftLabel">AI draft — not applied yet:</div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftDescription">Description:</strong> <span id="cc-adapt-description"></span></div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftPersonality">Personality:</strong> <span id="cc-adapt-personality"></span></div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftEquipment">Equipment:</strong> <span id="cc-adapt-equipment"></span></div>
+          <div class="cc-adapt-draft-field"><strong data-i18n="webview.characterCreator.adaptDraftArrival">Arrival reason:</strong> <span id="cc-adapt-arrival"></span></div>
+          <div class="cc-adapt-draft-actions">
+            <button id="cc-adapt-apply-btn" class="glass-btn" type="button" data-i18n="webview.characterCreator.adaptApply">Apply Draft</button>
+            <button id="cc-adapt-discard-btn" class="glass-btn cc-del" type="button" data-i18n="webview.characterCreator.adaptDiscard">Discard</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 笏笏 Section: Dialogue 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionDialogue">Dialogue</div>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.firstMessage">First Message</label>
+        <textarea id="cc-first-mes" class="cc-textarea" rows="4" data-i18n-placeholder="webview.characterCreator.firstMessagePlaceholder" placeholder="The character's opening line when a conversation begins…"></textarea>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.exampleMessages">Example Messages</label>
+        <textarea id="cc-mes-example" class="cc-textarea" rows="4" placeholder="&lt;START&gt;&#10;{{user}}: Hello!&#10;{{char}}: Greetings, traveler…"></textarea>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.creatorNotes">Creator Notes</label>
+        <textarea id="cc-creator-notes" class="cc-textarea" rows="2" data-i18n-placeholder="webview.characterCreator.creatorNotesPlaceholder" placeholder="Notes for other creators or players (not sent to AI)…"></textarea>
+      </section>
+
+      <!-- 笏笏 Section: System Prompt 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionSystemPrompt">System Prompt</div>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.systemPrompt">System Prompt</label>
+        <textarea id="cc-system-prompt" class="cc-textarea" rows="4" data-i18n-placeholder="webview.characterCreator.systemPromptPlaceholder" placeholder="Instructions prepended to every conversation…"></textarea>
+
+        <label class="cc-label" data-i18n="webview.characterCreator.postHistory">Post-History Instructions</label>
+        <textarea id="cc-post-history" class="cc-textarea" rows="3" data-i18n-placeholder="webview.characterCreator.postHistoryPlaceholder" placeholder="Instructions appended after the chat history…"></textarea>
+      </section>
+
+      <!-- 笏笏 Section: LLM Binding 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionLlmBinding">LLM Binding</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="cc-label" data-i18n="webview.characterCreator.llmProvider">Provider</label>
+            <input id="cc-llm-provider" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.llmProviderPlaceholder" placeholder="anthropic / openai…" autocomplete="off">
+          </div>
+          <div>
+            <label class="cc-label" data-i18n="webview.characterCreator.llmModel">Model</label>
+            <input id="cc-llm-model" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.llmModelPlaceholder" placeholder="claude-sonnet-4-6…" autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- 笏笏 Section: Sprite Expressions 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" style="display:flex; align-items:center; justify-content:space-between;">
+          <span data-i18n="webview.characterCreator.sectionSpriteExpressions">Sprite Expressions</span>
+          <button id="cc-add-expression-btn" class="glass-btn" type="button" style="font-size:11px;" data-i18n="webview.characterCreator.addCustomExpression">+ Add Custom</button>
+        </div>
+        <div id="cc-sprites-grid" class="cc-sprites-grid">
+          <!-- Populated by JS renderExpressionsGrid() -->
+        </div>
+      </section>
+
+      <!-- 笏笏 Section: Equipment 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionEquipment">Equipment</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+          <div>
+            <label class="cc-label" data-i18n="webview.characterCreator.weapon">Weapon</label>
+            <input id="cc-equip-weapon" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.weaponPlaceholder" placeholder="Sword…" autocomplete="off">
+          </div>
+          <div>
+            <label class="cc-label" data-i18n="webview.characterCreator.armor">Armor</label>
+            <input id="cc-equip-armor" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.armorPlaceholder" placeholder="Chain mail…" autocomplete="off">
+          </div>
+          <div>
+            <label class="cc-label" data-i18n="webview.characterCreator.accessory">Accessory</label>
+            <input id="cc-equip-accessory" class="cc-input" type="text" data-i18n-placeholder="webview.characterCreator.accessoryPlaceholder" placeholder="Ring…" autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- 笏笏 Section: Export & Save 笏笏 -->
+      <section class="cc-section">
+        <div class="cc-section-title" data-i18n="webview.characterCreator.sectionExportSave">Export &amp; Save</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+          <span style="font-size:12px; color:var(--text-dim);" data-i18n="webview.characterCreator.formatLabel">Format:</span>
+          <button class="cc-fmt-btn active" data-fmt="json" type="button" data-i18n="webview.characterCreator.formatJson">JSON</button>
+          <button class="cc-fmt-btn" data-fmt="st-v2" type="button" data-i18n="webview.characterCreator.formatStV2">ST v2 PNG</button>
+          <button class="cc-fmt-btn" data-fmt="st-v3" type="button" data-i18n="webview.characterCreator.formatStV3">ST v3 PNG</button>
+        </div>
+        <button id="cc-save-btn" class="cc-save-primary" type="button" data-i18n="webview.characterCreator.saveBtn">✦ Save Character</button>
+        <div id="cc-saved-toast" class="cc-saved-toast hidden" data-i18n="webview.characterCreator.savedToast">✓ Character saved!</div>
+      </section>
+
+    </div><!-- /.char-creator-body -->
+  </div><!-- /#char-creator-modal -->
+
+  <!-- ========================================== -->
+  <!-- Genesis Guide Wizard (Genesis Mode G2)     -->
+  <!-- Webview UI only. Does not write game_rules.json or canonical -->
+  <!-- state directly; final step only posts a message to the host. -->
+  <!-- ========================================== -->
+  <div id="genesis-guide-backdrop" class="cc-backdrop hidden"></div>
+  <div id="genesis-guide-modal" class="genesis-modal hidden" role="dialog" aria-modal="true" aria-label="Genesis Guide">
+    <div class="genesis-modal-header">
+      <h2 data-i18n="webview.genesis.modalTitle">✨ Genesis Guide</h2>
+      <button id="genesis-guide-close" class="glass-btn" data-i18n-title="webview.genesis.closeBtn" title="Close">✕</button>
+    </div>
+    <div class="genesis-modal-body">
+      <div id="genesis-guide-progress-dots" class="genesis-progress-dots" role="tablist"></div>
+      <div id="genesis-guide-progress" class="genesis-progress"></div>
+
+      <div id="genesis-guide-step-view" class="genesis-step-view">
+        <div class="genesis-guide-side">
+          <div class="genesis-guide-visual">
+            <img id="genesis-guide-portrait" class="genesis-guide-portrait hidden" alt="" />
+            <div id="genesis-guide-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+          </div>
+          <div id="genesis-guide-portrait-caption" class="genesis-guide-caption"></div>
+        </div>
+        <div class="genesis-step-main">
+          <div id="genesis-step-title" class="genesis-step-title"></div>
+          <div id="genesis-step-desc" class="genesis-step-desc"></div>
+          <div id="genesis-step-options" class="genesis-option-grid"></div>
+        </div>
+      </div>
+
+      <div id="genesis-guide-summary-view" class="genesis-summary-view hidden">
+        <div class="genesis-guide-side">
+          <div class="genesis-guide-visual">
+            <img id="genesis-summary-portrait" class="genesis-guide-portrait hidden" alt="" />
+            <div id="genesis-summary-portrait-fallback" class="genesis-guide-portrait-fallback">🧑‍🎨</div>
+          </div>
+          <div id="genesis-summary-portrait-caption" class="genesis-guide-caption"></div>
+        </div>
+        <div class="genesis-summary-main">
+          <div class="genesis-summary-title" data-i18n="webview.genesis.summary.title">確認：この設定で世界を作ります</div>
+
+          <div class="genesis-summary-rows" id="genesis-summary-rows"></div>
+          <div id="genesis-presentation-preview" class="genesis-presentation-preview" data-preset="story">
+            <label for="genesis-presentation-select" data-i18n="webview.presentation.recommendation">Recommended display · change any time</label>
+            <select id="genesis-presentation-select">
+              <option value="story" data-i18n="webview.presentation.story">Story</option>
+              <option value="management" data-i18n="webview.presentation.management">Management</option>
+              <option value="cinematic" data-i18n="webview.presentation.cinematic">Cinematic</option>
+            </select>
+            <div class="presentation-sketch" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p id="genesis-presentation-description"></p>
+          </div>
+
+          <div class="genesis-summary-block">
+            <div class="genesis-summary-block-label" data-i18n="webview.genesis.summary.systems">有効になる主要システム</div>
+            <div id="genesis-summary-systems" class="genesis-system-chips"></div>
+          </div>
+
+          <div id="genesis-summary-warnings" class="genesis-summary-warnings hidden"></div>
+
+          <div class="genesis-summary-block">
+            <label class="genesis-summary-block-label" for="genesis-summary-notes" data-i18n="webview.genesis.summary.notesLabel">追加メモ（任意・そのまま保存はされません）</label>
+            <textarea id="genesis-summary-notes" class="genesis-notes-input" rows="2" data-i18n-placeholder="webview.genesis.summary.notesPlaceholder" placeholder="世界観について自由に書き足せます（任意）"></textarea>
+          </div>
+
+          <div id="genesis-comfy-block" class="genesis-summary-block">
+            <div class="genesis-summary-block-label" data-i18n="webview.genesis.summary.comfyTitle">画像生成AI用プロンプト</div>
+            <textarea id="genesis-comfy-prompt" class="genesis-prompt-box" rows="3" readonly></textarea>
+            <p class="inline-help" data-i18n="webview.genesis.summary.comfyHint">ComfyUIが使える場合は「Genesis画像を生成」を押してください。使えない場合は上のプロンプトをコピーして、お好きな画像生成AI（ブラウザ版など）に貼り付けてください。</p>
+            <div class="genesis-summary-actions">
+              <button type="button" id="genesis-copy-prompt-btn" class="glass-btn" data-i18n="webview.genesis.summary.copyPromptBtn">📋 プロンプトをコピー</button>
+              <button type="button" id="genesis-generate-image-btn" class="glass-btn" data-i18n="webview.genesis.summary.generateImageBtn">🎨 Genesis画像を生成</button>
+            </div>
+            <div id="genesis-copy-prompt-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.copyPromptDone">コピーしました</div>
+            <div id="genesis-generate-image-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.generateImageHint">🎨 画像生成をComfyUIに依頼しました。できあがった画像はチャットに届きます。</div>
+          </div>
+          <p id="genesis-images-skip-hint" class="inline-help hidden" data-i18n="webview.genesis.summary.imagesSkippedHint">画像なしで進めます。あとから Game Rules や 🎨 ボタンで画像生成を使うこともできます。</p>
+        </div>
+      </div>
+
+      <div id="genesis-guide-nav" class="genesis-nav">
+        <button type="button" id="genesis-back-btn" class="glass-btn" data-i18n="webview.genesis.backBtn">← 戻る</button>
+        <button type="button" id="genesis-skip-summary-btn" class="genesis-skip-link" data-i18n="webview.genesis.skipToSummaryBtn">今すぐ確認する</button>
+        <button type="button" id="genesis-next-btn" class="cc-save-primary" data-i18n="webview.genesis.nextBtn">次へ →</button>
+      </div>
+
+      <div id="genesis-guide-summary-nav" class="genesis-nav hidden">
+        <button type="button" id="genesis-restart-btn" class="glass-btn" data-i18n="webview.genesis.summary.restartBtn">↺ 最初からやり直す</button>
+        <button type="button" id="genesis-advanced-btn" class="glass-btn" data-i18n="webview.genesis.summary.advancedBtn">⚙️ 詳細設定へ</button>
+        <button type="button" id="genesis-start-btn" class="cc-save-primary" data-i18n="webview.genesis.summary.startBtn">🚀 この設定で始める</button>
+      </div>
+      <div id="genesis-alt-links" class="genesis-alt-links">
+        <button type="button" id="genesis-quickstart-link" class="genesis-skip-link" data-i18n="webview.genesis.quickstartLink">⚡ 急ぐなら「ざっと作る」（一文から自動生成）</button>
+      </div>
+      <div id="genesis-applied-toast" class="genesis-inline-toast hidden" data-i18n="webview.genesis.summary.appliedToast">設定を送信しました。</div>
+      <div id="genesis-exclusion-hint" class="genesis-inline-toast genesis-exclusion-hint hidden"></div>
+    </div>
+  </div>
+
+  <script nonce="{{nonce}}">window.__LR_GENESIS_ASSET_BASE_URI__ = '{{genesisAssetBaseUri}}';</script>
+  <script nonce="{{nonce}}">window.__LR_THREE_SCRIPT_URI__ = '{{threeUri}}'; window.__LR_SCRIPT_NONCE__ = '{{nonce}}';</script>
+  <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+  <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>
+  <script nonce="{{nonce}}">
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,620 @@
+{
+  "matrix": [
+    {
+      "tier": "abundant",
+      "cash300": 443,
+      "cargoUnits300": 12,
+      "actions300": {
+        "observe": 0,
+        "buy": 6,
+        "sell": 2,
+        "travel": 4,
+        "end_day": 300
+      },
+      "routeSeedsEqual": true,
+      "observeSeedsEqual": true
+    },
+    {
+      "tier": "plentiful",
+      "cash300": 446,
+      "cargoUnits300": 12,
+      "actions300": {
+        "observe": 0,
+        "buy": 7,
+        "sell": 3,
+        "travel": 6,
+        "end_day": 300
+      },
+      "routeSeedsEqual": true,
+      "observeSeedsEqual": true
+    },
+    {
+      "tier": "normal",
+      "cash300": 1085,
+      "cargoUnits300": 12,
+      "actions300": {
+        "observe": 0,
+        "buy": 78,
+        "sell": 74,
+        "travel": 148,
+        "end_day": 300
+      },
+      "routeSeedsEqual": true,
+      "observeSeedsEqual": true
+    },
+    {
+      "tier": "scarce",
+      "cash300": 1112,
+      "cargoUnits300": 12,
+      "actions300": {
+        "observe": 0,
+        "buy": 78,
+        "sell": 74,
+        "travel": 148,
+        "end_day": 300
+      },
+      "routeSeedsEqual": true,
+      "observeSeedsEqual": true
+    },
+    {
+      "tier": "barren",
+      "cash300": 1628,
+      "cargoUnits300": 9,
+      "actions300": {
+        "observe": 0,
+        "buy": 77,
+        "sell": 74,
+        "travel": 149,
+        "end_day": 300
+      },
+      "routeSeedsEqual": true,
+      "observeSeedsEqual": true
+    }
+  ],
+  "famine": [
+    {
+      "tier": "abundant",
+      "market": "north_farm",
+      "commodity": "wheat",
+      "faction": "faction_merchants",
+      "firstFoodZero": 32,
+      "lastFood": 0,
+      "events": [
+        [
+          24,
+          "resource"
+        ],
+        [
+          32,
+          "resource"
+        ],
+        [
+          38,
+          "resource"
+        ]
+      ],
+      "finalPrice": 0.85,
+      "finalStock": 116
+    },
+    {
+      "tier": "plentiful",
+      "market": "north_farm",
+      "commodity": "wheat",
+      "faction": "faction_merchants",
+      "firstFoodZero": 32,
+      "lastFood": 0,
+      "events": [
+        [
+          24,
+          "resource"
+        ],
+        [
+          32,
+          "resource"
+        ],
+        [
+          38,
+          "resource"
+        ]
+      ],
+      "finalPrice": 0.93,
+      "finalStock": 47
+    },
+    {
+      "tier": "normal",
+      "market": "north_farm",
+      "commodity": "wheat",
+      "faction": "faction_merchants",
+      "firstFoodZero": 32,
+      "lastFood": 0,
+      "events": [
+        [
+          24,
+          "resource"
+        ],
+        [
+          32,
+          "resource"
+        ],
+        [
+          38,
+          "resource"
+        ]
+      ],
+      "finalPrice": 1.2000000000000037,
+      "finalStock": 42
+    },
+    {
+      "tier": "scarce",
+      "market": "north_farm",
+      "commodity": "wheat",
+      "faction": "faction_merchants",
+      "firstFoodZero": 32,
+      "lastFood": 0,
+      "events": [
+        [
+          24,
+          "resource"
+        ],
+        [
+          32,
+          "resource"
+        ],
+        [
+          38,
+          "resource"
+        ]
+      ],
+      "finalPrice": 1.3500000000000048,
+      "finalStock": 21
+    },
+    {
+      "tier": "barren",
+      "market": "north_farm",
+      "commodity": "wheat",
+      "faction": "faction_merchants",
+      "firstFoodZero": 32,
+      "lastFood": 0,
+      "events": [
+        [
+          24,
+          "resource"
+        ],
+        [
+          32,
+          "resource"
+        ],
+        [
+          38,
+          "resource"
+        ]
+      ],
+      "finalPrice": 7,
+      "finalStock": 0
+    }
+  ],
+  "long": [
+    {
+      "id": "balance_long_abundant_route",
+      "lastWorldTurn": 1000,
+      "cash": 443,
+      "cargoUnits": 12,
+      "actionCounts": {
+        "observe": 0,
+        "buy": 6,
+        "sell": 2,
+        "travel": 4,
+        "end_day": 1000
+      },
+      "factions": {
+        "faction_merchants": {
+          "power": 45,
+          "morale": 100,
+          "recentEvents": [],
+          "resources": {
+            "wheat": 30,
+            "credits": 80
+          }
+        },
+        "faction_smiths": {
+          "power": 30,
+          "morale": 100,
+          "recentEvents": [],
+          "resources": {
+            "steel": 3,
+            "credits": 45
+          }
+        },
+        "faction_port": {
+          "power": 40,
+          "morale": 100,
+          "recentEvents": [],
+          "resources": {
+            "wheat": 8,
+            "spice": 15
+          }
+        }
+      },
+      "markets": {
+        "north_farm": {
+          "wheat": {
+            "stock": 50,
+            "priceIndex": 0.85
+          }
+        },
+        "elda_shop": {
+          "wheat": {
+            "stock": 35,
+            "priceIndex": 0.85
+          },
+          "steel": {
+            "stock": 35,
+            "priceIndex": 0.85
+          }
+        },
+        "south_port": {
+          "wheat": {
+            "stock": 43,
+            "priceIndex": 0.85
+          },
+          "steel": {
+            "stock": 40,
+            "priceIndex": 0.85
+          },
+          "spice": {
+            "stock": 40,
+            "priceIndex": 0.85
+          }
+        }
+      },
+      "lastEvents": []
+    },
+    {
+      "id": "balance_long_conflict",
+      "lastWorldTurn": 1000,
+      "cash": 500,
+      "cargoUnits": 0,
+      "actionCounts": {
+        "observe": 1000,
+        "buy": 0,
+        "sell": 0,
+        "travel": 0,
+        "end_day": 0
+      },
+      "factions": {
+        "faction_merchants": {
+          "power": 0,
+          "morale": 60,
+          "recentEvents": [
+            "Port Buyersとの紛争が続く"
+          ],
+          "resources": {
+            "wheat": 30,
+            "credits": 80
+          }
+        },
+        "faction_smiths": {
+          "power": 30,
+          "morale": 55,
+          "recentEvents": [],
+          "resources": {
+            "steel": 3,
+            "credits": 45
+          }
+        },
+        "faction_port": {
+          "power": 0,
+          "morale": 58,
+          "recentEvents": [
+            "Crossroads Merchantsとの紛争が続く"
+          ],
+          "resources": {
+            "wheat": 8,
+            "spice": 15
+          }
+        }
+      },
+      "markets": {
+        "north_farm": {
+          "wheat": {
+            "stock": 50,
+            "priceIndex": 1
+          }
+        },
+        "elda_shop": {
+          "wheat": {
+            "stock": 35,
+            "priceIndex": 1
+          },
+          "steel": {
+            "stock": 35,
+            "priceIndex": 1
+          }
+        },
+        "south_port": {
+          "wheat": {
+            "stock": 40,
+            "priceIndex": 1
+          },
+          "steel": {
+            "stock": 40,
+            "priceIndex": 1
+          },
+          "spice": {
+            "stock": 40,
+            "priceIndex": 1
+          }
+        }
+      },
+      "lastEvents": [
+        {
+          "id": "wce_1000_faction_friction_faction_merchants_facti_6ce02c81",
+          "worldTurn": 1000,
+          "source": "simulation",
+          "category": "faction",
+          "severity": "warning",
+          "message": "Crossroads MerchantsとPort Buyersの紛争が続く",
+          "gmHint": "Narrate as faction-level border tension between these two powers, not individual NPC actions.",
+          "factionId": "faction_merchants",
+          "targetFactionId": "faction_port",
+          "expiresAfterTurns": 5
+        },
+        {
+          "id": "wce_1000_faction_friction_faction_port_faction_me_f184917f",
+          "worldTurn": 1000,
+          "source": "simulation",
+          "category": "faction",
+          "severity": "warning",
+          "message": "Port BuyersとCrossroads Merchantsの紛争が続く",
+          "gmHint": "Narrate as faction-level border tension between these two powers, not individual NPC actions.",
+          "factionId": "faction_port",
+          "targetFactionId": "faction_merchants",
+          "expiresAfterTurns": 5
+        }
+      ]
+    },
+    {
+      "id": "balance_long_famine_barren",
+      "lastWorldTurn": 1000,
+      "cash": 195,
+      "cargoUnits": 8,
+      "actionCounts": {
+        "observe": 635,
+        "buy": 359,
+        "sell": 22,
+        "travel": 0,
+        "end_day": 0
+      },
+      "factions": {
+        "faction_merchants": {
+          "power": 45,
+          "morale": 100,
+          "recentEvents": [
+            "食料備蓄が危機的水準"
+          ],
+          "resources": {
+            "wheat": 4,
+            "credits": 40,
+            "food": 0
+          }
+        },
+        "faction_smiths": {
+          "power": 30,
+          "morale": 100,
+          "recentEvents": [
+            "食料備蓄が危機的水準"
+          ],
+          "resources": {
+            "steel": 1,
+            "credits": 20,
+            "food": 0
+          }
+        },
+        "faction_port": {
+          "power": 40,
+          "morale": 100,
+          "recentEvents": [
+            "食料備蓄が危機的水準"
+          ],
+          "resources": {
+            "wheat": 1,
+            "spice": 3,
+            "food": 0
+          }
+        }
+      },
+      "markets": {
+        "north_farm": {
+          "wheat": {
+            "stock": 0,
+            "priceIndex": 7
+          }
+        },
+        "elda_shop": {
+          "wheat": {
+            "stock": 0,
+            "priceIndex": 7
+          },
+          "steel": {
+            "stock": 0,
+            "priceIndex": 7
+          }
+        },
+        "south_port": {
+          "wheat": {
+            "stock": 0,
+            "priceIndex": 7
+          },
+          "steel": {
+            "stock": 5,
+            "priceIndex": 7
+          },
+          "spice": {
+            "stock": 2,
+            "priceIndex": 7
+          }
+        }
+      },
+      "lastEvents": []
+    },
+    {
+      "id": "balance_long_famine_normal",
+      "lastWorldTurn": 1000,
+      "cash": 8022,
+      "cargoUnits": 11,
+      "actionCounts": {
+        "observe": 0,
+        "buy": 837,
+        "sell": 496,
+        "travel": 0,
+        "end_day": 0
+      },
+      "factions": {
+        "faction_merchants": {
+          "power": 45,
+          "morale": 100,
+          "recentEvents": [
+            "食料備蓄が危機的水準"
+          ],
+          "resources": {
+            "wheat": 4,
+            "credits": 40,
+            "food": 0
+          }
+        },
+        "faction_smiths": {
+          "power": 30,
+          "morale": 100,
+          "recentEvents": [
+            "食料備蓄が危機的水準"
+          ],
+          "resources": {
+            "steel": 1,
+            "credits": 20,
+            "food": 0
+          }
+        },
+        "faction_port": {
+          "power": 40,
+          "morale": 100,
+          "recentEvents": [
+            "食料備蓄が危機的水準"
+          ],
+          "resources": {
+            "wheat": 1,
+            "spice": 3,
+            "food": 0
+          }
+        }
+      },
+      "markets": {
+        "north_farm": {
+          "wheat": {
+            "stock": 34,
+            "priceIndex": 1.0500000000000036
+          }
+        },
+        "elda_shop": {
+          "wheat": {
+            "stock": 35,
+            "priceIndex": 1.000000000000003
+          },
+          "steel": {
+            "stock": 38,
+            "priceIndex": 1
+          }
+        },
+        "south_port": {
+          "wheat": {
+            "stock": 2824,
+            "priceIndex": 1
+          },
+          "steel": {
+            "stock": 43,
+            "priceIndex": 1
+          },
+          "spice": {
+            "stock": 40,
+            "priceIndex": 1
+          }
+        }
+      },
+      "lastEvents": []
+    },
+    {
+      "id": "balance_long_plentiful_route",
+      "lastWorldTurn": 1000,
+      "cash": 446,
+      "cargoUnits": 12,
+      "actionCounts": {
+        "observe": 0,
+        "buy": 7,
+        "sell": 3,
+        "travel": 6,
+        "end_day": 1000
+      },
+      "factions": {
+        "faction_merchants": {
+          "power": 45,
+          "morale": 100,
+          "recentEvents": [],
+          "resources": {
+            "wheat": 30,
+            "credits": 80
+          }
+        },
+        "faction_smiths": {
+          "power": 30,
+          "morale": 100,
+          "recentEvents": [],
+          "resources": {
+            "steel": 3,
+            "credits": 45
+          }
+        },
+        "faction_port": {
+          "power": 40,
+          "morale": 100,
+          "recentEvents": [],
+          "resources": {
+            "wheat": 8,
+            "spice": 15
+          }
+        }
+      },
+      "markets": {
+        "north_farm": {
+          "wheat": {
+            "stock": 50,
+            "priceIndex": 0.93
+          }
+        },
+        "elda_shop": {
+          "wheat": {
+            "stock": 35,
+            "priceIndex": 0.93
+          },
+          "steel": {
+            "stock": 35,
+            "priceIndex": 0.93
+          }
+        },
+        "south_port": {
+          "wheat": {
+            "stock": 46,
+            "priceIndex": 0.93
+          },
+          "steel": {
+            "stock": 40,
+            "priceIndex": 0.93
+          },
+          "spice": {
+            "stock": 40,
+            "priceIndex": 0.93
+          }
+        }
+      },
+      "lastEvents": []
+    }
+  ]
+}

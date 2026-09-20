@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "runnerContract": {
+    "format": "comfyui-prompt-api",
+    "sceneNodes": {
+      "sampler": "3",
+      "checkpoint": "4",
+      "latent": "5",
+      "positive": "6",
+      "negative": "7"
+    }
+  },
+  "templates": [
+    {
+      "id": "scene-sd15-square",
+      "title": "情景・SD1.5・正方形",
+      "kind": "scene",
+      "file": "workflow_api.json",
+      "width": 512,
+      "height": 512,
+      "graphFamily": "sdxl_checkpoint_simple",
+      "checkpointHint": "SD 1.5",
+      "promptModes": ["standard", "natural"],
+      "summary": "先行確認や軽い情景。SD1.5 の checkpoint を指定する。"
+    },
+    {
+      "id": "scene-sdxl-square",
+      "title": "情景・SDXL・正方形",
+      "kind": "scene",
+      "file": "workflow_sdxl_1024.json",
+      "width": 1024,
+      "height": 1024,
+      "graphFamily": "sdxl_checkpoint_simple",
+      "checkpointHint": "SDXL / Illustrious / Pony XL",
+      "promptModes": ["illustrious", "pony", "natural", "standard"],
+      "summary": "通常の情景。Illustrious や Pony の XL checkpoint をここに指定する。"
+    },
+    {
+      "id": "portrait-sdxl",
+      "title": "立ち絵・SDXL・縦長",
+      "kind": "portrait",
+      "file": "workflow_sdxl_portrait.json",
+      "width": 896,
+      "height": 1152,
+      "graphFamily": "sdxl_checkpoint_simple",
+      "checkpointHint": "SDXL / Illustrious / Pony XL",
+      "promptModes": ["illustrious", "pony", "natural", "standard"],
+      "summary": "人物・立ち絵向け。SDXL 作者例と同じ画素数の縦構図。"
+    },
+    {
+      "id": "scene-sdxl-landscape",
+      "title": "情景・SDXL・横長",
+      "kind": "scene",
+      "file": "workflow_sdxl_landscape.json",
+      "width": 1152,
+      "height": 896,
+      "graphFamily": "sdxl_checkpoint_simple",
+      "checkpointHint": "SDXL / Illustrious / Pony XL",
+      "promptModes": ["illustrious", "pony", "natural", "standard"],
+      "summary": "場所や街並みの横構図。"
+    },
+    {
+      "id": "scene-sdxl-wide",
+      "title": "情景・SDXL・パノラマ",
+      "kind": "scene",
+      "file": "workflow_sdxl_wide.json",
+      "width": 1536,
+      "height": 640,
+      "graphFamily": "sdxl_checkpoint_simple",
+      "checkpointHint": "SDXL / Illustrious / Pony XL",
+      "promptModes": ["illustrious", "pony", "natural", "standard"],
+      "summary": "広い風景。SDXL 作者例の 1536×640。"
+    },
+    {
+      "id": "map-sdxl-canny",
+      "title": "世界地図・SDXL・Canny",
+      "kind": "world_map",
+      "file": "workflow_cartography_sdxl_canny.json",
+      "width": 1024,
+      "height": 1024,
+      "graphFamily": "sdxl_cartography_canny",
+      "checkpointHint": "SDXL / Illustrious",
+      "promptModes": ["illustrious", "natural", "standard", "pony"],
+      "summary": "layout PNG を線画にして羊皮紙地図を描く。Cartography 専用スクリプトから使う。"
+    },
+    {
+      "id": "map-sdxl-direct",
+      "title": "世界地図・SDXL・直接",
+      "kind": "world_map",
+      "file": "workflow_cartography_sdxl_direct.json",
+      "width": 1024,
+      "height": 1024,
+      "graphFamily": "sdxl_cartography_direct",
+      "checkpointHint": "SDXL / Illustrious",
+      "promptModes": ["illustrious", "natural", "standard", "pony"],
+      "summary": "Canny を使わない地図生成。Cartography 専用スクリプトから使う。"
+    }
+  ]
+}

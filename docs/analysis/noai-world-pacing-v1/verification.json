@@ -1,0 +1,142 @@
+{
+  "base": "a22ad88094b33bdca9426f2effdef19f7e59b489",
+  "command": "npm test",
+  "summary": "Passed: 350/350\r\nCombat suites: 16 group(s), 736 tests, 736 passed, 0 failed\r\nDuration: 158.1s",
+  "exitCode": 0,
+  "fullSuiteExecutions": 1,
+  "changedExecutableFiles": [
+    {
+      "path": "locales/en.json",
+      "sha256": "48e92232e59981dd51c51eb5b32749fcb0da131a8b6f5abeaf4a1ca6681f6e83"
+    },
+    {
+      "path": "locales/ja.json",
+      "sha256": "aa49faad6942c3be2d1c8f0e5435d79079940f541fce7f71dc8650767cd00dbf"
+    },
+    {
+      "path": "locales/zh-CN.json",
+      "sha256": "703ba2c9926aa13a3434631a54246de72c8f8317a4677e79f37019a59cdbd27b"
+    },
+    {
+      "path": "locales/zh-TW.json",
+      "sha256": "4055b9ea5b151897ac38461afcee19956bf78e0f0efe8713f31bbf9e38811745"
+    },
+    {
+      "path": "sample-scenarios/trade-routes/world_forge.json",
+      "sha256": "403a2b8ccb035c7ebe0742a172feef9c171f0f82e717a8749dfe46fec55e55c4"
+    },
+    {
+      "path": "scripts/action_scenario_fixture.js",
+      "sha256": "ff7b437556d555ef1e190e4267d0867a56ef654ca2a4d45c11e6201619fec55c"
+    },
+    {
+      "path": "scripts/run_all_tests.js",
+      "sha256": "da7035c497172de64162f44661fa25c379b9c08f8775caa1db63337d8940e0e1"
+    },
+    {
+      "path": "scripts/run_noai_soak.js",
+      "sha256": "400740e13e9b964ab2466b4b01712b50e099b6deeceb05df47d8cf2544509f25"
+    },
+    {
+      "path": "scripts/test_game_action_commerce.js",
+      "sha256": "a1f82c1b1fbe796ba26029376a092308abcd3f9d5b64aeb346498a7d144e21ce"
+    },
+    {
+      "path": "scripts/test_game_rules_core.js",
+      "sha256": "581eed84e01978a7f6680c65f5465b1564f2c93ef80f86aa1168159e73e7fcba"
+    },
+    {
+      "path": "scripts/test_world_pacing_core.js",
+      "sha256": "60db2b3ddfd6023638e53113585049a86b2000243399eed2811bdf7c936e3faa"
+    },
+    {
+      "path": "src/commerceActionRuntime.ts",
+      "sha256": "19494a4a5b32f7fbf5c90b18bcf4246bc843d9a44f48550fdc5bdaedef798f7f"
+    },
+    {
+      "path": "src/emergentSimulator.ts",
+      "sha256": "9870df8a8af9179c65bad131688482aa649e9ff04d0a8f28359780f44496dbbc"
+    },
+    {
+      "path": "src/endDayWorldProgression.ts",
+      "sha256": "2e1a5816db75b9d04e857fee86ee4e8dc78de79764671562f2c200326b25988c"
+    },
+    {
+      "path": "src/extension.ts",
+      "sha256": "794c1bc8f84fb402c3f2b6defe35b6dbcb9dfda0fec8a89078be6c48a20f2258"
+    },
+    {
+      "path": "src/gameActionService.ts",
+      "sha256": "139e3e5926d2ef992090474f1b0748a1d7ca7e13829d1d21e91727d8517f2ccb"
+    },
+    {
+      "path": "src/gameRulesCore.ts",
+      "sha256": "c26493ba7705f2751ad84a92a4e71c246c99f13ef10db9cf7dac90c9b5f32ce2"
+    },
+    {
+      "path": "src/livingWorldBridge.ts",
+      "sha256": "d59a3b60e76997cdb1e05532b775a8f62f0d1009507984950acca77475c40690"
+    },
+    {
+      "path": "src/noaiSoakRunnerCore.ts",
+      "sha256": "153f5036d2e84761818288ce175ecbe6fe6ba7505f217108ce8771df50f165eb"
+    },
+    {
+      "path": "src/npcRelationshipCore.ts",
+      "sha256": "8107d9f093e3ad8be0d60c3016317ebdf503315b7076fcbca2fa0f1a23d789c6"
+    },
+    {
+      "path": "src/webviewHandlers.ts",
+      "sha256": "4672b86807c493e8361fb3ab4751be9c95a352fe7c8fccc254f7ef271eef4551"
+    },
+    {
+      "path": "src/worldForgeCore.ts",
+      "sha256": "7d97893d10e844dea96f75692f049e2d2e0fffbc996d0d12d2beaa73770f3399"
+    },
+    {
+      "path": "src/worldPacingCore.ts",
+      "sha256": "2298768ab3b66a243e2b36af4ff1c03c44bb82038a9b3aeebd55d0a95d3e4e0a"
+    },
+    {
+      "path": "src/worldSimBulkCore.ts",
+      "sha256": "9bb218dd246589cbb16549900405854e82d41a547ed7c0efcdd4390c7e0eab07"
+    },
+    {
+      "path": "src/worldSimPersist.ts",
+      "sha256": "f828a4e4196629de60210b9528cbfca242b2b76519cd69887c232d764b271ab2"
+    },
+    {
+      "path": "src/worldStateCore.ts",
+      "sha256": "df32f478e36086b753886d25459dc404fbad2205fa34e6fbc44760a753e6855a"
+    },
+    {
+      "path": "src/worldView.ts",
+      "sha256": "7fb00d2b31b336aac869bb1f3fa84080d6e6a15bbfa784ce630ecf032f4ef4f3"
+    },
+    {
+      "path": "webview/index.html",
+      "sha256": "e680ccce9d81485b8e3fd15710b3c385d7894ea43846dd41975d2f48f0b571df"
+    },
+    {
+      "path": "webview/modules/70-game-rules.js",
+      "sha256": "7e8235f2f5cfb9c4a7b9b7f85b51b9ab37ccb60a69063339c69df05e81ca6b26"
+    },
+    {
+      "path": "webview/modules/85-world.js",
+      "sha256": "ce2865c1cf69064ea4040b90cdd255e036c7fd872e31ced9e1db241a0084c82c"
+    },
+    {
+      "path": "webview/script.js",
+      "sha256": "7fd06216a8d5764827970f777c26d83abd6b2b793b708ad0ec1a1315c742d9a2"
+    },
+    {
+      "path": "webview/style.css",
+      "sha256": "92cd948e236e68c088dbfd5ec43b5a494b424ba284e9808b0d407b57032cb275"
+    },
+    {
+      "path": "webview/styles/90-game-rules.css",
+      "sha256": "233c7364cd5c4de7cefdc1491361d9f7dc7a752568adc812407599f6d911c3b8"
+    }
+  ],
+  "note": "Final implementation tested before commit. Subsequently only docs/artifact packaging and one trailing blank line in worldPacingCore.ts were normalized; compiled runtime bytes did not change. Human Play and public CI not performed."
+}

@@ -1,0 +1,470 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 710,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 770,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 830,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 890,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 950,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 1010,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 1070,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 1130,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 1190,
+				"unit": "レイダー"
+			},
+			{
+				"damage": 12,
+				"target": "ミナ(衛生)",
+				"tick": 1250,
+				"unit": "レイダー"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 1250,
+				"unit": "ミナ(衛生)"
+			}
+		],
+		"decisions": [
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 1,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ミナ(衛生)",
+				"tick": 1,
+				"unit": "レイダー"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 2,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 317,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 318,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 482,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 483,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 568,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 569,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 612,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 613,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 635,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 636,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 647,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 648,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 653,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 654,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 656,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー",
+				"tick": 657,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー",
+				"tick": 658,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "攻撃",
+				"target": "ミナ(衛生)",
+				"tick": 710,
+				"unit": "レイダー"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "レイダー"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 2,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 317,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 318,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 482,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 483,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 568,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 569,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 612,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 613,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 635,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 636,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 647,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 648,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 653,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 654,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 656,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 657,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 658,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 710,
+				"unit": "レイダー"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 0,
+					"name": "ミナ(衛生)",
+					"pos_x": -229.0,
+					"pos_y": -179.0
+				},
+				{
+					"hp": 120,
+					"name": "レイダー",
+					"pos_x": -190.754455566406,
+					"pos_y": -150.329360961914
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 710
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 770
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 830
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 890
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 950
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 1010
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 1070
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 1130
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 1190
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 1250
+			}
+		],
+		"heals": [],
+		"outcome": "敗北… 味方が全滅した"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 8.0,
+					"attack_cooldown": 1.2,
+					"attack_range": 95.0,
+					"color": "#4de680",
+					"defense": 0.0,
+					"heal_power": 18.0,
+					"max_hp": 110.0,
+					"move_speed": 78.0,
+					"name": "ミナ(衛生)",
+					"pos_x": 400.0,
+					"pos_y": 360.0,
+					"radius": 15.0,
+					"role": "Medic"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー",
+					"pos_x": 490.0,
+					"pos_y": 360.0,
+					"radius": 16.0,
+					"role": "Raider"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:41:49",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"ミナ(衛生)",
+			"レイダー"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"ミナ(衛生)",
+		"レイダー"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

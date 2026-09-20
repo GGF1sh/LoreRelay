@@ -1,0 +1,12 @@
+{
+  "format": "lorerelay-world-state/1.0",
+  "worldTurn": 1,
+  "markets": {
+    "scrapbound_market": {
+      "locationId": "scrapbound_market",
+      "stock": { "food": 12, "parts": 8, "medicine": 4, "ammo": 6 },
+      "priceIndex": { "food": 1.0, "parts": 1.1, "medicine": 1.4, "ammo": 1.2 }
+    }
+  },
+  "recentChanges": []
+}

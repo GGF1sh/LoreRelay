@@ -1,0 +1,1008 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 14,
+				"target": "スカウト",
+				"tick": 2,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 14,
+				"target": "スカウト",
+				"tick": 56,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 14,
+				"target": "スカウト",
+				"tick": 110,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 14,
+				"target": "スカウト",
+				"tick": 164,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"damage": 18,
+				"target": "スカウト",
+				"tick": 165,
+				"unit": "レン(射撃)"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 165,
+				"unit": "スカウト"
+			}
+		],
+		"decisions": [
+			{
+				"action": "後退",
+				"target": "スカウト",
+				"tick": 1,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "スカウト",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"action": "接近",
+				"target": "タロウ(前衛)",
+				"tick": 1,
+				"unit": "スカウト"
+			},
+			{
+				"action": "接近",
+				"target": "スカウト",
+				"tick": 2,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "スカウト",
+				"tick": 2,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"action": "後退",
+				"target": "タロウ(前衛)",
+				"tick": 164,
+				"unit": "スカウト"
+			},
+			{
+				"action": "攻撃",
+				"target": "スカウト",
+				"tick": 165,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "待機",
+				"target": "",
+				"tick": 165,
+				"unit": "タロウ(前衛)"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 2,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 2,
+				"unit": "タロウ(前衛)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 3,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 41,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 42,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 44,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 45,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 46,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 47,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 48,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 49,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 50,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 51,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 53,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 54,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 55,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 56,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 57,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 58,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 59,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 60,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 61,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 62,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 63,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 64,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 65,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 66,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 67,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 68,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 69,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 70,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 72,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 73,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 74,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 75,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 76,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 77,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 78,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 79,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 80,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 81,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 82,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 83,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 84,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 85,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 86,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 87,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 88,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 89,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 90,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 91,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 92,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 93,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 94,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 95,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 96,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 97,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 98,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 99,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 100,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 101,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 102,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 103,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 104,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 105,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 106,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 107,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 108,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 109,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 110,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 111,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 112,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 113,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 114,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 115,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 116,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 117,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 118,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 119,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 120,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 121,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 122,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 123,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 124,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 125,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 126,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 127,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 128,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 129,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 130,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 131,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 132,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 133,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 134,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 135,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 136,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 137,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 138,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 139,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 140,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 141,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 142,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 143,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 144,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 145,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 146,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 147,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 148,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 149,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 150,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 151,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 152,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 153,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 154,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 155,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 156,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 157,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 158,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 159,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 160,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 161,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 162,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_weakest",
+				"tick": 163,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "self_hp_below",
+				"rule_action": "retreat_to_safe",
+				"tick": 164,
+				"unit": "スカウト"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 165,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "fallback",
+				"rule_action": "待機",
+				"tick": 165,
+				"unit": "タロウ(前衛)"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 90,
+					"name": "レン(射撃)",
+					"pos_x": -95.5360336303711,
+					"pos_y": -59.2963409423828
+				},
+				{
+					"hp": 170,
+					"name": "タロウ(前衛)",
+					"pos_x": 351.200012207031,
+					"pos_y": 360.0
+				},
+				{
+					"hp": 0,
+					"name": "スカウト",
+					"pos_x": -227.0,
+					"pos_y": -177.0
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "スカウト",
+				"team": 0,
+				"tick": 2
+			},
+			{
+				"target": "スカウト",
+				"team": 0,
+				"tick": 56
+			},
+			{
+				"target": "スカウト",
+				"team": 0,
+				"tick": 110
+			},
+			{
+				"target": "スカウト",
+				"team": 0,
+				"tick": 164
+			},
+			{
+				"target": "スカウト",
+				"team": 0,
+				"tick": 165
+			}
+		],
+		"heals": [],
+		"outcome": "勝利！ 敵を全滅させた"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 18.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 240.0,
+					"color": "#4dd9e6",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 90.0,
+					"move_speed": 66.0,
+					"name": "レン(射撃)",
+					"pos_x": 300.0,
+					"pos_y": 360.0,
+					"radius": 15.0,
+					"role": "Shooter"
+				},
+				{
+					"attack": 14.0,
+					"attack_cooldown": 0.9,
+					"attack_range": 48.0,
+					"color": "#4d8cff",
+					"defense": 2.0,
+					"heal_power": 0.0,
+					"max_hp": 170.0,
+					"move_speed": 72.0,
+					"name": "タロウ(前衛)",
+					"pos_x": 350.0,
+					"pos_y": 360.0,
+					"radius": 18.0,
+					"role": "Frontline"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 10.0,
+					"attack_cooldown": 0.7,
+					"attack_range": 46.0,
+					"color": "#e6a24d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 70.0,
+					"move_speed": 110.0,
+					"name": "スカウト",
+					"pos_x": 400.0,
+					"pos_y": 360.0,
+					"radius": 13.0,
+					"role": "Scout"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:41:45",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"レン(射撃)",
+			"タロウ(前衛)",
+			"スカウト"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"レン(射撃)",
+		"タロウ(前衛)",
+		"スカウト"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

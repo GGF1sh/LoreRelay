@@ -1,0 +1,60 @@
+{
+  "format": "text-adventure-scenario/1.0",
+  "meta": {
+    "title": "忘れられた地下聖堂",
+    "author": "Text Adventure Engine (sample)",
+    "version": "1.0.0",
+    "description": "崩れかけた地下聖堂に眠る『静寂の聖印』を求める、王道ファンタジーのソロ探索。罠と不死者が待つ。",
+    "cover": "cover.png",
+    "tags": ["fantasy", "dungeon", "solo", "starter"]
+  },
+  "setup": {
+    "world": "剣と魔法のハイファンタジー。古い神々が去った後の、忘れられた遺跡が点在する辺境。",
+    "protagonist": "名もなき遺物ハンター。軽装の剣士で、松明とロープ、短剣、そしてわずかな治癒薬を持つ。目的は地下聖堂の最奥に眠る『静寂の聖印』の回収。",
+    "tone": "硬派で緊張感のある探索。死はすぐ隣にある。理不尽ではないが油断は命取り。",
+    "imageMode": "illustrious",
+    "theme": "fantasy",
+    "rules": "暗闇・松明の残り・物音による敵の誘引を重視する。戦闘は1d20の判定を基本とし、ダメージは武器に応じたダイスを dice.py で振ること。プレイヤーのHPは最大20で開始。",
+    "gameOver": {
+      "mode": "strict",
+      "onHpZero": true,
+      "allowImpossibleActions": false
+    }
+  },
+  "director": {
+    "act": "Act I — Descent",
+    "chapter": "Chapter 1",
+    "scene": "Collapsed Antechamber",
+    "objective": "Reach the inner sanctum and recover the Seal of Silence without dying in the dark.",
+    "successConditions": [
+      "Obtain the Seal of Silence",
+      "Exit the catacombs alive"
+    ],
+    "failConditions": [
+      "HP reaches 0",
+      "Abandon the expedition without the seal"
+    ],
+    "guidanceMode": "guided",
+    "endingFlags": ["seal_recovered", "left_empty_handed", "became_undead"],
+    "optionalEncounters": [
+      "Whispering sarcophagus",
+      "Trapped mosaic floor"
+    ]
+  },
+  "opening": {
+    "bgm": "dungeon",
+    "sfx": "click",
+    "status": {
+      "location": "地下聖堂・崩れた前室",
+      "time": "地上は夜・聖堂内は常闇",
+      "condition": "良好（HP 20/20）",
+      "funds": "銀貨 12 / 治癒薬 2"
+    },
+    "options": [
+      "松明を掲げ、奥へ続く回廊を慎重に進む",
+      "前室の崩れた石棺を調べる",
+      "壁の古い碑文を読もうと近づく"
+    ],
+    "narrative": "苔と埃の匂いが鼻をつく。崩れた前室の天井からは細い月光が一筋だけ差し込み、割れた石床に銀色の線を引いていた。松明の炎が、壁に並ぶ無数の浅浮き彫り――祈る人々の像――を揺らめかせる。\n\n奥には闇に沈む回廊が口を開け、どこか遠くで水滴が一定の間隔で落ちている。ぴち……ぴち……。その音以外、聖堂は完全な静寂に包まれている。\n\n『静寂の聖印』は、この最奥にあるという。だが、ここまで誰も生きて戻った者はいない。"
+  }
+}

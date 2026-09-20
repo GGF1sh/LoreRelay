@@ -1,0 +1,115 @@
+/* ========= Playable Milestone UX pass =========
+   目的: プレイ画面の主役（本文・状況・選択肢・送信）を前面に、
+   常時表示が不要な補助ツール／開発者向け情報を視覚的に後退させる。
+   既存モジュールの上書きは避け、このファイルに追記する（末尾ロードで確実に勝つ）。 */
+
+/* ----- 1. Adventure Status: 補助ツールの折りたたみ (Dice/Calc/BGM/Gallery/Theme) -----
+   中身のID・挙動は不変。<summary> が既存の #xxx-header 見た目をそのまま継承する。 */
+.status-tool-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.status-tool-section > summary {
+  cursor: pointer;
+  list-style: none;
+  opacity: 0.72;
+  transition: opacity 0.15s;
+}
+.status-tool-section > summary::-webkit-details-marker { display: none; }
+
+.status-tool-section > summary::after {
+  content: '▸';
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 6px;
+  transition: transform 0.15s;
+}
+
+.status-tool-section:hover > summary,
+.status-tool-section > summary:focus-visible {
+  opacity: 1;
+}
+
+.status-tool-section[open] > summary {
+  opacity: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.status-tool-section[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+/* ----- 2. Quick action strip: 二次的な操作として視覚的に後退させる -----
+   Send/入力欄が「今やること」、この列は「たまに使う」ことを一目で伝える。
+   ボタン自体の機能・個数・IDは不変。 */
+#quick-reply-bar {
+  padding: 5px 16px 4px;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+#quick-reply-bar:hover,
+#quick-reply-bar:focus-within {
+  opacity: 1;
+}
+#quick-reply-bar .qr-btn {
+  font-size: 11px;
+  padding: 4px 9px;
+}
+
+#input-area {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
+/* ----- 3. ヘッダーのアイコン群: 設定系はまとめて控えめに、音声は通常表示のまま ----- */
+#quickstart-wrap,
+#img-gen-wrap,
+#game-rules-wrap,
+#remote-play-wrap,
+#experience-profile-wrap,
+#parlor-settings-wrap {
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+#quickstart-wrap:hover,
+#img-gen-wrap:hover,
+#game-rules-wrap:hover,
+#remote-play-wrap:hover,
+#experience-profile-wrap:hover,
+#parlor-settings-wrap:hover,
+#quickstart-wrap:focus-within,
+#img-gen-wrap:focus-within,
+#game-rules-wrap:focus-within,
+#remote-play-wrap:focus-within,
+#experience-profile-wrap:focus-within,
+#parlor-settings-wrap:focus-within {
+  opacity: 1;
+}
+
+#quickstart-wrap {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+#tts-wrap {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ----- 4. タブ: Inspector（開発者向け）をゲームプレイ系タブと視覚的に分離 -----
+   並び順・クリック挙動は不変。色とボーダーのみで「別カテゴリ」であることを示す。 */
+.tab-btn[data-target="pane-inspector"] {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  margin-left: 4px;
+  padding-left: 16px;
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+.tab-btn[data-target="pane-inspector"]:hover {
+  opacity: 1;
+}
+.tab-btn[data-target="pane-inspector"].active {
+  opacity: 1;
+  color: #b3b8c2;
+  border-bottom-color: #6b7280;
+}

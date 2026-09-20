@@ -1,0 +1,79 @@
+/* ========= Genre Chrome (Graphics Upgrade Track 3) =========
+   Deliberately reuses the existing MANUAL body[data-ui-theme] system (10-game-state.js
+   setTheme(), theme buttons in index.html, --vr-accent-rgb palette in 97-visual-refresh.css)
+   instead of introducing a second automatic "world genre" attribute. The world already has
+   an independent genre vocabulary (overmapThemeKey / SettlementDioramaTheme) used by the map
+   and diorama; layering a third auto-driven theme signal onto global UI chrome would fight
+   with the theme the player already picks by hand. This file only adds NEW decoration on top
+   of the existing accent variables/attribute — no new theme source, no payload changes.
+
+   --cyber-glow / --glass-glow (97-visual-refresh.css) were defined but never consumed by any
+   rule before this file — they are wired up here for the first time.
+
+   Static-only: no keyframe animation, so prefers-reduced-motion needs no special handling
+   (nothing here to disable). Non-goals: no font changes, no layout changes, no effect strong
+   enough to reduce text readability — see docs/GRAPHICS_UPGRADE_DESIGN.md §4. */
+
+#genre-fx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* ----- Post-effect overlay: theme-specific edge treatment, center stays fully readable ----- */
+
+body[data-ui-theme="cyberpunk"] #genre-fx-overlay,
+body[data-ui-theme="scifi"] #genre-fx-overlay {
+  opacity: 1;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(var(--vr-accent-rgb), 0.05) 0px,
+    rgba(var(--vr-accent-rgb), 0.05) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+
+body[data-ui-theme="horror"] #genre-fx-overlay {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.55) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/></svg>");
+}
+
+body[data-ui-theme="postapoc"] #genre-fx-overlay,
+body[data-ui-theme="steampunk"] #genre-fx-overlay {
+  opacity: 1;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(40, 24, 8, 0.35) 100%);
+}
+
+body[data-ui-theme="eastern"] #genre-fx-overlay {
+  opacity: 1;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(60, 12, 16, 0.22) 100%);
+}
+
+/* fantasy / modern: no post-effect (keep the default clean) */
+
+/* ----- Ambient glow: wires the previously-unused --cyber-glow / --glass-glow into real UI ----- */
+
+body[data-ui-theme] .msg.gm {
+  box-shadow: var(--cyber-glow), 0 2px 12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body[data-ui-theme] #world-overmap,
+body[data-ui-theme] .vehicle-detail-card,
+body[data-ui-theme] .mobile-base-panel-card {
+  box-shadow: var(--glass-glow);
+}
+
+/* ----- GM turn divider glyph: small themed mark before the sender name ----- */
+
+body[data-ui-theme="cyberpunk"] .msg.gm .msg-sender::before { content: "⌁ "; }
+body[data-ui-theme="scifi"] .msg.gm .msg-sender::before { content: "✦ "; }
+body[data-ui-theme="postapoc"] .msg.gm .msg-sender::before { content: "☢ "; }
+body[data-ui-theme="steampunk"] .msg.gm .msg-sender::before { content: "⚙ "; }
+body[data-ui-theme="eastern"] .msg.gm .msg-sender::before { content: "⛩ "; }
+body[data-ui-theme="horror"] .msg.gm .msg-sender::before { content: "† "; }

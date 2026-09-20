@@ -1,0 +1,9 @@
+{
+  "textAdventure.skillPath": "",
+  "textAdventure.gmBridge.python": "python",
+  "textAdventure.imageGen.comfyuiUrl": "http://127.0.0.1:8188",
+  "textAdventure.imageGen.controlNet": "diffusers_xl_canny_full.safetensors",
+  "textAdventure.mediaAgent.autoImage": false,
+  "textAdventure.cartography.autoLocationImage": false,
+  "textAdventure.vlm.provider": "disabled"
+}

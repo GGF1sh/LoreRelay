@@ -1,0 +1,13 @@
+/* ========= スクロールバー ========= */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+/* ========= 世界観テーマ別のグラデーション背景（画像がない場合のフォールバック） ========= */
+.theme-fantasy   { background: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%) !important; }
+.theme-cyberpunk { background: linear-gradient(135deg, #0d0221 0%, #150050 40%, #3f0071 80%, #610094 100%) !important; }
+.theme-scifi     { background: linear-gradient(135deg, #000814 0%, #001d3d 50%, #003566 100%) !important; }
+.theme-ff14      { background: linear-gradient(135deg, #1b1a2e 0%, #2d1b69 50%, #11224d 100%) !important; }
+.theme-postapoc  { background: linear-gradient(135deg, #1a1a0e 0%, #2d1f0e 50%, #3d2b1f 100%) !important; }
+.theme-modern    { background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%) !important; }

@@ -1,0 +1,164 @@
+[
+  {
+    "width": 1600,
+    "dom": {
+      "panelWidth": 359,
+      "scrollWidth": 359,
+      "controls": [
+        {
+          "id": "gr-pacing-preset",
+          "value": "custom",
+          "enabled": true,
+          "width": 170.8333282470703,
+          "height": 17.5
+        },
+        {
+          "id": "gr-food-demand",
+          "value": "0",
+          "enabled": true,
+          "width": 151.09375,
+          "height": 30.6640625
+        },
+        {
+          "id": "gr-conflict-enabled",
+          "value": "on",
+          "enabled": true,
+          "width": 151.09375,
+          "height": 17.33072853088379
+        },
+        {
+          "id": "gr-conflict-active",
+          "value": "7",
+          "enabled": true,
+          "width": 151.09375,
+          "height": 18.333332061767578
+        },
+        {
+          "id": "gr-conflict-rest",
+          "value": "9",
+          "enabled": true,
+          "width": 151.09375,
+          "height": 18.333332061767578
+        },
+        {
+          "id": "gr-relationship-pace",
+          "value": "slow",
+          "enabled": true,
+          "width": 151.09375,
+          "height": 17.5
+        }
+      ]
+    }
+  },
+  {
+    "width": 900,
+    "dom": {
+      "panelWidth": 231,
+      "scrollWidth": 231,
+      "controls": [
+        {
+          "id": "gr-pacing-preset",
+          "value": "custom",
+          "enabled": true,
+          "width": 170.8333282470703,
+          "height": 17.5
+        },
+        {
+          "id": "gr-food-demand",
+          "value": "0",
+          "enabled": true,
+          "width": 87.23957824707031,
+          "height": 57.330726623535156
+        },
+        {
+          "id": "gr-conflict-enabled",
+          "value": "on",
+          "enabled": true,
+          "width": 87.23957824707031,
+          "height": 30.6640625
+        },
+        {
+          "id": "gr-conflict-active",
+          "value": "7",
+          "enabled": true,
+          "width": 87.23957824707031,
+          "height": 30.6640625
+        },
+        {
+          "id": "gr-conflict-rest",
+          "value": "9",
+          "enabled": true,
+          "width": 87.23957824707031,
+          "height": 18.333332061767578
+        },
+        {
+          "id": "gr-relationship-pace",
+          "value": "slow",
+          "enabled": true,
+          "width": 87.23957824707031,
+          "height": 30.6640625
+        }
+      ]
+    }
+  },
+  {
+    "width": 560,
+    "dom": {
+      "panelWidth": 158,
+      "scrollWidth": 158,
+      "controls": [
+        {
+          "id": "gr-pacing-preset",
+          "value": "custom",
+          "enabled": true,
+          "width": 170.8333282470703,
+          "height": 17.5
+        },
+        {
+          "id": "gr-food-demand",
+          "value": "0",
+          "enabled": true,
+          "width": 67.5,
+          "height": 57.330726623535156
+        },
+        {
+          "id": "gr-conflict-enabled",
+          "value": "on",
+          "enabled": true,
+          "width": 50.44270706176758,
+          "height": 43.99739456176758
+        },
+        {
+          "id": "gr-conflict-active",
+          "value": "7",
+          "enabled": true,
+          "width": 67.5,
+          "height": 43.99739456176758
+        },
+        {
+          "id": "gr-conflict-rest",
+          "value": "9",
+          "enabled": true,
+          "width": 67.5,
+          "height": 43.99739456176758
+        },
+        {
+          "id": "gr-relationship-pace",
+          "value": "slow",
+          "enabled": true,
+          "width": 75,
+          "height": 30.6640625
+        }
+      ]
+    }
+  },
+  {
+    "restoredRules": {
+      "foodDemandMultiplier": 0,
+      "conflictEnabled": false,
+      "conflictActiveDays": 7,
+      "conflictRestDays": 9,
+      "relationshipPace": "slow"
+    }
+  }
+]

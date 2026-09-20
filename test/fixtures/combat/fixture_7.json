@@ -1,0 +1,475 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 18,
+				"target": "レイダー1",
+				"tick": 277,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 18,
+				"target": "レイダー2",
+				"tick": 337,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 18,
+				"target": "レイダー2",
+				"tick": 397,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 18,
+				"target": "レイダー2",
+				"tick": 499,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 18,
+				"target": "レイダー2",
+				"tick": 559,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 18,
+				"target": "レイダー2",
+				"tick": 619,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 18,
+				"target": "レイダー2",
+				"tick": 679,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 749,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 809,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 869,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 929,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 989,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 1049,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 1109,
+				"unit": "レイダー2"
+			},
+			{
+				"damage": 12,
+				"target": "レン(射撃)",
+				"tick": 1169,
+				"unit": "レイダー2"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 277,
+				"unit": "レイダー1"
+			},
+			{
+				"tick": 1169,
+				"unit": "レン(射撃)"
+			}
+		],
+		"decisions": [
+			{
+				"action": "後退",
+				"target": "レイダー1",
+				"tick": 1,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "レン(射撃)",
+				"tick": 1,
+				"unit": "レイダー1"
+			},
+			{
+				"action": "接近",
+				"target": "レン(射撃)",
+				"tick": 1,
+				"unit": "レイダー2"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー1",
+				"tick": 2,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "レイダー1",
+				"tick": 277,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー2",
+				"tick": 278,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "レイダー2",
+				"tick": 310,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー2",
+				"tick": 400,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "レイダー2",
+				"tick": 401,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "レイダー2",
+				"tick": 499,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー2",
+				"tick": 590,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "レイダー2",
+				"tick": 591,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "レイダー2",
+				"tick": 680,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "レン(射撃)",
+				"tick": 749,
+				"unit": "レイダー2"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "レイダー1"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "レイダー2"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 2,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 277,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 278,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 310,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 400,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 401,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 499,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 590,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 591,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 680,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 749,
+				"unit": "レイダー2"
+			},
+			{
+				"cond": "self_hp_below",
+				"rule_action": "flee_to_healer",
+				"tick": 1050,
+				"unit": "レン(射撃)"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 0,
+					"name": "レン(射撃)",
+					"pos_x": -229.0,
+					"pos_y": -179.0
+				},
+				{
+					"hp": 0,
+					"name": "レイダー1",
+					"pos_x": 223.207504272461,
+					"pos_y": 118.128456115723
+				},
+				{
+					"hp": 12,
+					"name": "レイダー2",
+					"pos_x": -191.482055664063,
+					"pos_y": -150.774963378906
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "レイダー1",
+				"team": 0,
+				"tick": 277
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 337
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 397
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 499
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 559
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 619
+			},
+			{
+				"target": "レイダー2",
+				"team": 0,
+				"tick": 679
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 749
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 809
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 869
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 929
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 989
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1049
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1109
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1169
+			}
+		],
+		"heals": [],
+		"outcome": "敗北… 味方が全滅した"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 18.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 240.0,
+					"color": "#4dd9e6",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 90.0,
+					"move_speed": 66.0,
+					"name": "レン(射撃)",
+					"pos_x": 400.0,
+					"pos_y": 360.0,
+					"radius": 15.0,
+					"role": "Shooter"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"hp": 5.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー1",
+					"pos_x": 500.0,
+					"pos_y": 300.0,
+					"radius": 16.0,
+					"role": "Raider"
+				},
+				{
+					"attack": 12.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 48.0,
+					"color": "#e65a4d",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"max_hp": 120.0,
+					"move_speed": 72.0,
+					"name": "レイダー2",
+					"pos_x": 500.0,
+					"pos_y": 420.0,
+					"radius": 16.0,
+					"role": "Raider"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:41:58",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"レン(射撃)",
+			"レイダー1",
+			"レイダー2"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"レン(射撃)",
+		"レイダー1",
+		"レイダー2"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

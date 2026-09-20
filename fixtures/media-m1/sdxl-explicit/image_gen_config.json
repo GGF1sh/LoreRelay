@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "profileId": "sdxl-illustrious-simple",
+  "modelFamily": "sdxl",
+  "checkpoint": "installed_checkpoint.safetensors",
+  "workflowPath": "",
+  "mode": "illustrious",
+  "steps": 28,
+  "cfg": 7,
+  "width": 1024,
+  "height": 1024,
+  "samplerName": "",
+  "scheduler": "",
+  "positivePrefix": "",
+  "positiveSuffix": "",
+  "negativePrompt": ""
+}

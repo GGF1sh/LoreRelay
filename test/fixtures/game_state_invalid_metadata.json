@@ -1,0 +1,24 @@
+{
+  "entries": [
+    {
+      "id": "../turn-1",
+      "role": "gm",
+      "sender": "GM",
+      "content": "ok",
+      "imageBlocked": "false",
+      "excludedFromPrompt": "yes",
+      "editedAt": 123
+    }
+  ],
+  "status": {
+    "location": 42,
+    "time": false,
+    "funds": 100
+  },
+  "profileUpdates": [
+    {
+      "characterId": "../hero",
+      "dynamicProfile": "bad id"
+    }
+  ]
+}

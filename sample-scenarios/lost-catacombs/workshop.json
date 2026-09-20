@@ -1,0 +1,18 @@
+{
+  "format": "text-adventure-workshop/1.0",
+  "engineVersion": "0.2.9",
+  "packagedAt": "2026-06-25T10:20:29.705849+00:00",
+  "scenarioFile": "scenario.json",
+  "title": "忘れられた地下聖堂",
+  "author": "Text Adventure Engine (sample)",
+  "version": "1.0.0",
+  "description": "崩れかけた地下聖堂に眠る『静寂の聖印』を求める、王道ファンタジーのソロ探索。罠と不死者が待つ。",
+  "tags": [
+    "fantasy",
+    "dungeon",
+    "solo",
+    "starter"
+  ],
+  "license": "CC-BY-4.0",
+  "homepage": ""
+}

@@ -1,0 +1,19 @@
+{
+  "enableRpgMechanics": true,
+  "defaultMaxHp": 20,
+  "defaultMaxMp": 8,
+  "diceDifficulty": "Normal",
+  "enableWorldForge": true,
+  "enableEmergentSimulation": true,
+  "enableCommerce": true,
+  "enableCommerceUi": false,
+  "playerRole": "merchant",
+  "enableNpcRegistry": false,
+  "enableNpcAgency": false,
+  "enableNpcRelationships": false,
+  "enableFactionReputation": false,
+  "simIntervalTurns": 1,
+  "backgroundSimulation": false,
+  "autoLorebookGrowth": false,
+  "aiParticipationPolicy": "simulationOnly"
+}

@@ -1,0 +1,103 @@
+{
+  "format": "lorerelay-world-forge/1.0",
+  "meta": {
+    "worldName": "デバッグ港町",
+    "worldSeed": "debug-sandbox-001",
+    "theme": "test",
+    "generationMethod": "manual"
+  },
+  "geography": {
+    "regions": [
+      {
+        "id": "harbor_plaza",
+        "name": "港の広場",
+        "type": "town",
+        "biome": "coastal",
+        "x": 400,
+        "y": 400,
+        "dangerLevel": 1,
+        "description": "テスト開始地点。NPCが立っている。",
+        "connectedTo": ["market_lane", "old_docks"]
+      },
+      {
+        "id": "market_lane",
+        "name": "市場通り",
+        "type": "town",
+        "biome": "coastal",
+        "x": 520,
+        "y": 380,
+        "dangerLevel": 2,
+        "description": "商人エルダの店がある通り。",
+        "connectedTo": ["harbor_plaza", "shrine_hill"]
+      },
+      {
+        "id": "old_docks",
+        "name": "古い波止場",
+        "type": "landmark",
+        "biome": "coastal",
+        "x": 300,
+        "y": 480,
+        "dangerLevel": 3,
+        "description": "錆びた桟橋。噂話の温床。",
+        "connectedTo": ["harbor_plaza"]
+      },
+      {
+        "id": "shrine_hill",
+        "name": "神社の丘",
+        "type": "landmark",
+        "biome": "forest",
+        "x": 600,
+        "y": 520,
+        "dangerLevel": 2,
+        "description": "地図の端にある小さな神社。",
+        "connectedTo": ["market_lane"]
+      }
+    ],
+    "locations": [
+      {
+        "id": "plaza_center",
+        "name": "広場の中心",
+        "regionId": "harbor_plaza",
+        "type": "landmark",
+        "description": "衛兵アレンが巡回している。"
+      },
+      {
+        "id": "elda_shop",
+        "name": "エルダの店",
+        "regionId": "market_lane",
+        "type": "shop",
+        "description": "雑貨と噂を売る小さな店。"
+      }
+    ]
+  },
+  "factions": [
+    {
+      "id": "town_guard",
+      "name": "町の衛兵",
+      "type": "neutral",
+      "power": 50,
+      "resources": { "weapons": 40 },
+      "goals": ["港の治安を保つ"],
+      "enemies": [],
+      "description": "テスト用の衛兵組織。"
+    }
+  ],
+  "loreHistory": [],
+  "initialNpcs": [
+    {
+      "id": "npc_elda",
+      "name": "商人エルダ",
+      "role": "merchant",
+      "locationId": "elda_shop",
+      "description": "好感度テスト用のNPC。"
+    },
+    {
+      "id": "npc_aren",
+      "name": "衛兵アレン",
+      "role": "guard",
+      "locationId": "plaza_center",
+      "factionId": "town_guard",
+      "description": "信頼度テスト用のNPC。"
+    }
+  ]
+}

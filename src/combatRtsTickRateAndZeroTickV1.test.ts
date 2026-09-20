@@ -1,0 +1,492 @@
+/**
+ * COMBAT-RTS-TICK-RATE-AND-ZERO-TICK-FIXED-001 focused tests.
+ *
+ * Two Codex P1 findings against PR3 (COMBAT-RTS-ORDER-SLOT-STOP-RESUME-001):
+ *
+ *   P1-1: a command log's tickRate was never checked against the battle's own
+ *   effective tick rate, so a log recorded at a different rate than the battle
+ *   actually runs at would still be accepted and applied on the wrong ticks.
+ *
+ *   P1-2: stepCombat's first call already advances tickCount to 1 before the
+ *   command phase runs, so tickCount is never 0. A command scheduled for
+ *   tick 0 (which the input schema accepts — tick is a non-negative integer)
+ *   compared its raw tick against tickCount, which never matched, which
+ *   permanently stalled commandCursor on that event and silently blocked
+ *   every later command in the log, regardless of that command's own tick.
+ */
+
+import * as assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as path from 'path';
+import { describe, test } from 'node:test';
+import { BattleSpec, CombatExpectedOutput, createCombatStepContext, resolveCombat } from './gambitCombatCore';
+import { CommandInputEvent, CommandInputLog, COMMAND_INPUT_SCHEMA_VERSION, emptyCommandInputLog } from './combatRtsCommandInputCore';
+import { battleSpecForCombatLab, initialCombatLabScenarios, isValidScenario } from './combatLabCore';
+
+const fixturesDir = path.join(__dirname, '../test/fixtures/combat');
+const fixtureFiles = fs.readdirSync(fixturesDir).filter(f => f.startsWith('fixture_') && f.endsWith('.json')).sort();
+
+function fixtureSpec(file: string): BattleSpec {
+    const data = JSON.parse(fs.readFileSync(path.join(fixturesDir, file), 'utf8'));
+    return {
+        activePreset: data.activePreset,
+        deltaSeconds: data.deltaSeconds || (1.0 / 60.0),
+        fixedFps: data.fixedFps,
+        viewport: data.viewport || { width: 1280, height: 720 },
+        participantOrder: data.participantOrder,
+        initialState: data.initialState,
+    } as BattleSpec;
+}
+
+function unit(over: any): any {
+    return {
+        role: 'Frontline', max_hp: 100, attack: 10, defense: 0, heal_power: 0,
+        move_speed: 40, attack_range: 40, attack_cooldown: 0.5, radius: 12,
+        pos_x: over.team === 0 ? 0 : 10000, pos_y: 0,
+        ...over,
+    };
+}
+
+/** Two units, far enough apart that neither can ever reach the other within COMBAT_TIMEOUT_TICKS. */
+function skirmishSpec(over: Partial<BattleSpec> = {}): BattleSpec {
+    return {
+        activePreset: 'rts-tick-rate-test',
+        deltaSeconds: 1 / 30,
+        viewport: { width: 1280, height: 720 },
+        participantOrder: ['ally_a', 'ally_b', 'enemy_a'],
+        initialState: {
+            units: {
+                allies: [unit({ name: 'ally_a', team: 0 }), unit({ name: 'ally_b', team: 0, pos_y: 40 })],
+                enemies: [unit({ name: 'enemy_a', team: 1 })],
+            },
+        },
+        ...over,
+    } as BattleSpec;
+}
+
+function commandLog(events: CommandInputEvent[], tickRate: number): CommandInputLog {
+    return { schemaVersion: COMMAND_INPUT_SCHEMA_VERSION, tickRate, events };
+}
+
+function stopEvent(over: Partial<CommandInputEvent> = {}): CommandInputEvent {
+    return { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop', ...over } as CommandInputEvent;
+}
+
+function activityFor(output: CombatExpectedOutput, unitId: string) {
+    return {
+        evaluations: output.evaluations.filter(e => e.unit === unitId),
+        decisions: output.decisions.filter(e => e.unit === unitId),
+    };
+}
+
+describe('RTS tick rate — effective battle rate matches ctx.delta\'s basis', () => {
+    test('fixedFps 60 + log tickRate 60: command is applied', () => {
+        const spec = skirmishSpec({ fixedFps: 60, command: commandLog([stopEvent()], 60) });
+        const output = resolveCombat(spec);
+        assert.deepEqual(output.commandReceipts!.map(r => r.kind), ['order_accepted', 'order_started']);
+        assert.equal(activityFor(output, 'ally_a').evaluations.length, 0, 'stop must actually suppress gambits once applied');
+    });
+
+    test('fixedFps 60 + log tickRate 30: rejected, falls back to empty log with no commandReceipts', () => {
+        const spec = skirmishSpec({ fixedFps: 60, command: commandLog([stopEvent()], 30) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+        assert.ok(activityFor(output, 'ally_a').evaluations.length > 0, 'ally_a must run its normal gambits, unaffected by the rejected log');
+    });
+
+    test('deltaSeconds 1/30 (no fixedFps) + log tickRate 30: command is applied', () => {
+        const spec = skirmishSpec({ command: commandLog([stopEvent()], 30) });
+        const output = resolveCombat(spec);
+        assert.deepEqual(output.commandReceipts!.map(r => r.kind), ['order_accepted', 'order_started']);
+    });
+
+    test('deltaSeconds 1/60 (no fixedFps) + log tickRate 30: rejected, falls back to empty log', () => {
+        const spec = skirmishSpec({ deltaSeconds: 1 / 60, command: commandLog([stopEvent()], 30) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+    });
+
+    test('a mismatched log produces output byte-identical to the same battle with no command at all', () => {
+        const base = skirmishSpec({ fixedFps: 60 });
+        const withMismatch = resolveCombat({ ...base, command: commandLog([stopEvent()], 30) });
+        const withoutCommand = resolveCombat(base);
+        assert.equal(JSON.stringify(withMismatch), JSON.stringify(withoutCommand));
+    });
+
+    test('command absent and an explicit empty log both still produce golden-master-identical bytes', () => {
+        for (const file of fixtureFiles) {
+            const spec = fixtureSpec(file);
+            const baseline = resolveCombat(spec);
+            const absent = resolveCombat({ ...spec, command: undefined });
+            const empty60 = resolveCombat({ ...spec, command: commandLog([], 60) });
+            assert.equal(JSON.stringify(absent), JSON.stringify(baseline), `${file}: absent`);
+            assert.equal(JSON.stringify(empty60), JSON.stringify(baseline), `${file}: empty log at the matching rate`);
+        }
+    });
+
+    test('a truthy but non-integer fixedFps never matches any log tickRate (does not fall through to deltaSeconds)', () => {
+        // ctx.delta would use 1/59.94 here, not deltaSeconds — so the tick rate
+        // check must not pretend deltaSeconds is the basis it is actually using.
+        const spec = skirmishSpec({ fixedFps: 59.94, deltaSeconds: 1 / 30, command: commandLog([stopEvent()], 30) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+    });
+
+    test('a deltaSeconds that reciprocates to a near-integer but not a matching one (NTSC-ish 29.97) is rejected, not rounded to 30', () => {
+        const spec = skirmishSpec({ deltaSeconds: 1 / 29.97, command: commandLog([stopEvent()], 30) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+    });
+
+    test('a truncated-but-close-enough deltaSeconds literal (as the golden master fixtures use) still matches 60', () => {
+        // Mirrors the fixtures' literal 0.0166666667 rather than the full
+        // repeating decimal 1/60 — the float round-trip has a tiny but nonzero
+        // relative error that must still be accepted.
+        const spec = skirmishSpec({ deltaSeconds: 0.0166666667, command: commandLog([stopEvent()], 60) });
+        const output = resolveCombat(spec);
+        assert.deepEqual(output.commandReceipts!.map(r => r.kind), ['order_accepted', 'order_started']);
+    });
+});
+
+describe('RTS tick rate — no runtime path bypasses tick-rate enforcement', () => {
+    test('an invalid raw command (fails schema entirely) still falls back to empty, tick rate aside', () => {
+        const spec = skirmishSpec({ fixedFps: 60, command: 'not-a-log' });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+    });
+
+    test('a battle whose rate cannot be pinned down at all (non-finite deltaSeconds) still runs, with any command collapsed to empty', () => {
+        const spec = skirmishSpec({ deltaSeconds: NaN, command: commandLog([stopEvent()], 30) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+        // The battle must not crash or hang — it still resolves to some outcome.
+        assert.equal(typeof output.outcome, 'string');
+    });
+});
+
+describe('RTS tick rate — near-miss rates are rejected, and delta is canonicalized on a match', () => {
+    // Follow-up to a review finding on the tightened-epsilon version of this
+    // fix: a rate close enough to an integer to pass a loose tolerance check
+    // could previously be accepted for command matching while ctx.delta kept
+    // running on the caller's own, slightly different, uncanonicalized value —
+    // so a log could pass normalization yet still run on a different timebase.
+
+    test('1/60.00005 (the specific near-miss example from review) is rejected, not treated as 60Hz', () => {
+        // relative error from exact 1/60 is ~8.33e-7, which passed the original
+        // 1e-6 tolerance but must not pass the tightened one.
+        const spec = skirmishSpec({ deltaSeconds: 1 / 60.00005, command: commandLog([stopEvent()], 60) });
+        const output = resolveCombat(spec);
+        assert.equal('commandReceipts' in output, false);
+    });
+
+    test('a fixedFps=60 battle canonicalizes delta to exactly 1/60', () => {
+        const spec = skirmishSpec({ fixedFps: 60 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 60);
+    });
+
+    test('a deltaSeconds=1/30 battle (no fixedFps, matching how Combat Lab builds specs) canonicalizes delta to the identical bit pattern', () => {
+        const spec = skirmishSpec({ deltaSeconds: 1 / 30 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 30);
+    });
+
+    test('a truncated literal with NO command log is left exactly as the caller wrote it — canonicalization needs an accepted command', () => {
+        // Second review round: canonicalizing purely because a clean tick rate
+        // is determinable reached callers with no command log at all — Combat
+        // Lab's battleSpecForCombatLab never sets spec.command, and its scenario
+        // validator only requires deltaSeconds > 0, so an imported or hand-edited
+        // scenario can legitimately carry an imprecise literal like this one.
+        // There is no command log for canonicalization to keep consistent with,
+        // so delta must stay exactly as supplied — this is command-free
+        // combat's timing, unaffected by the RTS command spine's existence.
+        const spec = skirmishSpec({ deltaSeconds: 0.0166666667 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 0.0166666667, 'delta must be left untouched when no command log was accepted');
+    });
+
+    test('the same truncated literal DOES canonicalize once a matching command log is actually accepted', () => {
+        // The fix is scoped precisely to the case that needs it: delta and the
+        // command log must agree, which only matters once there is a real log.
+        const spec = skirmishSpec({ deltaSeconds: 0.0166666667, command: commandLog([stopEvent()], 60) });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 60);
+        assert.notEqual(ctx.delta, 0.0166666667, 'once a command log is accepted, delta must not diverge from the rate it was matched against');
+        // And the log really was accepted, not silently dropped.
+        const output = resolveCombat(spec);
+        assert.deepEqual(output.commandReceipts!.map(r => r.kind), ['order_accepted', 'order_started']);
+    });
+
+    test('an explicit but empty matching command log produces the SAME delta as command absent (absent/empty contract)', () => {
+        // Third review round: a caller serializing emptyCommandInputLog(30) —
+        // rather than omitting `command` — still validates fine against a
+        // matching tick rate, but can never run a single command either way.
+        // BattleSpec.command's doc comment promises absent and empty behave
+        // identically; before this fix, only the absent case skipped
+        // canonicalization, so the two diverged for an imprecise deltaSeconds.
+        const rawDeltaSeconds = 0.033333333;
+        const absent = skirmishSpec({ deltaSeconds: rawDeltaSeconds });
+        const explicitEmpty = skirmishSpec({ deltaSeconds: rawDeltaSeconds, command: emptyCommandInputLog(30) });
+
+        const deltaAbsent = createCombatStepContext(absent).delta;
+        const deltaEmpty = createCombatStepContext(explicitEmpty).delta;
+
+        assert.equal(deltaEmpty, deltaAbsent, 'an explicit empty log must not canonicalize when the absent case does not');
+        assert.equal(deltaEmpty, rawDeltaSeconds, 'delta must be left at the caller\'s raw literal, not canonicalized to 1/30');
+
+        assert.equal(JSON.stringify(resolveCombat(explicitEmpty)), JSON.stringify(resolveCombat(absent)));
+    });
+
+    test('an empty log still canonicalizes nothing even when its own declared tickRate matches exactly', () => {
+        const spec = skirmishSpec({ fixedFps: 60, command: emptyCommandInputLog(60) });
+        const ctx = createCombatStepContext(spec);
+        // fixedFps: 60 already canonicalizes to the identical value either way,
+        // so this specifically checks that accepting the empty log did not
+        // change *which* code path produced it — a mismatched or absent log
+        // would collapse to the same fallback branch, proving no divergence is
+        // hiding behind fixedFps already being exact.
+        assert.equal(ctx.delta, 1.0 / 60);
+    });
+
+    test('when no clean integer rate is determinable, delta is left exactly as before (no canonicalization to fall back to)', () => {
+        const spec = skirmishSpec({ fixedFps: 59.94, deltaSeconds: 1 / 30 });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 59.94, 'must use the original truthy-fixedFps computation unchanged');
+    });
+
+    test('golden master fixtures (no command log) still compute delta as exactly 1/60 (spot check via context, not just output bytes)', () => {
+        // fixedFps: 60 is already an integer, so this passes via the original
+        // fallback branch (1.0/60), not via canonicalization — no fixture ever
+        // supplies a command log. Included as a direct-context spot check
+        // alongside the byte-identity assertions elsewhere in this file.
+        const spec = fixtureSpec(fixtureFiles[0]);
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 60);
+    });
+});
+
+describe('RTS tick rate — a command getter cannot corrupt the legacy delta fallback', () => {
+    // Fourth review round: combatRtsCommandInputCore's own adversarial-input
+    // contract (PR2) means spec.command's own properties may be getters that
+    // run arbitrary code — including mutating the surrounding `spec` object,
+    // not merely returning a value. The previous fix recomputed the fallback
+    // delta from spec.fixedFps/spec.deltaSeconds AFTER normalizing
+    // spec.command, so a hostile getter on an explicit empty log could mutate
+    // either field and have that mutation observed by the recomputation.
+
+    test('a getter mutating spec.deltaSeconds does not affect the resulting delta', () => {
+        const rawDeltaSeconds = 0.033333333;
+        const absent = skirmishSpec({ deltaSeconds: rawDeltaSeconds });
+
+        const hostile = skirmishSpec({ deltaSeconds: rawDeltaSeconds });
+        let getterCalled = false;
+        hostile.command = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: 30,
+            get events() { getterCalled = true; hostile.deltaSeconds = 999; return []; },
+        };
+
+        const ctxAbsent = createCombatStepContext(absent);
+        const ctxHostile = createCombatStepContext(hostile);
+
+        assert.equal(getterCalled, true, 'the test must actually exercise the hostile getter path');
+        assert.equal(ctxHostile.delta, ctxAbsent.delta, 'a command getter must not be able to change delta');
+        assert.equal(ctxHostile.delta, rawDeltaSeconds, 'delta must be the original, unmutated value');
+    });
+
+    test('a getter mutating spec.fixedFps does not affect the resulting delta', () => {
+        const absent = skirmishSpec({ fixedFps: 60 });
+
+        const hostile = skirmishSpec({ fixedFps: 60 });
+        let getterCalled = false;
+        hostile.command = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            // Must match the battle's effective tick rate (fixedFps: 60), or
+            // normalizeCommandInputLog rejects on the tickRate mismatch before
+            // ever reading `events` — which would never exercise the getter.
+            tickRate: 60,
+            get events() { getterCalled = true; hostile.fixedFps = 999; return []; },
+        };
+
+        const ctxAbsent = createCombatStepContext(absent);
+        const ctxHostile = createCombatStepContext(hostile);
+
+        assert.equal(getterCalled, true, 'the test must actually exercise the hostile getter path');
+        assert.equal(ctxHostile.delta, ctxAbsent.delta, 'a command getter must not be able to change delta');
+        assert.equal(ctxHostile.delta, 1.0 / 60, 'delta must be derived from the original, unmutated fixedFps');
+    });
+
+    test('the mutation attempt still leaves the command itself correctly rejected as empty/unaccepted', () => {
+        const hostile = skirmishSpec({ deltaSeconds: 1 / 30 });
+        hostile.command = {
+            schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+            tickRate: 30,
+            get events() { hostile.deltaSeconds = 999; return []; },
+        };
+        const output = resolveCombat(hostile);
+        assert.equal('commandReceipts' in output, false, 'an empty log (hostile or not) must still produce no commandReceipts field');
+    });
+
+    test('a valid non-empty matching log still canonicalizes correctly even when read after the snapshot', () => {
+        const spec = skirmishSpec({ deltaSeconds: 0.033333333, command: commandLog([stopEvent()], 30) });
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 1 / 30);
+    });
+
+    test('invalid and mismatched logs still preserve the captured legacy delta, getter or not', () => {
+        const rawDeltaSeconds = 0.033333333;
+
+        const invalid = skirmishSpec({ deltaSeconds: rawDeltaSeconds, command: 'not-a-log' });
+        assert.equal(createCombatStepContext(invalid).delta, rawDeltaSeconds);
+
+        const mismatched = skirmishSpec({ deltaSeconds: rawDeltaSeconds, command: commandLog([stopEvent()], 999) });
+        assert.equal(createCombatStepContext(mismatched).delta, rawDeltaSeconds);
+    });
+
+    test('repeated runs of a hostile-getter spec are still fully deterministic', () => {
+        const buildHostileSpec = () => {
+            const spec = skirmishSpec({ deltaSeconds: 0.033333333 });
+            spec.command = {
+                schemaVersion: COMMAND_INPUT_SCHEMA_VERSION,
+                tickRate: 30,
+                get events() { spec.deltaSeconds = Math.random() * 1000; return []; },
+            };
+            return spec;
+        };
+        const a = resolveCombat(buildHostileSpec());
+        const b = resolveCombat(buildHostileSpec());
+        assert.equal(JSON.stringify(a), JSON.stringify(b), 'delta must be pinned before the mutating getter can ever run, regardless of what it does');
+    });
+});
+
+describe('RTS tick rate — the real Combat Lab integration path is unaffected', () => {
+    // Exercises the actual product code (battleSpecForCombatLab /
+    // isValidScenario), not a hand-rolled stand-in, to prove the scoping fix
+    // holds at the real integration point the review flagged.
+
+    const catalog = { abilities: [], statuses: [] };
+
+    test('battleSpecForCombatLab never sets spec.command', () => {
+        const scenario = initialCombatLabScenarios()[0];
+        const spec = battleSpecForCombatLab(scenario, catalog) as BattleSpec;
+        assert.equal('command' in spec, false);
+    });
+
+    test('isValidScenario accepts an imprecise deltaSeconds literal — no precision requirement, just > 0', () => {
+        const scenario = { ...initialCombatLabScenarios()[0], deltaSeconds: 0.033333333 };
+        assert.equal(isValidScenario(scenario), true);
+    });
+
+    test('a scenario with an imprecise near-1/30 deltaSeconds literal keeps that exact delta through the real Combat Lab path', () => {
+        const scenario = { ...initialCombatLabScenarios()[0], deltaSeconds: 0.033333333 };
+        const spec = battleSpecForCombatLab(scenario, catalog) as BattleSpec;
+        const ctx = createCombatStepContext(spec);
+        assert.equal(ctx.delta, 0.033333333, 'Combat Lab delta must not be silently canonicalized to 1/30');
+    });
+
+    test('every stock Combat Lab scenario computes delta identical to before this fix, via the real builder', () => {
+        for (const scenario of initialCombatLabScenarios()) {
+            const spec = battleSpecForCombatLab(scenario, catalog) as BattleSpec;
+            const ctx = createCombatStepContext(spec);
+            const expected = spec.fixedFps ? (1.0 / spec.fixedFps) : spec.deltaSeconds;
+            assert.equal(ctx.delta, expected, `${scenario.id}: delta diverged from the pre-fix computation`);
+        }
+    });
+});
+
+describe('RTS tick 0 — folds to simulation tick 1', () => {
+    test('a tick 0 stop is applied before the first unit action, and the receipt tick is 1', () => {
+        const spec = skirmishSpec({ command: commandLog([stopEvent({ tick: 0 })], 30) });
+        const output = resolveCombat(spec);
+
+        assert.deepEqual(
+            output.commandReceipts!.map(r => [r.tick, r.kind]),
+            [[1, 'order_accepted'], [1, 'order_started']],
+        );
+        assert.equal(activityFor(output, 'ally_a').evaluations.length, 0, 'the unit must never evaluate gambits at all, including tick 1 itself');
+    });
+
+    test('commandCursor is not stalled: a tick 0 event does not block a later tick 2 command', () => {
+        const spec = skirmishSpec({
+            command: commandLog([
+                { tick: 0, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop' },
+                { tick: 2, seq: 0, issuerTeam: 0, unitIds: ['ally_b'], command: 'stop' },
+            ], 30),
+        });
+        const output = resolveCombat(spec);
+
+        const receiptsA = output.commandReceipts!.filter(r => r.unitId === 'ally_a');
+        const receiptsB = output.commandReceipts!.filter(r => r.unitId === 'ally_b');
+        assert.deepEqual(receiptsA.map(r => [r.tick, r.kind]), [[1, 'order_accepted'], [1, 'order_started']]);
+        assert.deepEqual(receiptsB.map(r => [r.tick, r.kind]), [[2, 'order_accepted'], [2, 'order_started']]);
+
+        // Both units actually stopped, proving the tick 2 command was not
+        // merely receipted but genuinely applied.
+        assert.equal(activityFor(output, 'ally_a').evaluations.length, 0);
+        assert.equal(activityFor(output, 'ally_b').evaluations.filter(e => e.tick >= 2).length, 0);
+        assert.ok(activityFor(output, 'ally_b').evaluations.some(e => e.tick === 1), 'ally_b must still gambit normally on tick 1, before its own tick-2 command lands');
+    });
+
+    test('a long chain after tick 0 is not blocked: tick 0, then tick 1, tick 2, and tick 5 all apply', () => {
+        const spec = skirmishSpec({
+            command: commandLog([
+                { tick: 0, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop' },
+                { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'resume_gambit' },
+                { tick: 2, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop' },
+                { tick: 5, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'resume_gambit' },
+            ], 30),
+        });
+        const output = resolveCombat(spec);
+        const receipts = output.commandReceipts!.map(r => [r.tick, r.command, r.kind]);
+        // order_superseded's `command` names the order being replaced, not the
+        // replacement — matching the general supersede semantics from PR3.
+        assert.deepEqual(receipts, [
+            [1, 'stop', 'order_accepted'], [1, 'stop', 'order_started'],
+            [1, 'stop', 'order_superseded'], [1, 'resume_gambit', 'order_accepted'],
+            [2, 'stop', 'order_accepted'], [2, 'stop', 'order_started'],
+            [5, 'stop', 'order_superseded'], [5, 'resume_gambit', 'order_accepted'],
+        ]);
+    });
+
+    test('tick 0 and tick 1 targeting the same unit: (tick, seq) order applies, tick 1 wins deterministically', () => {
+        const spec = skirmishSpec({
+            command: commandLog([
+                { tick: 0, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'move_to', point: { x: 1, y: 1 } },
+                { tick: 1, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop' },
+            ], 30),
+        });
+        const output = resolveCombat(spec);
+        assert.deepEqual(
+            output.commandReceipts!.map(r => [r.tick, r.command, r.kind]),
+            [
+                [1, 'move_to', 'order_accepted'], [1, 'move_to', 'order_started'],
+                [1, 'move_to', 'order_superseded'], [1, 'stop', 'order_accepted'], [1, 'stop', 'order_started'],
+            ],
+        );
+    });
+
+    test('participantOrder fan-out and supersede semantics still hold for a tick-0 event', () => {
+        const spec = skirmishSpec({
+            participantOrder: ['ally_b', 'ally_a', 'enemy_a'],
+            command: commandLog([
+                { tick: 0, seq: 0, issuerTeam: 0, unitIds: ['ally_a', 'ally_b'], command: 'stop' },
+            ], 30),
+        });
+        const output = resolveCombat(spec);
+        const acceptedOrder = output.commandReceipts!.filter(r => r.kind === 'order_accepted').map(r => r.unitId);
+        assert.deepEqual(acceptedOrder, ['ally_b', 'ally_a'], 'ally_b ranks before ally_a in participantOrder');
+        assert.ok(output.commandReceipts!.every(r => r.tick === 1));
+    });
+
+    test('repeated runs of a tick-0-bearing spec produce byte-identical JSON', () => {
+        const spec = skirmishSpec({
+            command: commandLog([
+                { tick: 0, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'stop' },
+                { tick: 3, seq: 0, issuerTeam: 0, unitIds: ['ally_a'], command: 'resume_gambit' },
+            ], 30),
+        });
+        const a = resolveCombat(structuredClone(spec));
+        const b = resolveCombat(structuredClone(spec));
+        assert.equal(JSON.stringify(a), JSON.stringify(b));
+    });
+});

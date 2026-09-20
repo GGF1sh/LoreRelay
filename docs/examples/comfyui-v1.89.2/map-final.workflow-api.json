@@ -1,0 +1,152 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 789824634,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "13",
+        0
+      ],
+      "negative": [
+        "13",
+        1
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "IL\\waiIllustriousSDXL_v170.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint (Illustrious XL / SDXL)"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image 1024"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "flat top-down fantasy RPG overworld regional map of 川から海へ — 航路の体験用世界, flat top-down, distinct terrain provinces, roads between settlements, forests hills deserts, readable tabletop campaign cartography, orthographic bird eye view, map fills entire square frame edge to edge, distinct zone borders, route network between locations, readable macro geography, no labels, no typography, no UI frame, no floating objects, no perspective tilt, fantasy world setting, featuring 3 coast, 2 forest, 3 plains, 1 sea, masterpiece, best quality, highly detailed regional map illustration",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "star chart, astrolabe, zodiac wheel, celestial diagram, astronomical map, magic circle, summoning circle, ritual circle, radial symmetry, circular diagram, radial grid, compass rose centerpiece, ornate mandala, spherical globe, planet in space, abstract diagram, infographic, flowchart, node graph visualization, floating object, tilted paper, perspective view, landscape background, scenic valley, mountains behind map, broken glass, shattered pane, diamond shape, kite shape, torn paper, satellite photo, GPS smartphone app, isometric city, character portrait, anime face, creature close-up, 3d render, photorealistic photograph, text, letters, words, watermark, signature, lowres, worst quality, blurry, star chart, magic circle, floating paper, scenic landscape background",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "world_map",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "control_net_name": "diffusers_xl_canny_full.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "ControlNet Loader (SDXL Canny — layout lineart fed directly)"
+    }
+  },
+  "11": {
+    "inputs": {
+      "image": "world_map.layout.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Layout Mask (pre-drawn lineart)"
+    }
+  },
+  "13": {
+    "inputs": {
+      "strength": 0.9,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "control_net": [
+        "10",
+        0
+      ],
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet (direct layout, no Canny node)"
+    }
+  }
+}

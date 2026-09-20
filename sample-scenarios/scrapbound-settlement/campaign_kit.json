@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "id": "scrapbound_demo",
+  "name": "Scrapbound Salvager Loop",
+  "genre": "postapocalypse",
+  "loop": {
+    "hubLabel": "Scrapbound Settlement",
+    "jobBoardLabel": "Notice Board / Fixer Rumors",
+    "siteLabel": "Ruin / Metro / Dead Factory",
+    "lootLabel": "Salvage",
+    "appraisalLabel": "Appraisal at Mira's Counter",
+    "serviceLabel": "Market Row / Clinic / Workshop",
+    "worldReactionLabel": "Trader gossip and faction heat"
+  },
+  "gmGuidance": [
+    "Keep unidentified salvage vague until the player pays for appraisal or finds an expert.",
+    "Jobs on the notice board should point to real locations in world_forge geography.",
+    "When Commerce is enabled, final prices and cargo use tradeOps — not improvised numbers in narration only."
+  ]
+}

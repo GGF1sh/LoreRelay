@@ -1,0 +1,58 @@
+.vscode/**
+.git/**
+.github/**
+.claude/**
+.codex/**
+# Generated QA artifacts may contain local connection credentials and Host profiles.
+.test-runs/**
+.tmp/**
+.vscode-test/**
+node_modules/**
+!node_modules/ws/
+!node_modules/ws/**
+!node_modules/@modelcontextprotocol/
+!node_modules/@modelcontextprotocol/server/
+!node_modules/@modelcontextprotocol/server/**
+!node_modules/@modelcontextprotocol/core/
+!node_modules/@modelcontextprotocol/core/**
+!node_modules/@modelcontextprotocol/client/
+!node_modules/@modelcontextprotocol/client/**
+!node_modules/cross-spawn/
+!node_modules/cross-spawn/**
+!node_modules/path-key/
+!node_modules/path-key/**
+!node_modules/shebang-command/
+!node_modules/shebang-command/**
+!node_modules/shebang-regex/
+!node_modules/shebang-regex/**
+!node_modules/which/
+!node_modules/which/**
+!node_modules/isexe/
+!node_modules/isexe/**
+!node_modules/eventsource/
+!node_modules/eventsource/**
+!node_modules/eventsource-parser/
+!node_modules/eventsource-parser/**
+!node_modules/jose/
+!node_modules/jose/**
+!node_modules/pkce-challenge/
+!node_modules/pkce-challenge/**
+!node_modules/zod/
+!node_modules/zod/**
+*.vsix
+
+# TypeScript sources (compiled output lives in out/)
+src/**
+test/**
+
+# Internal AI collaboration docs (not for end users)
+AI_*.md
+CLAUDE_REVIEW_PROMPT.md
+DEVELOPMENT_TIMELINE.md
+
+# Source maps
+**/*.map
+
+# Webview source modules (we only need the built script.js / style.css)
+webview/modules/**
+webview/styles/**

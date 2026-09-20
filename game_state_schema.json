@@ -1,0 +1,295 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Text Adventure Game State",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version for forward/backward compatibility. Omit in v1 (legacy). Current version: 2."
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+          "role": { "type": "string", "enum": ["gm", "user"] },
+          "sender": { "type": "string" },
+          "content": { "type": "string" },
+          "image": { "type": "string" },
+          "imagePrompt": { "type": "string" },
+          "imageBlocked": { "type": "boolean" },
+          "excludedFromPrompt": { "type": "boolean" },
+          "editedAt": { "type": "string" },
+          "speakerNpcId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+          "modContext": {
+            "type": "object",
+            "properties": {
+              "format": { "const": "lorerelay-mod-context/1" },
+              "lockFingerprint": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+              "adultActive": { "type": "boolean" }
+            },
+            "required": ["format", "lockFingerprint", "adultActive"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "role", "sender", "content"]
+      }
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "location": { "type": "string" },
+        "time": { "type": "string" },
+        "hp": {
+          "type": "object",
+          "properties": {
+            "current": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "required": ["current", "max"]
+        },
+        "mp": {
+          "type": "object",
+          "properties": {
+            "current": { "type": "number" },
+            "max": { "type": "number" }
+          },
+          "required": ["current", "max"]
+        },
+        "condition": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "inventory": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "funds": { "type": "string" }
+      }
+    },
+    "options": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "theme": { "type": "string" },
+    "bgm": { "type": "string" },
+    "mood": { "type": "string" },
+    "sfx": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "latestImage": { "type": "string" },
+    "latestImageDescription": {
+      "type": "string",
+      "description": "Short VLM-generated description of latestImage. Injected into GM prompt as visual context."
+    },
+    "background": { "type": "string", "description": "VN-style scene background image path" },
+    "sprite": {
+      "description": "Standing character sprite (path string or object)",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "image": { "type": "string" },
+            "expression": { "type": "string" },
+            "position": { "type": "string", "enum": ["left", "center", "right"] }
+          }
+        }
+      ]
+    },
+    "diceRequest": {
+      "type": "object",
+      "description": "GMがユーザーに振らせたいダイス。Webviewが自動ロールし、ユーザーが「GMに送る」で結果を送信する。",
+      "properties": {
+        "notation": { "type": "string" },
+        "purpose":  { "type": "string" },
+        "id":       { "type": "string" }
+      },
+      "required": ["notation"]
+    },
+    "hiddenDice": {
+      "type": "array",
+      "description": "GMが振った隠しダイス。出目はUIに表示しない。resultフィールドを含めないこと。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "notation": { "type": "string" },
+          "purpose":  { "type": "string" }
+        },
+        "required": ["notation"],
+        "not": { "required": ["result"] }
+      }
+    },
+    "profileUpdates": {
+      "type": "array",
+      "description": "GM can instruct the system to dynamically update the profile of a character (e.g. relationship, new known facts).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "characterId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+          "dynamicProfile": { "type": "string" }
+        },
+        "required": ["characterId", "dynamicProfile"]
+      }
+    },
+    "npcMemoryUpdates": {
+      "type": "array",
+      "description": "GM-requested NPC memory/disposition updates consumed by LoreRelay and removed from game_state.json after processing.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "npcId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+          "dispositionDelta": {
+            "type": "object",
+            "properties": {
+              "playerTrust": { "type": "number" },
+              "playerRomance": { "type": "number" },
+              "playerFear": { "type": "number" },
+              "mood": { "type": "string", "enum": ["happy", "worried", "angry", "sad", "neutral", "excited", "fearful"] }
+            }
+          },
+          "newMemory": {
+            "type": "object",
+            "properties": {
+              "turn": { "type": "number" },
+              "content": { "type": "string" },
+              "emotionalWeight": { "type": "string", "enum": ["positive", "negative", "neutral", "suspicious"] },
+              "tags": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "needUpdates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "urgencyDelta": { "type": "number" },
+                "resolved": { "type": "boolean" }
+              },
+              "required": ["id"]
+            }
+          }
+        },
+        "required": ["npcId"]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Compressed story synopsis injected into GM prompts. Editable in Webview or generated via Context Summarizer."
+    },
+    "hiddenState": {
+      "type": "object",
+      "description": "GM's secret notes and parameters not shown to the player.",
+      "additionalProperties": true
+    },
+    "gameOver": {
+      "type": "object",
+      "description": "When active=true, Webview shows ending overlay and locks player input.",
+      "properties": {
+        "active": { "type": "boolean" },
+        "message": { "type": "string" },
+        "victory": { "type": "boolean" }
+      },
+      "required": ["active"]
+    },
+    "director": {
+      "type": "object",
+      "description": "Live scenario progression overlay. Merged with scenario.json director template. GM updates via statePatch.",
+      "properties": {
+        "act": { "type": "string" },
+        "chapter": { "type": "string" },
+        "scene": { "type": "string" },
+        "objective": { "type": "string" },
+        "guidanceMode": { "type": "string", "enum": ["sandbox", "guided", "railroad"] },
+        "achievedEndings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string", "description": "GM-only director notes (not shown in player UI)" }
+      }
+    },
+    "partyDirector": {
+      "type": "object",
+      "description": "Live party speech/relationship overlay. Merged with characters/party_director.json template. GM updates via statePatch.",
+      "properties": {
+        "notes": { "type": "string" },
+        "members": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "verbosity": { "type": "number", "minimum": 0, "maximum": 100 },
+              "muted": { "type": "boolean" },
+              "forceSpeak": { "type": "boolean" },
+              "relationships": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": ["ally", "friend", "rival", "enemy", "romance", "neutral"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "world": {
+      "type": "object",
+      "description": "World Forge runtime overlay: current location, visited places, known factions, and sync marker.",
+      "properties": {
+        "currentLocationId": { "type": "string" },
+        "visitedLocationIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "discoveredRegionIds": {
+          "type": "array",
+          "description": "Region IDs explored by the player (extension-derived; rumored neighbors are computed at runtime).",
+          "items": { "type": "string" }
+        },
+        "knownFactionIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "regions": {
+          "type": "object",
+          "description": "GM-patchable world region overlay. Simulation-owned world_state.json remains the source of truth for full world state.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "controllingFaction": {
+                "anyOf": [
+                  { "type": "string" },
+                  { "type": "null" }
+                ]
+              },
+              "dangerLevel": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              }
+            }
+          }
+        },
+        "worldTurnAtLastSync": { "type": "number" },
+        "lastGeneratedImage": { "type": "string" },
+        "lastGeneratedLocationId": { "type": "string" },
+        "lastAutoImageGmTurn": {
+          "type": "number",
+          "description": "GM turn when cartography auto location image was last queued."
+        }
+      }
+    }
+  },
+  "required": ["entries"]
+}

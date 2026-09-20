@@ -1,0 +1,12 @@
+{
+  "format": "text-adventure-workshop/1.0",
+  "engineVersion": "1.0.0",
+  "scenarioFile": "scenario.json",
+  "title": "港町の霧 — 灯台の手紙",
+  "author": "LoreRelay (sample)",
+  "version": "1.0.0",
+  "description": "霧に包まれた港町で、灯台守から届いた謎の手紙を手がかりに小さな秘密を解き明かすミステリー。",
+  "tags": ["modern", "mystery", "cozy", "solo", "starter"],
+  "license": "CC-BY-4.0",
+  "homepage": ""
+}

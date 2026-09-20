@@ -1,0 +1,52 @@
+{
+  "format": "text-adventure-scenario/1.0",
+  "meta": {
+    "title": "デバッグサンドボックス",
+    "author": "LoreRelay (debug)",
+    "version": "1.0.0",
+    "description": "好感度・地図の霧・世界シミュを自然言語で即時操作できる開発者向けサンドボックス。GM不要でコマンドが反映されます。",
+    "tags": ["debug", "sandbox", "developer", "starter"]
+  },
+  "setup": {
+    "world": "小さなテスト用の港町サンドボックス。NPC2人と地域4つ。数値や地図状態を言葉で動かして LoreRelay の挙動を確認する。",
+    "protagonist": "開発者兼テストプレイヤー。特別な装備はない。",
+    "tone": "実用重視。説明は短く、結果はすぐ反映される。",
+    "imageMode": "natural",
+    "theme": "modern",
+    "rules": "このシナリオではプレイヤーの発言がデバッグコマンドとして解釈される。認識できない発言だけ通常のGMターンになる。",
+    "gameOver": {
+      "mode": "relaxed",
+      "onHpZero": false,
+      "allowImpossibleActions": true
+    }
+  },
+  "director": {
+    "act": "Debug",
+    "chapter": "Sandbox",
+    "scene": "テスト広場",
+    "objective": "各機能（好感度・霧・世界ターン）を言葉で動かして確認する。",
+    "successConditions": [],
+    "failConditions": [],
+    "guidanceMode": "sandbox",
+    "endingFlags": [],
+    "optionalEncounters": []
+  },
+  "opening": {
+    "bgm": "town",
+    "status": {
+      "location": "テスト港 / 広場",
+      "time": "昼",
+      "condition": "良好",
+      "hp": { "current": 20, "max": 20 },
+      "funds": "テスト用"
+    },
+    "options": [
+      "ヘルプ",
+      "エルダの好感度を上げて",
+      "地図の霧を晴らして",
+      "宿で休む",
+      "3日かけてエルダの店へ旅する"
+    ],
+    "narrative": "デバッグサンドボックスへようこそ。\n\nここでは **あなたの言葉がそのままデバッグ操作** になります。GMを呼ばず、好感度・地図の霧・世界シミュのターンを即時に動かせます。\n\nまずは **「ヘルプ」** と入力するか、下の候補を選んでください。\n\n例:\n・エルダの好感度を+20\n・市場を発見\n・5ターン経過\n・状態"
+  }
+}

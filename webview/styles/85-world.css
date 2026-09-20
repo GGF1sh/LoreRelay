@@ -1,0 +1,696 @@
+/* ========= World Tab — Location Images & NPC Panel ========= */
+
+.world-section-heading {
+  font-size: 0.75em;
+  opacity: 0.6;
+  margin-bottom: 0.4rem;
+  margin-top: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* -------- Location Scene History Strip -------- */
+#world-location-images {
+  padding: 0 0.5rem;
+}
+
+.world-image-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.world-image-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.world-image-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  display: block;
+  transition: border-color 0.15s;
+}
+
+.world-image-thumb:hover {
+  border-color: var(--accent);
+}
+
+.world-image-turn-badge {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: rgba(0,0,0,0.7);
+  color: #b0e57c;
+  font-size: 9px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* -------- NPC Panel -------- */
+#world-npcs-section {
+  padding: 0 0.5rem;
+}
+
+.world-npc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.world-npc-card {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.world-npc-portrait {
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: rgba(255,255,255,0.05);
+}
+
+.world-npc-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.world-npc-portrait.placeholder {
+  color: var(--text-dim);
+}
+
+.world-npc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.world-npc-name {
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.world-npc-mood {
+  font-size: 0.72em;
+  opacity: 0.6;
+}
+
+.world-npc-needs {
+  font-size: 0.72em;
+  color: #f4a261;
+}
+
+.world-npc-portrait-btn {
+  margin-top: 3px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.world-npc-voice-label {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  margin-top: 0.15rem;
+}
+
+.world-npc-voice-btn {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, inherit);
+  border-radius: 3px;
+}
+
+.world-npc-voice-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+.world-npc-portrait-btn:hover {
+  background: var(--accent-dim);
+  color: #fff;
+}
+
+#world-quests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.quest-item {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.18);
+}
+
+.quest-item.status-active {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.quest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.quest-title {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.quest-badge {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.08);
+}
+
+.quest-desc {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.quest-actions {
+  margin-top: 0.5rem;
+}
+
+.world-effects-tier-btn {
+  margin-left: 0.5rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.world-effects-tier-btn.is-off {
+  opacity: 0.6;
+}
+
+.world-effects-tier-btn.is-full {
+  color: var(--accent, #4f8ef7);
+  border-color: var(--accent, #4f8ef7);
+}
+
+/* --- Player Action Hub (PLAYABLE-V0-UI-001) ---
+   Compact, VS Code-native game panel unifying 取引 / 旅 / 一日を終える.
+   Theme-aware (VS Code variables), keyboard-focus visible, reduced-motion and
+   high-contrast friendly. Presentation only — no gameplay authority here. */
+.player-action-hub {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.player-action-hub__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.player-action-hub__panel {
+  position: relative;
+  width: 100%;
+  max-width: min(100%, 460px);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--vscode-focusBorder, var(--accent, #4f8ef7));
+  border-radius: 8px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  color: var(--vscode-foreground, #ddd);
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-action-hub__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.player-action-hub__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.player-action-hub__close {
+  flex: 0 0 auto;
+}
+
+.player-action-hub__status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 4px 12px;
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.82rem;
+}
+
+.player-action-hub__stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.player-action-hub__stat dt {
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+  white-space: nowrap;
+}
+
+.player-action-hub__stat dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.12));
+}
+
+.player-action-hub__tab {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--vscode-foreground, #ddd);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.player-action-hub__tab.is-active {
+  background: var(--vscode-tab-activeBackground, rgba(255, 255, 255, 0.09));
+  border-color: var(--vscode-panel-border, rgba(255, 255, 255, 0.18));
+  font-weight: 700;
+}
+
+.player-action-hub__tab--endday.is-active {
+  border-color: var(--vscode-charts-orange, #e8a838);
+  box-shadow: inset 0 -2px 0 0 var(--vscode-charts-orange, #e8a838);
+}
+
+.player-action-hub__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.player-action-hub__section[hidden] {
+  display: none;
+}
+
+.player-action-hub__section-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.player-action-hub__note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__note--strong {
+  padding: 8px 10px;
+  border-left: 3px solid var(--vscode-charts-orange, #e8a838);
+  border-radius: 4px;
+  background: rgba(232, 168, 56, 0.12);
+  color: var(--vscode-foreground, #ddd);
+  font-weight: 600;
+}
+
+.player-action-hub__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.player-action-hub__trade-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.player-action-hub__trade-composer > .player-action-hub__field:first-child {
+  grid-column: 1 / -1;
+}
+
+.player-action-hub__select,
+.player-action-hub__qty-input {
+  max-width: 100%;
+  padding: 4px 6px;
+  color: var(--vscode-input-foreground, inherit);
+  background: var(--vscode-input-background, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.18));
+  border-radius: 4px;
+  font: inherit;
+}
+
+.player-action-hub__ops {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.14));
+  border-radius: 4px;
+}
+
+.player-action-hub__ops legend {
+  padding: 0 4px;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__radio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 5.4rem;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.player-action-hub__radio.is-selected {
+  border-color: var(--vscode-focusBorder, var(--accent, #4f8ef7));
+  background: var(--vscode-button-secondaryBackground, rgba(79, 142, 247, 0.18));
+  font-weight: 700;
+}
+
+.player-action-hub__qty {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-action-hub__stepper {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.player-action-hub__step {
+  min-width: 2rem;
+  padding: 2px 8px;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.player-action-hub__qty-input {
+  width: 5rem;
+  text-align: center;
+}
+
+.player-action-hub__projection {
+  padding: 10px;
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.player-action-hub__projection h4 {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__projection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.player-action-hub__projection-grid > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.player-action-hub__projection-grid > div.is-emphasis {
+  border-left: 3px solid var(--vscode-focusBorder, var(--accent, #4f8ef7));
+}
+
+.player-action-hub__projection-grid dt {
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+  font-size: 0.74rem;
+}
+
+.player-action-hub__projection-grid dd {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__disabled-reason {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border-left: 3px solid var(--vscode-errorForeground, #f14c4c);
+  border-radius: 4px;
+  background: rgba(241, 76, 76, 0.1);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.player-action-hub__disabled-reason[hidden] {
+  display: none;
+}
+
+.player-action-hub__review {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--vscode-foreground, #ddd);
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__review[data-state="preview"] {
+  border: 1px dashed var(--vscode-focusBorder, var(--accent, #4f8ef7));
+}
+
+.player-action-hub__review[data-state="submitting"],
+.player-action-hub__review[data-state="loading"] {
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__review[data-state="success"],
+.player-action-hub__review[data-state="success-stale"] {
+  border-left: 3px solid var(--vscode-testing-iconPassed, var(--vscode-charts-green, #3fb950));
+  background: rgba(63, 185, 80, 0.12);
+}
+
+.player-action-hub__review[data-state="busy"] {
+  border-left: 3px solid var(--vscode-charts-yellow, #d7a100);
+  background: rgba(215, 161, 0, 0.14);
+}
+
+.player-action-hub__review[data-state="error"] {
+  border-left: 3px solid var(--vscode-errorForeground, #f14c4c);
+  background: rgba(241, 76, 76, 0.12);
+}
+
+.player-action-hub__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.player-action-hub__btn--primary {
+  font-weight: 700;
+}
+
+.player-action-hub__btn--danger {
+  font-weight: 700;
+  color: var(--vscode-button-foreground, #fff);
+  background: var(--vscode-charts-orange, #d78a1e);
+  border: 1px solid var(--vscode-charts-orange, #d78a1e);
+}
+
+.player-action-hub__btn--danger:disabled {
+  opacity: 0.55;
+}
+
+.player-action-hub__dev {
+  font-size: 0.78rem;
+  color: var(--vscode-descriptionForeground, var(--text-muted, #9aa));
+}
+
+.player-action-hub__dev-body {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.player-action-hub__tab:focus-visible,
+.player-action-hub__close:focus-visible,
+.player-action-hub__btn:focus-visible,
+.player-action-hub__step:focus-visible,
+.player-action-hub__select:focus-visible,
+.player-action-hub__qty-input:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--accent, #4f8ef7));
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-action-hub,
+  .player-action-hub * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .player-action-hub__panel {
+    padding: 12px;
+  }
+
+  .player-action-hub__trade-composer,
+  .player-action-hub__projection-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .player-action-hub__trade-composer > .player-action-hub__field:first-child {
+    grid-column: auto;
+  }
+
+  .player-action-hub__ops,
+  .player-action-hub__qty {
+    align-items: stretch;
+  }
+
+  .player-action-hub__radio {
+    flex: 1 1 0;
+  }
+}
+
+.world-location-navigator {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 7px 0 3px;
+}
+
+/* WORLD-LOCATION-NAV-STABILITY-001: Settlement/Diorama collapse to a short
+ * "no data yet" paragraph while a data-bearing location renders a full
+ * canvas. Without a floor, that height swing propagates to everything below
+ * it. The navigator itself now sits above this viewport (see index.html), so
+ * this floor matches the largest rendered viewport (420px canvas plus
+ * controls/details). It also prevents the outer VS Code scroll container
+ * from clamping its scrollTop when the selected location has no snapshot. */
+#world-settlement,
+#world-diorama {
+  min-height: 620px;
+}
+
+.world-location-navigator-title {
+  margin-right: 2px;
+  color: var(--vscode-descriptionForeground, #9aa4b2);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.world-location-chip {
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.16));
+  border-radius: 999px;
+  background: var(--vscode-button-secondaryBackground, rgba(255,255,255,0.06));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #ddd));
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.world-location-chip:hover,
+.world-location-chip:focus-visible {
+  border-color: var(--vscode-focusBorder, #4a90e2);
+}
+
+.world-location-chip.is-current {
+  color: #ffe9a8;
+  border-color: rgba(255, 215, 95, 0.55);
+}
+
+.world-location-chip.is-selected {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+  border-color: var(--vscode-focusBorder, #4a90e2);
+}
+#water-navigation { margin: 12px 0; padding: 12px; border: 1px solid var(--vscode-panel-border, #455563); border-radius: 8px; background: var(--vscode-editor-background, #151923); }
+#water-navigation summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+#water-navigation label { display: inline-block; margin: 5px 8px 5px 0; }
+#water-navigation select, #water-navigation button { color: var(--vscode-input-foreground, #ddd); background: var(--vscode-input-background, #222936); border: 1px solid var(--vscode-input-border, #526070); border-radius: 4px; padding: 5px 7px; max-width: 100%; }
+#water-navigation button { cursor: pointer; }
+#water-navigation button:disabled { opacity: .45; cursor: default; }
+#water-navigation select { max-width: 360px; }
+#water-result { line-height: 1.6; }

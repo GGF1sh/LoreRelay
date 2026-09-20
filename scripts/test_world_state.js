@@ -1,0 +1,399 @@
+#!/usr/bin/env node
+/**
+ * Unit tests for worldStateCore.ts (parseWorldState, buildInitialWorldState).
+ * No vscode dependency — runs in plain Node.js.
+ */
+const {
+    parseWorldState,
+    buildInitialWorldState,
+    parseWorldStateWithWarnings,
+    formatWorldStateParseWarning,
+} = require('../out/worldStateCore');
+const { parseWorldForge } = require('../out/worldForgeCore');
+
+let failed = 0;
+
+function fail(msg) {
+    console.error(`FAIL: ${msg}`);
+    failed++;
+}
+
+function ok(msg) {
+    console.log(`OK: ${msg}`);
+}
+
+// ---------------------------------------------------------------------------
+// parseWorldState — invalid input
+// ---------------------------------------------------------------------------
+
+if (parseWorldState(null) !== undefined) {
+    fail('null input → undefined');
+} else {
+    ok('null input → undefined');
+}
+
+if (parseWorldState([]) !== undefined) {
+    fail('array input → undefined');
+} else {
+    ok('array input → undefined');
+}
+
+// ---------------------------------------------------------------------------
+// parseWorldState — valid data
+// ---------------------------------------------------------------------------
+
+const raw = {
+    format: 'lorerelay-world-state/1.0',
+    worldTurn: 5,
+    lastSimulatedGmTurn: 5,
+    factions: {
+        undead: { power: 80, morale: 70, recentEvents: ['event1'], resources: { mana: 50 } },
+        watchers: { power: 40 }
+    },
+    regions: {
+        upper: { dangerLevel: 3, controllingFaction: 'watchers', activeEvents: [] },
+        deep: { dangerLevel: 8, controllingFaction: 'undead' }
+    },
+    globalEvents: [
+        { id: 'ev1', type: 'magical', severity: 'major', description: 'Seal weakens', turnsRemaining: 10 },
+        { description: 'No id' }
+    ],
+    recentChanges: [
+        {
+            id: 'wce_5_region_deep',
+            worldTurn: 5,
+            source: 'simulation',
+            category: 'region',
+            severity: 'warning',
+            regionId: 'deep',
+            message: 'Deep grows dangerous',
+            mapHighlight: true,
+            expiresAfterTurns: 3
+        },
+        { id: 'bad id', message: 'invalid', category: 'region', severity: 'warning' }
+    ],
+    pendingWorldEvents: []
+};
+
+const parsed = parseWorldState(raw);
+if (!parsed) {
+    fail('valid world state should parse');
+    process.exit(1);
+}
+ok('valid world state parses');
+
+if (parsed.worldTurn !== 5) { fail('worldTurn preserved'); } else { ok('worldTurn preserved'); }
+if (parsed.lastSimulatedGmTurn !== 5) { fail('lastSimulatedGmTurn preserved'); } else { ok('lastSimulatedGmTurn preserved'); }
+if (!parsed.factions.undead || parsed.factions.undead.power !== 80) { fail('faction power'); } else { ok('faction power'); }
+if (parsed.factions.undead.morale !== 70) { fail('faction morale'); } else { ok('faction morale'); }
+if (!parsed.factions.undead.resources || parsed.factions.undead.resources.mana !== 50) { fail('faction resources'); } else { ok('faction resources'); }
+
+const resourceClamp = parseWorldState({
+    worldTurn: 0,
+    factions: {
+        test: {
+            power: 50,
+            resources: { food: -10, mana: Infinity, bad: NaN, huge: 999_999 },
+        },
+    },
+});
+const testRes = resourceClamp?.factions?.test?.resources;
+if (!testRes || testRes.food !== 0 || testRes.huge !== 10000 || 'mana' in testRes || 'bad' in testRes) {
+    fail(`faction resources clamped: ${JSON.stringify(testRes)}`);
+} else {
+    ok('faction resources finite and clamped');
+}
+if (!parsed.factions.watchers) { fail('second faction parsed'); } else { ok('second faction parsed'); }
+if (!parsed.regions || parsed.regions.upper.dangerLevel !== 3) { fail('region dangerLevel'); } else { ok('region dangerLevel'); }
+if (parsed.regions.upper.controllingFaction !== 'watchers') { fail('region controllingFaction'); } else { ok('region controllingFaction'); }
+if (!parsed.globalEvents || parsed.globalEvents.length !== 1) { fail('globalEvent without id dropped'); } else { ok('globalEvent without id dropped'); }
+if (parsed.globalEvents[0].turnsRemaining !== 10) { fail('globalEvent turnsRemaining'); } else { ok('globalEvent turnsRemaining'); }
+if (parsed.globalEvents[0].severity !== 'major') { fail('globalEvent severity'); } else { ok('globalEvent severity'); }
+if (!parsed.recentChanges || parsed.recentChanges.length !== 1) { fail('recentChanges invalid entries dropped'); } else { ok('recentChanges invalid entries dropped'); }
+if (parsed.recentChanges[0]?.regionId !== 'deep') { fail('recentChanges regionId preserved'); } else { ok('recentChanges regionId preserved'); }
+
+// ---------------------------------------------------------------------------
+// parseWorldState — invalid event severity falls back
+// ---------------------------------------------------------------------------
+
+const withBadSeverity = parseWorldState({
+    worldTurn: 0,
+    factions: {},
+    globalEvents: [{ id: 'ev', description: 'test', severity: 'nuclear_strike', type: 'alien' }]
+});
+if (withBadSeverity && withBadSeverity.globalEvents[0].severity !== 'minor') {
+    fail('invalid severity → "minor"');
+} else {
+    ok('invalid severity → "minor"');
+}
+if (withBadSeverity && withBadSeverity.globalEvents[0].type !== 'other') {
+    fail('invalid type → "other"');
+} else {
+    ok('invalid type → "other"');
+}
+
+// ---------------------------------------------------------------------------
+// buildInitialWorldState — from world_forge.json data
+// ---------------------------------------------------------------------------
+
+const forge = parseWorldForge({
+    meta: { worldName: 'Catacombs' },
+    geography: {
+        regions: [
+            { id: 'upper', name: 'Upper', type: 'dungeon', dangerLevel: 3 },
+            { id: 'deep', name: 'Deep', type: 'dungeon', dangerLevel: 8 }
+        ],
+        locations: [
+            { id: 'hall', name: 'Entrance', type: 'landmark', regionId: 'upper', factionControl: 'watchers' },
+            { id: 'ritual', name: 'Ritual', type: 'dungeon', regionId: 'deep', factionControl: 'undead' }
+        ]
+    },
+    factions: [
+        { id: 'undead', name: 'Undead Legion', type: 'hostile', power: 80,
+          resources: { weapons: 70, mana: 50 }, enemies: ['watchers'] },
+        { id: 'watchers', name: 'Grave Watchers', type: 'neutral', power: 40,
+          resources: { food: 20 }, enemies: ['undead'] }
+    ]
+});
+
+if (!forge) {
+    fail('test forge should parse');
+    process.exit(1);
+}
+
+const initial = buildInitialWorldState(forge);
+
+if (!initial) { fail('buildInitialWorldState returns value'); process.exit(1); }
+ok('buildInitialWorldState returns value');
+
+if (initial.worldTurn !== 0) { fail('initial worldTurn = 0'); } else { ok('initial worldTurn = 0'); }
+if (initial.lastSimulatedGmTurn !== 0) { fail('initial lastSimulatedGmTurn = 0'); } else { ok('initial lastSimulatedGmTurn = 0'); }
+
+// Factions initialized from forge
+if (!initial.factions.undead) { fail('undead faction initialized'); } else { ok('undead faction initialized'); }
+if (initial.factions.undead.power !== 80) { fail('undead faction power from forge'); } else { ok('undead faction power from forge'); }
+if (!initial.factions.undead.resources || initial.factions.undead.resources.mana !== 50) {
+    fail('undead faction resources copied');
+} else {
+    ok('undead faction resources copied');
+}
+if (initial.factions.undead.morale !== 60) { fail('initial morale = 60'); } else { ok('initial morale = 60'); }
+if (!Array.isArray(initial.factions.undead.recentEvents) || initial.factions.undead.recentEvents.length !== 0) {
+    fail('initial recentEvents = []');
+} else {
+    ok('initial recentEvents = []');
+}
+
+// Regions initialized from forge
+if (!initial.regions || !initial.regions.upper) { fail('upper region initialized'); } else { ok('upper region initialized'); }
+if (initial.regions.upper.dangerLevel !== 3) { fail('region dangerLevel from forge'); } else { ok('region dangerLevel from forge'); }
+if (initial.regions.deep.dangerLevel !== 8) { fail('deep region dangerLevel from forge'); } else { ok('deep region dangerLevel from forge'); }
+
+// Location factionControl → region controllingFaction
+if (initial.regions.upper.controllingFaction !== 'watchers') {
+    fail('location factionControl → region controllingFaction (upper→watchers)');
+} else {
+    ok('location factionControl → region.controllingFaction');
+}
+if (initial.regions.deep.controllingFaction !== 'undead') {
+    fail('deep region controllingFaction = undead');
+} else {
+    ok('deep region controllingFaction from location');
+}
+
+// globalEvents initially empty
+if (!Array.isArray(initial.globalEvents) || initial.globalEvents.length !== 0) {
+    fail('initial globalEvents = []');
+} else {
+    ok('initial globalEvents = []');
+}
+
+// pendingWorldEvents initially empty
+if (!Array.isArray(initial.pendingWorldEvents) || initial.pendingWorldEvents.length !== 0) {
+    fail('initial pendingWorldEvents = []');
+} else {
+    ok('initial pendingWorldEvents = []');
+}
+
+if (!Array.isArray(initial.recentChanges) || initial.recentChanges.length !== 0) {
+    fail('initial recentChanges = []');
+} else {
+    ok('initial recentChanges = []');
+}
+
+// ---------------------------------------------------------------------------
+// P1 regression: parseFactionWorldState power/morale clamp (0–100)
+// ---------------------------------------------------------------------------
+
+{
+    const stateClamp = parseWorldState({
+        worldTurn: 1,
+        factions: {
+            f_hi: { power: 9999, morale: 200 },
+            f_lo: { power: -50, morale: -10 },
+            f_ok: { power: 70, morale: 80 },
+        }
+    });
+    if (!stateClamp) {
+        fail('P1 power/morale clamp: state should parse');
+    } else {
+        const hi = stateClamp.factions['f_hi'];
+        const lo = stateClamp.factions['f_lo'];
+        const ok_ = stateClamp.factions['f_ok'];
+        if (!hi || hi.power !== 100) {
+            fail(`P1 faction power > 100 clamped to 100 (got ${hi?.power})`);
+        } else {
+            ok('P1 faction power > 100 clamped to 100 on parse');
+        }
+        if (!hi || hi.morale !== 100) {
+            fail(`P1 faction morale > 100 clamped to 100 (got ${hi?.morale})`);
+        } else {
+            ok('P1 faction morale > 100 clamped to 100 on parse');
+        }
+        if (!lo || lo.power !== 0) {
+            fail(`P1 faction power < 0 clamped to 0 (got ${lo?.power})`);
+        } else {
+            ok('P1 faction power < 0 clamped to 0 on parse');
+        }
+        if (!lo || lo.morale !== 0) {
+            fail(`P1 faction morale < 0 clamped to 0 (got ${lo?.morale})`);
+        } else {
+            ok('P1 faction morale < 0 clamped to 0 on parse');
+        }
+        if (!ok_ || ok_.power !== 70) {
+            fail(`P1 faction power in-range preserved (got ${ok_?.power})`);
+        } else {
+            ok('P1 faction power in-range preserved on parse');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// P2: pair key canonicalization on parse (b|a -> a|b)
+// ---------------------------------------------------------------------------
+
+{
+    const rel = parseWorldState({
+        worldTurn: 3,
+        factions: {},
+        npcRelationships: {
+            'npc_b|npc_a': 25,
+            'faction_y|faction_x': -40,
+        },
+        npcFactionRelationships: {
+            'faction_smiths|faction_merchants': -15,
+        },
+        npcMilestones: {
+            'npc_marcus|npc_elda': ['sworn_allies'],
+        },
+    });
+    if (!rel) {
+        fail('pair key canonicalization: state should parse');
+    } else {
+        if (rel.npcRelationships?.['npc_a|npc_b'] !== 25) {
+            fail(`npcRelationships canonical key (got ${JSON.stringify(rel.npcRelationships)})`);
+        } else {
+            ok('npcRelationships b|a canonicalized to a|b');
+        }
+        if (rel.npcFactionRelationships?.['faction_merchants|faction_smiths'] !== -15) {
+            fail(`npcFactionRelationships canonical key (got ${JSON.stringify(rel.npcFactionRelationships)})`);
+        } else {
+            ok('npcFactionRelationships reversed key canonicalized');
+        }
+        if (!rel.npcMilestones?.['npc_elda|npc_marcus']?.includes('sworn_allies')) {
+            fail(`npcMilestones canonical key (got ${JSON.stringify(rel.npcMilestones)})`);
+        } else {
+            ok('npcMilestones reversed pair canonicalized');
+        }
+    }
+}
+
+// formatWorldStateParseWarning — human-readable cap line
+{
+    const line = formatWorldStateParseWarning({
+        code: 'parse_cap_exceeded',
+        field: 'factions',
+        dropped: 3,
+        cap: 50,
+    });
+    if (!line.includes('factions') || !line.includes('dropped 3')) {
+        fail(`formatWorldStateParseWarning (got ${line})`);
+    } else {
+        ok('formatWorldStateParseWarning formats cap overflow');
+    }
+}
+
+// parseWorldStateWithWarnings — cap overflow accounting
+{
+    const manyFactions = {};
+    for (let i = 0; i < 55; i++) { manyFactions[`f${i}`] = { power: 1, morale: 1, resources: {} }; }
+    const result = parseWorldStateWithWarnings({ worldTurn: 1, factions: manyFactions, regions: {} });
+    const warn = result.warnings.find((w) => w.field === 'factions');
+    if (!result.state || Object.keys(result.state.factions).length !== 50) {
+        fail(`factions should clamp to 50 (got ${Object.keys(result.state?.factions ?? {}).length})`);
+    } else if (!warn || warn.dropped !== 5) {
+        fail(`factions cap warning expected drop 5 (got ${JSON.stringify(warn)})`);
+    } else {
+        ok('parseWorldStateWithWarnings reports factions cap overflow');
+    }
+}
+
+// Milestone pair-key collision merges kinds (does not last-wins drop)
+{
+    const merged = parseWorldState({
+        worldTurn: 1,
+        factions: {},
+        npcMilestones: {
+            'npc_b|npc_a': ['sworn_allies'],
+            'npc_a|npc_b': ['bitter_enemies'],
+        },
+    });
+    const kinds = merged?.npcMilestones?.['npc_a|npc_b'];
+    if (!kinds || !kinds.includes('sworn_allies') || !kinds.includes('bitter_enemies')) {
+        fail(`npcMilestones merge on canonical collision (got ${JSON.stringify(kinds)})`);
+    } else {
+        ok('npcMilestones canonical collision merges kinds');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// P1 regression: parseGlobalEvent id must be a valid slug
+// ---------------------------------------------------------------------------
+
+{
+    const stateWithEvents = parseWorldState({
+        worldTurn: 2,
+        factions: {},
+        globalEvents: [
+            { id: 'valid-event-1', description: 'The tide turns', type: 'political', severity: 'major' },
+            { id: 'invalid id with spaces', description: 'Bad id', type: 'other', severity: 'minor' },
+            { id: '../../../evil', description: 'Injection attempt', type: 'other', severity: 'minor' },
+            { id: '', description: 'Empty id', type: 'other', severity: 'minor' },
+            { description: 'No id at all', type: 'other', severity: 'minor' },
+        ]
+    });
+    if (!stateWithEvents) {
+        fail('P1 globalEvent id validation: state should parse');
+    } else {
+        const evts = stateWithEvents.globalEvents ?? [];
+        if (evts.length !== 1) {
+            fail(`P1 only valid-slug globalEvent should survive (got ${evts.length})`);
+        } else {
+            ok('P1 globalEvent with invalid id/space/injection/empty dropped');
+        }
+        if (evts[0] && evts[0].id !== 'valid-event-1') {
+            fail(`P1 valid globalEvent id preserved (got ${evts[0]?.id})`);
+        } else {
+            ok('P1 valid globalEvent id preserved');
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Result
+// ---------------------------------------------------------------------------
+
+if (failed > 0) {
+    process.exit(1);
+}
+console.log('All world state tests passed.');

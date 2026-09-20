@@ -1,0 +1,909 @@
+{
+	"activePreset": "標準",
+	"deltaSeconds": 0.0166666667,
+	"expected": {
+		"attacks": [
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 846,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 906,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 966,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1158,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1218,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1278,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1352,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1412,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1472,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 15,
+				"target": "ブルート",
+				"tick": 1532,
+				"unit": "レン(射撃)"
+			},
+			{
+				"damage": 20,
+				"target": "レン(射撃)",
+				"tick": 1681,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "レン(射撃)",
+				"tick": 1778,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "レン(射撃)",
+				"tick": 1875,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "レン(射撃)",
+				"tick": 1972,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "ミナ(衛生)",
+				"tick": 2069,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "ミナ(衛生)",
+				"tick": 2166,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "ミナ(衛生)",
+				"tick": 2263,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "ミナ(衛生)",
+				"tick": 2360,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "ミナ(衛生)",
+				"tick": 2457,
+				"unit": "ブルート"
+			},
+			{
+				"damage": 20,
+				"target": "ミナ(衛生)",
+				"tick": 2554,
+				"unit": "ブルート"
+			}
+		],
+		"deaths": [
+			{
+				"tick": 1972,
+				"unit": "レン(射撃)"
+			},
+			{
+				"tick": 2554,
+				"unit": "ミナ(衛生)"
+			}
+		],
+		"decisions": [
+			{
+				"action": "後退",
+				"target": "ミナ(衛生)",
+				"tick": 1,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近(回復)",
+				"target": "レン(射撃)",
+				"tick": 1,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ミナ(衛生)",
+				"tick": 1,
+				"unit": "ブルート"
+			},
+			{
+				"action": "回復",
+				"target": "レン(射撃)",
+				"tick": 509,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 510,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 654,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "攻撃",
+				"target": "ブルート",
+				"tick": 846,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 926,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 927,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1010,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1011,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1153,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1154,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "攻撃",
+				"target": "ブルート",
+				"tick": 1158,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1304,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1305,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1322,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1323,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "ブルート",
+				"tick": 1352,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1403,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1404,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1469,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1470,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1512,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1513,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1516,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "攻撃",
+				"target": "ブルート",
+				"tick": 1517,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1541,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1542,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1560,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1561,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1564,
+				"unit": "レン(射撃)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1573,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1574,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1581,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1582,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1586,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1587,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1590,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1591,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1592,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "接近",
+				"target": "ブルート",
+				"tick": 1593,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "後退",
+				"target": "ブルート",
+				"tick": 1594,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"action": "攻撃",
+				"target": "レン(射撃)",
+				"tick": 1681,
+				"unit": "ブルート"
+			},
+			{
+				"action": "待機(警戒)",
+				"target": "ミナ(衛生)",
+				"tick": 1876,
+				"unit": "レン(射撃)"
+			}
+		],
+		"evaluations": [
+			{
+				"cond": "self_hp_below",
+				"rule_action": "flee_to_healer",
+				"tick": 1,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "ally_hp_below",
+				"rule_action": "heal_lowest_hp_ally",
+				"tick": 1,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1,
+				"unit": "ブルート"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 510,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 654,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 846,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 926,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 927,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1010,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1011,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1153,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1154,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 1158,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1304,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1305,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1322,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1323,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 1352,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1403,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1404,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1469,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1470,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1512,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1513,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1516,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "focus_fire",
+				"tick": 1517,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1541,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1542,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1560,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1561,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1564,
+				"unit": "レン(射撃)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1573,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1574,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1581,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1582,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1586,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1587,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1590,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1591,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1592,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "nearest_enemy_exists",
+				"rule_action": "move_to_nearest_enemy",
+				"tick": 1593,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_too_close",
+				"rule_action": "retreat_to_safe",
+				"tick": 1594,
+				"unit": "ミナ(衛生)"
+			},
+			{
+				"cond": "enemy_in_range",
+				"rule_action": "attack_nearest",
+				"tick": 1681,
+				"unit": "ブルート"
+			},
+			{
+				"cond": "self_hp_below",
+				"rule_action": "flee_to_healer",
+				"tick": 1876,
+				"unit": "レン(射撃)"
+			}
+		],
+		"finalState": {
+			"units": [
+				{
+					"hp": 0,
+					"name": "レン(射撃)",
+					"pos_x": -229.0,
+					"pos_y": -179.0
+				},
+				{
+					"hp": 0,
+					"name": "ミナ(衛生)",
+					"pos_x": -229.0,
+					"pos_y": -179.0
+				},
+				{
+					"hp": 90,
+					"name": "ブルート",
+					"pos_x": -184.991958618164,
+					"pos_y": -151.793258666992
+				}
+			]
+		},
+		"focusChanges": [
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 846
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 906
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 966
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1158
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1218
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1278
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1352
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1412
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1472
+			},
+			{
+				"target": "ブルート",
+				"team": 0,
+				"tick": 1532
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1681
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1778
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1875
+			},
+			{
+				"target": "レン(射撃)",
+				"team": 1,
+				"tick": 1972
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 2069
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 2166
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 2263
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 2360
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 2457
+			},
+			{
+				"target": "ミナ(衛生)",
+				"team": 1,
+				"tick": 2554
+			}
+		],
+		"heals": [
+			{
+				"amount": 18,
+				"source": "ミナ(衛生)",
+				"tick": 509,
+				"unit": "レン(射撃)"
+			},
+			{
+				"amount": 18,
+				"source": "ミナ(衛生)",
+				"tick": 581,
+				"unit": "レン(射撃)"
+			},
+			{
+				"amount": 18,
+				"source": "ミナ(衛生)",
+				"tick": 653,
+				"unit": "レン(射撃)"
+			}
+		],
+		"outcome": "敗北… 味方が全滅した"
+	},
+	"fixedFps": 60.0,
+	"initialState": {
+		"units": {
+			"allies": [
+				{
+					"attack": 18.0,
+					"attack_cooldown": 1.0,
+					"attack_range": 240.0,
+					"color": "#4dd9e6",
+					"defense": 0.0,
+					"heal_power": 0.0,
+					"hp": 25.0,
+					"max_hp": 90.0,
+					"move_speed": 66.0,
+					"name": "レン(射撃)",
+					"pos_x": 450.0,
+					"pos_y": 360.0,
+					"radius": 15.0,
+					"role": "Shooter"
+				},
+				{
+					"attack": 8.0,
+					"attack_cooldown": 1.2,
+					"attack_range": 95.0,
+					"color": "#4de680",
+					"defense": 0.0,
+					"heal_power": 18.0,
+					"max_hp": 110.0,
+					"move_speed": 78.0,
+					"name": "ミナ(衛生)",
+					"pos_x": 300.0,
+					"pos_y": 360.0,
+					"radius": 15.0,
+					"role": "Medic"
+				}
+			],
+			"enemies": [
+				{
+					"attack": 20.0,
+					"attack_cooldown": 1.6,
+					"attack_range": 52.0,
+					"color": "#b34059",
+					"defense": 3.0,
+					"heal_power": 0.0,
+					"max_hp": 240.0,
+					"move_speed": 40.0,
+					"name": "ブルート",
+					"pos_x": 800.0,
+					"pos_y": 360.0,
+					"radius": 22.0,
+					"role": "Brute"
+				}
+			]
+		}
+	},
+	"manifest": {
+		"activePreset": "標準",
+		"captureFormatVersion": "1.0",
+		"executionTime": "2026-07-19T14:41:43",
+		"fixedFps": 60,
+		"fixtureRunnerVersion": "2.0",
+		"godotVersion": "4.6.3-stable-mono",
+		"hashes": {
+			"config.json": "ff2cb118f47d019393b66e3d1acc82b75e19d2ede157ee7eb0ce91e1a655426a",
+			"gambits.json": "e62c70cb809808d5ad285917b816a0ed543931de40f38221c61882bf644d1e99",
+			"units.json": "7f45a3fbc675432be95b7b9297dc8478dc5ee104250699e57e028a7b24d8f414"
+		},
+		"participantOrder": [
+			"レン(射撃)",
+			"ミナ(衛生)",
+			"ブルート"
+		],
+		"sourceCommit": "059f505",
+		"viewport": {
+			"height": 720,
+			"width": 1280
+		}
+	},
+	"participantOrder": [
+		"レン(射撃)",
+		"ミナ(衛生)",
+		"ブルート"
+	],
+	"sourceCommit": "059f505",
+	"viewport": {
+		"height": 720.0,
+		"width": 1280.0
+	}
+}

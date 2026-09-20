@@ -1,0 +1,183 @@
+/* ========= ダイスローラー ========= */
+#dice-header, #calc-header {
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3);
+}
+
+#dice-area, #calc-area {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ダイスのプリセットボタン群 */
+#dice-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dice-btn {
+  background: rgba(255, 180, 50, 0.12);
+  border: 1px solid rgba(255, 180, 50, 0.35);
+  color: #ffc857;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  min-width: 38px;
+  text-align: center;
+}
+
+.dice-btn:hover {
+  background: rgba(255, 180, 50, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(255, 180, 50, 0.2);
+}
+
+.dice-btn:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* カスタムロール行 */
+#dice-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#dice-count, #dice-sides {
+  width: 52px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  text-align: center;
+}
+
+#dice-custom-btn {
+  background: rgba(255, 180, 50, 0.2);
+  border: 1px solid rgba(255, 180, 50, 0.4);
+  color: #ffc857;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+#dice-custom-btn:hover {
+  background: rgba(255, 180, 50, 0.35);
+}
+
+/* 結果表示 */
+#dice-result {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffc857;
+  text-align: center;
+  padding: 6px 0 2px;
+  text-shadow: 0 0 20px rgba(255, 200, 87, 0.5);
+  letter-spacing: 1px;
+  min-height: 44px;
+  transition: all 0.2s;
+}
+
+#dice-send-gm {
+  display: block;
+  width: 100%;
+  margin: 4px 0 2px;
+  background: rgba(124, 179, 255, 0.15);
+  border: 1px solid rgba(124, 179, 255, 0.35);
+  color: #9ec5ff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+#dice-send-gm:hover:not(:disabled) {
+  background: rgba(124, 179, 255, 0.28);
+}
+
+#dice-send-gm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#dice-log {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 18px;
+}
+
+/* ========= 電卓 ========= */
+#calc-area {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#calc-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#calc-input:focus {
+  border-color: var(--accent);
+}
+
+#calc-btn {
+  background: var(--accent-dim);
+  border: 1px solid rgba(79, 142, 247, 0.4);
+  color: #fff;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+#calc-btn:hover {
+  background: rgba(79, 142, 247, 0.5);
+}
+
+#calc-result {
+  width: 100%;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-hover);
+  text-align: right;
+  padding: 2px 4px;
+  font-family: 'Courier New', monospace;
+  min-height: 30px;
+}

@@ -1,0 +1,12 @@
+{
+  "format": "text-adventure-workshop/1.0",
+  "engineVersion": "1.0.0",
+  "scenarioFile": "scenario.json",
+  "title": "Neon Rain — Missing Synapse",
+  "author": "LoreRelay (sample)",
+  "version": "1.0.0",
+  "description": "雨に濡れたネオン街で、行方不明のサービス・アンドロイドを追うサイバーパンク・ノワール。",
+  "tags": ["cyberpunk", "mystery", "solo", "noir", "starter"],
+  "license": "CC-BY-4.0",
+  "homepage": ""
+}

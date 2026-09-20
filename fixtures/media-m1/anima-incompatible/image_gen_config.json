@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "checkpoint": "Anima\\matureritualANIMA_test011.safetensors",
+  "workflowPath": "",
+  "mode": "illustrious",
+  "steps": 28,
+  "cfg": 7,
+  "width": 1024,
+  "height": 1024,
+  "samplerName": "",
+  "scheduler": "",
+  "positivePrefix": "",
+  "positiveSuffix": "",
+  "negativePrompt": ""
+}

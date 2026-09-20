@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "seed_metal_shard",
+      "kind": "material",
+      "label": "Warm black metal shard",
+      "status": "unidentified",
+      "siteId": "north_metro",
+      "notes": "Demo seed — player may find more on first ruin run.",
+      "valueHint": "likely old-world electronics housing"
+    },
+    {
+      "id": "seed_metro_rumor",
+      "kind": "quest",
+      "label": "Flickering lights in north metro",
+      "status": "identified",
+      "identifiedLabel": "Rumor: active power in tunnel section B"
+    }
+  ]
+}

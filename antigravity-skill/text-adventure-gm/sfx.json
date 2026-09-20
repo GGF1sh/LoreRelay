@@ -1,0 +1,15 @@
+{
+  "_comment": "効果音(SE)マニフェスト。同梱の合成SE（scripts/generate_sfx.py 生成）をそのまま使えます。差し替える場合は sfx/ フォルダの同名ファイルを上書きするか、ここに追記してください。",
+  "_howto": "GM は game_state.json に \"sfx\": \"dice\"（単発）または \"sfx\": [\"hit\",\"coin\"]（複数）を書くと、BGM に重ねてワンショット再生されます。",
+  "defaultVolume": 70,
+  "sounds": [
+    { "id": "click",   "file": "click.wav",   "description": "選択・決定の短いクリック音" },
+    { "id": "dice",    "file": "dice.wav",    "description": "ダイスを振る音" },
+    { "id": "success", "file": "success.wav", "description": "成功・判定クリアの上昇チャイム" },
+    { "id": "fail",    "file": "fail.wav",    "description": "失敗・判定失敗の下降ブザー" },
+    { "id": "coin",    "file": "coin.wav",    "description": "お金・アイテム入手" },
+    { "id": "hit",     "file": "hit.wav",     "description": "攻撃命中・ダメージの打撃音" },
+    { "id": "levelup", "file": "levelup.wav", "description": "レベルアップ・大きな達成" },
+    { "id": "magic",   "file": "magic.wav",   "description": "魔法・神秘的な現象のきらめき" }
+  ]
+}

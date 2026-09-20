@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "entries": [],
+  "options": [],
+  "commerce": {
+    "credits": 500,
+    "cargo": [],
+    "transportId": "wagon",
+    "playerRole": "merchant"
+  }
+}

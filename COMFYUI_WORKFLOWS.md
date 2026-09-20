@@ -1,0 +1,92 @@
+# ComfyUI Workflows (Bundled)
+
+LoreRelay は、用途別に選べる **API 形式** の ComfyUI ワークフローを同梱します。  
+一覧の正本は [`comfyui/templates.json`](comfyui/templates.json) です。
+
+これらは **情景・立ち絵・地図** を切り替えるためのテンプレートです。checkpoint（Illustrious / Pony / SDXL）は自分の ComfyUI にあるファイル名を指定します。[1.89.2の実機設定・保存先・確認範囲](docs/COMFYUI_LOCAL_PLAYCHECK.md)
+
+## どれを選ぶか
+
+| 使いたいもの | テンプレート | ファイル | 既定サイズ | mode の目安 |
+| --- | --- | --- | --- | --- |
+| 普通の情景 | 情景・SDXL・正方形 | `comfyui/workflow_sdxl_1024.json` | 1024×1024 | `illustrious` または `pony` |
+| 人物・立ち絵 | 立ち絵・SDXL・縦長 | `comfyui/workflow_sdxl_portrait.json` | 896×1152 | 同上 |
+| 場所の横構図 | 情景・SDXL・横長 | `comfyui/workflow_sdxl_landscape.json` | 1152×896 | 同上 |
+| 広い風景 | 情景・SDXL・パノラマ | `comfyui/workflow_sdxl_wide.json` | 1536×640 | 同上 |
+| 旧CLI互換グラフ | SD1.5・正方形（現行UIの選択対象外） | `comfyui/workflow_api.json` | 512×512 | 現行Media Profile未対応 |
+| 世界地図 | 世界地図・SDXL・Canny | `comfyui/workflow_cartography_sdxl_canny.json` | 1024×1024 | Cartography スクリプト |
+| 世界地図（Canny なし） | 世界地図・SDXL・直接 | `comfyui/workflow_cartography_sdxl_direct.json` | 1024×1024 | Cartography スクリプト |
+
+縦長・横長・パノラマの画素数は、ComfyUI 公式 SDXL 例（1024×1024 と同画素、または 1536×640）に合わせています。
+
+Illustrious と Pony は **同じ SDXL グラフ** に checkpoint と `mode` を差し替えます。Flux / Qwen / Z-Image 用の別グラフは、現行のシーン生成ランナーがまだ注入できないため同梱していません。
+
+## 設定
+
+1. ComfyUI（または Stability Matrix）を `http://127.0.0.1:8188` で起動する。
+2. 画像生成設定の **用途テンプレート** から、情景・立ち絵・地図を選ぶ。正本は `comfyui/templates.json`。
+3. **LoreRelay: List Image Models**、または設定パネルのローカルモデル提案で checkpoint 名を確認する。提案の適用はボタン操作のみ。判定はファイル名とローカル sidecar（`.json` / `.civitai.info` / `.cm-info.json`）に限り、Civitai への照会はこの段階では行わない。
+4. スクリプトパス（`textAdventure.skillPath`）は通常空欄。同梱版を自動選択する。明示した既存のカスタムパスは優先されるため、古いスクリプトで人物採用に失敗する場合はパスを確認する。
+5. 地図には **SDXL用ControlNet** も必要。「直接」テンプレートはCanny前処理ノードを省く方式で、ControlNet不要という意味ではない。`textAdventure.imageGen.controlNet` にComfyUIが認識する正確な名前を設定する。
+
+```json
+{
+  "mode": "illustrious",
+  "checkpoint": "YOUR_CHECKPOINT.safetensors",
+  "workflowTemplateId": "portrait-sdxl",
+  "sizeFollowsTemplate": true,
+  "steps": 28,
+  "cfg": 7
+}
+```
+
+用途テンプレートを選ぶと、対応する workflow とサイズが使われます。以前保存した `width` / `height`（例: 1024×1024）は、立ち絵を選んでも正方形に戻しません。サイズ入力を自分で変えたときだけ手動上書きになります。
+
+地図用テンプレートは世界地図生成経路だけが使います。情景生成の `TA_WORKFLOW` には載せません。
+
+`mode` はプロンプトプリセットです（`illustrious` / `pony` / `natural` / `standard`）。グラフそのものではありません。
+
+## 地図
+
+[`docs/CARTOGRAPHY_COMFYUI.md`](docs/CARTOGRAPHY_COMFYUI.md)。任意 LoRA: [`docs/CARTOGRAPHY_RECOMMENDED_LORAS.md`](docs/CARTOGRAPHY_RECOMMENDED_LORAS.md)。
+
+```powershell
+python scripts/render_cartography_layout.py .\world_forge.json .\world_map.layout.png
+python scripts/comfyui_generate_cartography.py .\world_forge.json .\output
+```
+
+## CLI / GM スクリプト
+
+`comfyui_generate.py` は次を受けます。
+
+- `TA_WORKFLOW` — 上の JSON へのパス
+- `TA_CHECKPOINT`, `TA_STEPS`, `TA_CFG`, `TA_WIDTH`, `TA_HEIGHT`, `TA_MODE`
+
+未指定時の既定: `TextAdventureGMSkill/scripts/workflow_api.json`（`comfyui/workflow_api.json` と同じグラフ）。
+
+シーン生成テンプレートは、ランナーが次のノード ID に書き込みます。
+
+| ID | 役割 |
+| --- | --- |
+| 3 | KSampler（steps / cfg / seed / sampler） |
+| 4 | CheckpointLoaderSimple |
+| 5 | EmptyLatentImage（width / height） |
+| 6 | Positive `CLIPTextEncode` |
+| 7 | Negative `CLIPTextEncode` |
+
+自作 API グラフを足す場合も、この契約に合わせます。
+
+## まだ同梱していないもの
+
+次は公式 ComfyUI テンプレートはありますが、LoreRelay のシーン生成注入（上記ノード契約）と Media Profile がまだ対応していません。ファイルだけ置いても動きません。
+
+- Flux.1 / Flux.2 / Z-Image / Qwen-Image の T2I
+- Qwen-Image-Edit、Flux Kontext などの編集専用グラフ
+- Partner API（Nano Banana、Grok Imagine 等）
+
+## トラブル
+
+- **Checkpoint not found** — List Image Models の名前と完全一致させる。
+- **Sampler / scheduler warnings** — 未対応キーは無視する。
+- 生成が重いとき — 同じ対応SDXLモデルのままステップ数を下げて確認する。モデル系統の違う旧SD1.5グラフへ切り替えない。
+- 場所画像は場所ごとの表示候補として保存する。生成中に移動しても別の場所へ付け替えない。世界変更・Undo・元の場面や画像の変更で採用できなくなった成果は `output` に残し、必要なら手動で取り込む。

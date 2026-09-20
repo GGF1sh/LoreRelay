@@ -1,0 +1,149 @@
+/* ========= BGM プレイヤー ========= */
+#bgm-header {
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#bgm-mode {
+  font-size: 9px;
+  font-weight: 700;
+  color: #b388ff;
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.35);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 1px;
+}
+
+#bgm-area {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#bgm-now {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c8a8ff;
+  text-align: center;
+  min-height: 18px;
+  text-shadow: 0 0 14px rgba(179, 136, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#bgm-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#bgm-toggle, #bgm-mute {
+  background: rgba(179, 136, 255, 0.15);
+  border: 1px solid rgba(179, 136, 255, 0.35);
+  color: #c8a8ff;
+  width: 34px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+#bgm-toggle:hover, #bgm-mute:hover {
+  background: rgba(179, 136, 255, 0.3);
+}
+
+#bgm-volume {
+  flex: 1;
+  min-width: 0;
+  accent-color: #b388ff;
+  cursor: pointer;
+}
+
+#bgm-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bgm-item {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.bgm-item:hover {
+  background: rgba(179, 136, 255, 0.18);
+  color: var(--text);
+}
+
+.bgm-item.active {
+  background: rgba(179, 136, 255, 0.3);
+  border-color: #b388ff;
+  color: #fff;
+}
+
+#bgm-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* SE コントロール行 */
+#sfx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-border);
+}
+
+#sfx-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffc857;
+  flex-shrink: 0;
+}
+
+#sfx-volume {
+  flex: 1;
+  min-width: 0;
+  accent-color: #ffc857;
+  cursor: pointer;
+}
+
+#sfx-mute {
+  background: rgba(255, 200, 87, 0.15);
+  border: 1px solid rgba(255, 200, 87, 0.35);
+  color: #ffc857;
+  width: 34px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+#sfx-mute:hover {
+  background: rgba(255, 200, 87, 0.3);
+}

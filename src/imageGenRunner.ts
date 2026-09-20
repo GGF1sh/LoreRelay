@@ -1,0 +1,1042 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+import type { ChildProcess } from 'child_process';
+import { spawnWithTimeout } from './spawnWithTimeout';
+import { t } from './i18n';
+import {
+    getImageGenConfigPath,
+    loadImageGenConfig,
+    saveImageGenConfig,
+    sanitizeImageGenConfig,
+    type ImageGenConfig
+} from './imageGenConfig';
+import { isValidEntryId } from './entryId';
+import { getWorkspacePath, getGameStatePath, writeJsonAtomic } from './workspacePaths';
+import { findLastGmEntry } from './checkpoint';
+import type { GameEntry } from './types/GameState';
+import {
+    getGameEntryHistory,
+    safeImageUri,
+    saveHistoryToDisk
+} from './gameStateSync';
+import { resolvePythonCommand } from './skillScriptRunner';
+import { buildVlmMetaFromGameState } from './vlmQueue';
+import { resolveAllowedImagePath, toWebviewSafeMediaRef } from './mediaPaths';
+import {
+    createImageGenCircuitState,
+    isImageGenCircuitOpen,
+    recordImageGenFailure,
+    recordImageGenSuccess,
+    type ImageGenCircuitState,
+} from './imageGenCircuitCore';
+import { formatModelSize, scanLocalModelRoots, type LocalModelFile } from './modelScanner';
+import { commitGameState } from './stateManager';
+import { loadExistingAcceptedTurnScope } from './acceptedTurnReplayGuard';
+import { cartographyWorldKey } from './cartographyOverlayCore';
+import { parseWorldForge } from './worldForgeCore';
+import { saveLocationImageCandidate } from './locationImageCandidates';
+import { isValidEventId } from './worldEventLogCore';
+import {
+    executeAfterMediaPreflight,
+    preflightSceneGeneration,
+    type MediaPreflightResult,
+} from './mediaCompatibility';
+import {
+    getCatalogTemplate,
+    listMapTemplates,
+    listSceneTemplates,
+} from './comfyWorkflowCatalogCore';
+import { parseComfyCheckpointListOutput, suggestImageGenModel } from './imageGenModelSuggestCore';
+import {
+    applyWorkflowTemplateToSnapshot,
+} from './imageGenSettingsResolveCore';
+import {
+    collectLocalImageGenModelSuggestions,
+    readLocalModelSidecar,
+    getBundledComfyRoot,
+    loadBundledWorkflowCatalog,
+    resolveWorkspaceImageGenSettings,
+    resolvedSettingsPreview,
+} from './imageGenSettingsHost';
+
+let imageOutputChannel: vscode.OutputChannel | undefined;
+let imageGenerationProcess: ChildProcess | undefined;
+let listModelsProcess: ChildProcess | undefined;
+
+interface ImageGenJob {
+    prompt: string;
+    mode: string;
+    entryId?: string;
+    context: ImageJobContext;
+}
+
+interface ImageJobContext {
+    workspace: string;
+    scopeKey: string;
+    worldKey: string;
+    epoch: number;
+    entrySnapshot?: string;
+    meta: ReturnType<typeof buildVlmMetaFromGameState>;
+}
+
+let imageJobEpoch = 0;
+let activeEntryId: string | undefined;
+
+function imageWorldKey(workspace: string): string {
+    const file = path.join(workspace, 'world_forge.json');
+    if (!fs.existsSync(file)) return '';
+    const forge = parseWorldForge(JSON.parse(fs.readFileSync(file, 'utf8')));
+    if (!forge) throw new Error('Invalid image world');
+    // Match the normalized document used by World View, including legacy coordinates/defaults.
+    return cartographyWorldKey(forge);
+}
+
+function imageScopeKey(workspace: string): string {
+    const scope = loadExistingAcceptedTurnScope(workspace);
+    return JSON.stringify([scope?.campaignInstanceId, scope?.timelineEpochId]);
+}
+
+function entrySnapshot(entry?: GameEntry): string | undefined {
+    return entry ? JSON.stringify([entry.role, entry.content, entry.image, entry.locationId, entry.worldTurn]) : undefined;
+}
+
+function imageTargetState(workspace: string, entryId?: string) {
+    const file = path.join(workspace, 'game_state.json');
+    const state = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : undefined;
+    const diskEntry: GameEntry | undefined = Array.isArray(state?.entries)
+        ? state.entries.find((e: GameEntry | null) => e && e.id === entryId) : undefined;
+    return { state, diskEntry, historyEntry: getGameEntryHistory().find(e => e.id === entryId) };
+}
+
+function captureImageJobContext(workspace: string, entryId?: string): ImageJobContext {
+    const { state, diskEntry, historyEntry } = imageTargetState(workspace, entryId);
+    const entry = historyEntry ?? diskEntry;
+    // Accepted turns reach game_state before the history watcher. Stream hints may precede both.
+    if (entryId && isValidEntryId(entryId) && entryId !== 'genesis' && !entry) {
+        throw new Error('Image target has not been saved yet');
+    }
+    if (historyEntry && diskEntry && entrySnapshot(historyEntry) !== entrySnapshot(diskEntry)) {
+        throw new Error('Image target is still synchronizing');
+    }
+    const meta = buildVlmMetaFromGameState();
+    const sourceLocation = entry?.locationId ?? state?.world?.currentLocationId ?? meta.locationId;
+    meta.locationId = typeof sourceLocation === 'string' && isValidEventId(sourceLocation) ? sourceLocation : undefined;
+    if (typeof entry?.worldTurn === 'number' && Number.isFinite(entry.worldTurn)) meta.worldTurn = entry.worldTurn;
+    return { workspace, scopeKey: imageScopeKey(workspace), worldKey: imageWorldKey(workspace),
+        epoch: imageJobEpoch, entrySnapshot: entrySnapshot(entry), meta };
+}
+
+function imageJobIsCurrent(context: ImageJobContext, entryId?: string): boolean {
+    try {
+        const { diskEntry, historyEntry } = imageTargetState(context.workspace, entryId);
+        return context.epoch === imageJobEpoch && getWorkspacePath() === context.workspace
+            && context.scopeKey === imageScopeKey(context.workspace) && context.worldKey === imageWorldKey(context.workspace)
+            && (!entryId || !isValidEntryId(entryId) || entryId === 'genesis'
+                || (context.entrySnapshot !== undefined && Boolean(historyEntry || diskEntry)
+                    && (!historyEntry || context.entrySnapshot === entrySnapshot(historyEntry))
+                    && (!diskEntry || context.entrySnapshot === entrySnapshot(diskEntry))));
+    } catch { return false; }
+}
+
+interface ImageExecutionOutcome {
+    success: boolean;
+    preflightRejected: boolean;
+}
+
+const imageGenQueue: ImageGenJob[] = [];
+let drainingImageQueue = false;
+const queuedEntryIds = new Set<string>();
+let imageGenCircuit: ImageGenCircuitState = createImageGenCircuitState();
+
+export interface ImageGenRunnerDeps {
+    getPanel: () => vscode.WebviewPanel | undefined;
+    extensionPath: string;
+    subscriptions: vscode.Disposable[];
+}
+
+let deps: ImageGenRunnerDeps | undefined;
+
+export function initImageGenRunner(runnerDeps: ImageGenRunnerDeps): void {
+    deps = runnerDeps;
+}
+
+function requireDeps(): ImageGenRunnerDeps {
+    if (!deps) {
+        throw new Error('initImageGenRunner must be called before using image generation');
+    }
+    return deps;
+}
+
+export function getImageOutputChannel(): vscode.OutputChannel {
+    if (!imageOutputChannel) {
+        imageOutputChannel = vscode.window.createOutputChannel('LoreRelay: Image Gen');
+        deps?.subscriptions.push(imageOutputChannel);
+    }
+    return imageOutputChannel;
+}
+
+export function isImageGenerationBusy(): boolean {
+    return Boolean(imageGenerationProcess);
+}
+
+export function getImageQueueLength(): number {
+    return imageGenQueue.length;
+}
+
+/** Keep pending work deduplicated across turns; completed entries can be regenerated. */
+export function resetImageQueueDedup(): void {
+    queuedEntryIds.clear();
+    for (const job of imageGenQueue) if (job.entryId) queuedEntryIds.add(job.entryId);
+    if (activeEntryId) queuedEntryIds.add(activeEntryId);
+}
+
+export function killImageGenerationProcess(): void {
+    imageJobEpoch++;
+    activeEntryId = undefined;
+    if (imageGenerationProcess) {
+        imageGenerationProcess.kill();
+        imageGenerationProcess = undefined;
+    }
+    if (listModelsProcess) {
+        listModelsProcess.kill();
+        listModelsProcess = undefined;
+    }
+    imageGenQueue.length = 0;
+    queuedEntryIds.clear();
+    drainingImageQueue = false;
+    imageGenCircuit = createImageGenCircuitState();
+}
+
+export function getImageGenCircuitState(): ImageGenCircuitState {
+    return { ...imageGenCircuit };
+}
+
+function getMaxImageQueueSize(): number {
+    const max = vscode.workspace.getConfiguration('textAdventure').get<number>('mediaAgent.maxImageQueue', 5);
+    return Math.max(1, Math.min(20, max));
+}
+
+/** Enqueue ComfyUI generation (MediaAgent / manual retry when busy). Returns false if duplicate or queue full. */
+export function enqueueImageGeneration(prompt: string, mode: string, entryId?: string): boolean {
+    if (isImageGenCircuitOpen(imageGenCircuit, Date.now())) {
+        getImageOutputChannel().appendLine('[Circuit] Image generation paused after repeated failures — text-only play continues.');
+        return false;
+    }
+    if (entryId && queuedEntryIds.has(entryId)) {
+        return false;
+    }
+    if (imageGenQueue.length >= getMaxImageQueueSize()) {
+        getImageOutputChannel().appendLine(`[Queue] Dropped image job — queue full (${getMaxImageQueueSize()})`);
+        return false;
+    }
+    const wsPath = getWorkspacePath();
+    const scriptPath = wsPath ? resolveComfyScript(wsPath) : undefined;
+    if (wsPath && scriptPath) {
+        const preflight = preflightSceneGeneration(
+            wsPath,
+            buildImageGenEnv(wsPath, mode),
+            path.join(path.dirname(scriptPath), 'workflow_api.json')
+        );
+        if (!preflight.ok) {
+            reportMediaCompatibilityFailure(preflight, { revealOutput: false });
+            return false;
+        }
+    }
+    if (!wsPath || !scriptPath) {
+        getImageOutputChannel().appendLine('Image script unavailable. Open image settings and check the script path.');
+        return false;
+    }
+    let context: ImageJobContext;
+    try { context = captureImageJobContext(wsPath, entryId); }
+    catch (error) { getImageOutputChannel().appendLine(`Image target unavailable: ${String(error)}`); return false; }
+    imageGenQueue.push({ prompt, mode, entryId, context });
+    if (entryId) {
+        queuedEntryIds.add(entryId);
+    }
+    void drainImageQueue();
+    return true;
+}
+
+async function drainImageQueue(): Promise<void> {
+    if (drainingImageQueue || imageGenerationProcess) {
+        return;
+    }
+    drainingImageQueue = true;
+    const drainEpoch = imageJobEpoch;
+    const channel = getImageOutputChannel();
+    try {
+        while (drainEpoch === imageJobEpoch && imageGenQueue.length > 0 && !imageGenerationProcess) {
+            if (isImageGenCircuitOpen(imageGenCircuit, Date.now())) {
+                imageGenQueue.length = 0;
+                channel.appendLine('[Circuit] Cleared pending image queue after circuit opened.');
+                break;
+            }
+            const job = imageGenQueue.shift();
+            if (!job) {
+                break;
+            }
+            let outcome: ImageExecutionOutcome = { success: false, preflightRejected: false };
+            try {
+                outcome = await executeImageGenerationOutcome(job.prompt, job.mode, job.entryId, { fromQueue: true }, job.context);
+            } catch (err) {
+                const detail = err instanceof Error ? err.message : String(err);
+                channel.appendLine(`[Queue] Image job error: ${detail}`);
+                outcome = { success: false, preflightRejected: false };
+            }
+            if (drainEpoch !== imageJobEpoch) break;
+            if (outcome.preflightRejected) {
+                channel.appendLine('[Compatibility] Queue job rejected without consuming circuit-breaker failure count.');
+            } else if (outcome.success) {
+                imageGenCircuit = recordImageGenSuccess(imageGenCircuit);
+            } else {
+                const opened = recordImageGenFailure(imageGenCircuit, Date.now());
+                imageGenCircuit = opened.state;
+                if (opened.circuitOpened) {
+                    channel.appendLine('[Circuit] Image generation paused for 5 minutes after repeated failures.');
+                    imageGenQueue.length = 0;
+                    break;
+                }
+            }
+            if (job.entryId) {
+                queuedEntryIds.delete(job.entryId);
+            }
+        }
+    } finally {
+        if (drainEpoch === imageJobEpoch) drainingImageQueue = false;
+    }
+}
+
+/** comfyui_generate.py の場所を設定・既知パスから解決する。 */
+export function resolveComfyScript(wsPath: string): string | undefined {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    let scriptPath = config.get<string>('skillPath') || '';
+
+    if (!scriptPath || !fs.existsSync(scriptPath)) {
+        const possiblePaths = [
+            path.join(wsPath, '.agents', 'skills', 'text-adventure-gm', 'scripts', 'comfyui_generate.py'),
+            path.join(wsPath, '.grok', 'skills', 'text-adventure-gm', 'scripts', 'comfyui_generate.py'),
+            path.join(getImageGenExtensionPath(), 'antigravity-skill', 'text-adventure-gm', 'scripts', 'comfyui_generate.py'),
+            path.join('C:', 'AI', 'TextAdventureGMSkill', 'scripts', 'comfyui_generate.py')
+        ];
+        scriptPath = '';
+        for (const p of possiblePaths) {
+            if (fs.existsSync(p)) { scriptPath = p; break; }
+        }
+    }
+    return scriptPath || undefined;
+}
+
+/** GM スキルフォルダ（comfyui_generate.py の2階層上）を解決する。同梱SE等の参照に使う。 */
+export function getSkillDir(): string | undefined {
+    const wsPath = getWorkspacePath() || process.cwd();
+    const scriptPath = resolveComfyScript(wsPath);
+    if (!scriptPath) { return undefined; }
+    return path.dirname(path.dirname(scriptPath));
+}
+
+function getImageGenExtensionPath(): string {
+    return deps?.extensionPath || path.join(__dirname, '..');
+}
+
+function getConfiguredModelScanRoots(): string[] {
+    const config = vscode.workspace.getConfiguration('textAdventure');
+    return config.get<string[]>('modelScan.roots', [])
+        .filter((v) => typeof v === 'string' && v.trim().length > 0);
+}
+
+/** 画像生成バックエンド設定を comfyui_generate.py へ渡す環境変数として構築する。 */
+export function buildImageGenEnv(wsPath?: string, requestedMode?: string): NodeJS.ProcessEnv {
+    const vsConfig = vscode.workspace.getConfiguration('textAdventure');
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    const wsConfig = wsPath ? loadImageGenConfig(wsPath) : undefined;
+    const workspace = wsPath ? resolveWorkspaceImageGenSettings(wsPath, getImageGenExtensionPath()) : undefined;
+
+    if (wsPath) {
+        env.TA_IMAGE_CONFIG = getImageGenConfigPath(wsPath);
+    }
+
+    const url = vsConfig.get<string>('imageGen.comfyuiUrl', '').trim();
+    if (url) { env.COMFYUI_URL = url; }
+
+    const checkpoint = wsConfig?.checkpoint || vsConfig.get<string>('imageGen.checkpoint', '').trim();
+    if (checkpoint) { env.TA_CHECKPOINT = checkpoint; }
+
+    const resolvedWorkflow = workspace?.sceneWorkflowPath
+        || wsConfig?.workflowPath
+        || vsConfig.get<string>('imageGen.workflowPath', '').trim();
+    if (resolvedWorkflow) { env.TA_WORKFLOW = resolvedWorkflow; }
+
+    const steps = (wsConfig && wsConfig.steps > 0) ? wsConfig.steps : vsConfig.get<number>('imageGen.steps', 0);
+    if (steps > 0) { env.TA_STEPS = String(steps); }
+    const cfgVal = (wsConfig && wsConfig.cfg > 0) ? wsConfig.cfg : vsConfig.get<number>('imageGen.cfg', 0);
+    if (cfgVal > 0) { env.TA_CFG = String(cfgVal); }
+    const resolvedWidth = workspace?.resolved.width || 0;
+    const resolvedHeight = workspace?.resolved.height || 0;
+    const width = resolvedWidth > 0 ? resolvedWidth : vsConfig.get<number>('imageGen.width', 0);
+    if (width > 0) { env.TA_WIDTH = String(width); }
+    const height = resolvedHeight > 0 ? resolvedHeight : vsConfig.get<number>('imageGen.height', 0);
+    if (height > 0) { env.TA_HEIGHT = String(height); }
+
+    if (wsConfig?.samplerName) { env.TA_SAMPLER = wsConfig.samplerName; }
+    if (wsConfig?.scheduler) { env.TA_SCHEDULER = wsConfig.scheduler; }
+    if (wsConfig?.positivePrefix) { env.TA_POSITIVE_PREFIX = wsConfig.positivePrefix; }
+    if (wsConfig?.positiveSuffix) { env.TA_POSITIVE_SUFFIX = wsConfig.positiveSuffix; }
+    if (wsConfig?.negativePrompt) { env.TA_NEGATIVE_PROMPT = wsConfig.negativePrompt; }
+    if (requestedMode) { env.TA_MODE = requestedMode; }
+    else if (wsConfig?.mode) { env.TA_MODE = wsConfig.mode; }
+
+    return env;
+}
+
+export function reportMediaCompatibilityFailure(
+    preflight: MediaPreflightResult,
+    options?: { revealOutput?: boolean }
+): void {
+    const channel = getImageOutputChannel();
+    if (options?.revealOutput !== false) {
+        channel.show(true);
+    }
+    channel.appendLine('[Compatibility] Media generation rejected before ComfyUI queue/spawn.');
+    channel.appendLine(`[Compatibility] profile=${preflight.profileId || '(unresolved)'} model=${preflight.modelFamily} graph=${preflight.graphFamily} kind=${preflight.mediaKind}`);
+    channel.appendLine(`[Compatibility] workflow=${preflight.workflowPath}`);
+    for (const reason of preflight.reasons) {
+        channel.appendLine(`[Compatibility:${reason.code}] ${reason.message}${reason.detail ? ` (${reason.detail})` : ''}`);
+    }
+    vscode.window.showErrorMessage(t('extension.error.mediaCompatibility', { detail: preflight.message }));
+}
+
+function postImageGenConfig(wsPath?: string): void {
+    const { getPanel } = requireDeps();
+    const panel = getPanel();
+    const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
+    const catalog = loadBundledWorkflowCatalog(bundledRoot);
+    const config = wsPath ? loadImageGenConfig(wsPath) : sanitizeImageGenConfig({});
+    const workspace = wsPath
+        ? resolveWorkspaceImageGenSettings(wsPath, getImageGenExtensionPath())
+        : undefined;
+    const resolved = workspace?.resolved;
+    panel?.webview.postMessage({
+        type: 'imageGenConfig',
+        config,
+        catalog: {
+            scene: listSceneTemplates(catalog),
+            map: listMapTemplates(catalog),
+        },
+        resolved: resolved
+            ? resolvedSettingsPreview(resolved, workspace?.cartographyWorkflowFile || '')
+            : undefined,
+    });
+}
+
+export function sendImageGenConfig(): void {
+    postImageGenConfig(getWorkspacePath());
+}
+
+export async function handleUpdateImageGenConfig(raw: unknown): Promise<void> {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    try {
+        const current = loadImageGenConfig(wsPath);
+        const partial = (raw && typeof raw === 'object') ? raw as Partial<ImageGenConfig> : {};
+        saveImageGenConfig(wsPath, { ...current, ...partial, templates: { ...current.templates, ...(partial.templates || {}) } });
+        postImageGenConfig(wsPath);
+    } catch (e) {
+        console.error('Failed to save image_gen_config.json:', e);
+        vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
+    }
+}
+
+export async function handleSelectImageGenTemplate(raw: unknown): Promise<void> {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    const source = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+    const group = source.group === 'map' ? 'map' : 'scene';
+    const id = typeof source.id === 'string' ? source.id.trim().toLowerCase() : '';
+    const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
+    const catalog = loadBundledWorkflowCatalog(bundledRoot);
+    try {
+        const stored = loadImageGenConfig(wsPath);
+        const edits = source.config && typeof source.config === 'object' && !Array.isArray(source.config)
+            ? source.config as Partial<ImageGenConfig> : {};
+        const current = sanitizeImageGenConfig({ ...stored, ...edits, templates: { ...stored.templates, ...(edits.templates || {}) } });
+        if (!id) {
+            if (group === 'map') {
+                saveImageGenConfig(wsPath, { ...current, cartographyTemplateId: '' });
+            } else {
+                saveImageGenConfig(wsPath, { ...current, workflowTemplateId: '', workflowPath: '' });
+            }
+            postImageGenConfig(wsPath);
+            return;
+        }
+        const template = getCatalogTemplate(catalog, id);
+        if (!template || (group === 'map' ? template.kind !== 'world_map' : !listSceneTemplates(catalog).includes(template))) {
+            vscode.window.showWarningMessage(t('extension.error.imageGenTemplateUnknown'));
+            return;
+        }
+        const applied = applyWorkflowTemplateToSnapshot(current, template, bundledRoot);
+        saveImageGenConfig(wsPath, applied);
+        postImageGenConfig(wsPath);
+    } catch (e) {
+        console.error('Failed to apply image-gen template:', e);
+        vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
+    }
+}
+
+async function collectKnownComfyCheckpointNames(wsPath: string): Promise<string[] | undefined> {
+    if (listModelsProcess || !vscode.workspace.isTrusted) {
+        return undefined;
+    }
+    const scriptPath = resolveComfyScript(wsPath);
+    if (!scriptPath) {
+        return undefined;
+    }
+    const python = resolvePythonCommand();
+    const env = buildImageGenEnv(wsPath);
+    let stdout = '';
+    const { child, result } = spawnWithTimeout(
+        python,
+        [scriptPath, '--list-models'],
+        { env, timeoutMs: 15_000 },
+        {
+            stdout: (out) => { stdout += out; },
+        }
+    );
+    listModelsProcess = child;
+    try {
+        const { code, timedOut } = await result;
+        if (timedOut || code !== 0) {
+            return undefined;
+        }
+        const names = parseComfyCheckpointListOutput(stdout);
+        return names.length > 0 ? names : undefined;
+    } finally {
+        listModelsProcess = undefined;
+    }
+}
+
+export async function handleRequestImageGenModelSuggestions(): Promise<void> {
+    const { getPanel } = requireDeps();
+    const panel = getPanel();
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    const roots = getConfiguredModelScanRoots();
+    const knownComfyNames = await collectKnownComfyCheckpointNames(wsPath);
+    const suggestions = collectLocalImageGenModelSuggestions({ roots, knownComfyNames });
+    panel?.webview.postMessage({
+        type: 'imageGenModelSuggestions',
+        suggestions,
+        comfyVerified: Array.isArray(knownComfyNames),
+        rootCount: roots.length,
+    });
+}
+
+/** Local inventory plus the existing ComfyUI checkpoint probe; never downloads models. */
+export async function handleWorldMapModels(message: Record<string, unknown>): Promise<void> {
+    const panel = requireDeps().getPanel(), wsPath = getWorkspacePath();
+    if (!wsPath) return;
+    const post = (value: object) => { void panel?.webview.postMessage({ type: 'worldMapModelsState', ...value }); };
+    try {
+        if (message.action === 'addRoot') {
+            const selected = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false,
+                canSelectMany: true, title: 'ComfyUI / Stability Matrix / モデルフォルダ' });
+            if (!selected?.length) { post({ status: 'cancelled' }); return; }
+            const config = vscode.workspace.getConfiguration('textAdventure');
+            const roots = [...new Set([...getConfiguredModelScanRoots(), ...selected.map(uri => uri.fsPath)])];
+            await config.update('modelScan.roots', roots, vscode.ConfigurationTarget.Workspace);
+        }
+        post({ status: 'loading' });
+        const roots = getConfiguredModelScanRoots();
+        const known = vscode.workspace.isTrusted ? await collectKnownComfyCheckpointNames(wsPath) : undefined;
+        const rows = scanLocalModelRoots(roots).map(model => {
+            const sidecar = readLocalModelSidecar(model.absolutePath);
+            const suggestion = suggestImageGenModel({ comfyName: model.comfyName, relativePath: model.relativePath,
+                category: model.category, ...sidecar, knownComfyNames: known });
+            const metadata = sidecar.sidecar as Record<string, any> | undefined;
+            const modelType = String(metadata?.type || metadata?.Type || metadata?.model?.type || metadata?.Model?.Type || '');
+            const compatible = !/lora|locon|embedding|vae|controlnet/i.test(modelType)
+                && ['checkpoint', 'other'].includes(model.category) && suggestion.status !== 'unresolved'
+                && ['sdxl', 'pony'].includes(suggestion.modelFamily);
+            return { ...suggestion, compatible, id: model.absolutePath, size: formatModelSize(model.sizeBytes),
+                reason: compatible ? 'SDXL map workflow; image quality is not evaluated.'
+                    : 'Not a verified SDXL checkpoint for the current map workflow. ' + suggestion.reasons.join(' ') };
+        });
+        if (message.action === 'apply') {
+            const selected = rows.find(row => row.id === message.id);
+            if (!selected?.compatible || !['map-sdxl-canny', 'map-sdxl-direct'].includes(String(message.templateId))) {
+                throw new Error('Model or map workflow is incompatible; refresh the list');
+            }
+            saveImageGenConfig(wsPath, { checkpoint: selected.comfyName, modelFamily: selected.modelFamily,
+                profileId: selected.profileId,
+                mode: selected.mode || 'natural', cartographyTemplateId: String(message.templateId) });
+            postImageGenConfig(wsPath);
+        }
+        post({ status: message.action === 'apply' ? 'applied' : 'ready', roots, rows,
+            comfyVerified: Array.isArray(known), selected: loadImageGenConfig(wsPath).checkpoint });
+    } catch (error) { post({ status: 'error', error: error instanceof Error ? error.message : String(error) }); }
+}
+
+export async function handleApplyImageGenModelSuggestion(raw: unknown): Promise<void> {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+    const comfyName = typeof raw === 'string'
+        ? raw.trim()
+        : (raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>).comfyName === 'string'
+            ? String((raw as Record<string, unknown>).comfyName).trim()
+            : '');
+    if (!comfyName) {
+        return;
+    }
+    const roots = getConfiguredModelScanRoots();
+    const knownComfyNames = await collectKnownComfyCheckpointNames(wsPath);
+    const suggestion = collectLocalImageGenModelSuggestions({ roots, knownComfyNames })
+        .find((row) => row.comfyName === comfyName);
+    if (!suggestion || suggestion.status === 'unresolved') {
+        vscode.window.showWarningMessage(t('extension.error.imageGenSuggestionUnresolved'));
+        return;
+    }
+    try {
+        const current = loadImageGenConfig(wsPath);
+        const bundledRoot = getBundledComfyRoot(getImageGenExtensionPath());
+        const catalog = loadBundledWorkflowCatalog(bundledRoot);
+        let next: Partial<ImageGenConfig> = {
+            checkpoint: suggestion.comfyName,
+            modelFamily: suggestion.modelFamily,
+            mode: suggestion.mode || current.mode,
+            profileId: suggestion.profileId || current.profileId,
+        };
+        if (suggestion.workflowTemplateId) {
+            const template = getCatalogTemplate(catalog, suggestion.workflowTemplateId);
+            if (template && template.kind !== 'world_map') {
+                next = {
+                    ...next,
+                    ...applyWorkflowTemplateToSnapshot({ ...current, ...next, width: current.width, height: current.height }, template, bundledRoot),
+                };
+            }
+        }
+        saveImageGenConfig(wsPath, next);
+        postImageGenConfig(wsPath);
+    } catch (e) {
+        console.error('Failed to apply image-gen model suggestion:', e);
+        vscode.window.showErrorMessage(t('extension.error.imageGenConfigSaveFailed'));
+    }
+}
+
+/** 履歴・game_state を entry.id で画像更新し、Webview に patch を送る。 */
+export function applyImageToEntryById(wsPath: string, entryId: string, imagePath: string, prompt: string,
+    sourceMeta = buildVlmMetaFromGameState(prompt)): boolean {
+    const { getPanel } = requireDeps();
+    const history = getGameEntryHistory();
+    const histIdx = history.findIndex((e) => e.id === entryId);
+    if (histIdx < 0) {
+        return false;
+    }
+
+    history[histIdx] = {
+        ...history[histIdx],
+        image: imagePath,
+        imagePrompt: prompt,
+        locationId: sourceMeta.locationId,
+        worldTurn: sourceMeta.worldTurn,
+    };
+    saveHistoryToDisk();
+
+    const statePath = path.join(wsPath, 'game_state.json');
+    if (fs.existsSync(statePath)) {
+        try {
+            const stateData = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
+            let stateUpdated = false;
+            const entries = stateData.entries;
+            if (Array.isArray(entries)) {
+                const ei = entries.findIndex(
+                    (e) => typeof e === 'object' && e !== null && (e as GameEntry).id === entryId
+                );
+                if (ei >= 0) {
+                    const row = entries[ei] as Record<string, unknown>;
+                    row.image = imagePath;
+                    row.imagePrompt = prompt;
+                    row.locationId = sourceMeta.locationId;
+                    row.worldTurn = sourceMeta.worldTurn;
+                    stateUpdated = true;
+                }
+            }
+            const lastGm = findLastGmEntry(history);
+            const currentLocation = (stateData.world as Record<string, unknown> | undefined)?.currentLocationId;
+            if (lastGm?.id === entryId && (!sourceMeta.locationId || sourceMeta.locationId === currentLocation)) {
+                stateData.latestImage = imagePath;
+                stateUpdated = true;
+            }
+            if (stateUpdated) {
+                commitGameState(stateData);
+            }
+        } catch {
+            // game_state 更新失敗は履歴更新だけでも続行
+        }
+    }
+
+    const uri = safeImageUri(imagePath);
+    const panel = getPanel();
+    if (panel && uri) {
+        panel.webview.postMessage({
+            type: 'updateEntry',
+            entry: {
+                id: entryId,
+                image: uri,
+                imagePrompt: prompt,
+                rawImagePath: toWebviewSafeMediaRef(imagePath),
+                locationId: sourceMeta.locationId,
+                worldTurn: sourceMeta.worldTurn,
+            }
+        });
+    }
+    return true;
+}
+
+const ALLOWED_IMAGE_MODES = ['pony', 'illustrious', 'natural', 'standard'] as const;
+
+function resolveImageMode(mode: string, wsPath: string): string {
+    const wsConfig = loadImageGenConfig(wsPath);
+    const defaultMode = ALLOWED_IMAGE_MODES.includes(wsConfig.mode as typeof ALLOWED_IMAGE_MODES[number])
+        ? wsConfig.mode
+        : 'illustrious';
+    return typeof mode === 'string' && ALLOWED_IMAGE_MODES.includes(mode as typeof ALLOWED_IMAGE_MODES[number])
+        ? mode
+        : defaultMode;
+}
+
+/** Workspace image_gen_config.json のモードを解決（空文字でデフォルト）。 */
+export function getResolvedImageMode(mode = ''): string {
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        return 'illustrious';
+    }
+    return resolveImageMode(mode, wsPath);
+}
+
+/** Core ComfyUI spawn — returns success. Used by queue drain and direct calls. */
+async function executeImageGenerationOutcome(
+    prompt: string,
+    mode: string,
+    entryId?: string,
+    options?: { fromQueue?: boolean },
+    queuedContext?: ImageJobContext
+): Promise<ImageExecutionOutcome> {
+    const { getPanel } = requireDeps();
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        return { success: false, preflightRejected: false };
+    }
+    let context: ImageJobContext;
+    try { context = queuedContext ?? captureImageJobContext(wsPath, entryId); }
+    catch (error) {
+        getImageOutputChannel().appendLine(`[Target] ${String(error)}`);
+        return { success: false, preflightRejected: true };
+    }
+    if (!imageJobIsCurrent(context, entryId)) {
+        getImageOutputChannel().appendLine('[Target] Skipped image job after world, timeline or source entry changed.');
+        if (entryId?.startsWith('loc:')) getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
+        return { success: false, preflightRejected: true };
+    }
+
+    const safeMode = resolveImageMode(mode, wsPath);
+    const scriptPath = resolveComfyScript(wsPath);
+    const outputDir = path.join(wsPath, 'output');
+
+    if (!scriptPath) {
+        if (!options?.fromQueue) {
+            vscode.window.showWarningMessage(t('extension.error.imageScriptNotFound'));
+        }
+        return { success: false, preflightRejected: false };
+    }
+
+    const channel = getImageOutputChannel();
+    const preflight = preflightSceneGeneration(
+        wsPath,
+        buildImageGenEnv(wsPath, safeMode),
+        path.join(path.dirname(scriptPath), 'workflow_api.json')
+    );
+    if (!preflight.ok) {
+        reportMediaCompatibilityFailure(preflight);
+        return { success: false, preflightRejected: true };
+    }
+    const env = preflight.env;
+    if (!options?.fromQueue) {
+        channel.show(true);
+    }
+    channel.appendLine(`Backend: ${env.COMFYUI_URL || 'http://127.0.0.1:8188 (default)'}`);
+    channel.appendLine(`Checkpoint: ${env.TA_CHECKPOINT || '(workflow default)'}`);
+    channel.appendLine(`${options?.fromQueue ? '[Queue] ' : ''}Generating image with mode: ${safeMode}`);
+    channel.appendLine(`Prompt: ${prompt}`);
+    getPanel()?.webview.postMessage({ type: 'imageGenStart', source: options?.fromQueue ? 'queue' : 'direct' });
+
+    const python = resolvePythonCommand();
+    const IMAGE_GEN_TIMEOUT_MS = 600_000;
+    let generatedImagePath = '';
+    let stdout = '';
+    let imageGenFinished = false;
+
+    const execution = executeAfterMediaPreflight(preflight, (validatedEnv) => spawnWithTimeout(
+        python,
+        [scriptPath, prompt, outputDir, safeMode],
+        { env: validatedEnv, timeoutMs: IMAGE_GEN_TIMEOUT_MS },
+        {
+            stdout: (out) => {
+                channel.append(out);
+                stdout += out;
+            },
+            stderr: (err) => channel.append(err),
+        }
+    ));
+    if (!execution.executed || !execution.value) {
+        return { success: false, preflightRejected: true };
+    }
+    const { child, result } = execution.value;
+    imageGenerationProcess = child;
+    activeEntryId = entryId;
+    if (entryId) queuedEntryIds.add(entryId);
+
+    return result.then(({ code, timedOut }) => {
+        if (imageGenFinished) {
+            return { success: code === 0 && !timedOut, preflightRejected: false };
+        }
+        imageGenFinished = true;
+        // A killed child's late completion must never clear a replacement job or patch a reopened panel.
+        if (context.epoch !== imageJobEpoch) return { success: false, preflightRejected: true };
+        imageGenerationProcess = undefined;
+        activeEntryId = undefined;
+        if (entryId) queuedEntryIds.delete(entryId);
+        for (const line of stdout.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (trimmed.endsWith('.png')) generatedImagePath = trimmed;
+        }
+        if (timedOut) {
+            channel.appendLine(`\nImage generation timed out after ${IMAGE_GEN_TIMEOUT_MS / 1000}s — process killed.`);
+            if (!options?.fromQueue) {
+                vscode.window.showWarningMessage('Image generation timed out. The subprocess was terminated.');
+            }
+        } else {
+            channel.appendLine(`\nProcess exited with code ${code}`);
+        }
+        const allowedPath = generatedImagePath ? resolveAllowedImagePath(generatedImagePath) : undefined;
+        let success = code === 0 && !timedOut && Boolean(allowedPath);
+        if (!imageJobIsCurrent(context, entryId)) {
+            channel.appendLine('[Target] Source changed. Generated file retained in output for manual import; no image adopted.');
+            getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: false });
+            if (entryId?.startsWith('loc:')) getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
+            if (entryId === 'genesis') getPanel()?.webview.postMessage({ type: 'genesisImageGenerated', success: false });
+            void drainImageQueue();
+            return { success: false, preflightRejected: true };
+        }
+
+        if (success && generatedImagePath && entryId) {
+            if (entryId.startsWith('loc:') && isValidEventId(entryId.slice(4))) {
+                const locationId = entryId.slice(4);
+                saveLocationImageCandidate(wsPath, { worldKey: context.worldKey, locationId, imagePath: allowedPath!,
+                    prompt, createdAt: new Date().toISOString(), worldTurn: context.meta.worldTurn });
+                getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: true, locationId });
+            } else if (entryId === 'genesis') {
+                const panel = getPanel();
+                if (panel) {
+                    const imageUri = panel.webview.asWebviewUri(vscode.Uri.file(generatedImagePath)).toString();
+                    panel.webview.postMessage({
+                        type: 'genesisImageGenerated',
+                        success: true,
+                        imageUri
+                    });
+                }
+            } else if (isValidEntryId(entryId)) {
+                const ok = applyImageToEntryById(wsPath, entryId, generatedImagePath, prompt, context.meta);
+                success = ok;
+                if (ok) {
+                    channel.appendLine(`Updated entry ${entryId} with new image`);
+                } else {
+                    channel.appendLine(`Entry ${entryId} not found in game history`);
+                }
+            }
+        } else if (entryId?.startsWith('loc:')) {
+            getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
+        } else if (entryId === 'genesis') {
+            const panel = getPanel();
+            if (panel) {
+                panel.webview.postMessage({
+                    type: 'genesisImageGenerated',
+                    success: false
+                });
+            }
+        }
+
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success });
+        if (!options?.fromQueue) {
+            if (success) {
+                imageGenCircuit = recordImageGenSuccess(imageGenCircuit);
+            } else {
+                const opened = recordImageGenFailure(imageGenCircuit, Date.now());
+                imageGenCircuit = opened.state;
+                if (opened.circuitOpened) {
+                    channel.appendLine('[Circuit] Image generation paused for 5 minutes after repeated failures.');
+                    imageGenQueue.length = 0;
+                    queuedEntryIds.clear();
+                }
+            }
+        }
+
+        void drainImageQueue();
+        return { success, preflightRejected: false };
+    }).catch((err) => {
+        if (context.epoch !== imageJobEpoch) return { success: false, preflightRejected: true };
+        imageGenerationProcess = undefined;
+        activeEntryId = undefined;
+        if (entryId) queuedEntryIds.delete(entryId);
+        const detail = err instanceof Error ? err.message : String(err);
+        channel.appendLine(`[Image Gen] Unexpected error: ${detail}`);
+        getPanel()?.webview.postMessage({ type: 'imageGenEnd', success: false });
+        if (entryId?.startsWith('loc:')) getPanel()?.webview.postMessage({ type: 'locationImageGenEnd', success: false, locationId: entryId.slice(4) });
+        if (entryId === 'genesis') {
+            getPanel()?.webview.postMessage({ type: 'genesisImageGenerated', success: false });
+        }
+        if (!options?.fromQueue) {
+            const opened = recordImageGenFailure(imageGenCircuit, Date.now());
+            imageGenCircuit = opened.state;
+        }
+        void drainImageQueue();
+        return { success: false, preflightRejected: false };
+    });
+}
+
+/** Core ComfyUI spawn result for callers that only need success/failure. */
+export async function executeImageGeneration(
+    prompt: string,
+    mode: string,
+    entryId?: string,
+    options?: { fromQueue?: boolean }
+): Promise<boolean> {
+    return (await executeImageGenerationOutcome(prompt, mode, entryId, options)).success;
+}
+
+export async function runImageGeneration(prompt: string, mode: string, entryId?: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
+    const wsPath = getWorkspacePath();
+    if (!wsPath) {
+        vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
+        return;
+    }
+
+    if (typeof prompt !== 'string' || prompt.length > 2000) {
+        vscode.window.showErrorMessage(t('extension.error.invalidPrompt'));
+        return;
+    }
+
+    const safeMode = resolveImageMode(mode, wsPath);
+
+    if (imageGenerationProcess) {
+        const queued = enqueueImageGeneration(prompt, safeMode, entryId);
+        if (queued) {
+            vscode.window.setStatusBarMessage(t('extension.status.imageQueued'), 3000);
+        } else {
+            vscode.window.showWarningMessage(t('extension.warning.imageBusy'));
+        }
+        return;
+    }
+
+    await executeImageGeneration(prompt, safeMode, entryId);
+}
+
+export function runListImageModels(): void {
+    if (!vscode.workspace.isTrusted) {
+        vscode.window.showWarningMessage(t('extension.error.untrustedWorkspace'));
+        return;
+    }
+
+    const wsPath = getWorkspacePath() || process.cwd();
+    const scriptPath = resolveComfyScript(wsPath);
+    if (!scriptPath) {
+        vscode.window.showWarningMessage(t('extension.error.comfyScriptNotFound'));
+        return;
+    }
+
+    const channel = getImageOutputChannel();
+    const env = buildImageGenEnv(wsPath);
+    channel.show(true);
+    channel.appendLine(`\n=== List Image Models (${env.COMFYUI_URL || 'http://127.0.0.1:8188'}) ===`);
+
+    const python = resolvePythonCommand();
+    const { child, result } = spawnWithTimeout(
+        python,
+        [scriptPath, '--list-models'],
+        { env, timeoutMs: 60_000 },
+        {
+            stdout: (out) => channel.append(out),
+            stderr: (err) => channel.append(err),
+        }
+    );
+    listModelsProcess = child;
+
+    void result.then(({ code, timedOut }) => {
+        listModelsProcess = undefined;
+        if (timedOut) {
+            channel.appendLine('\n[List models timed out — process killed]');
+        } else {
+            channel.appendLine(`\n[exited with code ${code ?? 'unknown'}]`);
+        }
+        appendLocalModelScan(channel);
+    });
+}
+
+function appendLocalModelScan(channel: vscode.OutputChannel): LocalModelFile[] {
+    const roots = getConfiguredModelScanRoots();
+    if (!roots.length) {
+        channel.appendLine('\n=== Local Model Scan ===');
+        channel.appendLine('No roots configured. Set textAdventure.modelScan.roots to your Stability Matrix / ComfyUI / model folders.');
+        return [];
+    }
+    const models = scanLocalModelRoots(roots);
+    channel.appendLine('\n=== Local Model Scan (.safetensors / .gguf / .ckpt / .pt / .bin) ===');
+    channel.appendLine(`Roots: ${roots.join(' | ')}`);
+    if (!models.length) {
+        channel.appendLine('No local model files found.');
+        return models;
+    }
+
+    const byCategory = new Map<string, LocalModelFile[]>();
+    for (const model of models) {
+        const rows = byCategory.get(model.category) || [];
+        rows.push(model);
+        byCategory.set(model.category, rows);
+    }
+    for (const [category, rows] of byCategory) {
+        channel.appendLine(`\n[${category}] ${rows.length}`);
+        for (const row of rows) {
+            channel.appendLine(`- ${row.comfyName} (${formatModelSize(row.sizeBytes)})`);
+            channel.appendLine(`  ${row.absolutePath}`);
+        }
+    }
+    return models;
+}
+
+export function runScanLocalModelFiles(): void {
+    const channel = getImageOutputChannel();
+    channel.show(true);
+    channel.appendLine('\n=== Scan Local Model Files ===');
+    const models = appendLocalModelScan(channel);
+    if (models.length > 0) {
+        vscode.window.showInformationMessage(`LoreRelay: ${models.length} local model file(s) found. See "LoreRelay: Image Gen" output.`);
+    } else {
+        vscode.window.showWarningMessage('LoreRelay: No local model files found. Configure textAdventure.modelScan.roots.');
+    }
+}

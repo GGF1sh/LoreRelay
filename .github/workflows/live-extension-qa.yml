@@ -1,0 +1,37 @@
+name: Live Extension QA
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+jobs:
+  lifecycle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run compile
+      - name: Standard MCP client and local IPC boundaries
+        run: node scripts/test_player_agent_mcp.js
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run qa:live
+      - if: runner.os == 'Windows'
+        run: npm run qa:live
+
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/run_live_extension_qa.js --scenario mods_v1
+      - if: runner.os == 'Windows'
+        run: node scripts/run_live_extension_qa.js --scenario mods_v1
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/test_connected_qa_lab_host.js
+      - if: runner.os == 'Windows'
+        run: node scripts/test_connected_qa_lab_host.js

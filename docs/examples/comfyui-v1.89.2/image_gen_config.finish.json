@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "checkpoint": "IL\\waiIllustriousSDXL_v170.safetensors",
+  "workflowPath": "",
+  "mode": "illustrious",
+  "steps": 28,
+  "cfg": 5.5,
+  "width": 0,
+  "height": 0,
+  "samplerName": "euler_ancestral",
+  "scheduler": "normal",
+  "positivePrefix": "",
+  "positiveSuffix": "",
+  "negativePrompt": "low quality, blurry, text, watermark, signature, nudity, exposed chest",
+  "templates": {
+    "scene": "{{content}}",
+    "portrait": "{{character}} portrait, {{description}}",
+    "background": "{{location}}, {{mood}}, detailed background",
+    "freeform": "{{prompt}}"
+  },
+  "profileId": "sdxl-illustrious-simple",
+  "modelFamily": "unknown",
+  "workflowTemplateId": "scene-sdxl-landscape",
+  "cartographyTemplateId": "map-sdxl-direct",
+  "sizeFollowsTemplate": true
+}

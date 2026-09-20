@@ -1,0 +1,32 @@
+{
+  "id": "noai_market_shock_recovery",
+  "version": 1,
+  "description": "Deterministic initial shortage plus merchant_stress and world simulation — measures whether the system stays permanently dead/runaway or recovers. Does not claim balance quality from one scenario.",
+  "mode": "full",
+  "modes": ["full"],
+  "seed": "noai-shock-recovery-seed",
+  "policyId": "merchant_stress",
+  "workspace": { "source": "fixture", "fixturePath": "scripts/noai_soak_scenarios/fixtures/market_shock" },
+  "horizon": { "turns": 250 },
+  "worldSim": { "cadenceTurns": 1, "stepsPerCadence": 1, "enableNpcRegistry": false, "recoveryPerTick": 2 },
+  "limits": {
+    "timeoutMs": 60000,
+    "maxTurns": 250,
+    "maxStepsPerChunk": 5,
+    "maxOpsPerTurn": 3,
+    "maxFileBytes": 1000000,
+    "maxRecentChanges": 20
+  },
+  "invariants": [
+    "no_nan_or_infinity",
+    "json_parseable",
+    "world_turn_monotonic",
+    "nonnegative_resources",
+    "market_ranges_valid",
+    "caps_bounded",
+    "no_duplicate_event_ids",
+    "no_duplicate_one_shot_events",
+    "output_files_bounded"
+  ],
+  "telemetry": { "sampleEveryTurns": 25, "maxSamples": 40, "recentWindow": 40, "maxAnomalyWindows": 10 }
+}

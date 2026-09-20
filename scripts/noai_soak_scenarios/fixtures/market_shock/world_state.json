@@ -1,0 +1,27 @@
+{
+  "format": "lorerelay-world-state/1.0",
+  "lastUpdated": "2026-07-02T00:00:00Z",
+  "worldTurn": 0,
+  "lastSimulatedGmTurn": 0,
+  "factions": {
+    "faction_merchants": { "power": 45, "resources": { "wheat": 4, "credits": 40 }, "morale": 45, "recentEvents": [] },
+    "faction_smiths": { "power": 30, "resources": { "steel": 1, "credits": 20 }, "morale": 40, "recentEvents": [] },
+    "faction_port": { "power": 40, "resources": { "wheat": 1, "spice": 3 }, "morale": 42, "recentEvents": [] }
+  },
+  "regions": {
+    "r_north": { "dangerLevel": 1, "controllingFaction": "faction_merchants", "activeEvents": [] },
+    "r_central": { "dangerLevel": 2, "controllingFaction": "faction_merchants", "activeEvents": [] },
+    "r_south": { "dangerLevel": 3, "controllingFaction": "faction_port", "activeEvents": [] }
+  },
+  "globalEvents": [],
+  "pendingWorldEvents": [],
+  "recentChanges": [
+    { "id": "wce_0_resource_shortage_seed", "worldTurn": 0, "source": "simulation", "category": "resource", "severity": "warning", "message": "Grain shortage grips the three-market road; wheat reserves are critically low.", "regionId": "r_south" }
+  ],
+  "questHooks": [],
+  "markets": {
+    "north_farm": { "wheat": { "stock": 3, "priceIndex": 1.6 } },
+    "elda_shop": { "wheat": { "stock": 2, "priceIndex": 1.8 }, "steel": { "stock": 1, "priceIndex": 1.9 } },
+    "south_port": { "wheat": { "stock": 1, "priceIndex": 2.0 }, "steel": { "stock": 4, "priceIndex": 1.5 }, "spice": { "stock": 2, "priceIndex": 1.7 } }
+  }
+}

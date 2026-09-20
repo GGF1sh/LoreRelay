@@ -1,0 +1,59 @@
+{
+  "format": "text-adventure-scenario/1.0",
+  "meta": {
+    "title": "Neon Rain — Missing Synapse",
+    "author": "LoreRelay (sample)",
+    "version": "1.0.0",
+    "description": "雨に濡れたネオン街で、行方不明のサービス・アンドロイドを追うサイバーパンク・ノワール。証拠と人脈が鍵。",
+    "tags": ["cyberpunk", "mystery", "solo", "noir", "starter"]
+  },
+  "setup": {
+    "world": "2087年、東アジアの巨大都市スラムと高層区が重なるネオン・ベイ。企業が法を握り、街の裏では記憶改ざんと違法AIが流通する。",
+    "protagonist": "フリーランスのストリート調査員。光学義眼と古い警察バッジ、データナイフ、使い古したコート。依頼は行方不明の家政アンドロイド『Synapse-7』の捜索。",
+    "tone": "湿ったネオンのノワール。会話は短く鋭く、暴力は最後の手段。情報は通貨。",
+    "imageMode": "illustrious",
+    "theme": "cyberpunk",
+    "rules": "調査は1d20＋技能（交渉/ハッキング/観察）で判定。サイバー攻撃は失敗でトレースリスク。プレイヤーHPは最大18。クレジットは開始時 240。",
+    "gameOver": {
+      "mode": "strict",
+      "onHpZero": true,
+      "allowImpossibleActions": false
+    }
+  },
+  "director": {
+    "act": "Act I — Wet Neon",
+    "chapter": "Case File 47",
+    "scene": "Rain-Slick Alley behind the Lotus Club",
+    "objective": "Locate Synapse-7 or prove who erased her memory logs before corporate cleaners bury the trail.",
+    "successConditions": [
+      "Recover Synapse-7 or her core memory shard",
+      "Expose the client who ordered the disappearance"
+    ],
+    "failConditions": [
+      "HP reaches 0",
+      "Corporate trace locks you out of the city grid"
+    ],
+    "guidanceMode": "guided",
+    "endingFlags": ["synapse_saved", "case_closed_cold", "became_corporate_asset"],
+    "optionalEncounters": [
+      "Black-market memory broker",
+      "Rival fixer tailing you"
+    ]
+  },
+  "opening": {
+    "bgm": "tension",
+    "sfx": "click",
+    "status": {
+      "location": "ネオン・ベイ / ロータスクラブ裏路地",
+      "time": "深夜 02:14 / 酸性の雨",
+      "condition": "軽い疲労（HP 18/18）",
+      "funds": "クレジット 240 / データチップ 1"
+    },
+    "options": [
+      "クラブの裏口をこじ開け、内部の熱気を覗く",
+      "路地の排水溝に落ちたデータチップを拾う",
+      "屋上の監視カメラの死角からロータスクラブを観察する"
+    ],
+    "narrative": "雨はネオンを刃のように切り裂く。ロータスクラブの看板が水たまりに滲み、赤と青が脈打つ。\n\n依頼人は震える声で言った——「Synapse-7 は三日前、記憶を消された。最後のログはこの路地だ」。義眼が熱を帯び、古いバッジが胸を刺す。企業の清掃部隊が来る前に、何かを掴まなければならない。\n\n裏路地は静かすぎる。クラブの扉の向こうで、笑い声が一瞬だけ途切れた。"
+  }
+}

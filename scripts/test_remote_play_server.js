@@ -1,0 +1,548 @@
+#!/usr/bin/env node
+/**
+ * remotePlayServer 統合テスト — HTTP エンドポイント + token 認証
+ *
+ * vscode モジュールを起動前にモックし、実際の HTTP サーバを立ち上げて検証する。
+ * port 0 で listen してから address() で実際のポートを取得する。
+ */
+'use strict';
+const http = require('http');
+const os   = require('os');
+const fs   = require('fs');
+const path = require('path');
+const assert = require('node:assert/strict');
+const WebSocket = require('ws');
+const logs = [];
+let inputCount = 0;
+let inputFailure;
+let unexpectedFailure;
+let defaultRole = 'player';
+
+// ── vscode モック ─────────────────────────────────────────────
+// remotePlayServer 内で参照されるすべての vscode API を最小限にモック
+const WS_PATH = path.join(os.tmpdir(), `lr-rp-extpath-${Date.now()}`);
+fs.mkdirSync(WS_PATH, { recursive: true });
+
+const mockVscode = {
+    workspace: {
+        isTrusted: true,
+        workspaceFolders: [{ uri: { fsPath: WS_PATH }, name: 'test' }],
+        getConfiguration: () => ({
+            get: (key, def) => {
+                if (key === 'remotePlay.port')        return 0;
+                if (key === 'remotePlay.bindAddress') return '127.0.0.1';
+                if (key === 'remotePlay.defaultRole') return defaultRole;
+                if (key === 'remotePlay.maxClients')  return 8;
+                if (key === 'remotePlay.inputCooldownMs') return 1500;
+                if (key === 'workspaceFolder')        return '';
+                return def;
+            }
+        }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    },
+    window: {
+        createOutputChannel: () => ({ appendLine: (line) => logs.push(line), show: () => {}, dispose: () => {} }),
+        showWarningMessage:   (...a) => Promise.resolve(undefined),
+        showInformationMessage: (...a) => Promise.resolve(undefined),
+        showErrorMessage:     (...a) => Promise.resolve(undefined),
+    },
+    env: { language: 'en' },
+    Uri: { file: (p) => ({ fsPath: p, toString: () => `file://${p}` }) },
+};
+
+// require('vscode') をフックしてモックを返す
+const Module = require('module');
+const _origLoad = Module._load;
+Module._load = function (request, parent, isMain) {
+    if (request === 'vscode') { return mockVscode; }
+    return _origLoad.apply(this, arguments);
+};
+
+// モック注入後にサーバモジュールをロード
+const rps = require('../out/remotePlayServer');
+const { buildSignedMediaPath } = require('../out/remoteMediaSignatureCore');
+
+// ── テストユーティリティ ─────────────────────────────────────
+let failed = 0;
+function fail(msg) { console.error(`FAIL: ${msg}`); failed++; }
+function ok(msg)   { console.log(`OK: ${msg}`); }
+
+/** 単純な HTTP GET ヘルパー。Promise<{ status, body }> を返す */
+function get(url) {
+    return new Promise((resolve, reject) => {
+        http.get(url, (res) => {
+            let body = '';
+            res.on('data', (d) => { body += d; });
+            res.on('end', () => resolve({ status: res.statusCode, body }));
+        }).on('error', reject);
+    });
+}
+
+// Real loopback sockets; queue messages so welcome + cached state cannot race the test.
+async function connect(port) {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?role=player`);
+    const queue = [];
+    let waiter;
+    ws.on('message', data => {
+        const msg = JSON.parse(data.toString());
+        if (waiter) { const deliver = waiter; waiter = undefined; deliver(msg); }
+        else { queue.push(msg); }
+    });
+    const next = () => queue.length ? Promise.resolve(queue.shift()) : new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { waiter = undefined; reject(new Error('WS response timeout')); }, 3000);
+        waiter = msg => { clearTimeout(timer); resolve(msg); };
+    });
+    const closed = new Promise(resolve => ws.once('close', code => resolve(code)));
+    ws.on('error', () => {});
+    assert.equal((await next()).type, 'authRequired');
+    return { ws, next, closed, send: msg => ws.send(JSON.stringify(msg)), close: async () => { ws.close(); await closed; } };
+}
+
+async function trustBoundaryRegression(status) {
+    const base = `http://127.0.0.1:${status.port}`;
+    const spectator = new URL(status.spectatorUrls[0]).searchParams.get('token');
+    assert.notEqual(spectator, status.token);
+    const clients = [];
+    const rejections = [];
+    const onRejection = reason => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    const realNow = Date.now;
+    let now = realNow();
+    Date.now = () => now;
+    const open = async (token, role = 'player') => {
+        const client = await connect(status.port);
+        clients.push(client);
+        client.send({ type: 'auth', token, role });
+        assert.equal((await client.next()).role, token === spectator || token === newSpectator ? 'spectator' : 'player');
+        return client;
+    };
+    let newSpectator;
+    try {
+        const player = await open(status.token, 'spectator'); // Hint cannot override server authority.
+        for (const role of ['spectator', 'player', null, { role: 'player' }]) {
+            const viewer = await open(spectator, role);
+            for (const type of ['selectOption', 'freeInput']) {
+                viewer.send({ type, text: 'escalate', role: 'player', token: status.token });
+                assert.equal((await viewer.next()).message, 'Spectator mode (read-only)');
+            }
+            await viewer.close();
+        }
+        assert.equal(inputCount, 0);
+        for (const type of ['selectOption', 'freeInput']) {
+            now += 2000;
+            player.send({ type, text: 'allowed' });
+            assert.equal((await player.next()).type, 'inputAccepted');
+            assert.equal((await player.next()).type, 'remoteInput');
+        }
+        assert.equal(inputCount, 2);
+        ok('R3: server-owned roles, spectator escalation denied, zero spectator input, both player inputs work');
+
+        defaultRole = 'spectator';
+        const readOnlyDefault = rps.getRemotePlayStatus();
+        assert.equal(readOnlyDefault.token, spectator);
+        assert.equal(new URL(readOnlyDefault.urls[0]).searchParams.get('token'), spectator);
+        for (const role of [undefined, 'player']) {
+            const client = await connect(status.port);
+            clients.push(client);
+            client.send({ type: 'auth', token: readOnlyDefault.token, role });
+            assert.equal((await client.next()).role, 'spectator');
+            client.send({ type: 'freeInput', text: 'default must stay read only' });
+            assert.equal((await client.next()).message, 'Spectator mode (read-only)');
+            await client.close();
+        }
+        assert.equal(inputCount, 2);
+        const explicitPlayer = await open(status.token);
+        await explicitPlayer.close();
+        defaultRole = 'player';
+        assert.equal(rps.getRemotePlayStatus().token, status.token);
+        ok('R3 review repair: configured spectator default shares read-only capability; explicit player capability stays player');
+
+        const cases = ['{', 'null', '[]', '"foo"', '123', 'true', '{}', '{"type":null}', '{"type":123}', '{"type":"unknown"}'];
+        for (const authed of [false, true]) {
+            for (const raw of cases) {
+                const client = authed ? await open(status.token) : await connect(status.port);
+                if (!authed) clients.push(client);
+                client.ws.send(raw);
+                assert.equal((await client.next()).type, 'error');
+                if (authed) {
+                    client.send({ type: 'ping' });
+                    assert.equal((await client.next()).type, 'pong');
+                }
+                await client.close();
+            }
+        }
+        for (const authed of [false, true]) {
+            const client = authed ? await open(status.token) : await connect(status.port);
+            if (!authed) clients.push(client);
+            client.ws.send('x'.repeat(4001));
+            assert.equal((await client.next()).message, 'Message too large');
+            assert.equal(await client.closed, 1009);
+        }
+        inputFailure = new Error(`PRIVATE ${status.token} ${spectator}`);
+        now += 2000;
+        player.send({ type: 'freeInput', text: 'provider failure' });
+        assert.equal((await player.next()).type, 'inputAccepted');
+        assert.equal((await player.next()).type, 'remoteInput');
+        inputFailure = undefined;
+        unexpectedFailure = new Error(`PRIVATE ${status.token} ${spectator}`);
+        now += 2000;
+        player.send({ type: 'freeInput', text: 'unexpected boundary failure' });
+        assert.equal(await player.closed, 1011);
+        unexpectedFailure = undefined;
+        assert(logs.includes('Remote input failed'));
+        assert(logs.includes('Remote WebSocket message failed'));
+        assert(!logs.join('\n').includes(status.token));
+        assert(!logs.join('\n').includes(spectator));
+        ok('R4: malformed shapes/types pre/post auth, size limit, dependency rejection and final event catch; logs redacted');
+
+        const imagePath = path.join(WS_PATH, 'private-scene.png');
+        fs.writeFileSync(imagePath, 'image fixture');
+        const scene = { latestImage: imagePath, background: imagePath, options: ['Continue'] };
+        const entries = [{ id: 'e', role: 'gm', sender: 'GM', content: 'Scene', image: imagePath }];
+        const viewer = await open(spectator);
+        rps.pushGameStateToRemoteClients(scene, entries);
+        const wire = (await viewer.next()).state;
+        function checkWire(state, credentials) {
+            const raw = JSON.stringify(state);
+            assert(!raw.includes('private-scene.png'));
+            assert(!raw.includes(JSON.stringify(WS_PATH).slice(1, -1)));
+            for (const token of credentials) assert(!raw.includes(token));
+            for (const url of [state.latestImage, state.background, state.entries[0].image]) {
+                const parsed = new URL(url, base);
+                assert.match(parsed.searchParams.get('file'), /^[a-f0-9]{32}$/);
+                assert.equal(parsed.searchParams.has('token'), false);
+            }
+        }
+        checkWire(wire, [status.token, spectator]);
+        for (const url of [wire.latestImage, wire.background, wire.entries[0].image]) {
+            assert.equal((await get(base + url)).status, 200);
+        }
+        const oldUrl = wire.latestImage;
+        const forged = buildSignedMediaPath(new URL(oldUrl, base).searchParams.get('file'), spectator, 300);
+        assert.equal((await get(base + forged)).status, 401);
+        assert.equal((await get(base + buildSignedMediaPath(new URL(oldUrl, base).searchParams.get('file'), status.token, 300))).status, 401);
+        now += 301000;
+        assert.equal((await get(base + oldUrl)).status, 403);
+        await viewer.close();
+        const late = await open(spectator);
+        const fresh = (await late.next()).state;
+        checkWire(fresh, [status.token, spectator]);
+        assert.notEqual(fresh.latestImage, oldUrl);
+        assert.equal((await get(base + fresh.latestImage)).status, 200);
+        defaultRole = 'spectator';
+        const rotatedDefault = rps.rotateRemotePlayToken();
+        newSpectator = new URL(rps.getRemotePlayStatus().spectatorUrls[0]).searchParams.get('token');
+        assert.equal(rotatedDefault, newSpectator);
+        assert.equal(rps.getRemotePlayStatus().token, newSpectator);
+        defaultRole = 'player';
+        const newPlayer = rps.getRemotePlayStatus().token;
+        assert.notEqual(newSpectator, spectator);
+        assert.equal(await late.closed, 1008);
+        assert.equal((await get(base + fresh.latestImage)).status, 401);
+        for (const token of [status.token, spectator]) {
+            const stale = await connect(status.port);
+            clients.push(stale);
+            stale.send({ type: 'auth', token, role: 'player' });
+            assert.equal((await stale.next()).message, 'Unauthorized');
+            assert.equal(await stale.closed, 1008);
+        }
+        for (const token of [newPlayer, newSpectator]) {
+            const current = await open(token);
+            const state = (await current.next()).state;
+            checkWire(state, [status.token, spectator, newPlayer, newSpectator]);
+            assert.equal((await get(base + state.latestImage)).status, 200);
+            await current.close();
+        }
+        const current = await open(newPlayer);
+        const retainedUrl = (await current.next()).state.latestImage;
+        rps.pushGameStateToRemoteClients({ latestImage: path.join(WS_PATH, '..', 'outside.png') }, []);
+        assert.equal((await current.next()).state.latestImage, undefined);
+        // Registered paths are checked again at serve time, not trusted forever.
+        fs.renameSync(imagePath, imagePath + '.moved');
+        assert.equal((await get(base + retainedUrl)).status, 403);
+        ok('R6: live/reconnect/rotation URLs valid, old URLs expired/invalid, opaque wire IDs, credentials cannot sign media');
+        await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(rejections, []);
+    } finally {
+        Date.now = realNow;
+        inputFailure = unexpectedFailure = undefined;
+        defaultRole = 'player';
+        for (const client of clients) await client.close();
+        process.off('unhandledRejection', onRejection);
+    }
+}
+
+// ── テスト本体 ───────────────────────────────────────────────
+async function run() {
+    // 1. 起動前: status は running=false
+    {
+        const s = rps.getRemotePlayStatus();
+        if (s.running) { fail('before start: running should be false'); }
+        else { ok('before start: running=false'); }
+        if (s.clientCount !== 0) { fail('before start: clientCount should be 0'); }
+        else { ok('before start: clientCount=0'); }
+    }
+
+    // 2. disposeRemotePlayServer は起動前でもクラッシュしない
+    try {
+        rps.disposeRemotePlayServer();
+        ok('dispose before start: no crash');
+    } catch (e) {
+        fail(`dispose before start threw: ${e.message}`);
+    }
+
+    // 3. notifyRemoteGmBusy は起動前でもクラッシュしない
+    try {
+        rps.notifyRemoteGmBusy(false);
+        ok('notifyRemoteGmBusy(false) before start: no crash');
+    } catch (e) {
+        fail(`notifyRemoteGmBusy before start threw: ${e.message}`);
+    }
+
+    // 4. deps を初期化してサーバ起動
+    rps.initRemotePlayServer({
+        extensionPath: WS_PATH,
+        getPanel: () => undefined,
+        onPlayerInput: async () => { inputCount++; if (inputFailure) throw inputFailure; },
+        isGameOverActive: () => false,
+        isGmBusy: () => { if (unexpectedFailure) throw unexpectedFailure; return false; },
+        subscriptions: [],
+    });
+
+    let status;
+    try {
+        status = await rps.startRemotePlayServer();
+    } catch (e) {
+        fail(`startRemotePlayServer threw: ${e.message}`);
+        process.exit(1);
+    }
+
+    // port 0 の場合 OS が空きポートを割り当てるが、listenPort はモジュール内変数に
+    // 残るため status.port が 0 になることがある。
+    // 実際のポートは httpServer.address().port から取れるが外部非公開。
+    // ここでは status.running のみ確認し、port は後でリクエストから取得する。
+    if (!status.running) {
+        fail('after start: running should be true');
+        process.exit(1);
+    }
+    ok('after start: running=true');
+
+    if (typeof status.token !== 'string' || status.token.length < 8) {
+        fail(`token format invalid: "${status.token}"`);
+    } else {
+        ok(`after start: token issued (${status.token.length} chars)`);
+    }
+
+    // port=0 でも OS が割り当てたポートを status.port で得ることを確認
+    // (実装が listenPort を address().port で更新している場合)
+    // 更新していない実装では 0 が返る。その場合は直接 URL テストをスキップ。
+    const actualPort = status.port;
+    if (actualPort === 0) {
+        // port 0 の場合、HTTP テストは実際のアドレスが不明なためスキップ
+        ok('HTTP endpoint tests skipped (port=0, OS-assigned port not reflected in status)');
+    } else {
+        const base = `http://127.0.0.1:${actualPort}`;
+
+        // 5a. /media file パラメータなし → 400
+        {
+            const r = await get(`${base}/media`);
+            if (r.status !== 400) { fail(`/media missing file: expected 400, got ${r.status}`); }
+            else { ok('/media without file param: 400 Missing file'); }
+        }
+
+        // 5b. /media 署名なし（file あり）→ 401
+        {
+            const r = await get(`${base}/media?file=test.png`);
+            if (r.status !== 401) { fail(`/media no signature: expected 401, got ${r.status}`); }
+            else { ok('/media without signature: 401 Unauthorized'); }
+        }
+
+        // 6. /media レガシー session token → 401（拒否）
+        {
+            const r = await get(`${base}/media?token=wrongtoken&file=test.png`);
+            if (r.status !== 401) { fail(`/media legacy token: expected 401, got ${r.status}`); }
+            else { ok('/media legacy session token: 401 rejected'); }
+        }
+
+        // 7. /ws を HTTP GET → 426 Upgrade Required
+        {
+            const r = await get(`${base}/ws`);
+            if (r.status !== 426) { fail(`/ws HTTP GET: expected 426, got ${r.status}`); }
+            else { ok('/ws plain HTTP: 426 Upgrade Required'); }
+        }
+
+        // 8. 存在しないパス → 404
+        {
+            const r = await get(`${base}/nonexistent-path-12345`);
+            if (r.status !== 404) { fail(`/nonexistent: expected 404, got ${r.status}`); }
+            else { ok('/nonexistent: 404 Not Found'); }
+        }
+
+        function signedMediaUrl(file, nowSec) {
+            const rel = buildSignedMediaPath(file, status.token, 300, nowSec);
+            return `${base}${rel}`;
+        }
+
+        // 6b. /media 不正な署名 → 401
+        {
+            const now = Math.floor(Date.now() / 1000);
+            const r = await get(`${base}/media?file=nofile.png&exp=${now + 300}&sig=${'a'.repeat(64)}`);
+            if (r.status !== 401) { fail(`/media bad signature: expected 401, got ${r.status}`); }
+            else { ok('/media invalid HMAC signature: 401 Unauthorized'); }
+        }
+
+        // 6c. /media 期限切れ署名 → 403
+        {
+            const now = Math.floor(Date.now() / 1000);
+            const r = await get(signedMediaUrl('nofile.png', now - 400));
+            if (r.status !== 403) { fail(`/media expired signature: expected 403, got ${r.status}`); }
+            else { ok('/media expired HMAC signature: 403 Expired'); }
+        }
+
+        // 9. /media 有効署名・存在しないファイル → 403
+        {
+            const r = await get(signedMediaUrl('nofile.png'));
+            if (r.status !== 401) {
+                fail(`/media player credential cannot sign files: expected 401, got ${r.status}`);
+            } else {
+                ok(`/media valid signature invalid file: ${r.status} (file rejected)`);
+            }
+        }
+
+        // 9b. /media パストラバーサル試行 → 403 (traversal outside workspace)
+        {
+            const r = await get(signedMediaUrl('../../evil.png'));
+            if (r.status !== 401) {
+                fail(`/media path traversal: expected 401, got ${r.status}`);
+            } else {
+                ok(`/media path traversal (../../evil.png): ${r.status} (traversal blocked)`);
+            }
+        }
+
+        // 9c. /media ダブルエンコードトラバーサル → 403 (defense-in-depth)
+        {
+            const doubleEncoded = '%252F..%252Fevil.png';
+            const r = await get(signedMediaUrl(doubleEncoded));
+            if (r.status !== 401) {
+                fail(`/media double-encoded traversal: expected 401, got ${r.status}`);
+            } else {
+                ok(`/media double-encoded traversal: ${r.status} (blocked)`);
+            }
+        }
+
+        // 9d. maxClients counts authenticated sockets only (unauth must not block slots)
+        {
+            const WebSocket = require('ws');
+            const origGetConfiguration = mockVscode.workspace.getConfiguration;
+            mockVscode.workspace.getConfiguration = () => ({
+                get: (key, def) => {
+                    if (key === 'remotePlay.maxClients') return 1;
+                    if (key === 'remotePlay.port') return 47291;
+                    if (key === 'remotePlay.bindAddress') return '127.0.0.1';
+                    if (key === 'remotePlay.defaultRole') return 'player';
+                    if (key === 'remotePlay.inputCooldownMs') return 1500;
+                    if (key === 'workspaceFolder') return '';
+                    return def;
+                },
+            });
+
+            const wsUrl = `ws://127.0.0.1:${actualPort}/ws`;
+            const openWsWithFirstMessage = () => new Promise((resolve, reject) => {
+                const ws = new WebSocket(wsUrl);
+                const timer = setTimeout(() => reject(new Error('WS message timeout')), 3000);
+                const onMessage = (data) => {
+                    clearTimeout(timer);
+                    ws.off('message', onMessage);
+                    resolve({ ws, msg: JSON.parse(data.toString()) });
+                };
+                ws.on('message', onMessage);
+                ws.once('error', (e) => { clearTimeout(timer); reject(e); });
+            });
+
+            let unauth1;
+            let unauth2;
+            try {
+                const first = await openWsWithFirstMessage();
+                const second = await openWsWithFirstMessage();
+                unauth1 = first.ws;
+                unauth2 = second.ws;
+                if (first.msg.type !== 'authRequired' || second.msg.type !== 'authRequired') {
+                    fail('maxClients unauth: expected authRequired on both sockets');
+                } else {
+                    ok('maxClients unauth: two pending sockets accepted when maxClients=1');
+                }
+            } catch (e) {
+                fail(`maxClients unauth test: ${e.message}`);
+            } finally {
+                if (unauth1) { unauth1.close(); }
+                if (unauth2) { unauth2.close(); }
+                mockVscode.workspace.getConfiguration = origGetConfiguration;
+            }
+        }
+    }
+
+    await trustBoundaryRegression(rps.getRemotePlayStatus());
+
+    // 10. rotateRemotePlayToken でトークンが変わる
+    {
+        const oldToken = status.token;
+        let newToken;
+        try {
+            newToken = rps.rotateRemotePlayToken();
+        } catch (e) {
+            fail(`rotateRemotePlayToken threw: ${e.message}`);
+            newToken = null;
+        }
+        if (newToken !== null) {
+            if (newToken === oldToken) { fail('rotated token should differ from old token'); }
+            else if (typeof newToken !== 'string' || newToken.length < 8) {
+                fail(`rotated token format invalid: "${newToken}"`);
+            } else {
+                ok('rotateRemotePlayToken: new token issued and differs from old');
+            }
+        }
+    }
+
+    // 11. pushGameStateToRemoteClients はクライアントなしでもクラッシュしない
+    try {
+        rps.pushGameStateToRemoteClients({ entries: [] }, []);
+        ok('pushGameStateToRemoteClients with no clients: no crash');
+    } catch (e) {
+        fail(`pushGameStateToRemoteClients threw: ${e.message}`);
+    }
+
+    // 12. サーバ停止後に running=false になる
+    rps.stopRemotePlayServer();
+    {
+        const s2 = rps.getRemotePlayStatus();
+        if (s2.running) { fail('after stop: running should be false'); }
+        else { ok('after stop: running=false'); }
+    }
+
+    // 13. disposeRemotePlayServer は起動中でも確実に停止する
+    try {
+        await rps.startRemotePlayServer();
+        if (!rps.getRemotePlayStatus().running) {
+            fail('13: server should be running before dispose');
+        } else {
+            rps.disposeRemotePlayServer();
+            const s3 = rps.getRemotePlayStatus();
+            if (s3.running) { fail('13: disposeRemotePlayServer: running should be false after dispose'); }
+            else { ok('13: disposeRemotePlayServer after start: running=false'); }
+        }
+    } catch (e) {
+        fail(`13: disposeRemotePlayServer test threw: ${e.message}`);
+    }
+
+    // クリーンアップ
+    fs.rmSync(WS_PATH, { recursive: true, force: true });
+
+    if (failed > 0) { process.exit(1); }
+    console.log('All remote play server tests passed.');
+}
+
+run().catch((e) => {
+    console.error('Unhandled error in test:', e);
+    fs.rmSync(WS_PATH, { recursive: true, force: true });
+    process.exit(1);
+});

@@ -1,0 +1,747 @@
+// Settlement Mode M2a: FoW-safe map overlay snapshot (pure, no vscode/fs).
+
+import type { WorldForge, Faction } from './worldForgeCore';
+import { buildCartographyLayoutSpec, CARTOGRAPHY_MAP_SIZE } from './cartographyLayoutCore';
+import { resolveLocationRegionId } from './fogOfWarCore';
+import type { DiscoveryLedgerDocument } from './discoveryLedgerCore';
+import { listNpcPresence } from './npcAgencyCore';
+import type { NpcRegistry } from './npcRegistryCore';
+import type { QuestHook, RegionWorldState, FactionWorldState } from './worldStateCore';
+import type { NpcPositionsMap } from './livingWorldTypes';
+import {
+    settlementModeEnabled,
+    type SettlementStateV1,
+} from './settlementCore';
+import { TILE_OVERMAP_SIZE } from './tileOvermapCore';
+import {
+    canVehicleAccessLocation,
+    type VehicleEntry,
+    type VehicleState,
+} from './vehicleCore';
+import { resolveLocationVehicleAccess } from './vehicleIntegrationCore';
+
+export const MAP_OVERLAY_VERSION = 1 as const;
+
+export type OverlayMarkerKind =
+    | 'npc'
+    | 'merchant'
+    | 'caravan'
+    | 'faction_control'
+    | 'quest'
+    | 'discovery'
+    | 'settlement_pressure'
+    | 'vehicle'
+    | 'vehicle_parking';
+
+export type OverlayFogVisibility = 'discovered' | 'rumored';
+export type OverlayTone = 'friendly' | 'neutral' | 'hostile' | 'unknown';
+
+export interface OverlayMarker {
+    id: string;
+    kind: OverlayMarkerKind;
+    x: number;
+    y: number;
+    label: string;
+    fogVisibility: OverlayFogVisibility;
+    tone?: OverlayTone;
+    detail?: string;
+}
+
+export interface MapOverlaySnapshot {
+    version: typeof MAP_OVERLAY_VERSION;
+    markers: OverlayMarker[];
+}
+
+export const OVERLAY_MARKER_KEYS = [
+    'id',
+    'kind',
+    'x',
+    'y',
+    'label',
+    'fogVisibility',
+    'tone',
+    'detail',
+] as const;
+
+export const MAP_OVERLAY_SNAPSHOT_KEYS = ['version', 'markers'] as const;
+
+export const MAX_OVERLAY_NPC = 40;
+export const MAX_OVERLAY_MERCHANT = 20;
+export const MAX_OVERLAY_CARAVAN = 20;
+export const MAX_OVERLAY_FACTION = 50;
+export const MAX_OVERLAY_QUEST = 40;
+export const MAX_OVERLAY_DISCOVERY = 40;
+export const MAX_OVERLAY_PRESSURE = 20;
+export const MAX_OVERLAY_VEHICLE = 12;
+export const MAX_OVERLAY_VEHICLE_PARKING = 8;
+export const MAX_OVERLAY_TOTAL = 200;
+export const MAX_OVERLAY_LABEL = 64;
+export const MAX_OVERLAY_DETAIL = 120;
+
+export type SettlementPressureBand = 'calm' | 'strained' | 'unrest' | 'crisis';
+
+export interface MapOverlayFogInput {
+    discoveredRegionIds: readonly string[];
+    rumoredRegionIds: readonly string[];
+}
+
+export interface MapOverlayInputs {
+    forge: WorldForge;
+    fog: MapOverlayFogInput;
+    gridSize?: number;
+    enableNpcAgency: boolean;
+    enableNpcRegistry: boolean;
+    enableSettlementMode: boolean;
+    enableCampaignKit: boolean;
+    enableFactionReputation?: boolean;
+    worldTurn?: number;
+    worldRegions?: Record<string, RegionWorldState>;
+    worldFactions?: Record<string, FactionWorldState>;
+    npcPositions?: NpcPositionsMap;
+    questHooks?: QuestHook[];
+    settlementState?: SettlementStateV1;
+    discoveryLedger?: DiscoveryLedgerDocument;
+    npcRegistry?: NpcRegistry;
+    /** NPCs safe to reveal on the map (met, public, or otherwise cleared). */
+    knownNpcIds?: ReadonlySet<string>;
+    enableVehicleSystem?: boolean;
+    vehicleState?: VehicleState;
+    currentLocationId?: string;
+    /** 名ありNPCの上限(game_rules.maxNamedNpcCount)。未指定時は npcAgencyCore の既定値。 */
+    maxNamedNpcCount?: number;
+}
+
+const KIND_CAPS: Record<OverlayMarkerKind, number> = {
+    npc: MAX_OVERLAY_NPC,
+    merchant: MAX_OVERLAY_MERCHANT,
+    caravan: MAX_OVERLAY_CARAVAN,
+    faction_control: MAX_OVERLAY_FACTION,
+    quest: MAX_OVERLAY_QUEST,
+    discovery: MAX_OVERLAY_DISCOVERY,
+    settlement_pressure: MAX_OVERLAY_PRESSURE,
+    vehicle: MAX_OVERLAY_VEHICLE,
+    vehicle_parking: MAX_OVERLAY_VEHICLE_PARKING,
+};
+
+function clampText(raw: string, max: number): string {
+    const t = raw.trim().replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ');
+    return t.slice(0, max);
+}
+
+export function regionCoordToTileIndex(coord: number, gridSize: number): number {
+    const clamped = Math.max(0, Math.min(CARTOGRAPHY_MAP_SIZE, coord));
+    return Math.min(gridSize - 1, Math.floor((clamped / CARTOGRAPHY_MAP_SIZE) * gridSize));
+}
+
+export function resolveRegionTileCoords(
+    forge: WorldForge,
+    regionId: string,
+    gridSize: number
+): { x: number; y: number } | undefined {
+    const region = forge.geography.regions.find((r) => r.id === regionId);
+    if (!region) { return undefined; }
+    return {
+        x: regionCoordToTileIndex(region.x ?? 0, gridSize),
+        y: regionCoordToTileIndex(region.y ?? 0, gridSize),
+    };
+}
+
+function regionVisibility(
+    regionId: string | undefined,
+    discovered: ReadonlySet<string>,
+    rumored: ReadonlySet<string>
+): OverlayFogVisibility | 'hidden' {
+    if (!regionId) { return 'hidden'; }
+    if (discovered.has(regionId)) { return 'discovered'; }
+    if (rumored.has(regionId)) { return 'rumored'; }
+    return 'hidden';
+}
+
+function factionById(forge: WorldForge, factionId: string): Faction | undefined {
+    return forge.factions.find((f) => f.id === factionId);
+}
+
+function factionTone(
+    forge: WorldForge,
+    factionId: string,
+    factionStates: Record<string, FactionWorldState> | undefined,
+    reputationEnabled: boolean
+): OverlayTone {
+    if (!reputationEnabled) {
+        const f = factionById(forge, factionId);
+        if (f?.type === 'hostile') { return 'hostile'; }
+        if (f?.type === 'friendly') { return 'friendly'; }
+        return 'neutral';
+    }
+    const rep = factionStates?.[factionId]?.playerReputation ?? 0;
+    if (rep <= -40) { return 'hostile'; }
+    if (rep >= 40) { return 'friendly'; }
+    return 'neutral';
+}
+
+export function deriveSettlementPressureBand(state: SettlementStateV1): SettlementPressureBand {
+    const morale = state.morale ?? 50;
+    const safety = state.safety ?? 50;
+    const unresolved = state.incidents.filter((i) => !i.resolved).length;
+    const shortage = state.stocks.some((s) => s.amount <= 2);
+
+    if (safety < 25 || morale < 20 || unresolved >= 4) { return 'crisis'; }
+    if (safety < 45 || morale < 40 || unresolved >= 2 || shortage) { return 'unrest'; }
+    if (safety < 60 || morale < 55 || shortage) { return 'strained'; }
+    return 'calm';
+}
+
+export function pressureBandLabel(band: SettlementPressureBand): string {
+    switch (band) {
+        case 'calm': return 'Settlement calm';
+        case 'strained': return 'Settlement strained';
+        case 'unrest': return 'Settlement unrest';
+        case 'crisis': return 'Settlement crisis';
+        default: return 'Settlement pressure';
+    }
+}
+
+/** Public overlay id — rumored markers must not expose canonical entity ids (Remote Play / DevTools). */
+export function overlayMarkerPublicId(
+    internalId: string,
+    kind: OverlayMarkerKind,
+    regionId: string,
+    ordinal: number,
+    fogVisibility: OverlayFogVisibility
+): string {
+    if (fogVisibility === 'discovered') {
+        return internalId;
+    }
+    const safeRegion = regionId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 24) || 'unknown';
+    return `rumor_${kind}_${safeRegion}_${ordinal}`;
+}
+
+/** Allow-listed marker projection — single choke point for Webview/replay/remote. */
+export function sanitizeOverlayMarker(raw: OverlayMarker): OverlayMarker {
+    let id = clampText(raw.id, 64);
+    const fogVisibility: OverlayFogVisibility = raw.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
+    if (fogVisibility === 'rumored') {
+        id = `rumor_${raw.kind}_${Math.floor(raw.x)}_${Math.floor(raw.y)}`;
+    }
+    const out: OverlayMarker = {
+        id,
+        kind: raw.kind,
+        x: Math.max(0, Math.min(63, Math.floor(raw.x))),
+        y: Math.max(0, Math.min(63, Math.floor(raw.y))),
+        label: clampText(raw.label, MAX_OVERLAY_LABEL),
+        fogVisibility,
+    };
+    if (raw.tone === 'friendly' || raw.tone === 'neutral' || raw.tone === 'hostile' || raw.tone === 'unknown') {
+        out.tone = raw.tone;
+    }
+    if (raw.detail) {
+        out.detail = clampText(raw.detail, MAX_OVERLAY_DETAIL);
+    }
+    return out;
+}
+
+function capMarkersByKind(markers: OverlayMarker[]): OverlayMarker[] {
+    const kindCounts = new Map<OverlayMarkerKind, number>();
+    const out: OverlayMarker[] = [];
+    const sorted = [...markers].sort((a, b) => a.id.localeCompare(b.id));
+    for (const marker of sorted) {
+        const count = kindCounts.get(marker.kind) ?? 0;
+        const cap = KIND_CAPS[marker.kind];
+        if (count >= cap) { continue; }
+        kindCounts.set(marker.kind, count + 1);
+        out.push(marker);
+        if (out.length >= MAX_OVERLAY_TOTAL) { break; }
+    }
+    return out;
+}
+
+function buildNpcMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (!inputs.enableNpcRegistry || !inputs.enableNpcAgency || !inputs.npcRegistry) {
+        return [];
+    }
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const known = inputs.knownNpcIds ?? new Set<string>();
+    const worldTurn = inputs.worldTurn ?? 0;
+    const positions = inputs.npcPositions ?? {};
+    const presence = listNpcPresence(
+        inputs.npcRegistry.npcs,
+        positions,
+        worldTurn,
+        true,
+        inputs.maxNamedNpcCount
+    );
+    const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
+    for (const p of presence) {
+        if (!known.has(p.npcId)) { continue; }
+        const regionId = resolveLocationRegionId(inputs.forge, p.locationId);
+        const vis = regionVisibility(regionId, discovered, rumored);
+        if (vis === 'hidden') { continue; }
+        const coords = regionId ? resolveRegionTileCoords(inputs.forge, regionId, gridSize) : undefined;
+        if (!coords) { continue; }
+        const label = vis === 'rumored'
+            ? (p.inTransit ? 'Traveler rumored' : 'Figure rumored')
+            : (p.inTransit ? `${p.name} (en route)` : p.name);
+        const internalId = `npc_${p.npcId}`;
+        markers.push({
+            id: overlayMarkerPublicId(internalId, 'npc', regionId ?? 'unknown', rumorOrdinal++, vis),
+            kind: 'npc',
+            x: coords.x,
+            y: coords.y,
+            label: clampText(label, MAX_OVERLAY_LABEL),
+            fogVisibility: vis,
+            tone: vis === 'rumored' ? 'unknown' : 'neutral',
+            detail: p.inTransit ? 'Movement noted' : undefined,
+        });
+    }
+    return markers;
+}
+
+function buildMerchantMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (!settlementModeEnabled({ enableSettlementMode: inputs.enableSettlementMode }) || !inputs.settlementState) {
+        return [];
+    }
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const settlement = inputs.settlementState;
+    const regionId = settlement.locationId
+        ? resolveLocationRegionId(inputs.forge, settlement.locationId)
+        : undefined;
+    const vis = regionVisibility(regionId, discovered, rumored);
+    if (vis === 'hidden' || !regionId) { return []; }
+    const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+    if (!coords) { return []; }
+
+    const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
+    for (const merchant of settlement.merchants) {
+        const label = vis === 'rumored' ? 'Merchant rumored' : `Merchant ${merchant.npcId}`;
+        const internalId = `merchant_${merchant.npcId}`;
+        markers.push({
+            id: overlayMarkerPublicId(internalId, 'merchant', regionId, rumorOrdinal++, vis),
+            kind: 'merchant',
+            x: coords.x,
+            y: coords.y,
+            label,
+            fogVisibility: vis,
+            tone: 'unknown',
+        });
+    }
+    return markers;
+}
+
+function buildCaravanMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (!settlementModeEnabled({ enableSettlementMode: inputs.enableSettlementMode }) || !inputs.settlementState) {
+        return [];
+    }
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const settlement = inputs.settlementState;
+    const regionId = settlement.locationId
+        ? resolveLocationRegionId(inputs.forge, settlement.locationId)
+        : undefined;
+    const vis = regionVisibility(regionId, discovered, rumored);
+    if (vis === 'hidden' || !regionId) { return []; }
+    const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+    if (!coords) { return []; }
+
+    const worldTurn = inputs.worldTurn ?? 0;
+    const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
+    for (const visitor of settlement.visitors) {
+        if (visitor.purpose !== 'trade' && visitor.purpose !== 'diplomacy') { continue; }
+        if (visitor.untilWorldTurn <= worldTurn) { continue; }
+        const internalId = `caravan_${visitor.npcId}`;
+        markers.push({
+            id: overlayMarkerPublicId(internalId, 'caravan', regionId, rumorOrdinal++, vis),
+            kind: 'caravan',
+            x: coords.x,
+            y: coords.y,
+            label: vis === 'rumored' ? 'Caravan rumored' : 'Trade caravan',
+            fogVisibility: vis,
+            tone: 'unknown',
+        });
+    }
+    return markers;
+}
+
+function buildFactionMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (!inputs.worldRegions) { return []; }
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const markers: OverlayMarker[] = [];
+    for (const [regionId, state] of Object.entries(inputs.worldRegions)) {
+        const vis = regionVisibility(regionId, discovered, rumored);
+        if (vis === 'hidden') { continue; }
+        const factionId = state.controllingFaction;
+        if (!factionId) { continue; }
+        const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+        if (!coords) { continue; }
+        const faction = factionById(inputs.forge, factionId);
+        const label = vis === 'rumored'
+            ? 'Faction presence rumored'
+            : (faction?.name ?? 'Faction control');
+        const internalId = `faction_${regionId}_${factionId}`;
+        markers.push({
+            id: overlayMarkerPublicId(internalId, 'faction_control', regionId, 0, vis),
+            kind: 'faction_control',
+            x: coords.x,
+            y: coords.y,
+            label: clampText(label, MAX_OVERLAY_LABEL),
+            fogVisibility: vis,
+            tone: vis === 'rumored'
+                ? 'unknown'
+                : factionTone(inputs.forge, factionId, inputs.worldFactions, inputs.enableFactionReputation === true),
+        });
+    }
+    return markers;
+}
+
+function resolveHookRegionId(forge: WorldForge, hook: QuestHook): string | undefined {
+    const related = hook.relatedId;
+    if (forge.geography.regions.some((r) => r.id === related)) { return related; }
+    return resolveLocationRegionId(forge, related);
+}
+
+function buildQuestMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    const hooks = inputs.questHooks ?? [];
+    if (!hooks.length) { return []; }
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
+    for (const hook of hooks) {
+        if (hook.status !== 'available' && hook.status !== 'active') { continue; }
+        const regionId = resolveHookRegionId(inputs.forge, hook);
+        const vis = regionVisibility(regionId, discovered, rumored);
+        if (vis === 'hidden' || !regionId) { continue; }
+        const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+        if (!coords) { continue; }
+        const internalId = `quest_${hook.id}`;
+        markers.push({
+            id: overlayMarkerPublicId(internalId, 'quest', regionId, rumorOrdinal++, vis),
+            kind: 'quest',
+            x: coords.x,
+            y: coords.y,
+            label: vis === 'rumored' ? 'Quest lead rumored' : clampText(hook.title, MAX_OVERLAY_LABEL),
+            fogVisibility: vis,
+            tone: 'unknown',
+            detail: vis === 'discovered' ? 'Job or hook' : undefined,
+        });
+    }
+    return markers;
+}
+
+function buildDiscoveryMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (!inputs.enableCampaignKit || !inputs.discoveryLedger?.entries.length) {
+        return [];
+    }
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const markers: OverlayMarker[] = [];
+    let rumorOrdinal = 0;
+    for (const entry of inputs.discoveryLedger.entries) {
+        if (entry.status === 'sold' || entry.status === 'consumed') { continue; }
+        const regionId = entry.siteId
+            ? resolveLocationRegionId(inputs.forge, entry.siteId)
+            : undefined;
+        const vis = regionVisibility(regionId, discovered, rumored);
+        if (vis === 'hidden' || !regionId) { continue; }
+        const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+        if (!coords) { continue; }
+        const unidentified = entry.status === 'unidentified';
+        const label = unidentified || vis === 'rumored'
+            ? 'Unknown find'
+            : clampText(entry.identifiedLabel || entry.label, MAX_OVERLAY_LABEL);
+        const internalId = `discovery_${entry.id}`;
+        markers.push({
+            id: overlayMarkerPublicId(internalId, 'discovery', regionId, rumorOrdinal++, vis),
+            kind: 'discovery',
+            x: coords.x,
+            y: coords.y,
+            label,
+            fogVisibility: vis,
+            tone: 'unknown',
+        });
+    }
+    return markers;
+}
+
+function buildPressureMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (!settlementModeEnabled({ enableSettlementMode: inputs.enableSettlementMode }) || !inputs.settlementState) {
+        return [];
+    }
+    const settlement = inputs.settlementState;
+    const regionId = settlement.locationId
+        ? resolveLocationRegionId(inputs.forge, settlement.locationId)
+        : undefined;
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const vis = regionVisibility(regionId, discovered, rumored);
+    if (vis === 'hidden' || !regionId) { return []; }
+    const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+    if (!coords) { return []; }
+    const band = deriveSettlementPressureBand(settlement);
+    if (band === 'calm' && vis === 'rumored') { return []; }
+    const internalId = `pressure_${settlement.settlementId}`;
+    return [{
+        id: overlayMarkerPublicId(internalId, 'settlement_pressure', regionId, 0, vis),
+        kind: 'settlement_pressure',
+        x: coords.x,
+        y: coords.y,
+        label: vis === 'rumored' ? 'Settlement rumored' : pressureBandLabel(band),
+        fogVisibility: vis,
+        tone: band === 'crisis' ? 'hostile' : band === 'unrest' ? 'neutral' : 'unknown',
+        detail: vis === 'discovered' ? `Mood: ${band}` : undefined,
+    }];
+}
+
+function vehicleLocationId(vehicle: VehicleEntry): string | undefined {
+    return vehicle.locationId || vehicle.parkedAt?.locationId || vehicle.parkedAt?.parkingLocationId;
+}
+
+function markerAtLocationWithOffset(
+    inputs: MapOverlayInputs,
+    locationId: string,
+    gridSize: number,
+    offsetIndex: number
+): { coords: { x: number; y: number }; vis: OverlayFogVisibility } | undefined {
+    const discovered = new Set(inputs.fog.discoveredRegionIds);
+    const rumored = new Set(inputs.fog.rumoredRegionIds);
+    const regionId = resolveLocationRegionId(inputs.forge, locationId);
+    const vis = regionVisibility(regionId, discovered, rumored);
+    if (vis === 'hidden' || !regionId) { return undefined; }
+    const coords = resolveRegionTileCoords(inputs.forge, regionId, gridSize);
+    if (!coords) { return undefined; }
+    const dx = (offsetIndex % 3) - 1;
+    const dy = Math.floor(offsetIndex / 3) - 1;
+    return {
+        coords: {
+            x: Math.max(0, Math.min(gridSize - 1, coords.x + dx)),
+            y: Math.max(0, Math.min(gridSize - 1, coords.y + dy)),
+        },
+        vis,
+    };
+}
+
+function buildVehicleMarkers(inputs: MapOverlayInputs, gridSize: number): OverlayMarker[] {
+    if (inputs.enableVehicleSystem !== true || !inputs.vehicleState?.vehicles.length) {
+        return [];
+    }
+    const state = inputs.vehicleState;
+    const markers: OverlayMarker[] = [];
+    let offset = 0;
+
+    for (const vehicle of state.vehicles) {
+        if (markers.filter((m) => m.kind === 'vehicle').length >= MAX_OVERLAY_VEHICLE) { break; }
+        const locId = vehicleLocationId(vehicle);
+        if (!locId) { continue; }
+        const placed = markerAtLocationWithOffset(inputs, locId, gridSize, offset++);
+        if (!placed) { continue; }
+        const active = vehicle.id === state.activeVehicleId;
+        const regionId = resolveLocationRegionId(inputs.forge, locId) ?? 'unknown';
+        markers.push({
+            id: overlayMarkerPublicId(`vehicle_${vehicle.id}`, 'vehicle', regionId, offset, placed.vis),
+            kind: 'vehicle',
+            x: placed.coords.x,
+            y: placed.coords.y,
+            label: placed.vis === 'rumored' ? 'Vehicle rumored' : `${vehicle.name} (${vehicle.status})`,
+            fogVisibility: placed.vis,
+            tone: active ? 'friendly' : vehicle.status === 'damaged' ? 'hostile' : 'neutral',
+            detail: active ? 'Active vehicle' : undefined,
+        });
+    }
+
+    const seenParking = new Set<string>();
+    for (const vehicle of state.vehicles) {
+        if (markers.filter((m) => m.kind === 'vehicle_parking').length >= MAX_OVERLAY_VEHICLE_PARKING) {
+            break;
+        }
+        const parkingId = vehicle.parkedAt?.parkingLocationId;
+        if (!parkingId) { continue; }
+        const atId = vehicle.parkedAt?.locationId || vehicle.locationId;
+        if (atId === parkingId) { continue; }
+        const key = `${parkingId}:${vehicle.id}`;
+        if (seenParking.has(key)) { continue; }
+        seenParking.add(key);
+        const placed = markerAtLocationWithOffset(inputs, parkingId, gridSize, offset++);
+        if (!placed) { continue; }
+        const regionId = resolveLocationRegionId(inputs.forge, parkingId) ?? 'unknown';
+        markers.push({
+            id: overlayMarkerPublicId(`vehicle_park_${vehicle.id}`, 'vehicle_parking', regionId, offset, placed.vis),
+            kind: 'vehicle_parking',
+            x: placed.coords.x,
+            y: placed.coords.y,
+            label: placed.vis === 'rumored' ? 'Parking rumored' : `Parking: ${vehicle.name}`,
+            fogVisibility: placed.vis,
+            tone: 'unknown',
+            detail: 'External parking',
+        });
+    }
+
+    const current = inputs.currentLocationId;
+    const activeVehicle = state.activeVehicleId
+        ? state.vehicles.find((v) => v.id === state.activeVehicleId)
+        : state.vehicles[0];
+    if (activeVehicle && current) {
+        const access = resolveLocationVehicleAccess(inputs.forge, current);
+        const check = canVehicleAccessLocation(activeVehicle, access);
+        if (!check.allowed && check.parkingLocationId) {
+            const key = `fallback:${check.parkingLocationId}`;
+            if (!seenParking.has(key) && markers.filter((m) => m.kind === 'vehicle_parking').length < MAX_OVERLAY_VEHICLE_PARKING) {
+                seenParking.add(key);
+                const placed = markerAtLocationWithOffset(inputs, check.parkingLocationId, gridSize, offset++);
+                if (placed) {
+                    const regionId = resolveLocationRegionId(inputs.forge, check.parkingLocationId) ?? 'unknown';
+                    markers.push({
+                        id: overlayMarkerPublicId(
+                            `vehicle_park_fallback_${activeVehicle.id}`,
+                            'vehicle_parking',
+                            regionId,
+                            offset,
+                            placed.vis
+                        ),
+                        kind: 'vehicle_parking',
+                        x: placed.coords.x,
+                        y: placed.coords.y,
+                        label: placed.vis === 'rumored' ? 'Parking rumored' : `Parking: ${activeVehicle.name}`,
+                        fogVisibility: placed.vis,
+                        tone: 'unknown',
+                        detail: `Cannot enter ${current}`,
+                    });
+                }
+            }
+        }
+    }
+
+    if (inputs.settlementState?.locationId) {
+        const settlementLoc = inputs.settlementState.locationId;
+        for (const vehicle of state.vehicles) {
+            if (markers.filter((m) => m.kind === 'vehicle_parking').length >= MAX_OVERLAY_VEHICLE_PARKING) {
+                break;
+            }
+            if (vehicleLocationId(vehicle) !== settlementLoc) { continue; }
+            const key = `settlement:${vehicle.id}`;
+            if (seenParking.has(key)) { continue; }
+            seenParking.add(key);
+            const placed = markerAtLocationWithOffset(inputs, settlementLoc, gridSize, offset++);
+            if (!placed) { continue; }
+            const regionId = resolveLocationRegionId(inputs.forge, settlementLoc) ?? 'unknown';
+            markers.push({
+                id: overlayMarkerPublicId(
+                    `vehicle_settlement_park_${vehicle.id}`,
+                    'vehicle_parking',
+                    regionId,
+                    offset,
+                    placed.vis
+                ),
+                kind: 'vehicle_parking',
+                x: placed.coords.x,
+                y: placed.coords.y,
+                label: placed.vis === 'rumored' ? 'Base parking rumored' : `Docked: ${vehicle.name}`,
+                fogVisibility: placed.vis,
+                tone: 'neutral',
+                detail: 'Settlement parking',
+            });
+        }
+    }
+
+    return markers;
+}
+
+export function buildMapOverlaySnapshot(inputs: MapOverlayInputs): MapOverlaySnapshot {
+    if (!inputs.forge?.geography?.regions?.length) {
+        return { version: MAP_OVERLAY_VERSION, markers: [] };
+    }
+    const gridSize = inputs.gridSize ?? TILE_OVERMAP_SIZE;
+    buildCartographyLayoutSpec(inputs.forge);
+
+    const raw: OverlayMarker[] = [
+        ...buildNpcMarkers(inputs, gridSize),
+        ...buildMerchantMarkers(inputs, gridSize),
+        ...buildCaravanMarkers(inputs, gridSize),
+        ...buildFactionMarkers(inputs, gridSize),
+        ...buildQuestMarkers(inputs, gridSize),
+        ...buildDiscoveryMarkers(inputs, gridSize),
+        ...buildPressureMarkers(inputs, gridSize),
+        ...buildVehicleMarkers(inputs, gridSize),
+    ];
+
+    const markers = capMarkersByKind(raw.map(sanitizeOverlayMarker));
+    return { version: MAP_OVERLAY_VERSION, markers };
+}
+
+/** NPCs the player has actually met (interaction turn), not inferred from visited locations. */
+export function deriveKnownNpcIds(
+    registry: NpcRegistry | undefined,
+    _visitedLocationIds?: readonly string[]
+): Set<string> {
+    const known = new Set<string>();
+    if (!registry?.npcs) { return known; }
+    for (const [npcId, npc] of Object.entries(registry.npcs)) {
+        if ((npc.disposition?.lastInteractionTurn ?? 0) > 0) {
+            known.add(npcId);
+        }
+    }
+    return known;
+}
+
+function sanitizeOverlayMarkerKind(kind: string): OverlayMarkerKind {
+    const valid: OverlayMarkerKind[] = [
+        'npc', 'merchant', 'caravan', 'faction_control', 'quest', 'discovery', 'settlement_pressure',
+        'vehicle', 'vehicle_parking',
+    ];
+    return valid.includes(kind as OverlayMarkerKind) ? (kind as OverlayMarkerKind) : 'npc';
+}
+
+function sanitizeOverlayTone(tone: string | undefined): OverlayTone | undefined {
+    if (tone === 'friendly' || tone === 'neutral' || tone === 'hostile' || tone === 'unknown') {
+        return tone;
+    }
+    return undefined;
+}
+
+/** Re-project markers through the allow-list (replay/remote choke point guard). */
+export function sanitizeMapOverlaySnapshot(snapshot: MapOverlaySnapshot): MapOverlaySnapshot {
+    const markers: OverlayMarker[] = [];
+    for (const marker of snapshot.markers) {
+        const picked = pickOverlayMarkerKeys(marker);
+        const fogVisibility = picked.fogVisibility === 'rumored' ? 'rumored' : 'discovered';
+        const out: OverlayMarker = {
+            id: clampText(String(picked.id ?? ''), 64),
+            kind: sanitizeOverlayMarkerKind(String(picked.kind ?? 'npc')),
+            x: Math.max(0, Math.min(TILE_OVERMAP_SIZE - 1, Math.floor(Number(picked.x) || 0))),
+            y: Math.max(0, Math.min(TILE_OVERMAP_SIZE - 1, Math.floor(Number(picked.y) || 0))),
+            label: clampText(String(picked.label ?? ''), MAX_OVERLAY_LABEL),
+            fogVisibility,
+        };
+        const tone = sanitizeOverlayTone(typeof picked.tone === 'string' ? picked.tone : undefined);
+        if (tone) { out.tone = tone; }
+        if (typeof picked.detail === 'string' && picked.detail.trim()) {
+            out.detail = clampText(picked.detail, MAX_OVERLAY_DETAIL);
+        }
+        markers.push(out);
+    }
+    return { version: MAP_OVERLAY_VERSION, markers };
+}
+
+/** Returns only allow-listed keys present on a marker (for tests and export guards). */
+export function pickOverlayMarkerKeys(marker: OverlayMarker): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const key of OVERLAY_MARKER_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(marker, key) && marker[key as keyof OverlayMarker] !== undefined) {
+            out[key] = marker[key as keyof OverlayMarker];
+        }
+    }
+    return out;
+}
+
+/** Returns only allow-listed keys on a snapshot (replay/remote export guards). */
+export function pickMapOverlaySnapshotKeys(snapshot: MapOverlaySnapshot): Record<string, unknown> {
+    const sanitized = sanitizeMapOverlaySnapshot(snapshot);
+    return {
+        version: sanitized.version,
+        markers: sanitized.markers.map((marker) => pickOverlayMarkerKeys(marker)),
+    };
+}

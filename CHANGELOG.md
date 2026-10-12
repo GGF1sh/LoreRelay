@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.90.0] - 2026-10-13
+
+### Added
+- Prepare a new adventure with any browser AI using a versioned JSON package, generated settings dictionary, recommendation guide and presets.
+- Windows launcher accepts a downloaded JSON or pasted code block, creates an isolated adventure, opens VS Code and imports once after Workspace Trust. Existing saves and global connection settings remain intact.
+
 ## [1.89.2] - 2026-09-19
 
 ### Fixed

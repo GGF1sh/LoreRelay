@@ -1,6 +1,30 @@
 {
   "schemaVersion": 1,
   "rules": [
+    {
+      "id": "browser-ai-start",
+      "patterns": [
+        "src/browserSetupCore.ts",
+        "src/browserAdventure.ts",
+        "resources/browser-start/**",
+        "LoreRelay_Start.bat",
+        "scripts/start_browser_adventure.ps1",
+        "scripts/generate_browser_start_kit.js",
+        "scripts/test_browser_launcher.ps1",
+        "scripts/test_browser_setup.js",
+        "scripts/test_browser_adventure.js",
+        "scripts/smoke_browser_start.js"
+      ],
+      "tests": [
+        "test_browser_setup.js",
+        "test_browser_adventure.js",
+        "test_scenario_pack_core.js"
+      ],
+      "boundaries": [
+        "compile"
+      ],
+      "reason": "Strict AI input, isolated workspace writes, trust, Windows launch and one-time scenario initialization."
+    },
       {
         "id": "deepseek-gm-connection-v2",
         "patterns": ["src/deepSeekGmClient.ts", "src/deepSeekGmCore.ts", "antigravity-skill/text-adventure-gm/scripts/openrouter_gm.py", "antigravity-skill/text-adventure-gm/scripts/deepseek_gm.py", "scripts/test_deepseek_api_transport.py"],

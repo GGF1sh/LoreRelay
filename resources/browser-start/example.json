@@ -1,0 +1,51 @@
+{
+  "format": "lorerelay-browser-start/1",
+  "scenario": {
+    "format": "text-adventure-scenario/1.0",
+    "meta": {
+      "title": "霧の港の小さな依頼",
+      "description": "会話と探索を中心とした穏やかな冒険"
+    },
+    "setup": {
+      "world": "潮風と朝霧に包まれる港町。灯台守から一通の手紙が届いた。",
+      "protagonist": "旅する記録係のアオ。人の話を聞き、町の小さな謎を記録する。",
+      "tone": "会話と探索中心。戦闘は控えめ。返答は短めで、次にできることを提示する。",
+      "theme": "modern",
+      "imageMode": "none",
+      "playerCharacter": {
+        "name": "アオ",
+        "description": "ノートと雨合羽を持つ旅する記録係。灯台守の手紙を頼りに港町へ来た。"
+      }
+    },
+    "opening": {
+      "narrative": "朝霧の中、港町へ到着した。手紙には「灯台で待つ」とだけ書かれている。カフェからはパンの香りが漂ってくる。",
+      "options": [
+        "灯台へ向かう",
+        "カフェで話を聞く"
+      ],
+      "status": {
+        "location": "港の遊歩道",
+        "time": "朝",
+        "condition": "良好",
+        "funds": "旅費に余裕あり"
+      }
+    }
+  },
+  "gameRules": {
+    "enableRpgMechanics": false,
+    "backgroundSimulation": false,
+    "enableNpcRegistry": false,
+    "enableStoryCombat": false,
+    "aiParticipationPolicy": "always"
+  },
+  "settings": {
+    "textAdventure.promptBudget.mode": "compact",
+    "textAdventure.promptBudget.maxTokens": 0,
+    "textAdventure.bgm.enabled": false,
+    "textAdventure.sfx.enabled": false
+  },
+  "recommendations": [
+    "環境が不明なので軽量設定を選びました。",
+    "会話と探索を中心に、戦闘と背景シミュレーションを控えます。"
+  ]
+}

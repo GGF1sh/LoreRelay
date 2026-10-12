@@ -1,0 +1,59 @@
+{
+  "lightweight": {
+    "description": "環境不明・軽快な開始向け。追加サービスを必要としない。",
+    "gameRules": {
+      "enableRpgMechanics": false,
+      "backgroundSimulation": false,
+      "enableNpcRegistry": false,
+      "enableStoryCombat": false,
+      "aiParticipationPolicy": "always"
+    },
+    "settings": {
+      "textAdventure.promptBudget.mode": "compact",
+      "textAdventure.promptBudget.maxTokens": 0,
+      "textAdventure.bgm.enabled": false,
+      "textAdventure.sfx.enabled": false
+    }
+  },
+  "conversation": {
+    "description": "会話と人物関係中心。戦闘と背景シミュレーションは控える。",
+    "gameRules": {
+      "enableRpgMechanics": false,
+      "enableNpcRegistry": true,
+      "enableNpcRelationships": true,
+      "maxNamedNpcCount": 10,
+      "maxMemoriesPerNpc": 10,
+      "enableStoryCombat": false
+    },
+    "settings": {
+      "textAdventure.promptBudget.mode": "balanced"
+    }
+  },
+  "exploration": {
+    "description": "穏やかな探索と遭遇中心。",
+    "gameRules": {
+      "enableRpgMechanics": true,
+      "diceDifficulty": "Easy",
+      "enableTravelEncounters": true,
+      "travelEncounterDensity": "low",
+      "playerRole": "adventurer"
+    },
+    "settings": {
+      "textAdventure.promptBudget.mode": "auto",
+      "textAdventure.pacing.hintInPrompt": true
+    }
+  },
+  "merchant": {
+    "description": "交易中心。初期の移動は簡易にする。",
+    "gameRules": {
+      "enableCommerce": true,
+      "enableCommerceUi": true,
+      "economyProfile": "plentiful",
+      "merchantTravelMode": "instant_free",
+      "playerRole": "merchant"
+    },
+    "settings": {
+      "textAdventure.promptBudget.mode": "auto"
+    }
+  }
+}

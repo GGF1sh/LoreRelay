@@ -13,6 +13,7 @@ import { renderWebviewHtml } from './webviewHtmlCore';
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
 import { loadGameRules, saveGameRules, clearGameRulesCache, type GameRules } from './gameRules';
+import { initializeBrowserAdventure } from './browserAdventure';
 import { setEventExcluded } from './gameRulesCore';
 import { worldPacingPreset } from './worldPacingCore';
 import { isValidDomainEventId } from './domainCore';
@@ -958,6 +959,11 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+        void initializeBrowserAdventure(context);
+    }));
+    void initializeBrowserAdventure(context);
 
     // Auto check updates once a day (silent)
     const lastCheck = context.globalState.get<number>('lorerelay.lastUpdateCheck', 0);

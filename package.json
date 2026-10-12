@@ -2,7 +2,7 @@
   "name": "lorerelay",
   "displayName": "LoreRelay",
   "description": "Local-first AI campaign engine for roleplay, world simulation, guild/domain play, and AI GM workflows.",
-  "version": "1.89.2",
+  "version": "1.90.0",
   "publisher": "Miya",
   "author": "Miya",
   "engines": {
@@ -67,7 +67,8 @@
     "onCommand:textadventure.startPlayerAgent",
     "onCommand:textadventure.stopPlayerAgent",
     "onCommand:textadventure.startNarrator",
-    "onCommand:textadventure.stopNarrator"
+    "onCommand:textadventure.stopNarrator",
+    "workspaceContains:lorerelay-start.json"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -929,7 +930,9 @@
     "test:plan": "node tools/test-console/cli.js plan",
     "test:run": "node tools/test-console/cli.js run",
     "test:console:self": "node tools/test-console/test/test_console.test.js",
-    "domain:balance": "node scripts/domain_balance_harness.js"
+    "domain:balance": "node scripts/domain_balance_harness.js",
+    "browser:kit": "node scripts/generate_browser_start_kit.js",
+    "browser:kit:check": "node scripts/generate_browser_start_kit.js --check"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

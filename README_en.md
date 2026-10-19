@@ -11,17 +11,19 @@ It is an open-source work in progress that runs in VS Code. Choose a supported A
 
 [What can I do?](#onboarding) · [Start your first adventure](#how-to-play) · [See more of the game](#screenshots) · [AI options & pricing](#ai-connections) · [Install](#setup)
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="Actual Management display showing AI conversation, the world map and trading state together." /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="South Port in a trading world, with the map, current location and trade state visible." /></a></p>
 
-<p align="center"><sub>An actual 1.85.3 screen: follow an adventure through conversation, map and trade.</sub></p>
+<p align="center"><sub>Choose a destination on the map, travel to the port, trade, save your world, and come back to continue the same journey.</sub></p>
 
-**[▶ Watch a 75-second slice of an adventure](docs/PUBLIC_LAUNCH_MEDIA.md)** — Talk to the GM → buy at the market → reopen the panel and check that the state is still there. Recorded in a sample world used for verification, with waits shortened.
+**The conversation moves on, and the world state stays with it.** LoreRelay connects the AI GM's story to maps, trade, quests, inventory and saved game state. The AI is free to narrate and suggest possibilities, while game facts such as your location and money are managed by LoreRelay. Correct a bad description by editing the message or giving the GM a direction; pin lasting facts in the Lorebook. Use Undo for conversation recovery and checkpoints when you want to restore the whole game.
 
-| Where should I go next? | What should I buy—and bring home? |
+| Finish trading, then start the next day | Keep a view from the journey |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map showing region names, locations, faction areas and unexplored territory over a generated map." /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="Action Hub after a completed purchase: one wheat, 11 credits, market stock 49." /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="The game screen after returning from a trade, with trade and end-day controls available." /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="A ComfyUI reference illustration of South Port from the same journey." /></a> |
 
-<p align="center"><sub>The map is an earlier feature showcase; the trade screen shows a completed purchase in 1.85.3. Click an image to open it full-size.</sub></p>
+<p align="center"><sub>Left: the game after a trading trip. Right: an optional ComfyUI location image from the same journey. Image generation is optional; LoreRelay also works without it.</sub></p>
+
+**[▶ Watch a 75-second slice of an adventure](docs/PUBLIC_LAUNCH_MEDIA.md)** — Talk to the GM → buy at the market → reopen the panel and continue. Recorded in a sample world with waits shortened.
 
 <a id="onboarding"></a>
 
@@ -71,12 +73,12 @@ Continue from the world you saved. Revisit conversation history, lorebooks and c
 
 1. **Get ready to play.** Follow [Installation](#setup), then open a dedicated play folder. To try the newest features, run the current source tree.
 2. **Choose your GM.** Open `LoreRelay: AI Connections` from the command palette and complete the login and setup for the connection you want. [AI options and pricing](#ai-connections)
-3. **Choose a world and character.** Run `LoreRelay: Open Game UI` → Start Hub → “Start building your world” to open World Genesis Setup, preview the result and choose “Use This World”. Create a protagonist from the character creation entry or select an existing character. You can also pick an included scenario from the demo group or `LoreRelay: Load Scenario Pack`. Use Continue for a saved world.
+3. **Choose a world and character.** Run `LoreRelay: Open Game UI` → Start Hub → “Start building your world” to open World Genesis Setup, preview the result and choose “Use This World”. After applying the world, choose “Create player character” or select an existing character. “Other ways to begin” → “Create New Protagonist” is another route. You can also pick an included scenario from the demo group or `LoreRelay: Load Scenario Pack`. Use Continue for a saved world.
 4. **Send the first line.** Choose an option or write your own action, then see the GM's narration and committed result. In worlds with Commerce enabled, the shared Actions entry opens trade, market travel and end day.
 
 A scenario's opening screen can appear before an AI is connected. Continuing the story with a GM requires a ready connection. If setup is unclear, see [AI Connections](docs/AI_CONNECTIONS.md).
 
-### Images and maps in the same adventure
+### Images and navigation verified earlier in 1.89.2
 
 Captured in the isolated 1.89.2 extension Host and real Webview, using one navigation demo world and the protagonist Haruka. Scene, portrait and map images come from local ComfyUI. The opening passage is a fixed verification fixture, not an AI GM conversation or a recording of human play. [Settings, measurements and verification scope](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 

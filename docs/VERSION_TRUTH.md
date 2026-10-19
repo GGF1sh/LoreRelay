@@ -108,10 +108,10 @@ PR本文と最終報告に、短く **Version decision: none / patch / minor / m
 
 | 項目 | 値 |
 |------|-----|
-| `package.json` | **1.89.2** |
-| CHANGELOG 先頭の版番号付きセクション | **[1.89.2]** |
+| `package.json` | **1.91.0** |
+| CHANGELOG 先頭の版番号付きセクション | **[1.91.0]** |
 
-Version decision: patch; 1.89.1 → 1.89.2。既存のComfyUI生成・画像採用・遅延結果の接続を修正したプレイ候補です。タグ・Releaseは公開しません。
+Version decision: minor; 1.89.2 → 1.91.0。#153の復元・訂正・取引修正、#154のブラウザAI開始、新しい思い出と約束をまとめた累積Draftのプレイ候補です。タグ・Releaseは公開しません。
 
 ## 検証・配布スナップショット（2026-09-08, AI Connection V2）
 

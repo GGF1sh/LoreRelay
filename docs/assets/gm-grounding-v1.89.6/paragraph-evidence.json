@@ -1,0 +1,14 @@
+{
+  "beforeId": "turn-54",
+  "afterId": "turn-54",
+  "rawBeforeSha256": "c334602e1b7deb770cad388557cd7e2644aee75d5fae30bab9e89430315ee5d7",
+  "rawAfterSha256": "c334602e1b7deb770cad388557cd7e2644aee75d5fae30bab9e89430315ee5d7",
+  "rawUnchanged": true,
+  "rawHasLiteralParagraph": true,
+  "dom": {
+    "found": true,
+    "text": "麦束の間から顔を上げた農場主は、あなたに穏やかにうなずく。\n\n「私はトーマス。北の農場で麦を育て、納屋を管理している農場主だ。」\n\n記録上の訂正を踏まえると、以前「ハロルド」などとされた呼び名は誤りであり、あなたに小麦を売った同じ農場主の正しい名はトーマスである。彼は普段、この北の農場にいる。\n\nあなたとの関係は、港のネリが無事だとあなた――旅商人ハルカが知らせたことを共有する間柄だ。その報告はすでに交わされている。\n\n再訪の約束については、青いリボンを目印にし、雨上がりの翌朝に会う、というものだった。トーマスはその約束を覚えている。",
+    "literalEscapedParagraph": false,
+    "realParagraph": true
+  }
+}

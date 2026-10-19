@@ -171,7 +171,13 @@ function normalizeOpeningWorld(raw: unknown): Record<string, unknown> | undefine
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
     const source = raw as Record<string, unknown>;
     if (typeof source.currentLocationId !== 'string' || !source.currentLocationId) { return undefined; }
-    return { currentLocationId: source.currentLocationId };
+    // A scenario may explicitly publish its starting route without claiming visits.
+    const discoveredRegionIds = Array.isArray(source.discoveredRegionIds)
+        ? [...new Set(source.discoveredRegionIds.filter((id): id is string =>
+            typeof id === 'string' && id.trim().length > 0).map(id => id.trim()))]
+        : undefined;
+    return { currentLocationId: source.currentLocationId,
+        ...(discoveredRegionIds ? { discoveredRegionIds } : {}) };
 }
 
 function copyFolderSync(from: string, to: string) {
@@ -216,27 +222,28 @@ async function confirmScenarioReset(wsPath: string): Promise<boolean> {
 }
 
 /** Load scenario.json (+ optional world/media files) from a pack directory into the workspace. */
-async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: boolean }): Promise<void> {
+export async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: boolean }): Promise<boolean> {
+    if (!vscode.workspace.isTrusted) { return false; }
     const wsPath = getWorkspacePath();
     if (!wsPath) {
         vscode.window.showWarningMessage(t('extension.error.workspaceRequired'));
-        return;
+        return false;
     }
     // A declared MOD must never enter the legacy recursive folder-copy importer.
     if (isDeclaredModFolder(dir)) {
         vscode.window.showErrorMessage('LoreRelay: select a locked MOD scenario instead of importing its package folder.');
-        return;
+        return false;
     }
     const modAuthorization = await acquireModCanonicalAuthorization(wsPath);
     if (!modAuthorization || !isModCanonicalAuthorizationCurrent(modAuthorization)) {
         vscode.window.showErrorMessage('LoreRelay: Safe Mode blocks scenario activation until the MOD lock is repaired.');
-        return;
+        return false;
     }
 
     const scenarioPath = path.join(dir, 'scenario.json');
     if (!fs.existsSync(scenarioPath)) {
         vscode.window.showErrorMessage(t('extension.error.scenarioMissing'));
-        return;
+        return false;
     }
 
     let scenario: Record<string, unknown>;
@@ -244,7 +251,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         scenario = JSON.parse(fs.readFileSync(scenarioPath, 'utf-8')) as Record<string, unknown>;
     } catch (e) {
         vscode.window.showErrorMessage(t('extension.error.scenarioReadFailed', { error: String(e) }));
-        return;
+        return false;
     }
 
     const localizedScenario = localizeScenarioData(scenario);
@@ -300,7 +307,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
     }
 
     const statePath = getGameStatePath();
-    if (!statePath) { return; }
+    if (!statePath) { return false; }
 
     try {
         if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
@@ -334,7 +341,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         clearDiscoveryLedgerCache();
     } catch (e) {
         vscode.window.showErrorMessage(t('extension.error.scenarioWriteFailed', { error: String(e) }));
-        return;
+        return false;
     }
 
     const config = vscode.workspace.getConfiguration('textAdventure');
@@ -347,7 +354,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
 
     if (!isModCanonicalAuthorizationCurrent(modAuthorization)) {
         vscode.window.showErrorMessage('LoreRelay: scenario activation stopped because the MOD package tree changed.');
-        return;
+        return false;
     }
 
     if (fs.existsSync(packBgm) || fs.existsSync(packSfx) || fs.existsSync(packBgmDir) || fs.existsSync(packSfxDir)) {
@@ -390,6 +397,7 @@ async function loadScenarioPackFromDir(dir: string, opts?: { firstSessionHint?: 
         ? 'extension.info.firstSessionDemoLoaded'
         : 'extension.info.scenarioLoaded';
     vscode.window.showInformationMessage(t(msgKey, { title, extra }));
+    return true;
 }
 
 /** Load a bundled sample scenario (Start Hub demo, no folder picker). */

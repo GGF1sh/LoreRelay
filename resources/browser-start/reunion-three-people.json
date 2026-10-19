@@ -1,0 +1,53 @@
+{
+  "format": "lorerelay-browser-start/1",
+  "scenario": {
+    "format": "text-adventure-scenario/1.0",
+    "meta": {
+      "title": "再会する三人",
+      "description": "会話と探索を中心とした穏やかな冒険"
+    },
+    "setup": {
+      "world": "静かな港町。カフェのミナ、灯台のレン、船着場のトワは別の人物。ミナは青い風鈴を大切にし、レンは星を観測し、トワは旅の話が好き。約束は明示された本人の発言だけから記録する。報酬や信頼度を追加しない。",
+      "protagonist": "旅する記録係のアオ。人の話を聞き、町の小さな謎を記録する。",
+      "tone": "会話と探索中心。戦闘は控えめ。返答は短めで、次にできることを提示する。",
+      "theme": "modern",
+      "imageMode": "none",
+      "playerCharacter": {
+        "name": "アオ",
+        "description": "ノートと雨合羽を持つ旅する記録係。灯台守の手紙を頼りに港町へ来た。"
+      }
+    },
+    "opening": {
+      "narrative": "港のカフェでミナが青い風鈴を見せた。灯台にはレン、船着場にはトワがいる。",
+      "options": [
+        "ミナと話す",
+        "レンを訪ねる",
+        "トワを訪ねる"
+      ],
+      "status": {
+        "location": "港の遊歩道",
+        "time": "朝",
+        "condition": "良好",
+        "funds": "旅費に余裕あり"
+      }
+    }
+  },
+  "gameRules": {
+    "enableRpgMechanics": false,
+    "backgroundSimulation": false,
+    "enableNpcRegistry": false,
+    "enableStoryCombat": false,
+    "aiParticipationPolicy": "always",
+    "narrativeMemoryMode": "auto"
+  },
+  "settings": {
+    "textAdventure.promptBudget.mode": "compact",
+    "textAdventure.promptBudget.maxTokens": 0,
+    "textAdventure.bgm.enabled": false,
+    "textAdventure.sfx.enabled": false
+  },
+  "recommendations": [
+    "環境が不明なので軽量設定を選びました。",
+    "会話と探索を中心に、戦闘と背景シミュレーションを控えます。"
+  ]
+}

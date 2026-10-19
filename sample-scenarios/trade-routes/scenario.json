@@ -51,7 +51,8 @@
       "playerRole": "merchant"
     },
     "world": {
-      "currentLocationId": "elda_shop"
+      "currentLocationId": "elda_shop",
+      "discoveredRegionIds": ["r_north", "r_central", "r_south"]
     },
     "status": {
       "location": "Elda's Shop",

@@ -11,17 +11,19 @@
 
 [可以怎麼玩？](#onboarding) · [開始第一場冒險](#how-to-play) · [看看更多畫面](#screenshots) · [可用 AI 與費用](#ai-connections) · [安裝](#setup)
 
-<p align="center"><a href="docs/assets/public-launch-v1.85.3/management-map.png"><img src="docs/assets/public-launch-v1.85.3/management-map.png" width="840" alt="實際的管理介面：同時顯示 AI 對話、世界地圖與交易狀態。" /></a></p>
+<p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="交易世界中的南港，畫面顯示地圖、目前位置與交易狀態。" /></a></p>
 
-<p align="center"><sub>1.85.3 的實際畫面：用對話推進冒險，再從地圖與交易介面確認世界的變化。</sub></p>
+<p align="center"><sub>在地圖上選擇目的地，前往港口交易，保存世界，下次再從同一段旅程繼續。</sub></p>
 
-**[▶ 用 75 秒看一段冒險](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 對話 → 在市場購買 → 重新開啟面板確認狀態仍然保留。影片使用驗證用的範例世界錄製，並縮短了等待時間。
+**對話會繼續，世界狀態也會留下。** LoreRelay 把 AI GM 的故事與地圖、交易、任務、物品和存檔連接起來。AI 可以自由描寫和提出可能性，而目前位置、資金等遊戲事實由 LoreRelay 管理。遇到不合適的描寫，可以編輯訊息或向 GM 補充指示；需要長期保留的設定可以固定到 Lorebook。Undo 用於回退對話，需要還原整個遊戲時則使用 checkpoint。
 
-| 下一站，去哪裡？ | 買什麼，又要帶什麼回去？ |
+| 結束交易，迎接下一天 | 留下旅途中的風景 |
 | :---: | :---: |
-| <a href="docs/assets/screenshot-world-map.png"><img src="docs/assets/screenshot-world-map.png" width="390" alt="World Map：在生成地圖上顯示區域名稱、地點、勢力範圍與未探索區域。" /></a> | <a href="docs/assets/public-launch-v1.85.3/trade-committed.jpg"><img src="docs/assets/public-launch-v1.85.3/trade-committed.jpg" width="390" alt="完成購買後的 Action Hub：小麥 1、資金 11、市場庫存 49。" /></a> |
+| <a href="docs/assets/gameplay-v1.89.3/trade-return.png"><img src="docs/assets/gameplay-v1.89.3/trade-return.png" width="390" alt="完成交易並返回後的遊戲畫面，可繼續進行交易或結束一天。" /></a> | <a href="docs/assets/gameplay-v1.89.3/south-port.png"><img src="docs/assets/gameplay-v1.89.3/south-port.png" width="390" alt="同一段旅程中，用 ComfyUI 繪製的南港參考插圖。" /></a> |
 
-<p align="center"><sub>地圖來自較早的功能展示，交易畫面則是 1.85.3 中實際完成購買後的結果。點擊圖片可查看原始尺寸。</sub></p>
+<p align="center"><sub>左圖是交易後的遊戲畫面，右圖是同一旅途中可選的 ComfyUI 地點圖片。圖像生成不是必要功能，不生成圖片也可以完整遊玩。</sub></p>
+
+**[▶ 用 75 秒看一段冒險](docs/PUBLIC_LAUNCH_MEDIA.md)** — 和 GM 對話 → 在市場購買 → 重新開啟面板繼續遊玩。影片在範例世界中錄製，並縮短了等待時間。
 
 <a id="onboarding"></a>
 
@@ -71,12 +73,12 @@
 
 1. **準備遊玩環境。** 完成[安裝](#setup)，然後打開一個專門用來遊玩的資料夾。要體驗最新功能，請從目前原始碼啟動。
 2. **選擇 GM。** 從命令面板打開 `LoreRelay: AI Connections`（日文 UI 為 `LoreRelay: AI接続`），完成所需連線的登入與設定。[不同連線與費用](#ai-connections)
-3. **選擇舞台與角色。** 執行 `LoreRelay: Open Game UI` → Start Hub →「開始建立世界」，進入世界生成設定，預覽後選擇「使用此世界」。從主角建立入口建立主角，或選擇已有角色。也可以從 Demo 清單或 `LoreRelay: Load Scenario Pack` 選擇內建場景。已有存檔則選擇 Continue。
+3. **選擇舞台與角色。** 執行 `LoreRelay: Open Game UI` → Start Hub →「開始建立世界」，進入世界生成設定，預覽後選擇「使用此世界」。採用世界後，透過「建立主角」建立主角，或選擇已有角色。也可以使用「其他開始方式」→「新增主角」。Demo 清單或 `LoreRelay: Load Scenario Pack` 提供內建場景。已有存檔則選擇 Continue。
 4. **送出第一句話。** 選擇行動或直接輸入自己的做法，再確認 GM 的描寫與已經確定的結果。啟用 Commerce 的世界裡，可以從統一的 Actions 入口進行交易、市場移動與結束一天。
 
 即使還沒有連接 AI，也可以先顯示場景的開場畫面。要讓 GM 繼續推動故事，則需要先完成連線準備。不清楚設定方式時，請參閱 [AI Connections](docs/AI_CONNECTIONS.md)。
 
-### 在同一段冒險中確認圖片與地圖
+### 之前在 1.89.2 中驗證的圖片與航線
 
 使用同一個航線示範世界與主角 Haruka，在隔離的 1.89.2 擴充 Host 與實際 Webview 中確認。場景、角色與地圖由本機 ComfyUI 生成。開場文字是固定的驗證素材，並非與 AI GM 的真實對話或人類遊玩錄影。 [設定、實測與驗證範圍](docs/COMFYUI_LOCAL_PLAYCHECK.md)
 

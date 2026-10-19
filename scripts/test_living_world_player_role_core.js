@@ -18,7 +18,7 @@ for (const p of [rolePath, promptPath]) {
 }
 
 const { buildPlayerRoleMotivationLine, resolvePlayerRoleForPrompt } = require(rolePath);
-const { buildCaravanPromptLines } = require(promptPath);
+const { buildCaravanPromptLines, buildLivingWorldPromptBlocks } = require(promptPath);
 
 {
     const line = buildPlayerRoleMotivationLine('smith');
@@ -53,6 +53,20 @@ const { buildCaravanPromptLines } = require(promptPath);
     } else {
         ok('caravan prompt includes role');
     }
+}
+
+{
+    const assert = require('assert/strict');
+    const world = require('../sample-scenarios/trade-routes/world_forge.json');
+    const forge = world.commerce;
+    const blocks = buildLivingWorldPromptBlocks({forge,markets:{north_farm:{wheat:{stock:30,priceIndex:1}}},
+        registry:{},npcPositions:{},worldTurn:11,commerceEnabled:true,agencyEnabled:false,
+        playerLocationId:'north_farm',locationNames:{north_farm:'North Farm'},
+        playerCommerce:{credits:415,food:30,transportId:'wagon',cargo:[{commodityId:'wheat',qty:10}]}});
+    assert(blocks.combined.some(line=>line.includes('currentLocationId=north_farm')));
+    assert(blocks.commerce.some(line=>line.includes('marketLocationId=north_farm; commodityId=wheat')));
+    assert(blocks.caravan.some(line=>line.includes('commodityId=wheat')));
+    ok('real trading context provides canonical location and commodity IDs alongside labels');
 }
 
 if (failed > 0) {

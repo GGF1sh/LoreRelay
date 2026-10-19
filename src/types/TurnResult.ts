@@ -95,6 +95,7 @@ export interface TurnResultMetadata {
 }
 
 export interface TurnResult {
+    narrativeMemoryProposals?: unknown[];
     turnId: string;
     playerAction?: string;
     diceLedger?: DiceLedgerEntry[];

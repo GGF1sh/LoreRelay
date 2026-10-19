@@ -3534,6 +3534,15 @@ body.vscode-high-contrast #status-drawer-scrim {
 .msg:has(.visual-adopted-image) > .scene-img-container { display: none; }
 @media (max-width: 480px) { .visual-composer { inset: 1vh 1vw; padding: 12px; } }
 
+/* --- 82a-narrative-memory.css --- */
+.narrative-memory-panel { margin: 8px 16px; padding: 10px 14px; border: 1px solid var(--vscode-panel-border, #7775); border-radius: 8px; background: var(--vscode-editor-background, transparent); }
+.narrative-memory-panel summary { cursor: pointer; font-weight: 600; }
+.narrative-memory-panel button { margin: 3px; }
+.narrative-memory-panel p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.narrative-record { border-top: 1px solid #8884; padding: 10px 0; }
+#narrative-memory-body { max-height: 52vh; overflow-y: auto; }
+#narrative-status { margin: 4px 16px; font-size: 0.9em; }
+
 /* --- 85-world.css --- */
 /* ========= World Tab — Location Images & NPC Panel ========= */
 

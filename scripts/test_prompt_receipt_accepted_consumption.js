@@ -204,6 +204,141 @@ function acceptedTurnForReceipt(receipt) {
 try {
     writeFixture();
 
+    const gameStateSync = require(path.join(root, 'out', 'gameStateSync.js'));
+    const originalCachedState = gameStateSync.getCachedGameState;
+    try {
+        gameStateSync.getCachedGameState = () => ({ summary: 'STALE_UI_CACHE_BEFORE_TRAVEL' });
+        writeFixture({ summary: 'COMMITTED_CANONICAL_AFTER_TRAVEL' });
+        const fresh = buildProductionPromptAssembly('continue after travel', 'codex-app-server').promptText;
+        if (!fresh.includes('COMMITTED_CANONICAL_AFTER_TRAVEL') || fresh.includes('STALE_UI_CACHE_BEFORE_TRAVEL')) {
+            fail('actual production assembly must read canonical state before the UI watcher catches up');
+        } else {
+            ok('production assembly reads committed canonical state, not the stale UI cache');
+        }
+        fs.writeFileSync(gameStateFile, '{invalid');
+        const unreadable = buildProductionPromptAssembly('continue', 'codex-app-server').promptText;
+        if (unreadable.includes('STALE_UI_CACHE_BEFORE_TRAVEL')) {
+            fail('unreadable canonical state must not resurrect stale cached state');
+        } else {
+            ok('unreadable canonical state does not fall back to stale UI data');
+        }
+    } finally {
+        gameStateSync.getCachedGameState = originalCachedState;
+    }
+    writeFixture();
+
+    const completedWorld = readWorldState();
+    completedWorld.questHooks = [{ id: 'quest_already_paid', title: 'Delivered grain', description: 'Old delivery',
+        status: 'completed', source: 'event', relatedId: 'event_old', turnGenerated: 1 }];
+    fs.writeFileSync(worldStateFile, JSON.stringify(completedWorld));
+    const completedPrompt = buildProductionPromptAssembly('Was the grain quest completed?', 'codex-app-server').promptText;
+    if (!completedPrompt.includes('ID: quest_already_paid | completed') || completedPrompt.includes('[Active Quest]')) {
+        fail('production must send current completed status without reviving an active quest');
+    } else { ok('production sends canonical completed quest status'); }
+    writeFixture();
+
+    const rulesFile = path.join(WS_PATH, 'game_rules.json');
+    const savedRules = fs.readFileSync(rulesFile);
+    const forgeFile = path.join(WS_PATH, 'world_forge.json');
+    const gameRulesModule = require(path.join(root, 'out', 'gameRules.js'));
+    const forgeModule = require(path.join(root, 'out', 'worldForge.js'));
+    try {
+        fs.copyFileSync(path.join(root, 'sample-scenarios/trade-routes/world_forge.json'), forgeFile);
+        fs.writeFileSync(rulesFile, JSON.stringify({enableWorldForge:true,enableCommerce:true,enableEmergentSimulation:true}));
+        gameRulesModule.clearGameRulesCache(); forgeModule.clearWorldForgeCache();
+        const game = JSON.parse(fs.readFileSync(gameStateFile,'utf8'));
+        game.world = {currentLocationId:'north_farm',discoveredRegionIds:['r_north','r_central'],visitedLocationIds:['north_farm','elda_shop']};
+        game.commerce = {credits:608,cargo:[],transportId:'wagon',food:24};
+        fs.writeFileSync(gameStateFile, JSON.stringify(game));
+        const savedWorld = readWorldState();
+        savedWorld.recentChanges = [{id:'wce_commerce_trade_test',worldTurn:2,source:'player',category:'resource',severity:'info',message:'Bought 10 wheat at north_farm (-90G)',locationId:'north_farm'}];
+        fs.writeFileSync(worldStateFile,JSON.stringify(savedWorld));worldState.clearWorldStateCache();
+        const before = [gameStateFile,worldStateFile].map(f=>fs.readFileSync(f,'utf8'));
+        const prompt = buildProductionPromptAssembly('Where can I go, and what did I pay for wheat?', 'codex-app-server').promptText;
+        if (!prompt.includes('Canonical geography') || !prompt.includes('Market travel UI offers (1/1 shown): elda_shop=')
+            || !prompt.includes('Bought 10 wheat at north_farm (-90G)') || !prompt.includes('NOT a complete ledger')
+            || before.some((s,i)=>s!==fs.readFileSync([gameStateFile,worldStateFile][i],'utf8'))) {
+            fail('production grounding must survive selection and read current state without mutation');
+        } else { ok('actual production context carries published UI destinations and recorded trade amounts, read-only'); }
+    } finally {
+        fs.writeFileSync(rulesFile,savedRules);fs.unlinkSync(forgeFile);
+        gameRulesModule.clearGameRulesCache();forgeModule.clearWorldForgeCache();writeFixture();
+    }
+
+    const originalHistory = gameStateSync.getGameEntryHistory;
+    const historyFile = path.join(WS_PATH, 'game_history.json');
+    try {
+        const recent = [
+            { id: 'recent-user', role: 'user', content: '中央辻のマーカスに鋼材の価格を報告します。エルダに次の収穫量と街道の危険について聞きます。' },
+            { id: 'recent-gm', role: 'gm', content: 'マーカスは鋼材の相場を考え込んだ。エルダは次の収穫量、街道の危険、荷車の通行止めを確認するよう勧めた。'.repeat(8) },
+        ];
+        fs.writeFileSync(historyFile, JSON.stringify([
+            { id: 'older-promise', role: 'gm', editedAt: '2026-09-20T00:00:00Z', content: '農場主は麦わら帽子を持ち上げた。「私はトーマスだ。港から戻ったらネリの様子を知らせてくれ。約束だよ」' },
+            { id: 'excluded-secret', role: 'gm', excludedFromPrompt: true, content: 'HIDDEN_PROMISE_SECRET 港から戻ったらネリとの約束を知らせる農場主の名前' },
+            ...recent,
+        ]));
+        gameStateSync.getGameEntryHistory = () => recent;
+        const action = '港から農場主に会いに戻り、ネリの様子を知らせる約束を果たします。名前を確認します。';
+        const memoryPrompt = buildProductionPromptAssembly(action, 'codex-app-server').promptText;
+        const inspector = buildGmPromptBreakdown(action);
+        if (!memoryPrompt.includes('user-edited') || !memoryPrompt.includes('not at the original turn time')) {
+            fail('actual prompt must identify inline edits as player corrections made at edit time');
+        } else { ok('actual prompt explains authored edit precedence alongside the corrected history'); }
+        if (!memoryPrompt.includes('トーマス') || !inspector.memoryMatches.some(m => m.id === 'history:older-promise')) {
+            fail('current request must retrieve an older promise despite a long unrelated recent conversation');
+        } else if (memoryPrompt.includes('HIDDEN_PROMISE_SECRET')) {
+            fail('memory query changes must keep excluded history out of the sent context');
+        } else {
+            ok('production and Inspector retrieve the requested old promise, preserving history exclusions');
+        }
+        if (!buildProductionPromptAssembly('', 'codex-app-server').promptText.includes('マーカス')) {
+            fail('empty action should still retrieve memory using the recent conversation hint');
+        } else {
+            ok('empty action retains the recent-conversation fallback');
+        }
+        const childProcess = require('child_process');
+        const scripts = require(path.join(root, 'out', 'skillScriptRunner.js'));
+        const originalSpawn = childProcess.spawnSync;
+        const originalScript = scripts.resolveGmBridgeScript;
+        try {
+            mockConfigStore.textAdventure['memory.backend'] = 'auto';
+            scripts.resolveGmBridgeScript = () => 'memory-test-fixture.py';
+            childProcess.spawnSync = () => ({ status: 0, stdout: JSON.stringify([
+                { id: 'history:older-promise', source: 'history', text: 'STALE_INDEX_TEXT' },
+                { id: 'history:excluded-secret', source: 'history', text: 'HIDDEN_PROMISE_SECRET' },
+            ]) });
+            const fromPython = buildProductionPromptAssembly(action, 'codex-app-server').promptText;
+            if (!fromPython.includes('トーマス') || fromPython.includes('STALE_INDEX_TEXT') || fromPython.includes('HIDDEN_PROMISE_SECRET')) {
+                fail('Python history matches must use current eligible history, never stale or excluded indexed text');
+            } else { ok('Python history matches are hydrated from current eligible history'); }
+        } finally {
+            childProcess.spawnSync = originalSpawn;
+            scripts.resolveGmBridgeScript = originalScript;
+            mockConfigStore.textAdventure['memory.backend'] = 'tfidf';
+        }
+        const correctionHistory = [
+            {id:'ask-orchard',role:'user',content:'Ask about orchard caretaker identification and introduce the caretaker.'},
+            {id:'wrong-orchard',role:'gm',content:'Old orchard caretaker identification and name. '.repeat(35)},
+            {id:'correct-orchard',role:'user',content:'Correction: AUTHORED_TRUE_NAME is the person we meant. This replaces the previous answer.'},
+            {id:'ack-orchard',role:'gm',content:'Acknowledged that correction.'},
+            {id:'distractor',role:'gm',content:'The orchard caretaker identification has been requested again in the orchard.'},
+        ];
+        fs.writeFileSync(historyFile, JSON.stringify(correctionHistory));
+        const corrected = buildProductionPromptAssembly('orchard caretaker identification', 'codex-app-server').promptText;
+        if (!corrected.includes('AUTHORED_TRUE_NAME') || !corrected.includes('[Following exchange')) {
+            fail('retrieved old reply must retain its immediately following correction within the compact budget');
+        } else { ok('compact production prompt retains the correction after a long old answer'); }
+        correctionHistory[3].excludedFromPrompt = true;
+        fs.writeFileSync(historyFile, JSON.stringify(correctionHistory));
+        if (buildProductionPromptAssembly('orchard caretaker identification', 'codex-app-server').promptText.includes('AUTHORED_TRUE_NAME')) {
+            fail('an excluded continuation must not be revived by surrounding-context hydration');
+        } else { ok('surrounding dialogue respects an excluded continuation'); }
+    } finally {
+        gameStateSync.getGameEntryHistory = originalHistory;
+        fs.unlinkSync(historyFile);
+    }
+    writeFixture();
+
     const before = readWorldState();
     const context = buildGmPromptContext('look around');
     const afterContext = readWorldState();

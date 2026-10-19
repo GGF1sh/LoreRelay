@@ -1,0 +1,39 @@
+{
+  "turnId": "turn-5",
+  "narration": "農場主は記録と荷車の積み方を確認し、南港向けの十袋とは別に、予備の一袋を分けてくれた。『港のネリさんに十袋、残る一袋は帰り道の備えか。堅実だね。中央街道は壊れた荷車で少し揉めてるらしい――荷を濡らさないよう、荷布をしっかり締めな。』追加の小麦袋は、既存の荷の脇へ安定するよう積まれた。",
+  "statePatch": [
+    {
+      "op": "replace",
+      "path": "/options",
+      "value": [
+        "荷布と車輪を点検してから南港へ向かう",
+        "農場主に中央街道の壊れた荷車について詳しく聞く",
+        "南港のネリについて確認する"
+      ]
+    }
+  ],
+  "playerAction": "手元の取引記録では所持金415cr、小麦10袋が荷車に載っています。先ほどの口約束とは別に、道中の予備として小麦をもう1袋、今の値札で追加購入します。農場主には、南港のネリへ十袋を届け、余分の一袋は持ち帰るつもりだと説明します。",
+  "gmEntry": {
+    "sender": "Game Master"
+  },
+  "media": {
+    "bgm": "market_port",
+    "mood": "tense",
+    "sfx": "wagon_creak"
+  },
+  "elapsedWorldTurns": 0,
+  "tradeOps": [
+    {
+      "op": "buy",
+      "marketLocationId": "north_farm",
+      "commodityId": "wheat",
+      "qty": 1
+    }
+  ],
+  "promptReceipt": {
+    "receiptId": "6ba72425-7ce8-4920-93fe-bb3deb035252",
+    "provider": "codex-app-server",
+    "assemblyDigest": "db4a99e2874bd8cce104333bdc6eb54cf17cfed5f6c09561cb3657355e43562a",
+    "transportPayloadHash": "57c96401e37b58086f3ed9cf9d20b4ad0f8a8c87a7a1ecb6962423e8617b0d7f"
+  }
+}

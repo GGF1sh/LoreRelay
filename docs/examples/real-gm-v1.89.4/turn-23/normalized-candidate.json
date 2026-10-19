@@ -1,0 +1,36 @@
+{
+  "turnId": "turn-23",
+  "narration": "荷車の青いリボンを指して、農場主ハルンに約束を果たしたことを伝える。戻る時期は「雨上がりの翌朝」だった。\n\nハルンはリボンを確かめ、安心したようにうなずいた。\n「約束どおりだな。道の具合を見てからネリのところへ向かう、という話も覚えている。焦って荷を増やさなかったのも賢明だ」\n\n彼は中央街道の方角へ目をやる。荷車の往来は続いているが、遠くでは修理待ちらしい車列が見える。小麦は買わず、まず安全を見極めるという判断が、いっそう現実的に思えた。",
+  "statePatch": [
+    {
+      "op": "replace",
+      "path": "/options",
+      "value": [
+        "ハルンに中央街道の詳しい状況を尋ねる",
+        "荷車の安全を点検する",
+        "旅のUIで中央交差路への移動を選ぶ"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/mood",
+      "value": "tense"
+    }
+  ],
+  "playerAction": "農場に戻りました。軒先を借りて一晩休む前に、また戻るときの目印と時期を決めましたね。私が荷車に付けると言った目印と、いつ戻る予定だったかを確認し、約束どおり来たことを農場主に伝えます。今回は小麦を追加購入しません。",
+  "gmEntry": {
+    "sender": "Game Master"
+  },
+  "media": {
+    "bgm": "crossroads_day",
+    "mood": "tense",
+    "sfx": "wagon_rattle"
+  },
+  "elapsedWorldTurns": 0,
+  "promptReceipt": {
+    "receiptId": "993c7e33-64fe-4d5b-bdf9-a118834c67df",
+    "provider": "codex-app-server",
+    "assemblyDigest": "dc97815ad0b357b4dc35ec82f837121d7ac00c46eebf49017fe4f069398efd11",
+    "transportPayloadHash": "79166aca6a156ca3c1e5fdbb3d5ba4f8b1ce8de1321baf29818bbed17a7d3fc8"
+  }
+}

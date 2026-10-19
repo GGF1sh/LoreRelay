@@ -41,6 +41,7 @@ try {
         hiddenState: { culprit: 'mayor' },
         domain: { treasury: 9 },
         guild: { rank: 2 },
+        narrativeMemory: { format: 1, records: [{ id: 'memory-snapshot-probe', content: '風鈴の約束' }] },
     };
     const expectedLedgers = {};
     for (const [index, fileName] of snapshotCore.CHECKPOINT_MUTABLE_LEDGER_FILES.entries()) {
@@ -56,6 +57,7 @@ try {
     equal(snapshot.gameState.hiddenState, gameState.hiddenState, 'hidden state is preserved');
     equal(snapshot.gameState.domain, gameState.domain, 'domain root is preserved');
     equal(snapshot.gameState.guild, gameState.guild, 'guild root is preserved');
+    equal(snapshot.gameState.narrativeMemory, gameState.narrativeMemory, 'narrative memory is included in complete snapshots');
     const serializationProbe = { entries: [{ id: 'one', nested: { value: 1 } }] };
     const storageJson = checkpoint.serializeCheckpointForStorage(serializationProbe);
     equal(storageJson, JSON.stringify(serializationProbe, null, 2), 'checkpoint size authority uses the exact pretty serialization written to disk');

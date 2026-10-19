@@ -532,6 +532,9 @@ export function pushWorldViewToWebview(currentLocationId?: string): void {
         try { recoverWaterNavigation(navigationWorkspace); }
         catch (e) { void getPanelRef?.()?.webview.postMessage({ type: 'waterNavigationResult', ok: false, error: String(e) }); return; }
     }
+    // Refreshes such as checkpoint saves omit the location argument. Resolve all
+    // location-dependent projections from the same persisted player location.
+    currentLocationId ??= getCurrentLocationIdFromDisk();
     registerStructureArtTargets('', '', []);
     const panel = getPanelRef?.();
     if (!panel) { return; }

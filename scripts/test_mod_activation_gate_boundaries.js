@@ -147,14 +147,20 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
     }
 
     for (const action of ['checkpoint', 'undo', 'rewind', 'regenerate']) {
-        for (const failure of ['history', 'state', ...(action === 'checkpoint' ? ['none'] : [])]) {
+        for (const failure of (action === 'regenerate' ? ['none'] : ['history', 'state', 'none'])) {
             const root = path.join(temp, `restore-${action}-${failure}`);
             controls(root);
             const statePath = path.join(root, 'game_state.json');
             const historyPath = path.join(root, 'game_history.json');
             const originalHistory = [stateEntry('user-1', 'user'), stateEntry('gm-1', 'gm', context), stateEntry('user-2', 'user'), stateEntry('gm-2', 'gm', context)];
             fs.writeFileSync(historyPath, JSON.stringify(originalHistory));
-            fs.writeFileSync(statePath, JSON.stringify({ schemaVersion: 2, entries: originalHistory, status: {}, options: [] }));
+            const canonical = {
+                commerce: { credits: 608, cargo: [], food: 24, transportId: 'wagon' },
+                world: { currentLocationId: 'north_farm', visitedLocationIds: ['north_farm'] },
+                director: { scene: 'farm' }, hiddenState: { promise: 'kept' },
+            };
+            fs.writeFileSync(statePath, JSON.stringify({ schemaVersion: 2, entries: originalHistory, status: {}, options: [],
+                ...canonical, summary: 'removed turn summary', background: 'removed turn image', latestImageDescription: 'removed image description' }));
             const stateBefore = fs.readFileSync(statePath, 'utf8');
             const historyBefore = fs.readFileSync(historyPath, 'utf8');
             const priorScope = replayGuard.ensureAcceptedTurnScope(root);
@@ -174,9 +180,12 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
             sync.setGameEntryHistoryWithSeenIds(originalHistory);
             const messages = [];
             const errors = [];
+            const warnings = [];
+            let gmRequests = 0;
             const vscode = createVscodeStub();
             vscode.window.showInformationMessage = message => messages.push(message);
             vscode.window.showErrorMessage = message => errors.push(message);
+            vscode.window.showWarningMessage = message => warnings.push(message);
             const changeLock = () => fs.appendFileSync(path.join(root, '.text-adventure', 'mod-lock.json'), ' ');
             const packageReadme = path.join(input.globalStorageRoot, 'mods', 'packages', profile.enabled[0].id, profile.enabled[0].version, 'README.md');
             const handlers = loadBoundary('checkpointHandlers.js', {
@@ -185,6 +194,7 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
                 './checkpoint': checkpoint,
                 './checkpointCombatCore': checkpointCombat,
                 './checkpointSnapshot': checkpointSnapshot,
+                './migrateGameState': require('../out/migrateGameState'),
                 './entryId': { isValidEntryId: () => true },
                 './i18n': { t: key => key },
                 './mods/modActivationGateHost': activation,
@@ -198,13 +208,26 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
                         if (failure === 'history') changeLock();
                     },
                 },
-                './gmBridgeRunner': { resetGmBridgeSessions() { if (failure === 'state') fs.writeFileSync(packageReadme, 'changed during restore'); } },
+                './gmBridgeRunner': {
+                    resetGmBridgeSessions() { if (failure === 'state') fs.writeFileSync(packageReadme, 'changed during restore'); },
+                    invokeGmBridge: async () => { gmRequests++; return true; },
+                    fallbackToClipboard: async () => {},
+                },
             });
             handlers.initCheckpointHandlers({ getPanel: () => undefined, isGameOverActive: () => false });
             if (action === 'checkpoint') await handlers.handleRestoreCheckpoint(saved.id);
             if (action === 'undo') await handlers.handleUndoLastTurn();
             if (action === 'rewind') await handlers.handleRestoreToTurn('gm-1');
             if (action === 'regenerate') await handlers.handleRegenerateLastTurn();
+            if (action === 'regenerate') {
+                equal(fs.readFileSync(statePath, 'utf8'), stateBefore, 'simulation regeneration preserves state before any replay');
+                equal(fs.readFileSync(historyPath, 'utf8'), historyBefore, 'blocked regeneration preserves history');
+                equal(replayGuard.loadExistingAcceptedTurnScope(root).timelineEpochId, priorScope.timelineEpochId, 'blocked regeneration does not rotate epoch');
+                equal(gmRequests, 0, 'old purchase action cannot be resent to the GM');
+                check(warnings.includes('extension.warning.regenerateRequiresCheckpoint'), 'player receives recovery alternatives');
+                replayGuard.resetAcceptedTurnReplayGuardForTests();
+                continue;
+            }
             check(replayGuard.loadExistingAcceptedTurnScope(root).timelineEpochId !== priorScope.timelineEpochId, `${action}/${failure} exercised a post-rotation write boundary`);
             if (failure === 'none') {
                 equal(replayGuard.getAcceptedTurnRestoreRepairLatchOutcome(root), undefined, 'successful matching restore has no repair latch');
@@ -214,6 +237,14 @@ async function verifyPostMergeRepairs(temp, input, hashed, profile, lock) {
                     equal(restoredEntries.map(entry => entry.id), ['user-1', 'gm-1'], 'complete checkpoint restore persists the exact saved entry set');
                 } else {
                     equal(restoredEntries[0].id, 'gm-1', 'successful matching restore persists target state');
+                    const restored = JSON.parse(fs.readFileSync(statePath));
+                    for (const [key, value] of Object.entries(canonical)) {
+                        equal(restored[key], value, `${action} narrative rewind preserves canonical ${key}`);
+                    }
+                    equal(restored.summary, undefined, `${action} removes absent target summary`);
+                    equal(restored.background, undefined, `${action} removes absent target image`);
+                    equal(restored.latestImageDescription, undefined, `${action} removes stale image description`);
+                    check(messages[0].includes('extension.info.narrativeRestoreScope'), 'narrative scope is shown to the player');
                 }
             } else {
                 equal(replayGuard.getAcceptedTurnRestoreRepairLatchOutcome(root)?.kind, 'repairRequired', `${action}/${failure} rejected write installs a real repair latch`);

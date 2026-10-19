@@ -411,6 +411,7 @@ function setWorldGenesisStatus(key, vars) {
 function invalidateWorldGenesisPreview() {
   worldGenesisPreviewAccepted = false;
   worldGenesisPreviewSummary = null;
+  document.getElementById('world-genesis-next-actions')?.classList.add('hidden');
   const preview = document.getElementById('world-genesis-preview');
   const apply = document.getElementById('world-genesis-apply-btn');
   if (preview) preview.classList.add('hidden');
@@ -683,6 +684,15 @@ function initStartHub() {
   if (worldGenesisBackBtn) {
     worldGenesisBackBtn.addEventListener('click', closeWorldGenesisSetup);
   }
+  document.getElementById('world-genesis-create-player-btn')?.addEventListener('click', () => {
+    closeWorldGenesisSetup();
+    resumeCurrentSession();
+    window.openCharacterCreator?.({ controlledBy: 'player' });
+  });
+  document.getElementById('world-genesis-continue-btn')?.addEventListener('click', () => {
+    closeWorldGenesisSetup();
+    resumeCurrentSession();
+  });
   if (worldGenesisPreset) {
     worldGenesisPreset.addEventListener('change', () => {
       updateWorldGenesisPresetDescription();
@@ -848,7 +858,7 @@ function initStartHub() {
 
   if (charNewBtn) {
     charNewBtn.addEventListener('click', () => {
-      window.openCharacterCreator?.(null);
+      window.openCharacterCreator?.({ controlledBy: 'player' });
     });
   }
 
@@ -1187,6 +1197,7 @@ window.addEventListener('message', (event) => {
       const apply = document.getElementById('world-genesis-apply-btn');
       if (apply) apply.disabled = true;
       setWorldGenesisStatus('webview.worldGenesis.applied', { worldName: msg.worldName || '' });
+      document.getElementById('world-genesis-next-actions')?.classList.remove('hidden');
     } else if (msg.status === 'canceled') {
       setWorldGenesisStatus('webview.worldGenesis.canceled');
     } else {

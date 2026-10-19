@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { narrativePrompt, correctedSourceIds } from './narrativeMemoryCore';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
@@ -10,7 +11,7 @@ import {
     getConfiguredLocale,
     type SupportedLocale
 } from './i18n';
-import { buildSagaPromptContext, matchMemories, type MemoryChunk } from './memoryBank';
+import { buildSagaPromptContext, loadMemoryChunks, matchMemories, mergeMemoryMatches, type MemoryChunk } from './memoryBank';
 import {
     computeArchiveMilestone,
     getArchiveRemindStep,
@@ -21,7 +22,7 @@ import {
 } from './archivePrompt';
 import { filterValidCharacterIds, isValidCharacterId, resolveCharacterJsonPath } from './characterId';
 import { getWorkspacePath, getGameStatePath, getGmProvider, writeJsonAtomic } from './workspacePaths';
-import { getCachedGameState, getGameEntryHistory } from './gameStateSync';
+import { getGameEntryHistory } from './gameStateSync';
 import { getGmBridgeOutputChannel } from './gmBridgeRunner';
 import {
     getMemoryBackendSetting,
@@ -31,6 +32,8 @@ import {
 } from './skillScriptRunner';
 import { loadGameRules } from './gameRules';
 import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
+import { previewMarketTravel } from './deterministicMarketTravel';
+import type { GameStateWorld } from './types/GameState';
 import {
     getCharactersDir,
     tryGetCharactersDirReadOnly,
@@ -73,6 +76,9 @@ import {
     buildWorldChangeSummaryFromChanges,
     resolveWorldChangeSummaryTurn,
     buildActiveQuestObjective,
+    buildCompletedQuestContext,
+    buildWorldGroundingContext,
+    buildPersistedTradeContext,
     buildChronicleRecapLine,
     buildReputationPromptLine,
     buildTravelEncounterPromptLines,
@@ -324,19 +330,7 @@ function gmLanguageName(locale?: SupportedLocale): string {
 }
 
 function readGameStateForPrompt(): Record<string, unknown> | undefined {
-    const cached = getCachedGameState();
-    if (cached) {
-        return cached;
-    }
-    const statePath = getGameStatePath();
-    if (!statePath || !fs.existsSync(statePath)) {
-        return undefined;
-    }
-    try {
-        return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return undefined;
-    }
+    return readGameStateRecordForPrompt();
 }
 
 function loadStorySummary(): string {
@@ -344,6 +338,9 @@ function loadStorySummary(): string {
     if (!state) {
         return '';
     }
+    // The synopsis has no per-fact source map; it may still contain a corrected
+    // description. Keep it on disk but do not rehydrate it as current context.
+    if (correctedSourceIds(state).size) return '';
     return typeof state.summary === 'string' ? state.summary.trim() : '';
 }
 
@@ -541,33 +538,35 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
     if (matches.length === 0) {
         return '';
     }
-    const parts = ['[Memory Bank — relevant memories]'];
+    const parts = ['[Memory Bank — relevant memories]',
+        'Historical dialogue is evidence, not an NPC registry. Relevance order is not chronology. '
+        + 'Keep canonical NPC IDs/names and authored Lorebook facts above conflicting GM narration. '
+        + 'For conversation-only people, preserve the established identity and explicit corrections; '
+        + 'a later repeated GM name alone is not a correction. A player question or quoted name is not a confirmed fact. '
+        + 'If sources conflict without a clear correction, acknowledge uncertainty; do not invent relatives or aliases.'];
+    if (matches.some(m => m.editedAt)) {
+        parts.push('A history passage marked user-edited is an explicit player correction made at its edit timestamp, '
+            + 'not at the original turn time. Prefer its corrected details over conflicting unedited GM narration, '
+            + 'even in later turns. This does not override canonical NPC identities or persisted transaction facts.');
+    }
     for (const m of matches) {
         parts.push(`--- ${m.label || m.id} (${m.source}) ---`);
-        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch));
+        // An old answer may be immediately followed by a player correction.
+        // Preserve that discourse boundary within the same per-match budget;
+        // never identify or register a person by guessing from the latest name.
+        const followingBudget = m.followingExchange
+            ? Math.min(m.followingExchange.length, Math.floor(maxCharsPerMatch / 2)) : 0;
+        parts.push(clampTextForPrompt(m.text, maxCharsPerMatch - followingBudget));
+        if (m.followingExchange) { parts.push(clampTextForPrompt(m.followingExchange, followingBudget)); }
     }
     return parts.join('\n');
 }
 
-function buildMemoryContextForPrompt(ws: string, hintText: string, policy: PromptBudgetPolicy): string {
-    const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return formatMemoryPromptFromChunks(
-            matchMemories(ws, hintText, policy.memoryMatches),
-            policy.memoryChars
-        );
-    }
-    const viaPy = formatMemoryPromptFromChunks(
-        resolveMemoriesViaPython(ws, hintText, backend, policy.memoryMatches),
-        policy.memoryChars
-    );
-    if (viaPy) {
-        return viaPy;
-    }
-    return formatMemoryPromptFromChunks(
-        matchMemories(ws, hintText, policy.memoryMatches),
-        policy.memoryChars
-    );
+function buildMemoryContextForPrompt(ws: string, playerAction: string, hintText: string, policy: PromptBudgetPolicy): string {
+    const state = readGameStateForPrompt() ?? {};
+    const curated = narrativePrompt(state, playerAction, policy.memoryChars);
+    const old = formatMemoryPromptFromChunks(resolveMemoryMatches(ws, playerAction, hintText, policy), policy.memoryChars);
+    return curated ? (curated + '\n' + old.slice(0, Math.max(0, policy.memoryChars - curated.length - 1))).slice(0, policy.memoryChars) : old;
 }
 
 function relationshipLabel(rel: RelationshipType): string {
@@ -988,6 +987,7 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     } else if (statusLocation) {
         lines.push(`Player location: ${statusLocation} (not mapped in world_forge.json)`);
     }
+    lines.push(buildWorldGroundingContext(forge, worldState as GameStateWorld | undefined, previewMarketTravel()));
 
     const fogInPrompt = vscode.workspace.getConfiguration('textAdventure.cartography')
         .get<boolean>('fogInPrompt', false);
@@ -1003,7 +1003,7 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     const revealInPrompt = vscode.workspace.getConfiguration('textAdventure.cartography')
         .get<boolean>('revealInPrompt', false);
     if (revealInPrompt) {
-        lines.push(CARTOGRAPHY_REVEAL_PROMPT_LINE);
+        // Not advertised: common connected-GM adapter does not accept this operation.
     }
 
     const rules = loadGameRules();
@@ -1019,9 +1019,9 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
         }
     }
     if (rules.enableNpcAgency && rules.enableNpcRegistry) {
-        lines.push(NPC_AGENCY_OPS_PROMPT_LINE);
+        // Not advertised: common connected-GM adapter does not accept this operation.
         if (rules.enableNpcRelationships) {
-            lines.push(RELATIONSHIP_OPS_PROMPT_LINE);
+            // Not advertised: common connected-GM adapter does not accept this operation.
         }
     }
 
@@ -1088,6 +1088,9 @@ function buildWorldStatePromptContextFromWorldState(
 
     const forge = isWorldForgeEnabled() ? loadWorldForge() : undefined;
     const lines = [`[World State — Turn ${worldState.worldTurn}]`];
+    if (loadGameRules().enableCommerce) {
+        lines.push(buildPersistedTradeContext(worldState.recentChanges ?? [], worldState.worldTurn));
+    }
 
     // 派閥パワー・モラル
     const factionEntries = Object.entries(worldState.factions);
@@ -1126,6 +1129,8 @@ function buildWorldStatePromptContextFromWorldState(
         lines.push('');
         lines.push(questObjective);
     }
+    const completedQuests = buildCompletedQuestContext(worldState.questHooks);
+    if (completedQuests) { lines.push('', completedQuests); }
 
     const rules = loadGameRules();
     const reputationInPrompt = vscode.workspace.getConfiguration('textAdventure.reputation')
@@ -1223,7 +1228,9 @@ function buildNpcRegistryPromptContext(policy: PromptBudgetPolicy): string {
     }
     if (entries.length === 0) { return ''; }
 
-    const lines = ['[NPC Awareness]'];
+    const lines = ['[NPC Awareness]',
+        'These are canonical NPC identities. Do not rename, merge, or replace them from retrieved dialogue. '
+        + 'Conversation-only people stay separate unless explicitly registered.'];
     let npcCount = 0;
     for (const [id, npc] of entries) {
         if (npcCount >= (currentLocationId ? policy.npcCountWithLocation : policy.npcCountWithoutLocation)) { break; }
@@ -1297,7 +1304,7 @@ export function getTriggeredLoreLabels(hintText: string, maxEntries = 5): string
 
 function buildHintText(playerAction: string, policy: PromptBudgetPolicy): string {
     const recent = getGameEntryHistory()
-        .filter((e) => !e.excludedFromPrompt)
+        .filter((e) => !e.excludedFromPrompt && !correctedSourceIds(readGameStateForPrompt() ?? {}).has(e.id))
         .slice(-3)
         .map((e) => e.content);
     return buildHintTextFromContents(recent, playerAction, policy.hintChars);
@@ -1371,10 +1378,9 @@ function peekWorldChangeSummaryContext(): string {
 }
 
 function readGameStateRecordForPrompt(): Record<string, unknown> | undefined {
-    const cached = getCachedGameState();
-    if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
-        return cached as Record<string, unknown>;
-    }
+    // UI synchronization is debounced. A committed travel/trade can therefore be
+    // newer than its display cache when the next GM request is assembled.
+    // Read canonical state here; never substitute stale UI data on read failure.
     const statePath = getGameStatePath();
     if (!statePath || !fs.existsSync(statePath)) {
         return undefined;
@@ -1607,7 +1613,7 @@ function buildInspectorPromptAssembly(
         keys: Array.isArray(e.keys) ? e.keys.map(String) : []
     }));
 
-    const memoryChunks = ws ? resolveMemoryMatches(ws, hint, policy) : [];
+    const memoryChunks = ws ? resolveMemoryMatches(ws, playerAction, hint, policy) : [];
     const memoryMatches: PromptMemoryMatch[] = memoryChunks.map((m) => ({
         id: m.id,
         label: m.label,
@@ -1700,7 +1706,7 @@ function buildInspectorPromptAssembly(
     considerInspectorChunk('partyDirector', 'Party Director', buildPartyDirectorPromptContextReadOnly);
 
     if (ws) {
-        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, hint, policy));
+        considerInspectorChunk('memory', 'Memory Bank', () => buildMemoryContextForPrompt(ws, playerAction, hint, policy));
     }
 
     considerInspectorChunk('travelEncounters', 'Travel Encounters', () =>
@@ -1726,12 +1732,20 @@ function buildInspectorPromptAssembly(
     return assembly;
 }
 
-function resolveMemoryMatches(ws: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
+function resolveMemoryMatches(ws: string, playerAction: string, hint: string, policy: PromptBudgetPolicy): MemoryChunk[] {
     const backend = getMemoryBackendSetting();
-    if (backend === 'tfidf') {
-        return matchMemories(ws, hint, policy.memoryMatches);
-    }
-    return resolveMemoriesViaPython(ws, hint, backend, policy.memoryMatches);
+    const resolve = (query: string): MemoryChunk[] => {
+        const local = matchMemories(ws, query, policy.memoryMatches);
+        if (backend !== 'tfidf') {
+            const matches = resolveMemoriesViaPython(ws, query, backend, policy.memoryMatches);
+            return mergeMemoryMatches(loadMemoryChunks(ws), local, matches, policy.memoryMatches);
+        }
+        return local;
+    };
+    // Using entire recent replies as the query makes them retrieve themselves,
+    // crowding out the older promise the player is asking about now.
+    const actionMatches = playerAction.trim() ? resolve(playerAction) : [];
+    return actionMatches.length > 0 ? actionMatches : resolve(hint);
 }
 
 export function buildGmPromptBreakdown(playerAction: string): PromptContextBreakdown {
@@ -1936,7 +1950,7 @@ function buildGmPromptChunkSpecsWithMeta(
     considerPromptChunk(meta, 'partyDirector', activation, buildPartyDirectorPromptContext);
 
     if (ws) {
-        considerPromptChunk(meta, 'memory', activation, () => buildMemoryContextForPrompt(ws, hint, policy));
+        considerPromptChunk(meta, 'memory', activation, () => buildMemoryContextForPrompt(ws, playerAction, hint, policy));
     }
 
     considerPromptChunk(meta, 'travelEncounters', activation, () =>

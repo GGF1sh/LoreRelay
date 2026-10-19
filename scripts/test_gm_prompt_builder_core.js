@@ -26,6 +26,10 @@ const {
     resolvePromptBudgetPolicy,
     buildFogUnexploredPromptLine,
     buildNarrativeTimePromptBlock,
+    buildActiveQuestObjective,
+    buildCompletedQuestContext,
+    buildWorldGroundingContext,
+    buildPersistedTradeContext,
     ELAPSED_WORLD_TURNS_PROMPT_LINE,
     MAX_HINT_TEXT_CHARS,
     MAX_WORLD_CHANGE_SUMMARY_LINES,
@@ -202,6 +206,61 @@ const {
     } else {
         ok('buildNarrativeTimePromptBlock emergent');
     }
+}
+
+{
+    const line = buildActiveQuestObjective([{id:'quest_supply',title:'Supply',description:'Deliver grain.',status:'active',source:'event'}]);
+    if (!line.includes('ID: quest_supply') || !line.includes('turn_result.resolvedQuests')) {
+        fail('active quest supplies its canonical completion identity');
+    } else { ok('active quest supplies its canonical completion identity'); }
+    const completed = [{id:'quest_done',title:'Old',description:'Done.',status:'completed',source:'event'}];
+    if (buildActiveQuestObjective(completed) !== '') {
+        fail('completed quest must not remain the active objective');
+    }
+    const recap = buildCompletedQuestContext(completed);
+    if (!recap.includes('quest_done | completed') || !recap.includes('overrides older dialogue')) {
+        fail('canonical completed status must survive after the active objective disappears');
+    } else { ok('completed quest remains explicit without reactivating its objective'); }
+    const mixed = [...Array.from({length:8}, (_,n) => ({...completed[0],id:'done-'+n})),
+        {...completed[0],id:'still-active',status:'active'}];
+    const bounded = buildCompletedQuestContext(mixed);
+    if (bounded.includes('done-2') || !bounded.includes('done-7') || bounded.includes('still-active')
+        || buildCompletedQuestContext([]) !== '') { fail('completed recap must be bounded and exclude active quests'); }
+}
+
+{
+    const assert = require('assert');
+    try {
+        const forge = { geography: { regions: [{id:'known'}, {id:'secret'}], locations: [
+            {id:'plaza',name:'Plaza',regionId:'known',description:'An NPC mentions an imaginary training ground.'},
+            {id:'shop',name:'Shop',regionId:'known'},
+            {id:'hidden',name:'SECRET_LOCATION',regionId:'secret'},
+        ] } };
+        const world = {currentLocationId:'plaza',discoveredRegionIds:['known']};
+        const before = JSON.stringify({forge,world});
+        const grounded = buildWorldGroundingContext(forge, world, {ok:true,destinations:[{id:'shop',name:'Shop'}]});
+        assert(grounded.includes('plaza="Plaza"') && grounded.includes('shop="Shop"'));
+        assert(!grounded.includes('SECRET_LOCATION') && !grounded.includes('imaginary training ground'));
+        assert(grounded.includes('not a verified physical route') && grounded.includes('Absence is not proof'));
+        assert(grounded.includes('elapsedWorldTurns=0, fixedCosts=[]') && grounded.includes('even after execution'));
+        const unavailable = buildWorldGroundingContext(forge, world, {ok:false,code:'NAVIGATION_REQUIRED'});
+        assert(unavailable.includes('unavailable: NAVIGATION_REQUIRED') && !unavailable.includes('UI offers'));
+        assert.strictEqual(JSON.stringify({forge,world}),before);
+        const trade = (id, turn, message, extra={}) => ({id:'wce_commerce_trade_'+id,worldTurn:turn,message,source:'player',category:'resource',severity:'info',...extra});
+        const facts = buildPersistedTradeContext([
+            trade('grain',2,'Bought 10 wheat at north_farm (-90G)'),
+            trade('grain',2,'DUPLICATE'), trade('future',99,'FUTURE'),
+            trade('expired',1,'EXPIRED',{expiresAfterTurns:1}),trade('gm',2,'GM_GUESS',{source:'gm'}),
+            {id:'rumor',worldTurn:2,message:'RUMOR',source:'player',category:'resource',severity:'info'},
+        ],3);
+        assert(facts.includes('Bought 10 wheat at north_farm (-90G)'));
+        for(const secret of ['DUPLICATE','FUTURE','EXPIRED','GM_GUESS','RUMOR'])assert(!facts.includes(secret));
+        assert(facts.includes('NOT a complete ledger') && facts.includes('Missing is unknown'));
+        assert(buildPersistedTradeContext([],3).includes('0 retained trade events'));
+        const bounded = buildPersistedTradeContext(Array.from({length:20},(_,i)=>trade(i,2,'FACT_'+i)),3);
+        assert(!bounded.includes('FACT_14') && bounded.includes('FACT_19'));
+        ok('grounding uses published geography/UI preview and bounded persisted trade facts without promoting guesses');
+    } catch(e) { fail('grounding regression: '+e.stack); }
 }
 
 if (failed > 0) {

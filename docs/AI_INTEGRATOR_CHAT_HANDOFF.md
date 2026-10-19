@@ -7,6 +7,18 @@
 
 > **Current entrypoint:** Start with `docs/AI_WORKFLOW.md` and the verification policy. This document is a current-state handoff and historical evidence, not a reason to repeat its old checks or copy it into a prompt. When this file conflicts with the canonical workflow, the canonical workflow and current `main` win.
 
+> 2026-09-20 現行候補: **1.89.8**。[main向け累積Draft PR #153](https://github.com/GGF1sh/LoreRelay/pull/153)は、#148〜#152の累積候補を#152のexact HEAD `398be7270ae1239624a0854ba2b43d21548399a0`から直接分岐したものです。mainは作成時点で1.89.2／`c025eb9c8e2547bebe261edada92c7af9712b42f`。既存stackは再実装・cherry-pickしていません。累積監査で全履歴復元後も削除済みの要約・背景・立ち絵が画面に残るP2を再現し、ユーザー承認によりこの1件と古いガイド案内だけを修正。Version decision: patch、1.89.7→1.89.8。通常の部分更新と正本の復元契約は維持します。最新HEAD・検証結果はPRで確認し、過去の検証を新しい実行コードへ読み替えないでください。
+>
+> [1.89.7の回復実機記録](RECOVERY_PLAYCHECK_2026-09-20.md): AI操作14応答／14 Accepted、会話Undoの正本消失を修正。会話Undoは現在の資産・場所・依頼を保持し、全体復元は操作前のfull checkpoint。Campaign等の再生成は行動再送を防ぐため停止。訂正の供給とモデルの遵守は別で、明示した固定Lorebookの再起動後利用を確認。1.89.7の実行SHA `96a166ee4377eff55e5e1a31940cc2404a2056fb`のfull suiteは401/401、Combat736/736。#153の初期HEAD `398be7…`はCIとUbuntu／Windows Live QA成功。1.89.8は追加UI修正のfocusedテスト・ブラウザDOM確認を行い、変更後の最終treeで全体検証とmain向けCI／Live QAを取得します。1.89.7の実GM14応答を1.89.8で再実行した意味ではありません。本人のHuman Playは未実施。
+>
+> **停止条件:** Draftのままユーザー指示待ち。Ready化・review resolve・merge・#148〜#152のclose・タグ・Release・VSIX公開は行いません。新しい未指示の機能や地図調整も開始しません。
+
+> 2026-09-20 1.89.5候補時点の記録: [人物の記憶・独立報酬候補](NPC_IDENTITY_PLAYCHECK.md)。[Draft PR #150](https://github.com/GGF1sh/LoreRelay/pull/150)はPR #149をベースにしたstacked PR。[Drive証拠フォルダ](https://drive.google.com/drive/folders/1yvXNL2TnW1JfhEXUjaIsY8VV7HkE8xoV)。AI操作の主冒険は実GM応答31件/Accepted31件、別の既存報酬fixtureは5件/5件。GMは `codex-app-server / gpt-5.6-terra`。Acceptedは内容の正しさを保証しない。主冒険turn2のトーマスへの訂正から28ターン後、答えを入力しないturn30の再会はハロルドと誤答したが、実行コード `209dc478f5cbda573db181752eb108261a1e2620`・Host再起動後のturn31では同じ質問に、29ターン前の実履歴を再供給してトーマス／北の農場主／青いリボン／雨上がりの翌朝を確認した。人物の自動登録は行っていない。
+>
+> 独立fixtureでは既存NPC依頼による信頼50→60・記憶1件を確認。再起動後の同一candidate API再送は `alreadyAccepted`、比較した16ファイルは不変。金銭報酬や物品の自動達成判定ではない。今回の変更はMedium、focused検証のみで全体スイートは実行していない。ソース1.89.5の候補であり、マージ・Release・VSIX公開は行わず、次のユーザー指示待ち。
+
+> 2026-09-20: [1.89.4 real GM play candidate](REAL_GM_PLAYCHECK.md) continues Draft PR #148 in a separate stacked Draft. 24 actual responses / 23 Accepted Turns; quest completion and restart exercised, NPC-name consistency remains limited. See the linked evidence for the 399/400 full run and successful retry of its single failed test. No merge or release; wait for the user's next instruction.
+
 ---
 
 ## 0. Read this first in a new integration chat

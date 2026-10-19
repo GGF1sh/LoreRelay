@@ -3,14 +3,14 @@
 > **正本:** `package.json` + [`VERSION_TRUTH.md`](VERSION_TRUTH.md) + `src/gameRules.ts` の `DEFAULT_GAME_RULES`  
 > 初見向け。詳細履歴は [`CHANGELOG.md`](../CHANGELOG.md)。
 
-## 現在の入口（1.89.2 ソース）
+## 現在の入口（1.89.8 ソース候補）
 
 配布VSIXの機能は [VERSION_TRUTH.md](VERSION_TRUTH.md) で別に確認してください。以下は機能の入口であり、すべての組合せの実プレイ保証ではありません。
 
 | 遊びたいこと | 入口・対応範囲 | 注意・手順 |
 | --- | --- | --- |
-| 世界を作って始める | Start Hub → **世界を作りはじめる** → 世界生成セットアップ → プレビュー → **この世界を使う** | 種類・シード・規模・つながり・言語・有効な仕組みを確認して採用。主人公とGM接続は別に選ぶ |
-| 保存した冒険を再開 | Start Hub → 続ける | プレイ用フォルダを開く。復元・Undoは既存のTimeline/checkpoint経路 |
+| 世界を作って始める | Start Hub → **世界を作りはじめる** → 世界生成セットアップ → プレビュー → **この世界を使う** | 種類・シード・規模・つながり・言語・有効な仕組みを確認して採用。採用後に「主人公を作る」へ。GM接続は別に選ぶ |
+| 保存した冒険を再開・会話を直す | Start Hub → 続ける／本文編集／戻る／チェックポイント | 会話Undoは現在の資産・場所・依頼を保持。ゲーム全体を戻すには操作前の完全checkpointを復元。Campaign等の再生成は行動再送を防ぐため停止。[回復操作と制限](RECOVERY_PLAYCHECK_2026-09-20.md) |
 | GMと話す | **LoreRelay: AI接続**、Parlor / In-World / Campaign | [接続・利用枠と確認範囲](AI_CONNECTIONS.md)。接続準備と応答成功を区別 |
 | 買う・売る・市場へ移動・日送り | 共通の「行動」／Action Hub | Commerceを有効化。確定結果が所持金・在庫へ反映される。自由な描写だけでは取引確定にならない |
 | 船と航路を選ぶ | ワールド → 航路・渡河 | [船・橋・渡し・移動拠点の停泊先](WATER_NAVIGATION.md)。市場移動は日送りと別操作 |
@@ -66,6 +66,7 @@
 | Goal | Path |
 |------|------|
 | First play | Start Hub → 世界を作りはじめる → プレビュー → この世界を使う、または同梱シナリオ |
+| 実機プレイ記録 | [1.89.3: 交易・移動・画像](GAMEPLAY_PLAYCHECK.md)、[1.89.4: 実GM・Accepted Turn](REAL_GM_PLAYCHECK.md)、[1.89.5: 人物・信頼報酬](NPC_IDENTITY_PLAYCHECK.md)、[1.89.6: 地点・取引の根拠](GM_GROUNDING_PLAYCHECK.md)、[1.89.7: 訂正・再起動・Undo](RECOVERY_PLAYCHECK_2026-09-20.md)。いずれもAI操作で、版ごとの確認範囲を区別 |
 | Living World | [`LIVING_WORLD_QUICKSTART.md`](LIVING_WORLD_QUICKSTART.md) + `sample-scenarios/trade-routes` |
 | Scavenger / Campaign Kit | [`CAMPAIGN_KIT_QUICKSTART.md`](CAMPAIGN_KIT_QUICKSTART.md) + `sample-scenarios/scrapbound-settlement` |
 | Map / FoW | Cartography + `lost-catacombs` or generated world |

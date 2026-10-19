@@ -212,7 +212,7 @@ function loadGameStateSyncHarness(options = {}) {
         './scenarioDirector': { pushScenarioDirectorToWebview() {} },
         './partyDirector': { pushPartyDirectorToWebview() {} },
         './worldView': { pushWorldViewToWebview() {} },
-        './emergentSimulator': { maybeTickSimulation() {} },
+        './emergentSimulator': { maybeTickSimulation(count) { events.push(`implicit-world-tick:${count}`); } },
         './mediaPaths': {
             isAllowedImagePath() { return true; },
             toWebviewSafeMediaRef() { return undefined; },
@@ -289,6 +289,7 @@ function loadGameStateSyncHarness(options = {}) {
         async submitCandidate(candidate, isCurrent) {
             return moduleRef.submitGmTurnCandidate(tmpDir, candidate, isCurrent);
         },
+        async syncHistory() { return moduleRef.sendCurrentState(); },
     };
 }
 
@@ -733,6 +734,22 @@ if (
 }
 
 async function runAsyncCases() {
+    {
+        const harness = loadGameStateSyncHarness();
+        const game = {schemaVersion:2,status:{location:'South Port'},entries:[
+            {id:'scenario-opening',role:'gm',sender:'GM',content:'Welcome.'},
+            {id:'user-login-failed',role:'user',sender:'Player',content:'Hello.'}
+        ]};
+        writeJson(path.join(harness.tmpDir,'game_state.json'),game);
+        await harness.syncHistory();
+        game.entries.push({id:'turn-1',role:'gm',sender:'GM',content:'Hello again.'});
+        writeJson(path.join(harness.tmpDir,'game_state.json'),game);
+        await harness.syncHistory();
+        await harness.syncHistory();
+        const history = JSON.parse(fs.readFileSync(path.join(harness.tmpDir,'game_history.json'),'utf8'));
+        assert(Array.isArray(history) && history.length === 3, 'failed input and later GM reply still synchronize history');
+        assert(!harness.events.some(e=>e.startsWith('implicit-world-tick:')), 'history sync and refresh never advance world days');
+    }
     {
         const harness = loadGameStateSyncHarness({ processResponses: [baseTurnResult('gm-direct')] });
         const denied = await harness.submitCandidate(baseTurnResult('gm-direct'), () => false);

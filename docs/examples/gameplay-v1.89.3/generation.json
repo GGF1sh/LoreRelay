@@ -1,0 +1,49 @@
+{
+  "sourceVersion": "1.89.3",
+  "runtimeSha": "e0bd2babb5234503a2f40bb57117746c049e4ef1",
+  "operator": "AI operating real Extension Host/Webview",
+  "world": "The Three-Market Road",
+  "locationId": "south_port",
+  "worldTurn": 10,
+  "promptId": "c68d9097-3e37-4efc-a38b-61ab511d3385",
+  "comfySeconds": 39.081,
+  "sampler": {
+    "seed": 789830866,
+    "steps": 20,
+    "cfg": 5.5,
+    "sampler_name": "euler_ancestral",
+    "scheduler": "normal",
+    "denoise": 1,
+    "model": [
+      "4",
+      0
+    ],
+    "positive": [
+      "6",
+      0
+    ],
+    "negative": [
+      "7",
+      0
+    ],
+    "latent_image": [
+      "5",
+      0
+    ]
+  },
+  "latent": {
+    "width": 1152,
+    "height": 896,
+    "batch_size": 1
+  },
+  "checkpoint": "IL\\waiIllustriousSDXL_v170.safetensors",
+  "outputFilename": "scene_d2f51b6f.png",
+  "sha256": "a28df4233d1aeed4fd8a50dfdeed4d0a0eb8e7691745bf54cccc606d39fea7f3",
+  "bytes": 1517853,
+  "notes": [
+    "ComfyUI execution time excludes host queue and UI delivery.",
+    "No extra model download; display reference only; not a terrain accuracy claim.",
+    "Saved South Port image hidden at Elda; same bytes reload at South Port."
+  ],
+  "generationSource": "Uncommitted 1.89.3 candidate based on c025eb9c8e2547bebe261edada92c7af9712b42f; ComfyUI runner unchanged from PR147. runtimeSha identifies final reload verification, not the uncommitted generation tree."
+}

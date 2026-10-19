@@ -1,0 +1,47 @@
+{
+  "turnId": "turn-9",
+  "narration": "川側の三番倉庫で、ネリは荷車から運び込まれる麦袋を一つずつ確かめた。布地に手を当て、縫い目と底を調べると、濡れや傷みは見当たらない。\n\n「十袋……これで船着き場のパン窯も、しばらくは持ちこたえられる」\n\nネリは安堵の息をつき、港の掲示値札に従って買い取りを進める。あなたは残る一袋を荷車の予備として確保したまま、引き渡し分と代金の照合に立ち会った。倉庫の外では、穀物が届いたとの知らせに荷役人たちの動きがわずかに活気づく。",
+  "statePatch": [
+    {
+      "op": "replace",
+      "path": "/options",
+      "value": [
+        "港の鋼材価格を確認する",
+        "ネリに麦不足の原因を尋ねる",
+        "中央交差路へ戻る準備をする"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/sfx",
+      "value": "coins"
+    }
+  ],
+  "playerAction": "南港へ戻り、川側の三番倉庫にいるネリを訪ねます。「約束の十袋を持ってきました。残り一袋は私の予備です」と伝え、十袋を今の市場の値札で売却して引き渡します。濡れていないか一緒に確認し、受け取った代金を数えます。",
+  "gmEntry": {
+    "sender": "Game Master"
+  },
+  "media": {
+    "bgm": "market_port",
+    "mood": "tense",
+    "sfx": "coins"
+  },
+  "elapsedWorldTurns": 0,
+  "tradeOps": [
+    {
+      "op": "sell",
+      "marketLocationId": "south_port",
+      "commodityId": "wheat",
+      "qty": 10
+    }
+  ],
+  "resolvedQuests": [
+    "quest_event_event_trade_routes_food_10"
+  ],
+  "promptReceipt": {
+    "receiptId": "cbb95cdb-fb12-4ef1-be12-d9d19beb5699",
+    "provider": "codex-app-server",
+    "assemblyDigest": "29939a31c6a66dbb7a9487dbd60831771b12c8afefceca8b406895461ab92478",
+    "transportPayloadHash": "4457b9ad92e0c0e9154aec3e5d7e16a66bb0e8de175f84e3d3890ad34bffc8a2"
+  }
+}

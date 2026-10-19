@@ -1,94 +1,37 @@
-# Living World — 5 Minute Quickstart
+# Living World — 交易を一往復する
 
-> **対象:** Commerce + NPC Agency + trade-routes デモを初めて触る人（と AI レビュアー）。  
-> **正本仕様:** [`LIVING_WORLD_IMPLEMENTATION_SPEC.md`](LIVING_WORLD_IMPLEMENTATION_SPEC.md) · [`COMMERCE_AND_AGENCY_BRIEF.md`](COMMERCE_AND_AGENCY_BRIEF.md)
+同梱 `trade-routes` を実際の画面から始める手順です。[機能の対応状況](FEATURE_MATRIX.md) · [正本仕様](COMMERCE_AND_AGENCY_BRIEF.md)
 
-## 0. 前提
+## 始める
 
-- LoreRelay 拡張が入っている（`package.json` 版は [`VERSION_TRUTH.md`](VERSION_TRUTH.md) 参照）
-- ワークスペース: `sample-scenarios/trade-routes` をフォルダとして開く
+空のプレイ用フォルダで **LoreRelay: Open Game UI** → Start Hubの **デモ・開発者向け** → **商人シミュレーション**。同梱データをプレイ用フォルダへ読み込みます。シナリオの配布元フォルダを直接セーブとして使う必要はありません。
 
-## 1. Game Rules（30 秒）
+主人公は **ほかの始め方 → 主人公を新規作成** から作れます。交易・NPC・世界シミュレーションに必要なルールは、このデモで有効です。初期状態はEldaの店、500 credits、食料30、空の荷車。3地域の街道が既知で、別の市場へ進めます。
 
-Game Rules パネルで ON:
+## 買う → 運ぶ → 売る → 戻る
 
-- Enable World Forge
-- Enable Emergent Simulation
-- Enable NPC Registry
-- Enable Commerce
-- **Enable Commerce UI**（Buy/Sell ボタン）
-- Enable NPC Agency
+1. **行動する → 取引**。小麦を選んで数量を指定し、見込みを読んで **確認 → 確定**。
+2. **旅** で South Port を選び **確認 → 移動を確定**。
+3. 南港で小麦を **売却** し、残高・積荷・市場在庫を確認します。
+4. 同じ **旅** からEldaの店へ戻ります。
 
-`simIntervalTurns: 1` 推奨（デモは `game_rules.json` に既に近い設定あり）。
+操作はゲーム側で確定し、AIは呼びません。自由入力で「買った」と書くことと、購入を確定することは別です。市場間移動は即時で世界ターン・日数・食料を消費しません。
 
-**Developer: Reload Window**
+1.89.3のAIによる実機プレイでは小麦1を11 creditsで購入し、南港で16 creditsで売却しました（500 → 489 → 505）。その後の日送りでは価格が変わりました。この値は固定の攻略価格ではありません。
 
-## 2. World タブ（1 分）
+## 世界・人物・依頼を見る
 
-| パネル | 見るもの |
-|--------|----------|
-| **Caravan** | credits, food, cargo, **playerRole** |
-| **Markets** | 現在地の商品価格；Commerce UI ON なら **Buy / Sell** |
-| **NPC Whereabouts** | Elda / Marcus の位置（信頼度で精度が変わる） |
+- **ワールド** の地図で現在地、商隊で資産、市場で現地の相場を確認します。
+- EldaとMarcusの公開所在地は、信頼度に応じて地域名などで表示されます。実際の所在データと公開の精度は別です。
+- **行動する → 一日を終える** は世界を1ターン進めます。確認画面の変化と消費を読んで確定します。
+- 世界の出来事からクエストが表示されたら **クエストを受ける** で受注できます。受注だけで達成・報酬を得たことにはなりません。
 
-## 3. UI で売買（1 分）
+GMとの会話には別途 [AI接続](AI_CONNECTIONS.md) が必要です。Inspectorのcontextプレビューは、実際にGMへ送信した記録とは区別してください。Grok再ログインで止まった1.89.3の確認後、[1.89.4ではCodex GMの実送信・返答・Accepted Turn・依頼完了](REAL_GM_PLAYCHECK.md)、[1.89.5では別fixtureの信頼報酬](NPC_IDENTITY_PLAYCHECK.md)を確認しました。後者は金銭報酬や自動納品判定の実証ではありません。
 
-1. `game_state` で現在地を `elda_shop` 等にする（GM ターンで移動でも可）
-2. World → Markets → 小麦など **Buy** ×1
-3. Caravan の credits / cargo が変わる（**GM ナレーション解析なし** — Core が `applyTradeOps`）
+## 保存と再開
 
-## 4. 世界を動かす（1 分）
+**チェックポイント** から名前を付けて保存します。同じフォルダでHostを再起動し、現在地・資産・進行中の依頼を確認してください。場所画像はその場所の候補として保存され、他の場所では非表示になります。
 
-- GM ターンを数回送る、または Inspector の **Advance World Simulation**
-- Markets の price/stock が変わる
-- 食料危機イベント後、NPC が安い小麦市場へ動くことがある（agency）
+会話Undoは現在の交易資産・場所・依頼を保持します。取引や移動ごと戻す場合は操作前の完全checkpointを復元してください。Campaign等の「再生成」は確定済み行動の再送を防ぐため停止し、本文編集またはcheckpointを使います。[訂正と回復の範囲](RECOVERY_PLAYCHECK_2026-09-20.md)
 
-## 5. Since last visit（任意）
-
-1. ある港を離れる（location 変更）
-2. 数ターン / bulk sim
-3. 同じ港に戻る → GM プロンプトに `[Living World — Since last visit]`（相場差分）
-
-## 6. 信頼度と行方不明（1 分）
-
-`npc_registry.json` の Elda `disposition.playerTrust` を編集:
-
-| Trust | World タブ | GM whereabouts |
-|-------|------------|----------------|
-| 80 | 地点名 + reason | exact |
-| 50 | 地域名 / 「〜方面へ」 | approximate |
-| 20 | 行方不明 | unknown（payload に locationId なし v1.27.1+） |
-
-手動チェック全文: [`testing_checklist.md`](../testing_checklist.md) §9b–9c。
-
-## 7. GM プロンプトで確認
-
-Turn Inspector プレビューに出るブロック例:
-
-```
-[Living World — Caravan]
-Role: Merchant — Profit from regional price spreads; …
-Credits: … | Food: … | Transport: …
-
-[Living World — Markets]
-…
-
-[Living World — NPC whereabouts]
-Elda: at …
-```
-
-Agentic モードでは `turn_result.tradeOps` / `npcAgencyOps` も利用可（UI 売買と同型 Core）。
-
-## トラブルシュート
-
-| 症状 | 確認 |
-|------|------|
-| Markets / Caravan が出ない | `enableCommerce` + `world_forge.json` + `world_state.json` |
-| Buy/Sell がない | `enableCommerceUi` |
-| NPC 一覧が空 | `enableNpcRegistry` + `enableNpcAgency` |
-| 相場が動かない | `enableEmergentSimulation` + sim interval |
-
-## 関連
-
-- [`FEATURE_MATRIX.md`](FEATURE_MATRIX.md) — 機能の安定度一覧
-- [`CODE_REVIEW_PROMPT_LIVING_WORLD.md`](CODE_REVIEW_PROMPT_LIVING_WORLD.md) — 他 AI 向けレビュー用
+[1.89.3の実画面・生成設定・未確認範囲](GAMEPLAY_PLAYCHECK.md) · [ComfyUIの用途別ガイド](COMFYUI_LOCAL_PLAYCHECK.md)

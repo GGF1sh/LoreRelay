@@ -140,6 +140,7 @@ function execute(action: GameActionId, parameters: Record<string, unknown>, requ
     const intent: WorldIntent = { id: requestId, source: 'player', subsystem: 'commerce',
         action: action.slice('commerce:'.length), payload: parameters as JsonValue };
     if (intent.action === 'trade') {
+        const before = readJson(getGameStatePath()!) as GameState;
         const result = executeLivingWorldDirectTrade(parameters as unknown as DirectTradeInput);
         if (!result.ok) return failed({ code: result.code ?? result.reason });
         const persistence = flushScheduledCommercePersist();
@@ -155,7 +156,8 @@ function execute(action: GameActionId, parameters: Record<string, unknown>, requ
             return { classification: 'outcome_unknown', result: { code: 'VERIFY_FAILED' }, diagnostic: { persistence } };
         return { classification: 'committed', result: { op: parameters.op, commodityId: parameters.commodityId,
             qty: parameters.qty, total: parameters.op === 'buy' ? expected.totalCost : expected.totalRevenue,
-            applied: expected.applied, persisted: true }, diagnostic: { persistence } };
+            applied: expected.applied, persisted: true, elapsedWorldTurns: 0,
+            credits: { before: before.commerce?.credits, after: disk.commerce?.credits } }, diagnostic: { persistence } };
     }
     if (intent.action === 'travel') {
         const outcome = executeMarketTravel(requestId, String(parameters.destinationId), true);

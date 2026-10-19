@@ -1,0 +1,91 @@
+{
+  "riskTier": "High",
+  "reason": "Observed Undo overwrite erased canonical commerce/world/director; Test Console automatic false overridden with this concrete save risk",
+  "testConsolePlan": "2026-09-19T19-34-34-434Z-41273d1c-verify.json",
+  "executableSha": "96a166ee4377eff55e5e1a31940cc2404a2056fb",
+  "executableTree": "bd7e07ea5996116ecab7cd387f32d41ad19ac554",
+  "focused": [
+    {
+      "name": "test_memory_bank.js",
+      "result": "PASS"
+    },
+    {
+      "name": "test_lorebook_save.js",
+      "result": "PASS"
+    },
+    {
+      "name": "test_mod_activation_gate_boundaries.js",
+      "result": "PASS"
+    },
+    {
+      "name": "test_checkpoint_complete_state_snapshot.js",
+      "result": "PASS"
+    },
+    {
+      "name": "test_prompt_receipt_accepted_consumption.js",
+      "result": "PASS"
+    },
+    {
+      "name": "check_i18n_keys.js",
+      "result": "PASS"
+    },
+    {
+      "name": "check_version_consistency.js",
+      "result": "PASS"
+    },
+    {
+      "name": "validate.js",
+      "result": "PASS"
+    }
+  ],
+  "compile": "PASS",
+  "independentReview": {
+    "count": 1,
+    "findings": [
+      "Committed actions could replay on regeneration",
+      "latestImageDescription survived rewind"
+    ],
+    "repairs": "Guard structured campaign regeneration before mutation/dispatch; clear narrative image description",
+    "verification": "focused test + actual Host regenerate guard (0 request, unchanged history/state/epoch)"
+  },
+  "fullSuite": {
+    "sourceSha": "96a166ee4377eff55e5e1a31940cc2404a2056fb",
+    "passed": 401,
+    "total": 401,
+    "combatGroups": 16,
+    "combatTests": 736,
+    "combatPassed": 736,
+    "combatFailed": 0,
+    "seconds": 162.1,
+    "log": "full-suite-96a166e.log"
+  },
+  "earlierIncomplete": [
+    {
+      "sourceSha": "bbdd175d343553bf616d4b45553bb451a5458f24",
+      "status": "INTENTIONALLY_ABORTED",
+      "reason": "Additional actual-GM finding led to edit-time prompt precedence change; not counted as successful full suite"
+    }
+  ],
+  "initialFailure": {
+    "test": "test_mod_activation_gate_boundaries.js",
+    "reason": "New test harness lacked invokeGmBridge stub",
+    "result": "Harness repaired; targeted tests passed",
+    "log": "focused-harness-failure.log"
+  },
+  "preIntegrationAudit": {
+    "base": "c025eb9c8e2547bebe261edada92c7af9712b42f",
+    "head": "96a166ee4377eff55e5e1a31940cc2404a2056fb",
+    "files": [
+      "gmPromptBuilder.ts",
+      "gmBridgeRunner.ts",
+      "gameStateSync.ts",
+      "vscodeLmTurnResultCore.ts",
+      "memoryBank.ts"
+    ],
+    "result": "No new blocking finding in this bounded audit; not merged-main CI",
+    "limits": [
+      "compact memory truncation remains",
+      "npcAgencyOps/relationshipOps/cartographyReveal not validated connected-GM commands"
+    ]
+  }
+}

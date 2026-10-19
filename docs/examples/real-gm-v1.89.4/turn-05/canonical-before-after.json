@@ -1,0 +1,40 @@
+{
+  "before": {
+    "location": "north_farm",
+    "credits": 415,
+    "cargo": [
+      {
+        "commodityId": "wheat",
+        "qty": 10
+      }
+    ],
+    "worldTurn": 16,
+    "quests": [
+      {
+        "id": "quest_event_event_trade_routes_food_10",
+        "status": "active"
+      }
+    ],
+    "gmEntries": 5
+  },
+  "after": {
+    "location": "north_farm",
+    "credits": 406,
+    "cargo": [
+      {
+        "commodityId": "wheat",
+        "qty": 11
+      }
+    ],
+    "worldTurn": 16,
+    "quests": [
+      {
+        "id": "quest_event_event_trade_routes_food_10",
+        "status": "active"
+      }
+    ],
+    "gmEntries": 6
+  },
+  "note": "Projection of actual canonical snapshots; full isolated snapshots are retained locally.",
+  "sourceSha": "0f7573dcc05206f7108651e02ae19fb5123553a6"
+}

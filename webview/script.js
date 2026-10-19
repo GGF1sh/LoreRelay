@@ -1124,16 +1124,20 @@ function applyGameState(state, fullHistory) {
     if (btn) btn.classList.add('active');
   }
 
-  // Summary
-  if (state.summary !== undefined) {
-    document.getElementById('story-summary').value = state.summary;
+  // Full history is a replacement, including absent optional presentation fields.
+  // Partial updates must retain fields that were not supplied.
+  if (state.summary !== undefined || fullHistory) {
+    document.getElementById('story-summary').value = state.summary ?? '';
   }
 
   if (state.background) {
     setSceneBackground(state.background);
+  } else if (fullHistory && bgLayer) {
+    bgLayer.style.backgroundImage = '';
+    bgLayer.className = `theme-${currentTheme}`;
   }
 
-  if (state.sprite) {
+  if (state.sprite || fullHistory) {
     setSceneSprite(state.sprite);
   }
 
@@ -1188,6 +1192,16 @@ function applyGameState(state, fullHistory) {
 }
 
 // ===== メッセージ描画 =====
+/** Repair over-escaped GM paragraphs for display only; copy/history keep the original text. */
+function getMessageDisplayContent(entry) {
+  const content = entry.content;
+  if (entry.role !== 'gm' || typeof content !== 'string') return content;
+  // Ambiguous code/path-bearing messages stay verbatim rather than guessing which escapes are prose.
+  if (/`|~{3,}|(?:^|\n)(?: {4}|\t)|[a-zA-Z]:\\|\\\\/.test(content)) return content;
+  // A single literal backslash-n may be intentional. Only repair repeated paragraph separators.
+  return content.replace(/(?:\\n){2,}/g, breaks => '\n'.repeat(breaks.length / 2));
+}
+
 function renderMessage(entry) {
   const div = document.createElement('div');
   div.className = `msg ${entry.role || 'gm'}`;
@@ -1200,7 +1214,7 @@ function renderMessage(entry) {
   const defaultSender = entry.role === 'user' ? T('webview.sender.player') : T('webview.sender.gm');
   let html = `<div class="msg-sender" style="color: ${senderColor}">${escapeHtml(entry.sender || defaultSender)}</div>`;
 
-  let bodyHtml = escapeHtml(entry.content);
+  let bodyHtml = escapeHtml(getMessageDisplayContent(entry));
   if (bodyHtml.includes('```mermaid')) {
     bodyHtml = bodyHtml.replace(/```mermaid\n([\s\S]*?)```/g, (match, p1) => {
       return `<div class="mermaid">${p1}</div>`;
@@ -1251,6 +1265,12 @@ function renderMessage(entry) {
       window.visualComposer.open(entry.id);
     };
     if (entry.role === 'gm') actionsBar.appendChild(genImgBtn);
+
+    const memoryBtn = document.createElement('button');
+    memoryBtn.className = 'msg-action-btn';
+    memoryBtn.textContent = T('webview.narrative.entryMenu');
+    memoryBtn.onclick = () => window.narrativeMemoryEntry?.(entry.id);
+    actionsBar.appendChild(memoryBtn);
 
     // 🚩 チェックポイント
     const cpBtn = document.createElement('button');
@@ -1412,22 +1432,42 @@ function addSystemMessage(text) {
 }
 
 // ===== ステータス更新 =====
+let lastNarrativeFunds;
+let lastNarrativeLocation;
+
+function renderStatusLocation(worldView) {
+  const id = worldView?.enabled === true ? worldView.currentLocationId : undefined;
+  const pins = Array.isArray(worldView?.locationPinCatalog) ? worldView.locationPinCatalog : [];
+  const pin = id ? pins.find(item => item.locationId === id) : undefined;
+  const location = id ? (pin?.locationName || id) : lastNarrativeLocation;
+  const value = document.getElementById('status-location');
+  const row = document.getElementById('status-row-location');
+  if (value) value.textContent = location || '';
+  if (row) row.style.display = location ? '' : 'none';
+}
+
+
+function renderStatusFunds(commerce, commerceEnabled) {
+  const funds = commerceEnabled && Number.isFinite(commerce?.credits)
+    ? `${commerce.credits} credits` : lastNarrativeFunds;
+  const value = document.getElementById('status-funds');
+  const row = document.getElementById('status-row-funds');
+  if (value) value.textContent = funds || '';
+  if (row) row.style.display = funds ? '' : 'none';
+}
+
 function updateStatus(status) {
+  lastNarrativeFunds = status?.funds;
+  lastNarrativeLocation = status?.location;
+  const worldView = typeof _worldViewMsg !== 'undefined' ? _worldViewMsg : null;
+  renderStatusLocation(worldView);
+  renderStatusFunds(worldView?.playerCommerce, worldView?.enabled !== false && worldView?.enableCommerce === true);
   const statusContent = document.getElementById('status-content');
   if (!status) {
     if (statusContent) statusContent.style.display = 'none';
     return;
   }
   if (statusContent) statusContent.style.display = '';
-
-  // Location
-  const locRow = document.getElementById('status-row-location');
-  if (status.location) {
-    document.getElementById('status-location').textContent = status.location;
-    if (locRow) locRow.style.display = '';
-  } else {
-    if (locRow) locRow.style.display = 'none';
-  }
 
   // Time
   const timeRow = document.getElementById('status-row-time');
@@ -1436,15 +1476,6 @@ function updateStatus(status) {
     if (timeRow) timeRow.style.display = '';
   } else {
     if (timeRow) timeRow.style.display = 'none';
-  }
-
-  // Funds
-  const fundsRow = document.getElementById('status-row-funds');
-  if (status.funds) {
-    document.getElementById('status-funds').textContent = status.funds;
-    if (fundsRow) fundsRow.style.display = '';
-  } else {
-    if (fundsRow) fundsRow.style.display = 'none';
   }
 
   // Dynamic Resources (HP, MP, Sanity, Shields, etc.)
@@ -6992,6 +7023,110 @@ function escapeHtml(str) {
     });
 }
 
+/* --- 82a-narrative-memory.js --- */
+/* global T, vscode */
+(() => {
+    let view, refreshTimer, lastCount;
+    const L = key => T(['webview', 'narrative', key].join('.'));
+    const send = (action, extra = {}) => vscode.postMessage({ type: 'narrativeMemory', action, token: view?.token, ...extra });
+    const node = (tag, text) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; return e; };
+    const button = (text, fn) => { const e = node('button', text); e.type = 'button'; e.className = 'glass-btn'; e.onclick = fn; return e; };
+    function shell() {
+        let root = document.getElementById('narrative-memory-panel');
+        if (!root) {
+            root = node('details'); root.id = 'narrative-memory-panel'; root.className = 'narrative-memory-panel';
+            root.append(node('summary', L('title')));
+            const body = node('div'); body.id = 'narrative-memory-body'; root.append(body);
+            document.getElementById('chat-log')?.before(root);
+        }
+        return root;
+    }
+    function focusSource(id) { document.getElementById('msg-' + id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    function draw() {
+        if (!view) return;
+        const root = shell(), body = root.querySelector('#narrative-memory-body');
+        root.querySelector('summary').textContent = L('title'); body.replaceChildren();
+        const mode = node('select'); mode.setAttribute('aria-label', L('mode'));
+        for (const key of ['auto', 'review']) { const opt = node('option', L(key)); opt.value = key; mode.append(opt); }
+        mode.value = view.mode; mode.onchange = () => send('mode', { mode: mode.value });
+        const modeLabel = node('label', L('mode') + ' '); modeLabel.append(mode); body.append(modeLabel);
+        const records = view.records || [], superseded = new Set(records.filter(r => r.approval === 'accepted').map(r => r.targetId));
+        const people = new Map();
+        for (const record of records.filter(r => r.approval !== 'rejected' && !superseded.has(r.id))) {
+            if (!people.has(record.person.id)) people.set(record.person.id, { person: record.person, records: [] });
+            people.get(record.person.id).records.push(record);
+        }
+        for (const npc of view.npcs || []) {
+            const id = 'npc:' + npc.id;
+            if (!people.has(id)) people.set(id, { person: { id, name: npc.name, npcId: npc.id }, records: [] });
+            people.get(id).legacy = npc.memories;
+        }
+        if (!people.size) body.append(node('p', L('empty')));
+        for (const { person, records: rows, legacy } of people.values()) {
+            const section = node('section'); section.append(node('h4', person.name + ' · ' + L(person.npcId ? 'registered' : 'storyPerson')));
+            for (const text of legacy || []) section.append(node('p', L('memory') + ': ' + text));
+            for (const r of rows) {
+                const item = node('article'); item.className = 'narrative-record';
+                const overdue = r.due && r.status === 'open' && Number.isFinite(view.worldTurn) && view.worldTurn > r.due.value;
+                item.append(node('strong', L(r.kind) + ' · ' + L(r.approval === 'pending' ? 'pending' : r.status)));
+                item.append(node('p', r.content));
+                if (r.due) item.append(node('p', L('deadline') + ': ' + r.due.value + (overdue ? ' · ' + L('overdue') : '')));
+                item.append(button(L('source'), () => focusSource(r.sourceId)));
+                if (r.approval === 'pending') item.append(button(L('accept'), () => send('accept', { id: r.id })));
+                item.append(button(L('link'), () => send('link', { id: r.id })), button(L('edit'), () => send('edit', { id: r.id })),
+                    button(L('reject'), () => send('reject', { id: r.id })));
+                section.append(item);
+            }
+            body.append(section);
+        }
+        let resume = document.getElementById('narrative-resume');
+        if (!resume) { resume = node('details'); resume.id = 'narrative-resume'; resume.className = 'narrative-memory-panel'; resume.open = true; root.before(resume); }
+        const isOpen = resume.open; resume.replaceChildren(node('summary', L('resume'))); resume.open = isOpen;
+        resume.append(node('p', L('location') + ': ' + (view.resume?.location || L('unknown'))));
+        for (const text of view.resume?.recent || []) resume.append(node('p', text));
+        for (const r of view.resume?.promises || []) resume.append(node('p', r.person.name + ': ' + r.content));
+        resume.append(button(L('conversation'), () => document.getElementById('free-input')?.focus()));
+        resume.append(button(L('map'), () => document.getElementById('tab-btn-world')?.click()));
+        const actionHub = document.getElementById('player-action-hub-open');
+        if (actionHub) resume.append(button(L('actions'), () => actionHub.click()));
+        const count = records.filter(r => r.approval === 'accepted').length;
+        if (lastCount !== undefined && count > lastCount) status(L('recorded'));
+        lastCount = count;
+    }
+    function status(text) {
+        let e = document.getElementById('narrative-status');
+        if (!e) { e = node('p'); e.id = 'narrative-status'; e.setAttribute('role', 'status'); shell().after(e); }
+        e.textContent = text;
+    }
+    function receipt(msg) {
+        if (!['shopkeeperDirectTradeResult', 'marketTravelResult', 'endDayResult'].includes(msg.type)) return;
+        if (msg.commitStatus !== 'committed') {
+            status(L(msg.commitStatus === 'partial' ? 'partial' : msg.commitStatus === 'unknown' ? 'unknownResult' : 'notCommitted')); return;
+        }
+        const r = msg.receipt || {}, parts = [L('committed')];
+        if (r.credits) parts.push(L('credits') + ': ' + r.credits.before + ' → ' + r.credits.after);
+        if (r.commodityId && Number.isFinite(r.qty)) parts.push(r.commodityId + ': ' + (r.op === 'buy' ? '+' : '−') + r.qty);
+        if (r.destination) parts.push(L('location') + ': ' + (r.destination.name || r.destination.id || r.destination));
+        if (r.worldTurn) parts.push(L('day') + ': ' + r.worldTurn.before + ' → ' + r.worldTurn.after);
+        else if (r.elapsedWorldTurns === 0) parts.push(L('noTime'));
+        else if (Number.isFinite(r.elapsedWorldTurns)) parts.push(L('day') + ': +' + r.elapsedWorldTurns);
+        for (const change of r.resourceChanges || []) parts.push(change.resource + ': ' + change.before + ' → ' + change.after);
+        if (msg.refreshFailed) parts.push(L('refreshWarning'));
+        status(parts.join(' / '));
+    }
+    window.narrativeMemoryEntry = id => send('entry', { entryId: id });
+    window.addEventListener('message', e => {
+        const msg = e.data || {};
+        if (msg.type === 'narrativeMemoryView') { view = msg; draw(); }
+        if (msg.type === 'narrativeMemoryError') status(msg.error);
+        if (msg.type === 'narrativeAuthorNote') { const input = document.getElementById('authors-note-input'); if (input) { input.value = msg.content; input.focus(); } }
+        if (msg.type === 'gameStateUpdate') { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => send('view'), 120); }
+        if (msg.type === 'localeBundle') draw();
+        receipt(msg);
+    });
+    window.addEventListener('DOMContentLoaded', () => send('view'));
+})();
+
 /* --- 83-director.js --- */
 /* global window, document, T */
 
@@ -8065,6 +8200,9 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function renderWorldView(msg) {
+    _worldViewMsg = msg;
+    renderStatusLocation(msg);
+    renderStatusFunds(msg.playerCommerce, msg.enabled === true && msg.enableCommerce === true);
     if (typeof updateNpcTtsFromWorldView === 'function') {
         updateNpcTtsFromWorldView(msg);
     }
@@ -8098,7 +8236,6 @@ function renderWorldView(msg) {
     }
 
     currentWorldLocationId = msg.currentLocationId;
-    _worldViewMsg = msg;
     rebuildWorldPinCatalog(msg);
     renderWorldLocationNavigator();
     rebuildRegionFeedbackMap(msg);
@@ -10096,6 +10233,7 @@ function playerRoleLabel(role) {
 }
 
 function renderPlayerCommerce(commerce, commerceEnabled, commerceUiEnabled, playerRoles, currentLocationId) {
+    renderStatusFunds(commerce, commerceEnabled);
     const section = document.getElementById('world-commerce-details');
     const panel = document.getElementById('world-commerce-panel');
     const hint = document.getElementById('world-commerce-hint');
@@ -12822,6 +12960,8 @@ function renderQuestHooks(quests) {
             actionsHtml = '<button type="button" class="small-btn primary quest-accept-btn">' + escapeHtml(T('webview.world.questAccept')) + '</button>';
         } else if (q.status === 'active') {
             actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-orange); font-weight:600;">${escapeHtml(T('webview.world.questActive'))}</span>`;
+        } else if (q.status === 'completed') {
+            actionsHtml = `<span style="font-size:11px; color:var(--vscode-charts-green); font-weight:600;">${escapeHtml(T('webview.world.questCompleted'))}</span>`;
         }
 
         const rewardHtml = q.reward
@@ -24483,6 +24623,7 @@ function setWorldGenesisStatus(key, vars) {
 function invalidateWorldGenesisPreview() {
   worldGenesisPreviewAccepted = false;
   worldGenesisPreviewSummary = null;
+  document.getElementById('world-genesis-next-actions')?.classList.add('hidden');
   const preview = document.getElementById('world-genesis-preview');
   const apply = document.getElementById('world-genesis-apply-btn');
   if (preview) preview.classList.add('hidden');
@@ -24755,6 +24896,15 @@ function initStartHub() {
   if (worldGenesisBackBtn) {
     worldGenesisBackBtn.addEventListener('click', closeWorldGenesisSetup);
   }
+  document.getElementById('world-genesis-create-player-btn')?.addEventListener('click', () => {
+    closeWorldGenesisSetup();
+    resumeCurrentSession();
+    window.openCharacterCreator?.({ controlledBy: 'player' });
+  });
+  document.getElementById('world-genesis-continue-btn')?.addEventListener('click', () => {
+    closeWorldGenesisSetup();
+    resumeCurrentSession();
+  });
   if (worldGenesisPreset) {
     worldGenesisPreset.addEventListener('change', () => {
       updateWorldGenesisPresetDescription();
@@ -24920,7 +25070,7 @@ function initStartHub() {
 
   if (charNewBtn) {
     charNewBtn.addEventListener('click', () => {
-      window.openCharacterCreator?.(null);
+      window.openCharacterCreator?.({ controlledBy: 'player' });
     });
   }
 
@@ -25259,6 +25409,7 @@ window.addEventListener('message', (event) => {
       const apply = document.getElementById('world-genesis-apply-btn');
       if (apply) apply.disabled = true;
       setWorldGenesisStatus('webview.worldGenesis.applied', { worldName: msg.worldName || '' });
+      document.getElementById('world-genesis-next-actions')?.classList.remove('hidden');
     } else if (msg.status === 'canceled') {
       setWorldGenesisStatus('webview.worldGenesis.canceled');
     } else {

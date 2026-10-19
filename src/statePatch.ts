@@ -26,6 +26,7 @@ import { getGameStatePath, getWorkspacePath, writeJsonAtomic } from './workspace
 import { validateGameState } from './validateGameState';
 import { t } from './i18n';
 import { commitGameState } from './stateManager';
+import { appendNarrativeProposals } from './narrativeMemoryCore';
 import { readStateRevision } from './workspaceStateQueueCore';
 import { flushScheduledCommercePersist } from './livingWorldCommercePersist';
 import { loadGameRules } from './gameRules';
@@ -824,6 +825,11 @@ export function processTurnResult(
             }
         }
 
+        if (turnResult.narrativeMemoryProposals?.length) {
+            const names = Object.fromEntries(Object.entries(loadNpcRegistry().npcs).map(([id, npc]) => [id, npc.name]));
+            commitState.narrativeMemory = appendNarrativeProposals(commitState, turnResult.narrativeMemoryProposals,
+                loadGameRules().narrativeMemoryMode ?? 'auto', names, turnResult.turnId, turnResult.playerAction ?? '');
+        }
         const schemaErrors = validateGameState(commitState);
         if (schemaErrors.length > 0) {
             console.error(`[statePatch] Validation failed after turn: ${schemaErrors.join('; ')}`);

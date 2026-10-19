@@ -14,6 +14,7 @@ export type MerchantTravelMode = 'instant_free' | 'world_time';
 export type EconomyProfile = 'abundant' | 'plentiful' | 'normal' | 'scarce' | 'barren';
 
 export interface GameRules {
+    narrativeMemoryMode?: 'auto' | 'review';
     enableRpgMechanics: boolean;
     defaultMaxHp: number;
     defaultMaxMp: number;
@@ -92,6 +93,7 @@ export interface GameRules {
 }
 
 export const DEFAULT_GAME_RULES: GameRules = {
+    narrativeMemoryMode: 'auto',
     enableRpgMechanics: true,
     defaultMaxHp: 100,
     defaultMaxMp: 50,
@@ -297,6 +299,8 @@ export function normalizeGameRules(raw: unknown, base: GameRules = DEFAULT_GAME_
     }
 
     const normalized: GameRules = {
+        narrativeMemoryMode: src.narrativeMemoryMode === 'review' || src.narrativeMemoryMode === 'auto'
+            ? src.narrativeMemoryMode : base.narrativeMemoryMode ?? 'auto',
         enableRpgMechanics: asBool(src.enableRpgMechanics, base.enableRpgMechanics),
         defaultMaxHp: clampInt(src.defaultMaxHp, 1, 99999, base.defaultMaxHp),
         defaultMaxMp: clampInt(src.defaultMaxMp, 1, 99999, base.defaultMaxMp),

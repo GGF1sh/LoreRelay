@@ -121,6 +121,7 @@ export interface GameStateDirector {
 }
 
 export interface GameState {
+    narrativeMemory?: import('../narrativeMemoryCore').NarrativeMemory;
     entries: GameEntry[];
     status?: GameStatus;
     options?: string[];

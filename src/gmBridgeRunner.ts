@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { NARRATIVE_MEMORY_INSTRUCTION } from './narrativeMemoryCore';
 import * as fs from 'fs';
 import * as path from 'path';
 import { cancelGmConnection, isGmConnectionBusy, runConnectedGmCandidate } from './gmConnectionHost';
@@ -882,6 +883,7 @@ async function invokeCustomGmBridge(playerAction: string): Promise<boolean> {
 // ===== vscode-lm プロバイダ =====
 
 const VSCODE_LM_JSON_SCHEMA = `
+${NARRATIVE_MEMORY_INSTRUCTION}
 JSON schema (output CHANGES only — LoreRelay merges into existing state):
 {
   "entries": [{"id":"turn-N","role":"gm","sender":"Game Master","content":"(narrative)","imagePrompt":"(optional English scene prompt)"}],

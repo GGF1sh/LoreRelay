@@ -9,6 +9,24 @@
 
 ## [Unreleased]
 
+## [1.91.0] - 2026-10-19
+
+### Added
+- Adventure-scoped memories, promises and attributed corrections, with automatic or reviewed adoption, evidence links and explicit person mapping.
+- Conversation actions for a one-turn author note, pinned Lorebook setting and correction; a deterministic resume card and confirmed action receipts.
+- Memories share accepted-turn persistence, conversation Undo, complete checkpoints and branch saves. Edited evidence requires review again; pending candidates stay out of GM prompts.
+
+### Fixed
+- Combine the cumulative #153 recovery/transaction fixes and #154 browser adventure launcher without replacing existing saves or connection preferences.
+- Match common GM command guidance to the commands accepted by that connection; clarify conversation Undo versus full checkpoint restoration.
+
+Draft play candidate. Promise records do not grant rewards, change trust or advance time. Model compliance and human play acceptance remain separate checks.
+
+## [1.90.0] - 2026-10-13
+
+### Added
+- Prepare a new adventure with any browser AI using a versioned JSON package, generated settings dictionary, recommendation guide and presets.
+- Windows launcher accepts a downloaded JSON or pasted code block, creates an isolated adventure, opens VS Code and imports once after Workspace Trust. Existing saves and global connection settings remain intact.
 ## [1.89.8] - 2026-09-20
 
 ### Fixed

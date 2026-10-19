@@ -32,6 +32,7 @@ try {
     const assert = require('assert/strict');
     for (const wrapped of [false, true]) {
         const commands = {
+            narrativeMemoryProposals: [{ kind: 'memory', personName: 'Mina', sourceRole: 'gm', quote: 'Confirmed transaction.', content: 'Met at the port' }],
             tradeOps: [{ op: 'buy', marketLocationId: 'north_farm', commodityId: 'wheat', qty: 10 }],
             elapsedWorldTurns: 0,
             resolvedQuests: ['quest_supply', 'quest_supply', '../invalid'],
@@ -42,6 +43,7 @@ try {
         const candidate = buildVscodeLmTurnResult({ prev: {}, llmJson: json, narrative: '', turnId: 'turn-5', locale: 'ja',
             promptReceipt: { receiptId: 'host-receipt', provider: 'codex-app-server', assemblyDigest: 'host-digest' } });
         assert.deepEqual(candidate.tradeOps, commands.tradeOps);
+        assert.deepEqual(candidate.narrativeMemoryProposals, commands.narrativeMemoryProposals);
         assert.equal(candidate.elapsedWorldTurns, 0);
         assert.deepEqual(candidate.resolvedQuests, ['quest_supply']);
         assert.equal(candidate.reputationOps[0].delta, 3);

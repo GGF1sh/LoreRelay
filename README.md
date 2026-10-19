@@ -9,6 +9,8 @@
 
 VS Codeで動く、開発中のオープンソース作品です。対応するAIをGMに選び、キャラクター・世界設定・冒険の記録を自分のPCに保存して遊びます。
 
+**ブラウザのAIから手軽に始める（Windows）:** `LoreRelay_Start.bat`で「AIに貼る説明」をコピーし、遊びたい内容を伝えてください。返ってきたJSONを貼り付けるかファイルとして渡すと、新しい冒険を保存してVS Codeで開きます。[使い方と設定集](docs/BROWSER_AI_START.md)。VS CodeとLoreRelay 1.90.0以降の導入が必要です。
+
 [どんな遊びができる？](#onboarding) · [最初の冒険を始める](#how-to-play) · [もっと画面を見る](#screenshots) · [使えるAI・料金](#ai-connections) · [インストール](#setup)
 
 <p align="center"><a href="docs/assets/gameplay-v1.89.3/south-map.png"><img src="docs/assets/gameplay-v1.89.3/south-map.png" width="840" alt="交易世界の南港。地図、現在地、交易の状態を表示。" /></a></p>

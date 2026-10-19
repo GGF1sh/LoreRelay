@@ -1,0 +1,500 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LoreRelay browser start package v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "lorerelay-browser-start/1",
+      "type": "string"
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "text-adventure-scenario/1.0",
+          "type": "string"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "author": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "minItems": 0,
+              "maxItems": 20
+            }
+          },
+          "required": [
+            "title"
+          ]
+        },
+        "setup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "world": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 10000
+            },
+            "protagonist": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "tone": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "rules": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "theme": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "imageMode": {
+              "type": "string",
+              "enum": [
+                "natural",
+                "none"
+              ],
+              "default": "none"
+            },
+            "playerCharacter": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4000
+                },
+                "personality": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "scenario": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "arrivalReason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "name",
+                "description"
+              ]
+            },
+            "gameOver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "relaxed",
+                    "standard",
+                    "hardcore"
+                  ]
+                },
+                "onHpZero": {
+                  "type": "boolean"
+                },
+                "allowImpossibleActions": {
+                  "type": "boolean"
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "world",
+            "protagonist",
+            "tone",
+            "playerCharacter"
+          ]
+        },
+        "opening": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "narrative": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              },
+              "minItems": 1,
+              "maxItems": 6
+            },
+            "status": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "location": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "time": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "condition": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 800
+                },
+                "funds": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                }
+              },
+              "required": []
+            }
+          },
+          "required": [
+            "narrative",
+            "options",
+            "status"
+          ]
+        }
+      },
+      "required": [
+        "format",
+        "meta",
+        "setup",
+        "opening"
+      ]
+    },
+    "gameRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enableRpgMechanics": {
+          "type": "boolean",
+          "default": true,
+          "description": "HP/MPや判定を使う。会話中心ならfalse、ルールのある冒険ならtrue。"
+        },
+        "defaultMaxHp": {
+          "type": "integer",
+          "default": 100,
+          "description": "主人公の標準最大HP。高いほど長期戦向け。初期のconditionも整合させる。",
+          "minimum": 1,
+          "maximum": 99999
+        },
+        "defaultMaxMp": {
+          "type": "integer",
+          "default": 50,
+          "description": "主人公の標準最大MP。魔法を多用する世界では大きくする。",
+          "minimum": 1,
+          "maximum": 99999
+        },
+        "diceDifficulty": {
+          "type": "string",
+          "default": "Normal",
+          "description": "Easyは穏やかな判定、Normalは標準、Hardは厳しい判定。",
+          "enum": [
+            "Easy",
+            "Normal",
+            "Hard"
+          ]
+        },
+        "skillCommentary": {
+          "type": "boolean",
+          "default": false,
+          "description": "技能に関する補足を表示する。説明が多すぎるときはfalse。"
+        },
+        "backgroundSimulation": {
+          "type": "boolean",
+          "default": false,
+          "description": "背景世界を進める。軽量・会話中心ならfalse。"
+        },
+        "autoLorebookGrowth": {
+          "type": "boolean",
+          "default": false,
+          "description": "物語から設定情報を蓄積する。長期プレイ向けだが管理量が増える。"
+        },
+        "enableNpcRegistry": {
+          "type": "boolean",
+          "default": false,
+          "description": "NPCを継続して管理する。人物関係重視ならtrue。"
+        },
+        "enableWorldForge": {
+          "type": "boolean",
+          "default": false,
+          "description": "構造化した世界を使う。初版のJSONには詳細地理は含めないので通常false。"
+        },
+        "enableEmergentSimulation": {
+          "type": "boolean",
+          "default": false,
+          "description": "自律的な世界の変化を使う。軽量な開始ではfalse。"
+        },
+        "simIntervalTurns": {
+          "type": "integer",
+          "default": 5,
+          "description": "背景シミュレーション間隔。大きいほど実行頻度が減る。",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "enableFactionReputation": {
+          "type": "boolean",
+          "default": false,
+          "description": "勢力との評判を扱う。政治・勢力争い向け。"
+        },
+        "enableTravelEncounters": {
+          "type": "boolean",
+          "default": false,
+          "description": "移動中の遭遇を使う。探索重視ならtrue。"
+        },
+        "travelEncounterDensity": {
+          "type": "string",
+          "default": "medium",
+          "description": "lowは控えめ、mediumは標準、highは頻繁な遭遇。",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "economyProfile": {
+          "type": "string",
+          "default": "normal",
+          "description": "abundantからbarrenへ資源が希少になる。気軽な冒険はplentifulまたはnormal。",
+          "enum": [
+            "abundant",
+            "plentiful",
+            "normal",
+            "scarce",
+            "barren"
+          ]
+        },
+        "enableCommerce": {
+          "type": "boolean",
+          "default": false,
+          "description": "交易のルールを使う。商人として遊ぶときにtrue。"
+        },
+        "enableCommerceUi": {
+          "type": "boolean",
+          "default": false,
+          "description": "交易画面を表示する。enableCommerceがtrueのときに使う。"
+        },
+        "enableStoryCombat": {
+          "type": "boolean",
+          "default": false,
+          "description": "物語内の戦闘を有効にする。会話中心ならfalse。"
+        },
+        "merchantTravelMode": {
+          "type": "string",
+          "default": "instant_free",
+          "description": "instant_freeは簡易移動。world_timeは世界時間を使う移動。",
+          "enum": [
+            "instant_free",
+            "world_time"
+          ]
+        },
+        "playerRole": {
+          "type": "string",
+          "default": "merchant",
+          "description": "merchantは商人、adventurerは冒険者、retainerは家臣、smithは鍛冶師、rulerは統治者。",
+          "enum": [
+            "merchant",
+            "adventurer",
+            "retainer",
+            "smith",
+            "ruler"
+          ]
+        },
+        "enableNpcAgency": {
+          "type": "boolean",
+          "default": false,
+          "description": "NPCの自律行動を使う。人物管理と処理量が増える。"
+        },
+        "enableNpcRelationships": {
+          "type": "boolean",
+          "default": false,
+          "description": "人物間の関係を扱う。会話や交流中心の長期プレイ向け。"
+        },
+        "maxNamedNpcCount": {
+          "type": "integer",
+          "default": 10,
+          "description": "管理する名前付きNPCの上限。少人数の物語なら小さくする。",
+          "minimum": 1,
+          "maximum": 5000
+        },
+        "maxMemoriesPerNpc": {
+          "type": "integer",
+          "default": 10,
+          "description": "NPCごとの記憶上限。大きいほど記憶と文脈量が増える。",
+          "minimum": 1,
+          "maximum": 5000
+        },
+        "enableGuildMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "ギルドとして遊ぶ機能の親スイッチ。依頼やパーティの前に有効にする。"
+        },
+        "enableGuildRequests": {
+          "type": "boolean",
+          "default": false,
+          "description": "ギルド依頼を使う。enableGuildModeがtrueであること。"
+        },
+        "enableGuildParties": {
+          "type": "boolean",
+          "default": false,
+          "description": "ギルドのパーティを使う。enableGuildModeがtrueであること。"
+        },
+        "enableRivalGuild": {
+          "type": "boolean",
+          "default": false,
+          "description": "ライバルギルドを使う。enableGuildModeがtrueであること。"
+        },
+        "aiParticipationPolicy": {
+          "type": "string",
+          "default": "always",
+          "description": "alwaysは通常のAI参加、onDemandは必要時、simulationOnlyはシミュレーション中心。通常always。",
+          "enum": [
+            "always",
+            "onDemand",
+            "simulationOnly"
+          ]
+        },
+        "narrativeMemoryMode": {
+          "type": "string",
+          "default": "auto",
+          "description": "auto: automatically record evidenced memories; review: approve suggestions first",
+          "enum": [
+            "auto",
+            "review"
+          ]
+        }
+      },
+      "required": []
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "textAdventure.bgm.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "BGMの再生。素材がなければ音は鳴らない。"
+        },
+        "textAdventure.bgm.volume": {
+          "type": "number",
+          "default": 50,
+          "description": "BGM音量、0〜100。",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "textAdventure.sfx.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "効果音の再生。素材がなければ音は鳴らない。"
+        },
+        "textAdventure.sfx.volume": {
+          "type": "number",
+          "default": 70,
+          "description": "効果音音量、0〜100。",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "textAdventure.promptBudget.mode": {
+          "type": "string",
+          "default": "auto",
+          "description": "compactは軽量、balancedは標準、expandedは文脈重視。autoは既存の接続に合わせる。",
+          "enum": [
+            "auto",
+            "compact",
+            "balanced",
+            "expanded"
+          ]
+        },
+        "textAdventure.promptBudget.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "description": "文脈予算の上書き。0はモードに任せる。通常0を維持する。",
+          "minimum": 0
+        },
+        "textAdventure.pacing.hintInPrompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "展開の偏りをAIへ伝える。探索・会話・戦闘の偏りを減らしたいときにtrue。"
+        }
+      },
+      "required": []
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      },
+      "minItems": 1,
+      "maxItems": 20
+    }
+  },
+  "required": [
+    "format",
+    "scenario",
+    "gameRules",
+    "settings",
+    "recommendations"
+  ]
+}

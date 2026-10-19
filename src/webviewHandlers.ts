@@ -544,11 +544,11 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             await deps.archiveSaga();
             break;
         case 'undoLastTurn':
-            await deps.handleUndoLastTurn();
+            if (await confirmDestructive(t('webview.narrative.undoScope'), t('extension.confirm.rewindButton'))) await deps.handleUndoLastTurn();
             break;
         case 'restoreToTurn':
             if (typeof message.entryId === 'string') {
-                if (await confirmDestructive(t('extension.confirm.rewind'), t('extension.confirm.rewindButton'))) {
+                if (await confirmDestructive(t('webview.narrative.undoScope'), t('extension.confirm.rewindButton'))) {
                     await deps.handleRestoreToTurn(message.entryId);
                 }
             }
@@ -565,7 +565,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
         }
         case 'restoreCheckpoint':
             if (typeof message.checkpointId === 'string' && isValidCheckpointId(message.checkpointId)) {
-                await deps.handleRestoreCheckpoint(message.checkpointId);
+                if (await confirmDestructive(t('webview.narrative.restoreScope'), t('extension.confirm.rewindButton'))) await deps.handleRestoreCheckpoint(message.checkpointId);
             }
             break;
         case 'deleteCheckpoint':
@@ -605,7 +605,7 @@ export async function handleWebviewMessage(message: WebviewMessage, deps: Webvie
             break;
         case 'branchFromEntry':
             if (typeof message.entryId === 'string' && isValidEntryId(message.entryId)) {
-                if (await confirmDestructive(t('extension.confirm.rewind'), t('extension.confirm.rewindButton'))) {
+                if (await confirmDestructive(t('webview.narrative.undoScope'), t('extension.confirm.rewindButton'))) {
                     await deps.handleRestoreToTurn(message.entryId);
                 }
             }

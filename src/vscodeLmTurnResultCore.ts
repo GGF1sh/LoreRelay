@@ -10,6 +10,8 @@ import { isValidEventId } from './worldEventLogCore';
 import type { DiceLedgerEntry, TurnResult, TurnResultPromptReceiptMeta } from './types/TurnResult';
 
 export interface VscodeLmGmJson {
+    narrativeMemory?: unknown;
+    narrativeMemoryProposals?: unknown[];
     entries?: Array<{ id?: string; role?: string; sender?: string; content?: string; imagePrompt?: string; image?: string }>;
     status?: Record<string, unknown>;
     options?: string[];
@@ -28,6 +30,7 @@ export interface VscodeLmGmJson {
     resolvedQuests?: unknown;
     reputationOps?: unknown;
     turn_result?: {
+        narrativeMemoryProposals?: unknown[];
         elapsedWorldTurns?: unknown;
         tradeOps?: unknown;
         resolvedQuests?: unknown;
@@ -117,7 +120,7 @@ export function mergeVscodeLmGameState(
     const merged: Record<string, unknown> = {};
 
     if (llmJson) {
-        const { entries: _e, profileUpdates: _p, encounterOps: _encounterOps,
+        const { entries: _e, profileUpdates: _p, narrativeMemoryProposals: _nm, narrativeMemory: _ignoredMemory, encounterOps: _encounterOps,
             elapsedWorldTurns: _elapsed, tradeOps: _trade, resolvedQuests: _quests,
             reputationOps: _reputation, turn_result: _turnResult, ...rest } = llmJson;
         Object.assign(merged, rest);
@@ -241,5 +244,7 @@ export function buildVscodeLmTurnResult(params: {
         if (resolved.length) { turnResult.resolvedQuests = [...new Set(resolved)]; }
     }
 
+    const proposals = params.llmJson?.turn_result?.narrativeMemoryProposals ?? params.llmJson?.narrativeMemoryProposals;
+    if (Array.isArray(proposals)) turnResult.narrativeMemoryProposals = proposals.slice(0, 8);
     return attachTurnResultPromptReceipt(turnResult, params.promptReceipt);
 }

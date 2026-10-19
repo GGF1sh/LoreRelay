@@ -248,6 +248,12 @@ function renderMessage(entry) {
     };
     if (entry.role === 'gm') actionsBar.appendChild(genImgBtn);
 
+    const memoryBtn = document.createElement('button');
+    memoryBtn.className = 'msg-action-btn';
+    memoryBtn.textContent = T('webview.narrative.entryMenu');
+    memoryBtn.onclick = () => window.narrativeMemoryEntry?.(entry.id);
+    actionsBar.appendChild(memoryBtn);
+
     // 🚩 チェックポイント
     const cpBtn = document.createElement('button');
     cpBtn.className = 'msg-action-btn';

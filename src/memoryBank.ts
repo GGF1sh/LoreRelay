@@ -3,6 +3,7 @@
  * 日本語 RAG 強化: 文字種別トークナイザ（カタカナ語 / 漢字 n-gram / ひらがな）+ IDF 重み付け。
  */
 import * as fs from 'fs';
+import { correctedSourceIds } from './narrativeMemoryCore';
 import * as path from 'path';
 
 /** メモリチャンク1件（Saga / ロアブック / 動的プロフィール / 履歴など） */
@@ -266,7 +267,9 @@ export function loadMemoryChunks(ws: string): MemoryChunk[] {
         }
     }
 
-    const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'));
+    const state = readJsonFile<Record<string, unknown>>(path.join(ws, 'game_state.json')) ?? {};
+    const corrected = correctedSourceIds(state);
+    const hist = readJsonFile<Array<Record<string, unknown>>>(path.join(ws, 'game_history.json'))?.map(e => corrected.has(String(e.id)) ? { ...e, excludedFromPrompt: true } : e);
     if (Array.isArray(hist)) {
         // The former 30-entry window forgot a meeting after about 15 exchanges.
         // Search retained dialogue within the existing corpus bound, without

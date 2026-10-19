@@ -28,6 +28,7 @@ export const GUILD_TURN_AUTHORITATIVE_ROOT_KEYS = [
 
 /** GM turn_result commit may overwrite these even when disk revision advanced. */
 export const TURN_AUTHORITATIVE_ROOT_KEYS = [
+    'narrativeMemory',
     'status',
     'options',
     'theme',

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { narrativePrompt, correctedSourceIds } from './narrativeMemoryCore';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
@@ -337,6 +338,9 @@ function loadStorySummary(): string {
     if (!state) {
         return '';
     }
+    // The synopsis has no per-fact source map; it may still contain a corrected
+    // description. Keep it on disk but do not rehydrate it as current context.
+    if (correctedSourceIds(state).size) return '';
     return typeof state.summary === 'string' ? state.summary.trim() : '';
 }
 
@@ -559,10 +563,10 @@ function formatMemoryPromptFromChunks(matches: MemoryChunk[], maxCharsPerMatch: 
 }
 
 function buildMemoryContextForPrompt(ws: string, playerAction: string, hintText: string, policy: PromptBudgetPolicy): string {
-    return formatMemoryPromptFromChunks(
-        resolveMemoryMatches(ws, playerAction, hintText, policy),
-        policy.memoryChars
-    );
+    const state = readGameStateForPrompt() ?? {};
+    const curated = narrativePrompt(state, playerAction, policy.memoryChars);
+    const old = formatMemoryPromptFromChunks(resolveMemoryMatches(ws, playerAction, hintText, policy), policy.memoryChars);
+    return curated ? (curated + '\n' + old.slice(0, Math.max(0, policy.memoryChars - curated.length - 1))).slice(0, policy.memoryChars) : old;
 }
 
 function relationshipLabel(rel: RelationshipType): string {
@@ -999,7 +1003,7 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
     const revealInPrompt = vscode.workspace.getConfiguration('textAdventure.cartography')
         .get<boolean>('revealInPrompt', false);
     if (revealInPrompt) {
-        lines.push(CARTOGRAPHY_REVEAL_PROMPT_LINE);
+        // Not advertised: common connected-GM adapter does not accept this operation.
     }
 
     const rules = loadGameRules();
@@ -1015,9 +1019,9 @@ function buildWorldForgePromptContext(policy: PromptBudgetPolicy): string {
         }
     }
     if (rules.enableNpcAgency && rules.enableNpcRegistry) {
-        lines.push(NPC_AGENCY_OPS_PROMPT_LINE);
+        // Not advertised: common connected-GM adapter does not accept this operation.
         if (rules.enableNpcRelationships) {
-            lines.push(RELATIONSHIP_OPS_PROMPT_LINE);
+            // Not advertised: common connected-GM adapter does not accept this operation.
         }
     }
 
@@ -1300,7 +1304,7 @@ export function getTriggeredLoreLabels(hintText: string, maxEntries = 5): string
 
 function buildHintText(playerAction: string, policy: PromptBudgetPolicy): string {
     const recent = getGameEntryHistory()
-        .filter((e) => !e.excludedFromPrompt)
+        .filter((e) => !e.excludedFromPrompt && !correctedSourceIds(readGameStateForPrompt() ?? {}).has(e.id))
         .slice(-3)
         .map((e) => e.content);
     return buildHintTextFromContents(recent, playerAction, policy.hintChars);

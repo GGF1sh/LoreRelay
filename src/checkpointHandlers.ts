@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { reconcileNarrativeMemory } from './narrativeMemoryCore';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { GameEntry } from './types/GameState';
@@ -306,6 +307,7 @@ async function writeRestoredGameState(
         delete newState[key];
     }
     Object.assign(newState, attachCombatBattleHistoryToSnapshot(base, options?.combatBattleHistory));
+    if (current.narrativeMemory) newState.narrativeMemory = reconcileNarrativeMemory(current.narrativeMemory, getGameEntryHistory());
     if (Array.isArray(options?.combatBattleHistory) && options.combatBattleHistory.length === 0) {
         delete newState.combatBattleHistory;
     }

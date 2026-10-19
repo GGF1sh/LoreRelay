@@ -1,6 +1,7 @@
 import { handleWaterNavigation } from './waterNavigationHost';
 import { clearVehicleStateCache } from './vehicleState';
 import * as vscode from 'vscode';
+import { handleNarrativeMemory } from './narrativeMemoryHost';
 import { handleWorldMapAsset } from './cartographyAssetHost';
 import { handleWorldMapModels } from './imageGenRunner';
 import { loadImageGenConfig } from './imageGenConfig';
@@ -13,6 +14,7 @@ import { renderWebviewHtml } from './webviewHtmlCore';
 import { randomBytes } from 'crypto';
 import { processDiceMacros } from './diceRoller';
 import { loadGameRules, saveGameRules, clearGameRulesCache, type GameRules } from './gameRules';
+import { initializeBrowserAdventure } from './browserAdventure';
 import { setEventExcluded } from './gameRulesCore';
 import { worldPacingPreset } from './worldPacingCore';
 import { isValidDomainEventId } from './domainCore';
@@ -394,6 +396,10 @@ async function requireModCanonicalMutationAllowed(showError = true): Promise<boo
 }
 
 async function dispatchGateCheckedWebviewMessage(message: WebviewMessage): Promise<void> {
+    if (message.type === 'narrativeMemory') {
+        await handleNarrativeMemory(message, deterministicWorkspaceMutationGate, value => { void panel?.webview.postMessage(value); }, requireModCanonicalMutationAllowed);
+        return;
+    }
     if (message.type === 'waterNavigation') {
         const workspace = getWorkspacePath();
         if (workspace && panel && await requireModCanonicalMutationAllowed()) {
@@ -958,6 +964,11 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+        void initializeBrowserAdventure(context);
+    }));
+    void initializeBrowserAdventure(context);
 
     // Auto check updates once a day (silent)
     const lastCheck = context.globalState.get<number>('lorerelay.lastUpdateCheck', 0);

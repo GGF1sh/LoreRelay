@@ -33,3 +33,4 @@ memories/
 __pycache__/
 *.pyc
 .test-runs/
+Adventures/

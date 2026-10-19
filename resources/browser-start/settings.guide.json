@@ -1,0 +1,112 @@
+{
+  "criteria": [
+    "ユーザーの希望を優先し、希望と無関係な項目はpresetまたは既定値を維持する。",
+    "環境が不明ならlightweightを選び、画像・音声の自動生成や追加サービスを有効化しない。",
+    "settingsは機械の接続設定ではなく、この冒険だけの表示・文脈量設定である。",
+    "promptBudgetはAIへ渡す文脈量であり、返答の長さそのものではない。返答の長さや文体の希望はscenario.setup.toneにも記述する。",
+    "数値を増やすと管理対象や文脈が増え、処理量が増えることがある。軽快さ重視なら小さくする。",
+    "両立できない希望はrecommendationsで妥協と理由を説明する。",
+    "世界観と主人公と導入は同じ内容に揃える。setup.playerCharacterは実際に登録される主人公であり、必須。",
+    "定義されているキーと値だけを出力する。APIキー、接続先、ファイルパス、コマンドを出力しない。"
+  ],
+  "gameRules": {
+    "enableRpgMechanics": "HP/MPや判定を使う。会話中心ならfalse、ルールのある冒険ならtrue。",
+    "defaultMaxHp": "主人公の標準最大HP。高いほど長期戦向け。初期のconditionも整合させる。",
+    "defaultMaxMp": "主人公の標準最大MP。魔法を多用する世界では大きくする。",
+    "diceDifficulty": "Easyは穏やかな判定、Normalは標準、Hardは厳しい判定。",
+    "skillCommentary": "技能に関する補足を表示する。説明が多すぎるときはfalse。",
+    "backgroundSimulation": "背景世界を進める。軽量・会話中心ならfalse。",
+    "autoLorebookGrowth": "物語から設定情報を蓄積する。長期プレイ向けだが管理量が増える。",
+    "enableNpcRegistry": "NPCを継続して管理する。人物関係重視ならtrue。",
+    "enableWorldForge": "構造化した世界を使う。初版のJSONには詳細地理は含めないので通常false。",
+    "enableEmergentSimulation": "自律的な世界の変化を使う。軽量な開始ではfalse。",
+    "simIntervalTurns": "背景シミュレーション間隔。大きいほど実行頻度が減る。",
+    "enableFactionReputation": "勢力との評判を扱う。政治・勢力争い向け。",
+    "enableTravelEncounters": "移動中の遭遇を使う。探索重視ならtrue。",
+    "travelEncounterDensity": "lowは控えめ、mediumは標準、highは頻繁な遭遇。",
+    "economyProfile": "abundantからbarrenへ資源が希少になる。気軽な冒険はplentifulまたはnormal。",
+    "enableCommerce": "交易のルールを使う。商人として遊ぶときにtrue。",
+    "enableCommerceUi": "交易画面を表示する。enableCommerceがtrueのときに使う。",
+    "enableStoryCombat": "物語内の戦闘を有効にする。会話中心ならfalse。",
+    "merchantTravelMode": "instant_freeは簡易移動。world_timeは世界時間を使う移動。",
+    "playerRole": "merchantは商人、adventurerは冒険者、retainerは家臣、smithは鍛冶師、rulerは統治者。",
+    "enableNpcAgency": "NPCの自律行動を使う。人物管理と処理量が増える。",
+    "enableNpcRelationships": "人物間の関係を扱う。会話や交流中心の長期プレイ向け。",
+    "maxNamedNpcCount": "管理する名前付きNPCの上限。少人数の物語なら小さくする。",
+    "maxMemoriesPerNpc": "NPCごとの記憶上限。大きいほど記憶と文脈量が増える。",
+    "enableGuildMode": "ギルドとして遊ぶ機能の親スイッチ。依頼やパーティの前に有効にする。",
+    "enableGuildRequests": "ギルド依頼を使う。enableGuildModeがtrueであること。",
+    "enableGuildParties": "ギルドのパーティを使う。enableGuildModeがtrueであること。",
+    "enableRivalGuild": "ライバルギルドを使う。enableGuildModeがtrueであること。",
+    "aiParticipationPolicy": "alwaysは通常のAI参加、onDemandは必要時、simulationOnlyはシミュレーション中心。通常always。",
+    "narrativeMemoryMode": "auto: automatically record evidenced memories; review: approve suggestions first"
+  },
+  "settings": {
+    "textAdventure.bgm.enabled": "BGMの再生。素材がなければ音は鳴らない。",
+    "textAdventure.bgm.volume": "BGM音量、0〜100。",
+    "textAdventure.sfx.enabled": "効果音の再生。素材がなければ音は鳴らない。",
+    "textAdventure.sfx.volume": "効果音音量、0〜100。",
+    "textAdventure.promptBudget.mode": "compactは軽量、balancedは標準、expandedは文脈重視。autoは既存の接続に合わせる。",
+    "textAdventure.promptBudget.maxTokens": "文脈予算の上書き。0はモードに任せる。通常0を維持する。",
+    "textAdventure.pacing.hintInPrompt": "展開の偏りをAIへ伝える。探索・会話・戦闘の偏りを減らしたいときにtrue。"
+  },
+  "presets": {
+    "lightweight": {
+      "description": "環境不明・軽快な開始向け。追加サービスを必要としない。",
+      "gameRules": {
+        "enableRpgMechanics": false,
+        "backgroundSimulation": false,
+        "enableNpcRegistry": false,
+        "enableStoryCombat": false,
+        "aiParticipationPolicy": "always"
+      },
+      "settings": {
+        "textAdventure.promptBudget.mode": "compact",
+        "textAdventure.promptBudget.maxTokens": 0,
+        "textAdventure.bgm.enabled": false,
+        "textAdventure.sfx.enabled": false
+      }
+    },
+    "conversation": {
+      "description": "会話と人物関係中心。戦闘と背景シミュレーションは控える。",
+      "gameRules": {
+        "enableRpgMechanics": false,
+        "enableNpcRegistry": true,
+        "enableNpcRelationships": true,
+        "maxNamedNpcCount": 10,
+        "maxMemoriesPerNpc": 10,
+        "enableStoryCombat": false
+      },
+      "settings": {
+        "textAdventure.promptBudget.mode": "balanced"
+      }
+    },
+    "exploration": {
+      "description": "穏やかな探索と遭遇中心。",
+      "gameRules": {
+        "enableRpgMechanics": true,
+        "diceDifficulty": "Easy",
+        "enableTravelEncounters": true,
+        "travelEncounterDensity": "low",
+        "playerRole": "adventurer"
+      },
+      "settings": {
+        "textAdventure.promptBudget.mode": "auto",
+        "textAdventure.pacing.hintInPrompt": true
+      }
+    },
+    "merchant": {
+      "description": "交易中心。初期の移動は簡易にする。",
+      "gameRules": {
+        "enableCommerce": true,
+        "enableCommerceUi": true,
+        "economyProfile": "plentiful",
+        "merchantTravelMode": "instant_free",
+        "playerRole": "merchant"
+      },
+      "settings": {
+        "textAdventure.promptBudget.mode": "auto"
+      }
+    }
+  }
+}
